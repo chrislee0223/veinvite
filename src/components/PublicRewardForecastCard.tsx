@@ -64,6 +64,9 @@ const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
   `veinvite_reward_forecast_${REWARD_FORECAST_MODEL_VERSION}`;
+// Existing v2.1 storage sometimes held the v2.2 model. Restore it only after
+// verifying its actual model and original timestamps, not the legacy key name.
+const LEGACY_FORECAST_STORAGE_KEY = 'veinvite_reward_forecast_v2_1_cohort';
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
@@ -199,9 +202,13 @@ function readPersistedForecast(): RewardForecastResponse | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    const raw = window.localStorage.getItem(
+    const currentRaw = window.localStorage.getItem(
       PERSISTED_FORECAST_STORAGE_KEY,
     );
+    const legacyRaw = currentRaw ? null : window.localStorage.getItem(
+      LEGACY_FORECAST_STORAGE_KEY,
+    );
+    const raw = currentRaw ?? legacyRaw;
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<PersistedRewardForecast>;
@@ -221,9 +228,20 @@ function readPersistedForecast(): RewardForecastResponse | null {
       })
     ) {
       window.localStorage.removeItem(
-        PERSISTED_FORECAST_STORAGE_KEY,
+        currentRaw ? PERSISTED_FORECAST_STORAGE_KEY : LEGACY_FORECAST_STORAGE_KEY,
       );
       return null;
+    }
+
+    if (legacyRaw) {
+      // Move only an already validated snapshot, preserving its original
+      // savedAt and generatedAt. Migration must not re-age the estimate.
+      try {
+        window.localStorage.setItem(PERSISTED_FORECAST_STORAGE_KEY, raw);
+        window.localStorage.removeItem(LEGACY_FORECAST_STORAGE_KEY);
+      } catch {
+        // A read-only browser cache is still usable for this render.
+      }
     }
 
     return {
