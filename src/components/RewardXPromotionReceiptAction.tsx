@@ -8,7 +8,6 @@ import {
 } from 'react';
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
-import { VEINVITE_SITE_URL } from '@/lib/socialShareCard';
 import {
   formatRewardShareAmount,
 } from '@/lib/rewards/rewardReceiptShare';
@@ -360,11 +359,10 @@ export function RewardXPromotionReceiptAction({
     );
   }
 
-  const promotionShareBaseUrl =
-    rewardShareUrl || VEINVITE_SITE_URL;
   const canOpenShare =
     promotion.state === 'OPEN' &&
-    Boolean(promotion.shareToken);
+    Boolean(promotion.shareToken) &&
+    Boolean(rewardShareUrl);
 
   let promotionIntentUrl = '';
   if (canOpenShare && promotion.shareToken) {
@@ -373,8 +371,7 @@ export function RewardXPromotionReceiptAction({
         buildRewardXPromotionIntentUrl({
           locale,
           baseRewardAmountB3tr,
-          rewardShareUrl:
-            promotionShareBaseUrl,
+          rewardShareUrl,
           shareToken: promotion.shareToken,
         });
     } catch (error) {
