@@ -28,7 +28,7 @@ import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreferenc
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
-const WALLET_SIGNATURE_TIMEOUT_MS = 15_000;
+const WALLET_SIGNATURE_TIMEOUT_MS = 45_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
 const WALLET_PROVIDER_SETTLE_TIMEOUT_MS = 5_000;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
@@ -375,9 +375,6 @@ export function useWalletAuthentication() {
               | 'certificate'
               | 'message'
               | undefined;
-            let retryCertificateProof:
-              | (() => Promise<void>)
-              | null = null;
 
             failureStage = 'AUTH_WALLET_PROVIDER';
             if (
@@ -414,7 +411,7 @@ export function useWalletAuthentication() {
               );
               assertStillCurrent();
 
-              const signCertificateFallback =
+              const signCertificateProof =
                 async () => {
                   const certResponse =
                     await requestCertificate(
@@ -459,16 +456,11 @@ export function useWalletAuthentication() {
                     'certificate';
                 };
 
-              // VeWorld's EIP-712 signing path produced typed-signer
-              // mismatches in production for otherwise connected accounts.
-              // Use DAppKit's native VeChain certificate challenge instead.
-              // The server checks the signer, origin, nonce-bound message,
-              // timestamp and cryptographic signature before issuing a cookie.
-              // This does NOT admit an unverified wallet or bypass Sybil checks.
-              retryCertificateProof =
-                signCertificateFallback;
+              // Native VeChain certificates remain the primary DAppKit proof.
+              // On a cryptographic rejection only, a separately verified
+              // EIP-191 proof may be offered as a one-time recovery.
               failureStage = 'AUTH_WALLET_SIGNATURE';
-              await signCertificateFallback();
+              await signCertificateProof();
             } else {
               failureStage = 'AUTH_WALLET_SIGNATURE';
               signature =
@@ -538,22 +530,20 @@ export function useWalletAuthentication() {
             let verification =
               await verifyCurrentProof();
 
-            // A VeWorld certificate can rarely come back with a proof that
-            // fails SDK cryptographic verification even though its signer,
-            // domain, timestamp and challenge payload are otherwise valid.
-            // The failed challenge is still unused, so retry only the wallet
-            // certificate once. Do not create or invalidate a challenge here:
-            // that would add a second race with wallet/provider reconciliation.
+            // Some VeWorld clients return a well-formed certificate whose
+            // native proof fails SDK cryptographic verification. Retrying
+            // the same certificate method can fail repeatedly. Offer ONE
+            // alternate, independently verified EIP-191 message signature
+            // over the *same* server nonce-bound challenge, never an auth
+            // bypass or a new unbound challenge. A wallet which cannot
+            // supply a valid message signature remains unauthenticated.
             if (
               !verification.response.ok &&
               verification.body.code ===
                 'AUTH_CERTIFICATE_SIGNATURE_INVALID' &&
-              proofType === 'certificate' &&
-              retryCertificateProof
+              proofType === 'certificate'
             ) {
-              failureStage =
-                'AUTH_WALLET_SIGNATURE';
-
+              failureStage = 'AUTH_WALLET_PROVIDER';
               await withTimeout(
                 waitForWalletProviderReconciliation(),
                 WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
@@ -564,38 +554,40 @@ export function useWalletAuthentication() {
               const retrySigner =
                 account?.address
                   ?.trim()
-                  .toLowerCase() ||
-                walletAddress;
+                  .toLowerCase() || walletAddress;
               const retryDappSigner =
                 dappKitAccount
                   ?.trim()
-                  .toLowerCase() ||
-                null;
+                  .toLowerCase() || null;
 
               if (
                 retrySigner !== walletAddress ||
-                retryDappSigner !==
-                  walletAddress
+                retryDappSigner !== walletAddress
               ) {
                 throw new Error(
                   'Wallet connection changed during verification. Please reconnect the wallet and try again.',
                 );
               }
 
-              await wait(
-                WALLET_SIGNATURE_SETTLE_MS,
+              await wait(WALLET_SIGNATURE_SETTLE_MS);
+              assertStillCurrent();
+
+              failureStage = 'AUTH_WALLET_SIGNATURE';
+              signature = await withTimeout(
+                signMessage(challenge.message),
+                WALLET_SIGNATURE_TIMEOUT_MS,
+                'Wallet message signature request timed out.',
               );
               assertStillCurrent();
-
-              // Exactly one recovery prompt. A second invalid proof is returned
-              // to the user instead of opening an authentication loop.
-              await retryCertificateProof();
-
-              assertStillCurrent();
-              failureStage =
-                'AUTH_SERVER_VERIFICATION';
-              verification =
-                await verifyCurrentProof();
+              if (!signature) {
+                throw new Error(
+                  'Wallet message verification proof was not returned.',
+                );
+              }
+              certificate = undefined;
+              proofType = 'message';
+              failureStage = 'AUTH_SERVER_VERIFICATION';
+              verification = await verifyCurrentProof();
             }
 
             const verifyResponse =
