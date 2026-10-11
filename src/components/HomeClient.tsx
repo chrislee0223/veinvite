@@ -1017,6 +1017,9 @@ export function HomeClient() {
                   );
                   const promotionAmount =
                     invite.rewardPromotionAmountWei !== undefined &&
+                    /^\d+$/u.test(
+                      invite.rewardPromotionAmountWei,
+                    ) &&
                     BigInt(invite.rewardPromotionAmountWei) > 0n
                       ? formatB3trWei(
                           invite.rewardPromotionAmountWei,
