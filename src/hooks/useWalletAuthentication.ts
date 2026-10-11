@@ -63,6 +63,17 @@ type VerifyResponse = {
 
 // A stable, non-secret support code is more useful than a generic failure
 // screen. Preserve the original error message for existing recovery paths.
+// Support staff can now distinguish referral-login failures from Home login
+// without collecting wallet addresses, referral tokens, or full URLs.
+function walletAuthAnalyticsFlow(): 'permanent_referral' | 'legacy_invite' | 'home' | 'none' {
+  if (typeof window === 'undefined') return 'none';
+  const pathname = window.location.pathname;
+  if (pathname.startsWith('/r/')) return 'permanent_referral';
+  if (pathname.startsWith('/i/')) return 'legacy_invite';
+  if (pathname === '/') return 'home';
+  return 'none';
+}
+
 export class WalletAuthenticationFailure extends Error {
   readonly code: string;
   readonly referenceId: string | null;
@@ -664,6 +675,8 @@ export function useWalletAuthentication() {
           reportProductAnalyticsEvent({
             eventName: 'wallet_auth_succeeded',
             outcome: 'success',
+            // Record only the type of entry route; never the raw invite key.
+            flowKey: walletAuthAnalyticsFlow(),
           });
         } catch (error) {
           if (isCancelledAuthentication(error)) {
@@ -681,6 +694,7 @@ export function useWalletAuthentication() {
             eventName: 'wallet_auth_failed',
             outcome: 'failure',
             failureCode: 'wallet_auth',
+            flowKey: walletAuthAnalyticsFlow(),
           });
 
           throw error instanceof WalletAuthenticationFailure
