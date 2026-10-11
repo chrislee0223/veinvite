@@ -46,15 +46,18 @@ test('promotion state, immediate open, and Post submission use no-store server A
   assert.match(openRoute, /reward_x_promotion_enabled/);
 });
 
-test('feature loading and failures preserve the existing ordinary X share UX', () => {
+test('loading preserves the ordinary share shape but blocks tokenless share races', () => {
   assert.match(
     action,
-    /if \(snapshot === undefined\) \{[\s\S]*return ordinaryShare\(\)/,
+    /if \(snapshot === undefined\)[\s\S]*className="notificationXShare"[\s\S]*disabled[\s\S]*aria-busy="true"/,
   );
-  assert.match(action, /if \(loadFailed\) \{[\s\S]*return ordinaryShare\(\)/);
-  assert.doesNotMatch(
+  assert.match(
     action,
-    /snapshot === undefined[\s\S]{0,320}promotionLoading/,
+    /rewardReceiptShareLabel\(locale\)/,
+  );
+  assert.match(
+    action,
+    /if \(loadFailed\) \{[\s\S]*return ordinaryShare\(\)/,
   );
 });
 
