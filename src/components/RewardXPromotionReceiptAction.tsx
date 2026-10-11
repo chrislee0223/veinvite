@@ -152,24 +152,72 @@ export function RewardXPromotionReceiptAction({
   useEffect(() => {
     if (loadFailed || !snapshot) return;
 
+    const promotion =
+      snapshot.promotion;
     const promotionState =
-      snapshot.promotion?.state ?? null;
-    const fastPoll =
+      promotion?.state ?? null;
+    const now = Date.now();
+    let delayMs: number | null = null;
+
+    if (
       snapshot.offerStatus === 'PREPARING' ||
       promotionState === 'VERIFYING' ||
       promotionState === 'REVIEW_REQUIRED' ||
-      promotionState === 'PAYOUT_PENDING';
-    const slowPoll =
-      promotionState === 'RETENTION';
+      promotionState === 'PAYOUT_PENDING'
+    ) {
+      delayMs = 30_000;
+    } else if (
+      promotion &&
+      promotionState === 'OPEN'
+    ) {
+      delayMs = Math.max(
+        1_000,
+        Date.parse(promotion.postDeadlineAt) -
+          now +
+          1_000,
+      );
+    } else if (
+      promotion &&
+      promotionState === 'SUBMISSION_GRACE'
+    ) {
+      delayMs = Math.max(
+        1_000,
+        Date.parse(promotion.postDeadlineAt) +
+          promotion.submissionGraceSeconds *
+            1_000 -
+          now +
+          1_000,
+      );
+    } else if (
+      promotion &&
+      promotionState === 'RETENTION'
+    ) {
+      const verifyAfter =
+        promotion.verifyAfter
+          ? Date.parse(
+              promotion.verifyAfter,
+            )
+          : Number.NaN;
 
-    if (!fastPoll && !slowPoll) return;
+      delayMs =
+        Number.isFinite(verifyAfter) &&
+        verifyAfter > now
+          ? verifyAfter - now + 1_000
+          : 60_000;
+    }
+
+    if (delayMs === null) return;
 
     const timer = window.setTimeout(
       () => void refresh(),
-      slowPoll ? 300_000 : 30_000,
+      Math.min(
+        delayMs,
+        2_147_000_000,
+      ),
     );
 
-    return () => window.clearTimeout(timer);
+    return () =>
+      window.clearTimeout(timer);
   }, [
     loadFailed,
     refresh,
