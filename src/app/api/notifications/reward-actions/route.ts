@@ -39,6 +39,14 @@ type SubmissionRow = {
   tx_id: string | null;
 };
 
+type RewardXPromotionSplitRow = {
+  invite_code: string;
+  mode: string;
+  reservation_amount_wei: string | number;
+  base_amount_wei: string | number;
+  promotion_amount_wei: string | number;
+};
+
 type InvitationRow = {
   invite_code: string;
   invitee_wallet: string | null;
@@ -60,10 +68,17 @@ function noStoreJson(body: unknown, init?: ResponseInit) {
   });
 }
 
-function positiveWei(value: string | number | null): string | null {
+function integerWei(
+  value: string | number | null | undefined,
+): string | null {
   if (value === null || value === undefined) return null;
   const normalized = String(value);
-  if (!/^\d+$/u.test(normalized)) return null;
+  return /^\d+$/u.test(normalized) ? normalized : null;
+}
+
+function positiveWei(value: string | number | null): string | null {
+  const normalized = integerWei(value);
+  if (normalized === null) return null;
 
   try {
     return BigInt(normalized) > 0n ? normalized : null;
@@ -150,6 +165,33 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
+    const promotionResult = await supabaseAdmin
+      .from('reward_x_promotion_splits')
+      .select(
+        'invite_code, mode, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+      )
+      .in('invite_code', inviteCodes)
+      .eq('mode', 'LIVE');
+
+    const promotionLookupAvailable =
+      promotionResult.error === null;
+
+    if (promotionResult.error) {
+      console.warn(
+        'Notification reward X promotion display enrichment unavailable:',
+        promotionResult.error,
+      );
+    }
+
+    const promotionSplitByInvite =
+      new Map<string, RewardXPromotionSplitRow>(
+        (
+          promotionLookupAvailable
+            ? (promotionResult.data ?? []) as RewardXPromotionSplitRow[]
+            : []
+        ).map((row) => [row.invite_code, row]),
+      );
+
     const clearanceIds = Array.from(new Set(
       queueRows
         .map((row) => row.sybil_clearance_id)
@@ -221,6 +263,45 @@ export async function GET(request: NextRequest) {
     const actions: RewardActionItem[] = queueRows.flatMap((queue) => {
       const invitation = invitationByCode.get(queue.invite_code);
       const amount = positiveWei(queue.reserved_amount_wei);
+      let claimAmountWei: string | null =
+        promotionLookupAvailable
+          ? amount
+          : null;
+      let promotionAmountWei: string | null = null;
+
+      const promotionSplit =
+        promotionSplitByInvite.get(queue.invite_code);
+
+      if (promotionSplit?.mode === 'LIVE' && amount) {
+        const splitReservationWei =
+          integerWei(promotionSplit.reservation_amount_wei);
+        const baseAmountWei =
+          integerWei(promotionSplit.base_amount_wei);
+        const splitPromotionWei =
+          integerWei(promotionSplit.promotion_amount_wei);
+
+        const validSplit = Boolean(
+          splitReservationWei === amount &&
+          baseAmountWei &&
+          BigInt(baseAmountWei) > 0n &&
+          splitPromotionWei !== null &&
+          BigInt(baseAmountWei ?? '0') +
+            BigInt(splitPromotionWei ?? '0') ===
+            BigInt(amount),
+        );
+
+        if (validSplit) {
+          claimAmountWei = baseAmountWei;
+          promotionAmountWei = splitPromotionWei;
+        } else {
+          console.error(
+            'Invalid LIVE X promotion split in reward action display:',
+            queue.invite_code,
+          );
+          claimAmountWei = null;
+          promotionAmountWei = null;
+        }
+      }
 
       const v2Clearance = queue.sybil_clearance_id
         ? validV2ClearanceById.get(queue.sybil_clearance_id) ?? null
@@ -276,6 +357,12 @@ export async function GET(request: NextRequest) {
         inviteCode: queue.invite_code,
         status: queue.status,
         reservedAmountWei: amount,
+        ...(claimAmountWei
+          ? { claimAmountWei }
+          : {}),
+        ...(promotionAmountWei !== null
+          ? { promotionAmountWei }
+          : {}),
         reservedAt: queue.reserved_at,
         friendWallet:
           invitation.invitee_wallet?.toLowerCase() ?? null,
