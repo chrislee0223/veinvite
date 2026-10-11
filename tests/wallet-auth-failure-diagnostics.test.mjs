@@ -94,12 +94,10 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   );
   assert.match(
     hook,
-    /retryCertificateProof =[\s\S]*signCertificateFallback/,
+    /proofType = 'message';[\s\S]*verification = await verifyCurrentProof\(\)/,
   );
-  assert.match(
-    hook,
-    /Exactly one recovery prompt/,
-  );
+  assert.match(hook, /signature = await withTimeout\(\s*signMessage\(challenge\.message\)/);
+  assert.doesNotMatch(hook, /await retryCertificateProof\(\)/);
   assert.doesNotMatch(
     hook,
     /AUTH_CERTIFICATE_SIGNATURE_INVALID[\s\S]{0,1200}\/api\/auth\/challenge/,
@@ -164,39 +162,44 @@ test('supplemental wallet language packs include all four recovery and participa
 });
 
 
-test('certificate recovery keeps the original challenge and retries only the wallet proof once', async () => {
+test('certificate failures offer one message proof over the original challenge, without weakening session checks', async () => {
   const hook = await readFile(
     new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url),
+    'utf8',
+  );
+  const route = await readFile(
+    new URL('../src/app/api/auth/verify/route.ts', import.meta.url),
     'utf8',
   );
 
   assert.match(
     hook,
-    /The failed challenge is still unused[\s\S]*retry only the wallet[\s\S]*certificate once/,
+    /retrySigner !== walletAddress[\\s\\S]*retryDappSigner !==[\\s\\S]*walletAddress/,
   );
-  assert.match(
-    hook,
-    /retrySigner !== walletAddress[\s\S]*retryDappSigner !==[\s\S]*walletAddress/,
-  );
-  assert.match(
-    hook,
-    /await retryCertificateProof\(\)[\s\S]*verification =[\s\S]*await verifyCurrentProof\(\)/,
-  );
-
   const retryMarker = hook.indexOf(
     "verification.body.code ===",
   );
-  const retrySection = hook.slice(
+  const endMarker = hook.indexOf(
+    "const verifyResponse =",
     retryMarker,
-    retryMarker + 4200,
   );
+  assert.ok(retryMarker > 0 && endMarker > retryMarker);
+  const retrySection = hook.slice(retryMarker, endMarker);
+  assert.match(retrySection, /'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
+  assert.match(retrySection, /signMessage\\(challenge\\.message\\)/);
+  assert.match(retrySection, /certificate = undefined;/);
+  assert.match(retrySection, /proofType = 'message';/);
+  assert.match(retrySection, /verification = await verifyCurrentProof\\(\\)/);
   assert.equal(
-    (retrySection.match(/await retryCertificateProof\(\)/g) ?? []).length,
+    (retrySection.match(/signMessage\\(challenge\\.message\\)/g) ?? []).length,
     1,
-    'invalid certificates must open at most one recovery signing prompt',
+    'fallback opens only one independent message signing request',
   );
-  assert.doesNotMatch(
-    retrySection,
-    /fetch\([\s\S]*\/api\/auth\/challenge/,
-  );
+  assert.doesNotMatch(retrySection, /requestCertificate|retryCertificateProof/);
+  assert.doesNotMatch(retrySection, /\\/api\\/auth\\/challenge/);
+  // Both successful proof types require the server's cryptographic verification
+  // and the same atomic, nonce-consuming session issue path.
+  assert.match(route, /verifyMessage\\(/);
+  assert.match(route, /verifyVeWorldCertificate\\(/);
+  assert.match(route, /issue_wallet_session_after_verified_challenge/);
 });
