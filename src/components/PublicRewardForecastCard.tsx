@@ -13,6 +13,13 @@ import {
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import { REWARD_FORECAST_COPY } from '@/lib/i18n/rewardForecastCopy';
+import { REWARD_FORECAST_MODEL_VERSION } from '@/lib/rewards/rewardForecastPolicy';
+import {
+  forecastSnapshotAgeMs,
+  isRestorableRewardForecast,
+  isRewardForecastStale,
+  needsImmediateLiveForecastRefresh,
+} from '@/lib/rewards/rewardForecastCacheGuards';
 
 type RewardForecastResponse =
   | {
@@ -54,13 +61,9 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
 const LIVE_REFRESH_THROTTLE_MS = 60_000;
 const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
-const PERSISTED_FORECAST_MAX_AGE_MS = 24 * 60 * 60_000;
-const PERSISTED_FORECAST_STALE_MS = 60 * 60_000;
-// Keep the storage key tied to the current public forecast model. A future
-// model change should use a new key so an incompatible old estimate can never
-// flash during hydration.
+// A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  'veinvite_reward_forecast_v2_1_cohort';
+  `veinvite_reward_forecast_${REWARD_FORECAST_MODEL_VERSION}`;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
@@ -115,14 +118,16 @@ function normalizeForecastResponse(
   if (
     record.status === 'ready' &&
     typeof record.estimatedRewardWei === 'string' &&
-    /^\d+$/.test(record.estimatedRewardWei)
+    /^\d+$/.test(record.estimatedRewardWei) &&
+    modelVersion === REWARD_FORECAST_MODEL_VERSION &&
+    forecastSnapshotAgeMs(generatedAt, Date.now()) !== null
   ) {
     return {
       generatedAt,
       modelVersion,
       status: 'ready',
       estimatedRewardWei: record.estimatedRewardWei,
-      stale,
+      stale: isRewardForecastStale({ generatedAt, nowMs: Date.now(), stale }),
     };
   }
 
@@ -193,16 +198,20 @@ function readPersistedForecast(): RewardForecastResponse | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<PersistedRewardForecast>;
-    const savedAt = Number(parsed.savedAt);
+    const savedAt = parsed.savedAt;
     const forecast = normalizeForecastResponse(parsed.forecast);
-    const ageMs = Date.now() - savedAt;
+    const nowMs = Date.now();
 
     if (
-      !Number.isFinite(savedAt) ||
-      savedAt <= 0 ||
-      ageMs < 0 ||
-      ageMs > PERSISTED_FORECAST_MAX_AGE_MS ||
-      forecast?.status !== 'ready'
+      !forecast ||
+      !isRestorableRewardForecast({
+        savedAt,
+        generatedAt: forecast.generatedAt,
+        modelVersion: forecast.modelVersion,
+        status: forecast.status,
+        expectedModelVersion: REWARD_FORECAST_MODEL_VERSION,
+        nowMs,
+      })
     ) {
       window.localStorage.removeItem(
         PERSISTED_FORECAST_STORAGE_KEY,
@@ -212,9 +221,12 @@ function readPersistedForecast(): RewardForecastResponse | null {
 
     return {
       ...forecast,
-      stale:
-        forecast.stale === true ||
-        ageMs > PERSISTED_FORECAST_STALE_MS,
+      stale: isRewardForecastStale({
+        generatedAt: forecast.generatedAt,
+        nowMs,
+        stale: forecast.stale,
+        savedAt: savedAt as number,
+      }),
     };
   } catch {
     return null;
@@ -224,7 +236,9 @@ function readPersistedForecast(): RewardForecastResponse | null {
 function persistForecast(result: RewardForecastResponse): void {
   if (
     typeof window === 'undefined' ||
-    result.status !== 'ready'
+    result.status !== 'ready' ||
+    result.modelVersion !== REWARD_FORECAST_MODEL_VERSION ||
+    forecastSnapshotAgeMs(result.generatedAt, Date.now()) === null
   ) {
     return;
   }
@@ -250,6 +264,12 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
   if (
     !force &&
     cachedForecast &&
+    cachedForecast.status === 'ready' &&
+    !isRewardForecastStale({
+      generatedAt: cachedForecast.generatedAt,
+      stale: cachedForecast.stale,
+      nowMs: now,
+    }) &&
     now - cachedForecastAt < CLIENT_FORECAST_CACHE_MS
   ) {
     return Promise.resolve(cachedForecast);
@@ -260,6 +280,8 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
   if (
     force &&
     cachedForecast &&
+    cachedForecast.status === 'ready' &&
+    forecastSnapshotAgeMs(cachedForecast.generatedAt, now) !== null &&
     now - lastLiveRefreshAt < LIVE_REFRESH_THROTTLE_MS
   ) {
     return Promise.resolve(cachedForecast);
@@ -287,16 +309,20 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
       return result;
     })
     .then((result) => {
-      cachedForecast = result;
-      cachedForecastAt = Date.now();
-      persistForecast(result);
+      // An out-of-order response must not replace a newer known snapshot.
+      const preferred = pickPreferredForecast(cachedForecast, result) ?? result;
+      cachedForecast = preferred;
+      if (preferred === result) {
+        cachedForecastAt = Date.now();
+        persistForecast(result);
+      }
       window.dispatchEvent(
         new CustomEvent<RewardForecastResponse>(
           REWARD_FORECAST_UPDATED_EVENT,
-          { detail: result },
+          { detail: preferred },
         ),
       );
-      return result;
+      return preferred;
     })
     .finally(() => {
       inFlightForecast = null;
@@ -342,8 +368,8 @@ export function PublicRewardForecastCard({
     );
     if (preferred) {
       cachedForecast = preferred;
-      cachedForecastAt = Date.now();
-      persistForecast(preferred);
+      // Hydration restores an existing value, not a new successful network read.
+      // Never renew either the network cache clock or the persisted savedAt.
       setUnavailable(false);
       setForecast(preferred);
     }
@@ -363,7 +389,7 @@ export function PublicRewardForecastCard({
     const applyForecast = (result: RewardForecastResponse) => {
       if (!active) return;
       setUnavailable(false);
-      setForecast(result);
+      setForecast((current) => pickPreferredForecast(current, result) ?? result);
     };
 
     const syncRefreshedForecast = (event: Event) => {
@@ -374,16 +400,20 @@ export function PublicRewardForecastCard({
       applyForecast(detail);
     };
 
-    const loadForecast = async (force = false): Promise<void> => {
+    const loadForecast = async (force = false): Promise<boolean> => {
       try {
         const result = await requestForecast(force);
         applyForecast(result);
+        return true;
       } catch {
-        if (!active) return;
+        if (!active) return false;
 
         // A transient RPC/API failure must not blank a previously good public
         // estimate. Keep the last value visible and mark it as stale instead.
-        if (cachedForecast?.status === 'ready') {
+        if (
+          cachedForecast?.status === 'ready' &&
+          forecastSnapshotAgeMs(cachedForecast.generatedAt, Date.now()) !== null
+        ) {
           const staleForecast: RewardForecastResponse = {
             ...cachedForecast,
             stale: true,
@@ -391,10 +421,13 @@ export function PublicRewardForecastCard({
           cachedForecast = staleForecast;
           setUnavailable(false);
           setForecast(staleForecast);
-          return;
+          return false;
         }
 
+        cachedForecast = null;
+        setForecast(null);
         setUnavailable(true);
+        return false;
       }
     };
 
@@ -404,7 +437,9 @@ export function PublicRewardForecastCard({
       }
     };
     const refreshWhenFocused = () => {
-      void loadForecast(true);
+      if (document.visibilityState === 'visible') {
+        void loadForecast(true);
+      }
     };
     const startForecastActivity = () => {
       if (!active || started) return;
@@ -419,8 +454,19 @@ export function PublicRewardForecastCard({
       // First read the cheap server snapshot. Once that is settled, perform a
       // live funding check in the background so pool changes still propagate
       // quickly without blocking the value already shown on screen.
-      void loadForecast().finally(() => {
-        if (!active) return;
+      void loadForecast().then((loaded) => {
+        if (!active || !loaded) return;
+        // Fresh snapshots need no second expensive on-chain read at startup.
+        // Otherwise keep the existing background live funding verification.
+        if (
+          cachedForecast &&
+          !needsImmediateLiveForecastRefresh({
+            generatedAt: cachedForecast.generatedAt,
+            status: cachedForecast.status,
+            stale: cachedForecast.stale,
+            nowMs: Date.now(),
+          })
+        ) return;
         backgroundRefreshTimeoutId = window.setTimeout(
           () => {
             void loadForecast(true);
