@@ -23,14 +23,6 @@ type QueueRow = {
   sybil_clearance_id: string | null;
 };
 
-type RewardXPromotionSplitRow = {
-  invite_code: string;
-  mode: string;
-  reservation_amount_wei: string | number;
-  base_amount_wei: string | number;
-  promotion_amount_wei: string | number;
-};
-
 type SybilV2ClearanceRow = {
   id: string;
   invite_code: string;
@@ -78,70 +70,6 @@ function positiveWei(value: string | number | null): string | null {
   } catch {
     return null;
   }
-}
-
-function nonNegativeWei(
-  value: string | number | null | undefined,
-): string | null {
-  if (value === null || value === undefined) return null;
-  const normalized = String(value);
-  if (!/^\d+$/u.test(normalized)) return null;
-
-  try {
-    return BigInt(normalized) >= 0n ? normalized : null;
-  } catch {
-    return null;
-  }
-}
-
-function rewardActionAmounts(
-  queue: QueueRow,
-  split: RewardXPromotionSplitRow | undefined,
-): {
-  claimAmountWei: string;
-  promotionAmountWei: string | null;
-} {
-  const reservationAmountWei = positiveWei(
-    queue.reserved_amount_wei,
-  );
-
-  if (!reservationAmountWei) {
-    throw new Error(
-      `Reward reservation amount is invalid for ${queue.invite_code}.`,
-    );
-  }
-
-  if (!split) {
-    return {
-      claimAmountWei: reservationAmountWei,
-      promotionAmountWei: null,
-    };
-  }
-
-  const splitReservationWei =
-    nonNegativeWei(split.reservation_amount_wei);
-  const baseAmountWei =
-    positiveWei(split.base_amount_wei);
-  const promotionAmountWei =
-    nonNegativeWei(split.promotion_amount_wei);
-
-  if (
-    split.mode !== 'LIVE' ||
-    splitReservationWei !== reservationAmountWei ||
-    !baseAmountWei ||
-    promotionAmountWei === null ||
-    BigInt(baseAmountWei) + BigInt(promotionAmountWei) !==
-      BigInt(reservationAmountWei)
-  ) {
-    throw new Error(
-      `LIVE X promotion split is invalid for ${queue.invite_code}.`,
-    );
-  }
-
-  return {
-    claimAmountWei: baseAmountWei,
-    promotionAmountWei,
-  };
 }
 
 export async function GET(request: NextRequest) {
@@ -201,31 +129,17 @@ export async function GET(request: NextRequest) {
     }
 
     const inviteCodes = queueRows.map((row) => row.invite_code);
-    const [invitationResult, promotionResult] = await Promise.all([
-      supabaseAdmin
-        .from('invitations')
-        .select(
-          'invite_code, invitee_wallet, inviter_wallet, status, reward_status, reward_eligible_at, sybil_status, sybil_checked_at',
-        )
-        .eq('inviter_wallet', walletAddress)
-        .in('invite_code', inviteCodes),
-      supabaseAdmin
-        .from('reward_x_promotion_splits')
-        .select(
-          'invite_code, mode, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
-        )
-        .in('invite_code', inviteCodes)
-        .eq('mode', 'LIVE'),
-    ]);
+    const invitationResult = await supabaseAdmin
+      .from('invitations')
+      .select(
+        'invite_code, invitee_wallet, inviter_wallet, status, reward_status, reward_eligible_at, sybil_status, sybil_checked_at',
+      )
+      .eq('inviter_wallet', walletAddress)
+      .in('invite_code', inviteCodes);
 
     if (invitationResult.error) {
       throw new Error(
         `Notification reward action invitations could not be loaded: ${invitationResult.error.message}`,
-      );
-    }
-    if (promotionResult.error) {
-      throw new Error(
-        `Notification X promotion splits could not be loaded: ${promotionResult.error.message}`,
       );
     }
 
@@ -235,12 +149,6 @@ export async function GET(request: NextRequest) {
         row,
       ]),
     );
-    const promotionByCode =
-      new Map<string, RewardXPromotionSplitRow>(
-        ((promotionResult.data ?? []) as RewardXPromotionSplitRow[]).map(
-          (row) => [row.invite_code, row],
-        ),
-      );
 
     const clearanceIds = Array.from(new Set(
       queueRows
@@ -313,8 +221,6 @@ export async function GET(request: NextRequest) {
     const actions: RewardActionItem[] = queueRows.flatMap((queue) => {
       const invitation = invitationByCode.get(queue.invite_code);
       const amount = positiveWei(queue.reserved_amount_wei);
-      const promotionSplit =
-        promotionByCode.get(queue.invite_code);
 
       const v2Clearance = queue.sybil_clearance_id
         ? validV2ClearanceById.get(queue.sybil_clearance_id) ?? null
@@ -366,20 +272,10 @@ export async function GET(request: NextRequest) {
           ? submission.tx_id.toLowerCase()
           : null;
 
-      const {
-        claimAmountWei,
-        promotionAmountWei,
-      } = rewardActionAmounts(
-        queue,
-        promotionSplit,
-      );
-
       return [{
         inviteCode: queue.invite_code,
         status: queue.status,
         reservedAmountWei: amount,
-        claimAmountWei,
-        promotionAmountWei,
         reservedAt: queue.reserved_at,
         friendWallet:
           invitation.invitee_wallet?.toLowerCase() ?? null,
