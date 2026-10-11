@@ -282,11 +282,21 @@ export function PermanentReferralClient({
 
     setStep('loading');
     try {
-      const response = await fetch(
-        `/api/referral-links/${encodeURIComponent(referralKey)}`,
-        { cache: 'no-store' },
-      );
-      const data = (await response.json()) as StatusResponse;
+      // A status lookup is read-only. Retry a single apparent 404 before
+      // announcing a permanent link unavailable; an intermittently stale
+      // routing/data response must not strand a valid invite.
+      const readStatus = async () => {
+        const response = await fetch(
+          `/api/referral-links/${encodeURIComponent(referralKey)}`,
+          { cache: 'no-store' },
+        );
+        const data = (await response.json()) as StatusResponse;
+        return { response, data };
+      };
+      let { response, data } = await readStatus();
+      if (response.status === 404 || data.outcome === 'invalid_link') {
+        ({ response, data } = await readStatus());
+      }
 
       if (response.status === 404 || data.outcome === 'invalid_link') {
         setErrorCode('invalidLink');
@@ -379,6 +389,24 @@ export function PermanentReferralClient({
       });
       setErrorCode('eligibility');
       setStep('error');
+      return;
+    }
+
+    // The provider can stay visibly connected after its verified server
+    // session has been cleared or its cookie was not retained. Re-open the
+    // existing session gate instead of blaming eligibility or the invite link.
+    // Do not claim anything before a fresh wallet signature is verified.
+    if (response.status === 401) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'wallet_auth',
+        flowKey: 'permanent_referral',
+      });
+      setStep('wallet');
+      window.dispatchEvent(
+        new Event('veinvite-wallet-session-invalid'),
+      );
       return;
     }
 
@@ -530,7 +558,7 @@ export function PermanentReferralClient({
         <div className="errorIcon">×</div>
         <h1>{title}</h1>
         <p className="muted">{description}</p>
-        {errorCode === 'full' || errorCode === 'eligibility' ? (
+        {errorCode === 'full' || errorCode === 'eligibility' || errorCode === 'invalidLink' ? (
           <button
             type="button"
             className="secondaryButton"
