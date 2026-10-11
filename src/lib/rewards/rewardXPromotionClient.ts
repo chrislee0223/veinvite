@@ -3,6 +3,8 @@ import { rewardReceiptXIntentUrl } from '@/lib/rewards/rewardReceiptShare';
 
 const SHARE_TOKEN_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const REFERRAL_PATH_PATTERN =
+  /^\/s\/(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})\/?$/u;
 
 export type RewardXPromotionOfferStatus =
   | 'DISABLED'
@@ -67,12 +69,18 @@ export function buildRewardXPromotionShareUrl({
   const url = new URL(rewardShareUrl);
   if (
     url.protocol !== 'https:' ||
-    url.hostname.toLowerCase() !== 'veinvite.vercel.app'
+    url.hostname.toLowerCase() !== 'veinvite.vercel.app' ||
+    !REFERRAL_PATH_PATTERN.test(url.pathname) ||
+    url.hash !== '' ||
+    url.searchParams.has('xp')
   ) {
     throw new Error('Invalid VeInvite reward share URL.');
   }
 
-  url.searchParams.set('xpromo', shareToken.toLowerCase());
+  // The production verifier recognizes exactly one `xp` token on the
+  // canonical /s/<referral-key> URL. Preserve harmless existing query
+  // parameters such as the OG-card cache version.
+  url.searchParams.set('xp', shareToken.toLowerCase());
   return url.toString();
 }
 
