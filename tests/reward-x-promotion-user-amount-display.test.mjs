@@ -42,7 +42,18 @@ test('reward actions preserve total reservation and expose optional LIVE split a
   );
 });
 
-test('optional X promotion enrichment cannot remove the core reward action list', () => {
+test('malformed existing LIVE split fails closed instead of displaying the full reservation', () => {
+  assert.match(
+    actionRoute,
+    /Invalid LIVE X promotion split in reward action display/,
+  );
+  assert.doesNotMatch(
+    actionRoute,
+    /Invalid LIVE X promotion split in reward action display:[\\s\\S]{0,250}claimAmountWei = null/,
+  );
+});
+
+test('optional X promotion lookup failure cannot remove the core reward action list', () => {
   assert.match(
     actionRoute,
     /promotionLookupAvailable[\s\S]*promotionResult\.error === null/,
