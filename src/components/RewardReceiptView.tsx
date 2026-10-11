@@ -31,7 +31,7 @@ export function RewardReceiptView({
   onRewardShare?: (intentUrl: string) => void;
 }) {
   const structure = NOTIFICATION_HISTORY_COPY[locale];
-  const copy = REWARD_RECEIPT_COPY[locale];
+  const copy = REWARD_RECEIPT_COPY[locale] ?? REWARD_RECEIPT_COPY.en;
   const transactionUrl = receipt
     ? getVeChainExplorerTransactionUrl(
         receipt.txId,
