@@ -63,12 +63,18 @@ test('only real promotion states replace ordinary sharing', () => {
   );
 });
 
-test('nonterminal states refresh without aggressive retention polling', () => {
+test('nonterminal states refresh at authoritative state boundaries', () => {
   assert.match(action, /promotionState === 'VERIFYING'/);
   assert.match(action, /promotionState === 'REVIEW_REQUIRED'/);
   assert.match(action, /promotionState === 'PAYOUT_PENDING'/);
+  assert.match(action, /promotionState === 'OPEN'/);
+  assert.match(action, /promotion\.postDeadlineAt/);
+  assert.match(action, /promotionState === 'SUBMISSION_GRACE'/);
+  assert.match(action, /promotion\.submissionGraceSeconds/);
   assert.match(action, /promotionState === 'RETENTION'/);
-  assert.match(action, /slowPoll \? 300_000 : 30_000/);
+  assert.match(action, /promotion\.verifyAfter/);
+  assert.match(action, /delayMs = 30_000/);
+  assert.match(action, /: 60_000/);
 });
 
 test('Bell reward receipt delegates only the optional X action', () => {
