@@ -292,12 +292,9 @@ export async function GET(request: NextRequest) {
           claimAmountWei = baseAmountWei;
           promotionAmountWei = splitPromotionWei;
         } else {
-          console.error(
-            'Invalid LIVE X promotion split in reward action display:',
-            queue.invite_code,
+          throw new Error(
+            `Invalid LIVE X promotion split in reward action display: ${queue.invite_code}`,
           );
-          claimAmountWei = null;
-          promotionAmountWei = null;
         }
       }
 
