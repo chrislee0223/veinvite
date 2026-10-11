@@ -174,7 +174,7 @@ test('certificate failures offer one message proof over the original challenge, 
 
   assert.match(
     hook,
-    /retrySigner !== walletAddress[\\s\\S]*retryDappSigner !==[\\s\\S]*walletAddress/,
+    /retrySigner !== walletAddress[\s\S]*retryDappSigner !==[\s\S]*walletAddress/,
   );
   const retryMarker = hook.indexOf(
     "verification.body.code ===",
@@ -186,20 +186,20 @@ test('certificate failures offer one message proof over the original challenge, 
   assert.ok(retryMarker > 0 && endMarker > retryMarker);
   const retrySection = hook.slice(retryMarker, endMarker);
   assert.match(retrySection, /'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
-  assert.match(retrySection, /signMessage\\(challenge\\.message\\)/);
+  assert.match(retrySection, /signMessage\(challenge\.message\)/);
   assert.match(retrySection, /certificate = undefined;/);
   assert.match(retrySection, /proofType = 'message';/);
-  assert.match(retrySection, /verification = await verifyCurrentProof\\(\\)/);
+  assert.match(retrySection, /verification = await verifyCurrentProof\(\)/);
   assert.equal(
-    (retrySection.match(/signMessage\\(challenge\\.message\\)/g) ?? []).length,
+    (retrySection.match(/signMessage\(challenge\.message\)/g) ?? []).length,
     1,
     'fallback opens only one independent message signing request',
   );
   assert.doesNotMatch(retrySection, /requestCertificate|retryCertificateProof/);
-  assert.doesNotMatch(retrySection, /\\/api\\/auth\\/challenge/);
+  assert.doesNotMatch(retrySection, /\/api\/auth\/challenge/);
   // Both successful proof types require the server's cryptographic verification
   // and the same atomic, nonce-consuming session issue path.
-  assert.match(route, /verifyMessage\\(/);
-  assert.match(route, /verifyVeWorldCertificate\\(/);
+  assert.match(route, /verifyMessage\(/);
+  assert.match(route, /verifyVeWorldCertificate\(/);
   assert.match(route, /issue_wallet_session_after_verified_challenge/);
 });
