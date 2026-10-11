@@ -195,10 +195,12 @@ export function parseRewardXPromotionResponse(
     typeof promotion.amountWei !== 'string' ||
     !/^\d+$/u.test(promotion.amountWei) ||
     typeof promotion.amountB3tr !== 'string' ||
+    promotion.amountB3tr.length < 1 ||
     typeof promotion.postDeadlineAt !== 'string' ||
     !Number.isFinite(Date.parse(promotion.postDeadlineAt)) ||
+    typeof promotion.submissionGraceSeconds !== 'number' ||
     !Number.isSafeInteger(promotion.submissionGraceSeconds) ||
-    Number(promotion.submissionGraceSeconds) < 0
+    promotion.submissionGraceSeconds < 0
   ) {
     return null;
   }
@@ -208,17 +210,23 @@ export function parseRewardXPromotionResponse(
   const shareUrl =
     nullableString(promotion.shareUrl);
 
-  if (
-    state === 'OPEN' &&
-    (
+  if (state === 'OPEN') {
+    const tokenPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+    const shareUrlPattern =
+      /^https:\/\/veinvite\.vercel\.app\/s\/(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})\?xp=([0-9a-f-]{36})$/u;
+
+    const match =
+      shareUrl?.match(shareUrlPattern);
+
+    if (
       !shareToken ||
-      !shareUrl ||
-      !shareUrl.startsWith(
-        'https://veinvite.vercel.app/s/',
-      )
-    )
-  ) {
-    return null;
+      !tokenPattern.test(shareToken) ||
+      !match ||
+      match[1] !== shareToken
+    ) {
+      return null;
+    }
   }
 
   return {
@@ -231,7 +239,7 @@ export function parseRewardXPromotionResponse(
       openedAt: nullableString(promotion.openedAt),
       postDeadlineAt: promotion.postDeadlineAt,
       submissionGraceSeconds:
-        Number(promotion.submissionGraceSeconds),
+        promotion.submissionGraceSeconds,
       shareToken,
       shareUrl,
       submittedAt:
