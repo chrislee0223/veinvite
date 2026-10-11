@@ -216,11 +216,20 @@ export function RewardXPromotionReceiptAction({
     ) : null
   );
 
-  // Preserve the existing reward-receipt UX while the optional promotion
-  // state is loading. The bonus UI replaces this button only when the server
-  // confirms a real LIVE promotion state for this receipt.
+  // Preserve the existing visual shape while the optional promotion state
+  // loads, but do not allow a generic token-less Post to race a LIVE offer.
   if (snapshot === undefined) {
-    return ordinaryShare();
+    return ordinaryShareIntentUrl ? (
+      <button
+        type="button"
+        className="notificationXShare"
+        disabled
+        aria-busy="true"
+      >
+        {rewardReceiptShareLabel(locale)}
+        <style jsx>{styles}</style>
+      </button>
+    ) : null;
   }
 
   if (loadFailed) {
