@@ -41,6 +41,7 @@ type Step =
   | 'error';
 type ErrorCode =
   | 'invalidLink'
+  | 'linkCheck'
   | 'full'
   | 'existing'
   | 'selfReferral'
@@ -309,13 +310,14 @@ export function PermanentReferralClient({
         return;
       }
       if (!response.ok || data.outcome !== 'available') {
-        setErrorCode('eligibility');
+        // Link-status/server errors occur before wallet eligibility is checked.
+        setErrorCode('linkCheck');
         setStep('error');
         return;
       }
       setStep('landing');
     } catch {
-      setErrorCode('eligibility');
+      setErrorCode('linkCheck');
       setStep('error');
     } finally {
       setInitialValidationResolved(true);
@@ -530,8 +532,10 @@ export function PermanentReferralClient({
   }
 
   if (step === 'error') {
-    const title = errorCode === 'full'
-      ? referral.slotsFullTitle
+    const title = errorCode === 'linkCheck'
+      ? referral.retry
+      : errorCode === 'full'
+        ? referral.slotsFullTitle
       : t.errors[errorCode === 'invalidLink'
         ? 'invalidLink'
         : errorCode === 'existing'
@@ -541,8 +545,10 @@ export function PermanentReferralClient({
             : errorCode === 'other'
               ? 'other'
               : 'eligibility'];
-    const description = errorCode === 'full'
-      ? referral.slotsFullHelp
+    const description = errorCode === 'linkCheck'
+      ? t.tryAgain
+      : errorCode === 'full'
+        ? referral.slotsFullHelp
       : errorCode === 'invalidLink'
         ? t.requestNewLink
         : errorCode === 'existing'
@@ -558,7 +564,7 @@ export function PermanentReferralClient({
         <div className="errorIcon">×</div>
         <h1>{title}</h1>
         <p className="muted">{description}</p>
-        {errorCode === 'full' || errorCode === 'eligibility' || errorCode === 'invalidLink' ? (
+        {errorCode === 'full' || errorCode === 'eligibility' || errorCode === 'invalidLink' || errorCode === 'linkCheck' ? (
           <button
             type="button"
             className="secondaryButton"
