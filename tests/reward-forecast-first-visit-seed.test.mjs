@@ -50,7 +50,11 @@ test('server seed is rendered before browser fallback and newer values win', () 
     forecastCard,
     /forecastGeneratedAtMs\(candidate\) >[\s\S]*forecastGeneratedAtMs\(preferred\)/,
   );
-  assert.match(forecastCard, /persistForecast\(preferred\)/);
+  // A restored estimate must not reset the original cache age.
+  assert.doesNotMatch(forecastCard, /persistForecast\(preferred\)/);
+  assert.match(forecastCard, /persistForecast\(result\)/);
+  assert.match(forecastCard, /isRestorableRewardForecast/);
+  assert.match(forecastCard, /REWARD_FORECAST_MODEL_VERSION/);
 });
 
 test('forecast seed failures and cold reads stay isolated from Home startup', () => {
@@ -64,12 +68,13 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
   assert.match(seedServer, /controller\.signal\.aborted/);
   assert.match(
     seedServer,
-    /Public reward forecast seed exceeded the/,
+    /Public reward forecast seed transport exceeded/,
   );
   assert.match(
     seedServer,
     /Public reward forecast seed could not be loaded/,
   );
+  assert.match(seedServer, /throw error;/);
   assert.match(seedServer, /return null;/);
   assert.doesNotMatch(homePage, /throw new Error\([^)]*forecast/i);
 });
