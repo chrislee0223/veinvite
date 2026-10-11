@@ -31,8 +31,18 @@ test('a lost claim session reopens the existing verified wallet gate before elig
   assert.match(sessionGate, /const handleInvalidWalletSession = \(\) => \{[\s\S]*void verify\(\);/);
 });
 
+test('temporary link/server failures are not mislabeled as wallet eligibility failures', () => {
+  const start = client.indexOf('const validateLink = useCallback(async () => {');
+  const end = client.indexOf('}, [previewMode, referralKey]);', start);
+  assert.ok(start >= 0 && end > start);
+  const validation = client.slice(start, end);
+  assert.match(validation, /setErrorCode\('linkCheck'\)/);
+  assert.doesNotMatch(validation, /setErrorCode\('eligibility'\)/);
+  assert.match(client, /errorCode === 'linkCheck'[\s\S]*t\.tryAgain/);
+});
+
 test('expired/unavailable link screens always provide a recheck action', () => {
-  assert.match(client, /errorCode === 'full' \|\| errorCode === 'eligibility' \|\| errorCode === 'invalidLink'/);
+  assert.match(client, /errorCode === 'full' \|\| errorCode === 'eligibility' \|\| errorCode === 'invalidLink' \|\| errorCode === 'linkCheck'/);
   assert.match(client, /onClick=\{\(\) => void validateLink\(\)\}/);
 });
 
