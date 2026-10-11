@@ -99,30 +99,73 @@ export function useRewardPaidTransientFeedback({
     const shareUnavailable =
       referralLinkFailed && !shareReady;
 
-    // Prefer the verified permanent referral link so any promotion share
-    // contains the canonical /s/<key> URL accepted by the server verifier.
-    // A failed referral-link lookup must never suppress the payout notice.
+    // Keep the existing referral-link readiness boundary, but never make the
+    // confirmed payout notice wait on optional X-promotion network work.
     if (!shareReady && !shareUnavailable) return;
 
     const payload = pendingReward;
-    let cancelled = false;
+    feedbackIdRef.current += 1;
+    const feedbackId =
+      feedbackIdRef.current;
 
-    const presentReward = async () => {
-      let shareIntentUrl = '';
-      let shareLabel = '';
-
-      if (shareReady && referralLink) {
-        const rewardShareUrl =
-          buildProductionSharePageUrl(
-            's',
-            referralLink.key,
+    setFeedback({
+      id: feedbackId,
+      kind: 'reward',
+      title:
+        NOTIFICATION_COPY[
+          locale
+        ].rewardTitle,
+      text:
+        REWARD_RECEIPT_COPY[
+          locale
+        ].description,
+      amountB3tr:
+        payload.amountB3tr,
+      confirmLabel:
+        NOTIFICATION_COPY[
+          locale
+        ].confirm,
+      onConfirm: () => {
+        if (wallet) {
+          clearRewardPaidToast(
+            wallet,
+            payload.receiptId,
           );
-        const ordinaryIntentUrl =
-          rewardReceiptXIntentUrl({
-            locale,
-            amountB3tr: payload.amountB3tr,
-            referralUrl: rewardShareUrl,
-          });
+          setPendingReward(
+            readRewardPaidToast(
+              wallet,
+            ),
+          );
+        }
+        return acknowledgeReward(
+          payload,
+        );
+      },
+    });
+    setPendingReward(null);
+
+    if (!shareReady || !referralLink) {
+      return;
+    }
+
+    const rewardShareUrl =
+      buildProductionSharePageUrl(
+        's',
+        referralLink.key,
+      );
+    const ordinaryIntentUrl =
+      rewardReceiptXIntentUrl({
+        locale,
+        amountB3tr:
+          payload.amountB3tr,
+        referralUrl:
+          rewardShareUrl,
+      });
+
+    const resolveShareAction =
+      async () => {
+        let shareIntentUrl = '';
+        let shareLabel = '';
 
         try {
           let snapshot =
@@ -132,7 +175,8 @@ export function useRewardPaidTransientFeedback({
 
           if (
             snapshot.newOffersEnabled &&
-            snapshot.offerStatus === 'PREPARING'
+            snapshot.offerStatus ===
+              'PREPARING'
           ) {
             await openRewardXPromotionOpportunity(
               payload.inviteCode,
@@ -147,7 +191,8 @@ export function useRewardPaidTransientFeedback({
             snapshot.promotion;
 
           if (
-            promotion?.state === 'OPEN' &&
+            promotion?.state ===
+              'OPEN' &&
             promotion.shareToken
           ) {
             shareIntentUrl =
@@ -170,9 +215,12 @@ export function useRewardPaidTransientFeedback({
             !promotion &&
             (
               !snapshot.newOffersEnabled ||
-              snapshot.offerStatus === 'DISABLED' ||
-              snapshot.offerStatus === 'NOT_ELIGIBLE' ||
-              snapshot.offerStatus === 'CLOSED'
+              snapshot.offerStatus ===
+                'DISABLED' ||
+              snapshot.offerStatus ===
+                'NOT_ELIGIBLE' ||
+              snapshot.offerStatus ===
+                'CLOSED'
             )
           ) {
             shareIntentUrl =
@@ -184,9 +232,12 @@ export function useRewardPaidTransientFeedback({
           } else if (
             promotion &&
             (
-              promotion.state === 'EXPIRED' ||
-              promotion.state === 'RELEASED' ||
-              promotion.state === 'PAID'
+              promotion.state ===
+                'EXPIRED' ||
+              promotion.state ===
+                'RELEASED' ||
+              promotion.state ===
+                'PAID'
             )
           ) {
             shareIntentUrl =
@@ -197,76 +248,50 @@ export function useRewardPaidTransientFeedback({
               );
           }
           // PREPARING, grace, verification, retention and payout-pending
-          // states intentionally expose no generic share CTA. A generic Post
-          // made here would not contain the required promotion token.
+          // states intentionally expose no generic share CTA. Such a Post
+          // would not contain a currently usable promotion token.
         } catch (error) {
           console.warn(
             'VeInvite X promotion popup state could not be resolved:',
             error,
           );
-          // Fail closed for the optional share action only. The confirmed
-          // core payout notice still appears and remains actionable.
+          // Optional share enhancement fails closed. The already-rendered
+          // core payout confirmation remains unaffected.
         }
-      }
 
-      if (cancelled) return;
+        if (
+          !shareIntentUrl ||
+          !shareLabel
+        ) {
+          return;
+        }
 
-      feedbackIdRef.current += 1;
-      setFeedback({
-        id: feedbackIdRef.current,
-        kind: 'reward',
-        title:
-          NOTIFICATION_COPY[
-            locale
-          ].rewardTitle,
-        text:
-          REWARD_RECEIPT_COPY[
-            locale
-          ].description,
-        amountB3tr:
-          payload.amountB3tr,
-        ...(shareIntentUrl &&
-        shareLabel
-          ? {
-              shareLabel,
-              onShare: () => {
-                window.open(
-                  shareIntentUrl,
-                  '_blank',
-                  'noopener,noreferrer',
-                );
-              },
-            }
-          : {}),
-        confirmLabel:
-          NOTIFICATION_COPY[
-            locale
-          ].confirm,
-        onConfirm: () => {
-          if (wallet) {
-            clearRewardPaidToast(
-              wallet,
-              payload.receiptId,
-            );
-            setPendingReward(
-              readRewardPaidToast(
-                wallet,
-              ),
-            );
+        setFeedback((current) => {
+          if (
+            !current ||
+            current.kind !==
+              'reward' ||
+            current.id !==
+              feedbackId
+          ) {
+            return current;
           }
-          return acknowledgeReward(
-            payload,
-          );
-        },
-      });
-      setPendingReward(null);
-    };
 
-    void presentReward();
+          return {
+            ...current,
+            shareLabel,
+            onShare: () => {
+              window.open(
+                shareIntentUrl,
+                '_blank',
+                'noopener,noreferrer',
+              );
+            },
+          };
+        });
+      };
 
-    return () => {
-      cancelled = true;
-    };
+    void resolveShareAction();
   }, [
     acknowledgeReward,
     feedback,
