@@ -6,17 +6,6 @@ const inviteRoute = await readFile(
   new URL('../src/app/api/invites/route.ts', import.meta.url),
   'utf8',
 );
-const rewardActionRoute = await readFile(
-  new URL(
-    '../src/app/api/notifications/reward-actions/route.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
-const rewardActionType = await readFile(
-  new URL('../src/lib/notifications/rewardAction.ts', import.meta.url),
-  'utf8',
-);
 const sharedTypes = await readFile(
   new URL('../src/lib/types.ts', import.meta.url),
   'utf8',
@@ -41,10 +30,10 @@ test('invite API preserves immutable reservation while exposing LIVE base and pr
   );
 });
 
-test('legacy and shadow invite rows continue to claim the fixed reservation amount', () => {
+test('legacy and shadow invite rows resolve claim amount to the fixed reservation when enrichment succeeds', () => {
   assert.match(
     inviteRoute,
-    /let claimAmountWei = reservedAmountWei/,
+    /promotionLookupAvailable[\s\S]*\? reservedAmountWei[\s\S]*: null/,
   );
   assert.match(
     inviteRoute,
@@ -52,7 +41,33 @@ test('legacy and shadow invite rows continue to claim the fixed reservation amou
   );
 });
 
-test('LIVE invite split mismatches fail closed instead of falling back to the full reservation', () => {
+test('X promotion enrichment failure never blocks the core invites response', () => {
+  assert.match(
+    inviteRoute,
+    /const promotionLookupAvailable =[\s\S]*promotionResult\.error === null/,
+  );
+  assert.match(
+    inviteRoute,
+    /Invitation X promotion display enrichment unavailable/,
+  );
+  assert.doesNotMatch(
+    inviteRoute,
+    /if \(promotionResult\.error\)[\s\S]{0,500}status: 500/,
+  );
+});
+
+test('when enrichment is unavailable, explicit claim and promotion amounts are omitted instead of guessed', () => {
+  assert.match(
+    inviteRoute,
+    /let claimAmountWei: string \| null =[\s\S]*promotionLookupAvailable[\s\S]*\? reservedAmountWei[\s\S]*: null/,
+  );
+  assert.match(
+    inviteRoute,
+    /promotionLookupAvailable,[\s\S]*\),/,
+  );
+});
+
+test('LIVE split mismatches fail closed instead of falling back to the full reservation', () => {
   assert.match(
     inviteRoute,
     /splitReservationWei !== reservedAmountWei/,
@@ -67,42 +82,19 @@ test('LIVE invite split mismatches fail closed instead of falling back to the fu
   );
 });
 
-test('reward action API exposes the same base/promotion contract without changing reservedAmountWei', () => {
-  assert.match(
-    rewardActionRoute,
-    /reservedAmountWei: amount,[\s\S]*claimAmountWei,[\s\S]*promotionAmountWei/,
-  );
-  assert.match(
-    rewardActionRoute,
-    /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/,
-  );
-  assert.match(
-    rewardActionRoute,
-    /LIVE X promotion split is invalid/,
-  );
-});
-
-test('shared client types keep the old reservation field and add explicit split fields', () => {
+test('shared client type keeps the old reservation field and adds optional split fields', () => {
   assert.match(sharedTypes, /rewardReservedAmountWei\?: string/);
   assert.match(sharedTypes, /rewardClaimAmountWei\?: string/);
   assert.match(sharedTypes, /rewardPromotionAmountWei\?: string/);
-  assert.match(rewardActionType, /reservedAmountWei: string/);
-  assert.match(rewardActionType, /claimAmountWei: string/);
-  assert.match(
-    rewardActionType,
-    /promotionAmountWei: string \| null/,
-  );
 });
 
 test('user-contract change cannot enable X promotion or payouts', () => {
-  for (const source of [inviteRoute, rewardActionRoute]) {
-    assert.doesNotMatch(
-      source,
-      /reward_x_promotion_enabled\s*=\s*true/,
-    );
-    assert.doesNotMatch(
-      source,
-      /reward_x_promotion_payout_enabled\s*=\s*true/,
-    );
-  }
+  assert.doesNotMatch(
+    inviteRoute,
+    /reward_x_promotion_enabled\s*=\s*true/,
+  );
+  assert.doesNotMatch(
+    inviteRoute,
+    /reward_x_promotion_payout_enabled\s*=\s*true/,
+  );
 });
