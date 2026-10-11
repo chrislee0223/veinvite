@@ -72,6 +72,14 @@ const FAILURE_CODES = new Set([
   'server',
   'malformed_response',
   'wallet_auth',
+  'wallet_provider',
+  'wallet_signature',
+  'wallet_signature_timeout',
+  'wallet_challenge',
+  'wallet_verification',
+  'wallet_session',
+  'wallet_rate_limit',
+  'wallet_unknown',
   'unknown',
 ]);
 const MISSION_KEYS = new Set([
