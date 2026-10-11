@@ -115,27 +115,16 @@ export function useRewardPaidTransientFeedback({
         NOTIFICATION_COPY[
           locale
         ].rewardTitle,
-      text:
-        REWARD_RECEIPT_COPY[
-          locale
-        ].description,
-      amountB3tr:
-        payload.amountB3tr,
+      text: REWARD_RECEIPT_COPY[locale].description,
+      amountB3tr: payload.amountB3tr,
       confirmLabel:
         NOTIFICATION_COPY[
           locale
         ].confirm,
       onConfirm: () => {
         if (wallet) {
-          clearRewardPaidToast(
-            wallet,
-            payload.receiptId,
-          );
-          setPendingReward(
-            readRewardPaidToast(
-              wallet,
-            ),
-          );
+          clearRewardPaidToast(wallet, payload.receiptId);
+          setPendingReward(readRewardPaidToast(wallet));
         }
         return acknowledgeReward(
           payload,
@@ -156,8 +145,7 @@ export function useRewardPaidTransientFeedback({
     const ordinaryIntentUrl =
       rewardReceiptXIntentUrl({
         locale,
-        amountB3tr:
-          payload.amountB3tr,
+        amountB3tr: payload.amountB3tr,
         referralUrl:
           rewardShareUrl,
       });
