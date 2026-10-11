@@ -144,6 +144,45 @@ export async function loadRewardXPromotion(
   };
 }
 
+
+export async function openRewardXPromotionOpportunity(
+  inviteCode: string,
+): Promise<void> {
+  const response = await fetch(
+    '/api/rewards/x-promotion/open',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inviteCode,
+      }),
+      cache: 'no-store',
+    },
+  );
+
+  let body: {
+    error?: string;
+  } = {};
+
+  try {
+    body = (await response.json()) as {
+      error?: string;
+    };
+  } catch {
+    // A malformed optional-promotion response must never affect the core
+    // referral payout. Treat it as a failed enhancement request.
+  }
+
+  if (!response.ok && response.status !== 202) {
+    throw new Error(
+      body.error ||
+        'X promotion opportunity could not be opened.',
+    );
+  }
+}
+
 export async function submitRewardXPromotionPost({
   inviteCode,
   postUrl,
