@@ -304,6 +304,8 @@ export async function POST(
     return jsonError(
       'Wallet verification request was already used.',
       409,
+      undefined,
+      challengeTraceId,
     );
   }
 
@@ -547,6 +549,8 @@ export async function POST(
     return jsonError(
       'Failed to create wallet session.',
       500,
+      undefined,
+      challengeTraceId,
     );
   }
 
@@ -554,6 +558,8 @@ export async function POST(
     return jsonError(
       'Wallet verification request is no longer valid.',
       409,
+      undefined,
+      challengeTraceId,
     );
   }
 
@@ -629,6 +635,14 @@ export async function POST(
       expires: new Date(0),
     });
   }
+
+  // A valid cryptographic proof alone is not a login. Emit success only after
+  // the atomic session transaction succeeded and the cookie response is ready.
+  // No wallet address, cookie, token or signature is logged.
+  console.info('Wallet session issued.', {
+    proofType,
+    challengeTraceId,
+  });
 
   return response;
 }

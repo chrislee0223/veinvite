@@ -53,18 +53,15 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
         stale: ageMs > FORECAST_SEED_STALE_MS,
       };
     } catch (error) {
+      // Throw rather than cache a transient failure as a valid null snapshot.
+      // The public Home wrapper below converts it to a safe optional fallback,
+      // while an existing successful Next.js cache entry remains eligible.
       if (controller.signal.aborted) {
-        console.warn(
-          `Public reward forecast seed exceeded the ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms Home startup budget.`,
+        throw new Error(
+          `Public reward forecast seed transport exceeded ${FORECAST_SEED_STARTUP_TIMEOUT_MS}ms.`,
         );
-        return null;
       }
-
-      // A failed background cache refresh must resolve safely instead of
-      // rejecting through Next.js cache revalidation and producing a runtime
-      // error cluster for an optional Home convenience surface.
-      console.warn('Public reward forecast seed could not be loaded:', error);
-      return null;
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -84,7 +81,8 @@ export async function readPublicRewardForecastSeed(): Promise<PublicRewardForeca
   } catch (error) {
     // Forecast is a public convenience surface. A cache/database failure must
     // never block Home or wallet-session bootstrap.
-    console.warn('Public reward forecast seed could not be loaded:', error);
+    const message = error instanceof Error ? error.message : 'unknown error';
+    console.warn('Public reward forecast seed could not be loaded:', message);
     return null;
   }
 }
