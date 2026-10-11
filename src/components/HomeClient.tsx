@@ -51,6 +51,7 @@ import type { ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 import {
   formatB3trWei,
+  formatPositiveB3trWei,
   missionFlags,
   nextMissionLabel,
   readCachedReferralLink,
@@ -1016,15 +1017,9 @@ export function HomeClient() {
                       '0',
                   );
                   const promotionAmount =
-                    invite.rewardPromotionAmountWei !== undefined &&
-                    /^\d+$/u.test(
+                    formatPositiveB3trWei(
                       invite.rewardPromotionAmountWei,
-                    ) &&
-                    BigInt(invite.rewardPromotionAmountWei) > 0n
-                      ? formatB3trWei(
-                          invite.rewardPromotionAmountWei,
-                        )
-                      : null;
+                    );
                   const recoveryOffset = invite.rewardRecoveryOffsetWei
                     ? formatB3trWei(invite.rewardRecoveryOffsetWei)
                     : null;
