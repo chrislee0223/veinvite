@@ -70,8 +70,7 @@ begin
   from public.reward_rounds rr
   where rr.network=v_network
     and rr.app_id=v_veinvite_app_id
-    and rr.status in ('CREATED','PAYING')
-    and rr.broadcast_confirmed_at is null;
+    and rr.status in ('CREATED','PAYING');
 
   select coalesce(jsonb_agg(v.reason) filter (where v.reason is not null),'[]'::jsonb)
   into v_blockers
