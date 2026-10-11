@@ -54,6 +54,8 @@ test('server seed is rendered before browser fallback and newer values win', () 
   assert.doesNotMatch(forecastCard, /persistForecast\(preferred\)/);
   assert.match(forecastCard, /persistForecast\(result\)/);
   assert.match(forecastCard, /isRestorableRewardForecast/);
+  assert.match(forecastCard, /LEGACY_FORECAST_STORAGE_KEY/);
+  assert.match(forecastCard, /window\.localStorage\.setItem\(PERSISTED_FORECAST_STORAGE_KEY, raw\)/);
   assert.match(forecastCard, /REWARD_FORECAST_MODEL_VERSION/);
 });
 
