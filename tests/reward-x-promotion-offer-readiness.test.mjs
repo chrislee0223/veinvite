@@ -24,6 +24,11 @@ test('offer readiness requires real shadow evidence', () => {
   assert.match(migration, /SHADOW_AUDIT_FAILED/);
 });
 
+test('offer readiness avoids environment-specific reward round columns', () => {
+  assert.doesNotMatch(migration, /broadcast_confirmed_at/);
+  assert.match(migration, /rr\.status in \('CREATED','PAYING'\)/);
+});
+
 test('offer readiness requires all live and payout paths to remain dormant', () => {
   for (const marker of [
     'LIVE_ALREADY_ENABLED',
