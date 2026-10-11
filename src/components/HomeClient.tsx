@@ -1010,9 +1010,14 @@ export function HomeClient() {
 
               <div className="rewardList">
                 {outstandingRewards.map((invite) => {
-                  const amount = formatB3trWei(
-                    invite.rewardReservedAmountWei ?? '0',
-                  );
+                  const claimAmount = invite.rewardClaimAmountWei
+                    ? formatB3trWei(invite.rewardClaimAmountWei)
+                    : null;
+                  const promotionAmount =
+                    invite.rewardPromotionAmountWei &&
+                    invite.rewardPromotionAmountWei !== '0'
+                      ? formatB3trWei(invite.rewardPromotionAmountWei)
+                      : null;
                   const recoveryOffset = invite.rewardRecoveryOffsetWei
                     ? formatB3trWei(invite.rewardRecoveryOffsetWei)
                     : null;
@@ -1030,7 +1035,15 @@ export function HomeClient() {
                             ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
                             : invite.code}
                         </small>
-                        <strong>{progressCopy.fixedReward} · {amount} B3TR</strong>
+                        <strong>
+                          {progressCopy.fixedReward}
+                          {claimAmount ? ` · ${claimAmount} B3TR` : ''}
+                        </strong>
+                        {promotionAmount ? (
+                          <span className="rewardPromotionMeta">
+                            X · +{promotionAmount} B3TR
+                          </span>
+                        ) : null}
                         {recoveryOffset ? (
                           <span className="rewardAdjustmentMeta">
                             {rewardAdjustedCopy(locale).title} · -{recoveryOffset} B3TR
@@ -1175,6 +1188,7 @@ export function HomeClient() {
         .rewardMeta { min-width:0; display:grid; gap:3px; }
         .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
         .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }
+        .rewardPromotionMeta { display:block; margin-top:3px; color:#f0d46f; font-size:.64rem; font-weight:850; font-variant-numeric:tabular-nums; }
         .rewardAdjustmentMeta { color:#d7b85d; font-size:.58rem; font-weight:850; line-height:1.35; overflow-wrap:anywhere; }
         .claimButton { min-height:38px; padding:0 12px; border:0; border-radius:11px; background:linear-gradient(135deg,#ffd24d,#efa718); color:#17120a; font:inherit; font-size:.65rem; font-weight:950; cursor:pointer; white-space:nowrap; transition:transform 90ms ease; }
         .claimButton:disabled { opacity:.55; cursor:not-allowed; }
