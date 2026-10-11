@@ -43,6 +43,15 @@ test('feature loading and failures preserve the existing ordinary X share UX', (
   );
 });
 
+test('promotion sharing can use the VeInvite fallback URL before referral-link warmup', () => {
+  assert.match(action, /rewardShareUrl \|\| VEINVITE_SITE_URL/);
+  assert.match(action, /promotionShareBaseUrl/);
+  assert.doesNotMatch(
+    action,
+    /Boolean\(promotion\.shareToken\)[\s\S]{0,100}Boolean\(rewardShareUrl\)/,
+  );
+});
+
 test('only real promotion states replace ordinary sharing', () => {
   assert.match(action, /snapshot\.offerStatus === 'PREPARING'/);
   assert.match(action, /promotion\.state === 'RETENTION'/);
