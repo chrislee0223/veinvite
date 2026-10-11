@@ -341,13 +341,13 @@ export async function GET(request: NextRequest) {
       entry,
     ]),
   );
+  const promotionRows: RewardXPromotionSplitRow[] =
+    promotionLookupAvailable
+      ? (promotionResult.data ?? []) as RewardXPromotionSplitRow[]
+      : [];
   const promotionSplitByInvite =
     new Map<string, RewardXPromotionSplitRow>(
-      (
-        promotionLookupAvailable
-          ? (promotionResult.data ?? [])
-          : []
-      as RewardXPromotionSplitRow[]).map(
+      promotionRows.map(
         (entry) => [entry.invite_code, entry],
       ),
     );
