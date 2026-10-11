@@ -375,7 +375,7 @@ export function RewardXPromotionReceiptAction({
           disabled={!postUrl.trim() || submitting}
           onClick={() => void submitPost()}
         >
-          {submitting ? promotionCopy.verifying : copy.verify}
+          {submitting ? promotionCopy.submitting : promotionCopy.verifyPost}
         </button>
       </div>
 
