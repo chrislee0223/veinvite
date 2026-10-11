@@ -8,8 +8,10 @@ import {
 } from 'react';
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import {
   formatRewardShareAmount,
+  rewardReceiptShareLabel,
 } from '@/lib/rewards/rewardReceiptShare';
 import {
   buildRewardXPromotionIntentUrl,
@@ -17,62 +19,6 @@ import {
   submitRewardXPromotionPost,
   type RewardXPromotionSnapshot,
 } from '@/lib/rewards/rewardXPromotionClient';
-
-function copyFor(locale: SupportedLocale) {
-  if (locale === 'ko') {
-    return {
-      loading: 'X 공유 혜택 확인 중…',
-      preparing: (amount: string | null) =>
-        amount
-          ? `X 공유 보너스 +${amount} B3TR 준비 중…`
-          : 'X 공유 보너스 준비 중…',
-      share: 'X에 공유',
-      promo: (amount: string) =>
-        `X에 공유하고 +${amount} B3TR`,
-      postHelp:
-        'X에 게시한 뒤 게시물 링크를 아래에 붙여넣어 확인하세요.',
-      postPlaceholder: 'https://x.com/.../status/...',
-      verify: '게시물 링크 확인',
-      verifying: '게시물 확인 중…',
-      retrying:
-        'X 확인이 지연되고 있어요. 자동으로 다시 확인합니다.',
-      retention:
-        'X 공유가 확인됐어요. 24시간 후에도 같은 게시물이 공개 상태면 보상이 지급됩니다.',
-      payout: 'X 공유 조건 확인 완료 · 지급 준비 중',
-      paid: (amount: string) =>
-        `X Promotion Bonus +${amount} B3TR 지급 완료`,
-      grace:
-        '공유 기한은 끝났지만 이미 게시한 글은 잠시 확인할 수 있어요.',
-      submitError: '게시물 링크를 확인하지 못했어요.',
-    };
-  }
-
-  return {
-    loading: 'Checking X sharing benefit…',
-    preparing: (amount: string | null) =>
-      amount
-        ? `Preparing +${amount} B3TR X sharing bonus…`
-        : 'Preparing X sharing bonus…',
-    share: 'Share on X',
-    promo: (amount: string) =>
-      `Share on X and earn +${amount} B3TR`,
-    postHelp:
-      'After posting on X, paste the public Post URL below to verify it.',
-    postPlaceholder: 'https://x.com/.../status/...',
-    verify: 'Verify Post URL',
-    verifying: 'Checking your Post…',
-    retrying:
-      'X verification is delayed. VeInvite will retry automatically.',
-    retention:
-      'Your X share is verified. If the same Post is still public after 24 hours, the bonus will be paid.',
-    payout: 'X share verified · preparing bonus payout',
-    paid: (amount: string) =>
-      `X Promotion Bonus +${amount} B3TR paid`,
-    grace:
-      'The sharing window ended, but an already-published Post can still be submitted briefly.',
-    submitError: 'The Post URL could not be verified.',
-  };
-}
 
 export function RewardXPromotionReceiptAction({
   locale,
@@ -89,7 +35,8 @@ export function RewardXPromotionReceiptAction({
   ordinaryShareIntentUrl: string;
   onShare?: (intentUrl: string) => void;
 }) {
-  const copy = copyFor(locale);
+  const promotionCopy =
+    REWARD_X_PROMOTION_COPY[locale];
   const requestIdRef = useRef(0);
   const [snapshot, setSnapshot] =
     useState<RewardXPromotionSnapshot | undefined>(undefined);
@@ -243,13 +190,13 @@ export function RewardXPromotionReceiptAction({
       setSubmitError(
         error instanceof Error
           ? error.message
-          : copy.submitError,
+          : promotionCopy.submitError,
       );
     } finally {
       setSubmitting(false);
     }
   }, [
-    copy.submitError,
+    promotionCopy.submitError,
     inviteCode,
     postUrl,
     refresh,
@@ -263,7 +210,7 @@ export function RewardXPromotionReceiptAction({
         className="notificationXShare"
         onClick={() => openIntent(ordinaryShareIntentUrl)}
       >
-        {copy.share}
+        {rewardReceiptShareLabel(locale)}
         <style jsx>{styles}</style>
       </button>
     ) : null
@@ -296,8 +243,13 @@ export function RewardXPromotionReceiptAction({
           className="promotionStatus"
           role="status"
           aria-live="polite"
+          aria-busy="true"
         >
-          <strong>{copy.preparing(pendingAmount)}</strong>
+          <strong>
+            {pendingAmount
+              ? `X · +${pendingAmount} B3TR`
+              : 'X · B3TR'}
+          </strong>
           <style jsx>{styles}</style>
         </div>
       );
@@ -319,7 +271,9 @@ export function RewardXPromotionReceiptAction({
   if (promotion.state === 'PAID') {
     return (
       <div className="promotionStatus paid" role="status">
-        <strong>{copy.paid(promotionDisplayAmount)}</strong>
+        <strong>
+          {promotionCopy.paid} · +{promotionDisplayAmount} B3TR
+        </strong>
         <style jsx>{styles}</style>
       </div>
     );
@@ -328,7 +282,7 @@ export function RewardXPromotionReceiptAction({
   if (promotion.state === 'RETENTION') {
     return (
       <div className="promotionStatus" role="status">
-        <strong>{copy.retention}</strong>
+        <strong>{promotionCopy.retention}</strong>
         <style jsx>{styles}</style>
       </div>
     );
@@ -337,7 +291,7 @@ export function RewardXPromotionReceiptAction({
   if (promotion.state === 'PAYOUT_PENDING') {
     return (
       <div className="promotionStatus" role="status">
-        <strong>{copy.payout}</strong>
+        <strong>{promotionCopy.payoutPending}</strong>
         <style jsx>{styles}</style>
       </div>
     );
@@ -351,8 +305,8 @@ export function RewardXPromotionReceiptAction({
       <div className="promotionStatus" role="status">
         <strong>
           {promotion.state === 'VERIFYING'
-            ? copy.verifying
-            : copy.retrying}
+            ? promotionCopy.verifying
+            : promotionCopy.reviewRequired}
         </strong>
         <style jsx>{styles}</style>
       </div>
@@ -390,21 +344,24 @@ export function RewardXPromotionReceiptAction({
           className="notificationXShare promotion"
           onClick={() => openIntent(promotionIntentUrl)}
         >
-          {copy.promo(promotionDisplayAmount)}
+          {promotionCopy.shareBonus.replace(
+            '{amount}',
+            promotionDisplayAmount,
+          )}
         </button>
       ) : null}
 
       <p>
         {promotion.state === 'SUBMISSION_GRACE'
-          ? copy.grace
-          : copy.postHelp}
+          ? promotionCopy.graceHint
+          : promotionCopy.openHint}
       </p>
 
       <div className="postSubmitRow">
         <input
           type="url"
           value={postUrl}
-          placeholder={copy.postPlaceholder}
+          placeholder={promotionCopy.postUrlPlaceholder}
           inputMode="url"
           autoCapitalize="none"
           autoCorrect="off"
@@ -418,7 +375,7 @@ export function RewardXPromotionReceiptAction({
           disabled={!postUrl.trim() || submitting}
           onClick={() => void submitPost()}
         >
-          {submitting ? copy.verifying : copy.verify}
+          {submitting ? promotionCopy.verifying : copy.verify}
         </button>
       </div>
 
@@ -430,7 +387,7 @@ export function RewardXPromotionReceiptAction({
 
       {loadFailed ? (
         <p className="promotionError" role="status">
-          {copy.submitError}
+          {promotionCopy.submitError}
         </p>
       ) : null}
 
