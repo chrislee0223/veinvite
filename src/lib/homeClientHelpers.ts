@@ -86,6 +86,15 @@ export function formatB3trWei(value: string): string {
     : whole.toString();
 }
 
+export function formatPositiveB3trWei(
+  value: string | undefined,
+): string | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  return BigInt(value) > 0n
+    ? formatB3trWei(value)
+    : null;
+}
+
 export function missionFlags(invite: InviteRecord): boolean[] {
   const apps = Math.max(
     0,
