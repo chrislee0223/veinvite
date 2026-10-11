@@ -69,7 +69,7 @@ if (
 // Mobile wallet handoffs can require longer than 15 seconds to approve a
 // signature. Keep a finite interval, rather than locking the UI indefinitely.
 const signatureTimeoutMatch = walletAuth.match(
-  /WALLET_SIGNATURE_TIMEOUT_MS\\s*=\\s*([\\d_]+)/,
+  /WALLET_SIGNATURE_TIMEOUT_MS\s*=\s*([\d_]+)/,
 );
 const signatureTimeoutMs = signatureTimeoutMatch
   ? Number(signatureTimeoutMatch[1].replaceAll('_', ''))
