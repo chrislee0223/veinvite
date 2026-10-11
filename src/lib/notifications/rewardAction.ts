@@ -7,8 +7,6 @@ export type RewardActionItem = {
   inviteCode: string;
   status: RewardActionQueueStatus;
   reservedAmountWei: string;
-  claimAmountWei: string;
-  promotionAmountWei: string | null;
   reservedAt: string;
   friendWallet: string | null;
   broadcastConfirmedAt: string | null;
