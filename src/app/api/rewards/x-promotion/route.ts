@@ -48,6 +48,10 @@ type VerificationRow = {
   invalidated_at: string | null;
 };
 
+type ReferralLinkRow = {
+  referral_key: string;
+};
+
 type PromotionState =
   | 'OPEN'
   | 'SUBMISSION_GRACE'
@@ -329,6 +333,45 @@ export async function GET(
       submissionGraceSeconds: graceSeconds,
     });
 
+    let shareUrl: string | null = null;
+
+    if (state === 'OPEN') {
+      const referralLink =
+        await supabaseAdmin
+          .from('referral_links')
+          .select('referral_key')
+          .eq('inviter_wallet', wallet)
+          .eq('status', 'ACTIVE')
+          .order('created_at', {
+            ascending: false,
+          })
+          .limit(1)
+          .maybeSingle();
+
+      if (referralLink.error) {
+        // The promotion state remains readable if referral-link enrichment
+        // has a transient failure. Never hide a valid reward receipt because
+        // the optional share URL could not be assembled.
+        console.warn(
+          'X promotion share URL enrichment unavailable:',
+          referralLink.error,
+        );
+      } else {
+        const row =
+          referralLink.data as ReferralLinkRow | null;
+        const key =
+          row?.referral_key?.trim() ?? '';
+
+        if (
+          /^[A-Za-z0-9_-]{16}$/u.test(key) ||
+          /^[A-Za-z0-9_-]{22,64}$/u.test(key)
+        ) {
+          shareUrl =
+            `https://veinvite.vercel.app/s/${key}?xp=${shareToken}`;
+        }
+      }
+    }
+
     return NextResponse.json(
       {
         newOffersEnabled,
@@ -349,6 +392,7 @@ export async function GET(
                   shareToken,
                 )
               : null,
+          shareUrl,
           submittedAt:
             safeIso(
               submissionRow?.submitted_at,
