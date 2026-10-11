@@ -103,10 +103,14 @@ function toInviteRecord(
   row: InvitationRow,
   rewardQueue?: RewardQueueRow,
   promotionSplit?: RewardXPromotionSplitRow,
+  promotionLookupAvailable = false,
 ): InviteRecord {
   const reservedAmountWei =
     integerWei(rewardQueue?.reserved_amount_wei);
-  let claimAmountWei = reservedAmountWei;
+  let claimAmountWei: string | null =
+    promotionLookupAvailable
+      ? reservedAmountWei
+      : null;
   let promotionAmountWei: string | null = null;
 
   if (promotionSplit?.mode === 'LIVE') {
@@ -317,14 +321,17 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+  const promotionLookupAvailable =
+    promotionResult.error === null;
+
   if (promotionResult.error) {
-    console.error(
-      'Failed to load invitation X promotion splits:',
+    // X promotion display enrichment is intentionally fail-soft. Core invite
+    // and Claim availability must not disappear because this optional read
+    // failed. The UI receives no claim/promotion split fields and can fall
+    // back to the immutable reservation as a maximum total only.
+    console.warn(
+      'Invitation X promotion display enrichment unavailable:',
       promotionResult.error,
-    );
-    return NextResponse.json(
-      { error: 'Failed to load invitation reward status.' },
-      { status: 500 },
     );
   }
 
@@ -336,7 +343,11 @@ export async function GET(request: NextRequest) {
   );
   const promotionSplitByInvite =
     new Map<string, RewardXPromotionSplitRow>(
-      ((promotionResult.data ?? []) as RewardXPromotionSplitRow[]).map(
+      (
+        promotionLookupAvailable
+          ? (promotionResult.data ?? [])
+          : []
+      as RewardXPromotionSplitRow[]).map(
         (entry) => [entry.invite_code, entry],
       ),
     );
@@ -348,6 +359,7 @@ export async function GET(request: NextRequest) {
         invitation,
         rewardQueueByInvite.get(invitation.invite_code),
         promotionSplitByInvite.get(invitation.invite_code),
+        promotionLookupAvailable,
       ),
     );
   } catch (rewardError) {
