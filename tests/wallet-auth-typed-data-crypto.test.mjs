@@ -121,7 +121,7 @@ test('EIP-191 fallback proves the requested wallet and cannot be replayed with a
     'Wallet: ' + signer.address.toLowerCase(),
     'Nonce: ' + 'ab'.repeat(32),
     'Expires at: 2026-10-12T01:00:00.000Z',
-  ].join('\\n');
+  ].join('\n');
   const signature = await signer.signMessage(challenge);
   const recovered = verifyMessage(challenge, signature).toLowerCase();
   assert.equal(recovered, signer.address.toLowerCase());
