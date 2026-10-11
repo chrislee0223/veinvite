@@ -35,6 +35,8 @@ export interface InviteRecord {
   rewardQueueStatus?: RewardQueueStatus;
   rewardClaimRequestedAt?: string;
   rewardReservedAmountWei?: string;
+  rewardClaimAmountWei?: string;
+  rewardPromotionAmountWei?: string;
   rewardReservedAt?: string;
   rewardRecoveryOffsetWei?: string;
   appsCompleted?: number;

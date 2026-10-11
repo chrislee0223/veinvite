@@ -48,6 +48,14 @@ type RewardQueueRow = {
   reservation_basis: Record<string, unknown> | null;
 };
 
+type RewardXPromotionSplitRow = {
+  invite_code: string;
+  mode: string;
+  reservation_amount_wei: string | number;
+  base_amount_wei: string | number;
+  promotion_amount_wei: string | number;
+};
+
 const invitationColumns = `
   invite_code,
   inviter_wallet,
@@ -83,10 +91,54 @@ function toInvitationRow(value: unknown): InvitationRow | null {
   return value as InvitationRow;
 }
 
+function integerWei(
+  value: string | number | null | undefined,
+): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value);
+  return /^\d+$/u.test(normalized) ? normalized : null;
+}
+
 function toInviteRecord(
   row: InvitationRow,
   rewardQueue?: RewardQueueRow,
+  promotionSplit?: RewardXPromotionSplitRow,
+  promotionLookupAvailable = false,
 ): InviteRecord {
+  const reservedAmountWei =
+    integerWei(rewardQueue?.reserved_amount_wei);
+  let claimAmountWei: string | null =
+    promotionLookupAvailable
+      ? reservedAmountWei
+      : null;
+  let promotionAmountWei: string | null = null;
+
+  if (promotionSplit?.mode === 'LIVE') {
+    const splitReservationWei =
+      integerWei(promotionSplit.reservation_amount_wei);
+    const baseAmountWei =
+      integerWei(promotionSplit.base_amount_wei);
+    const splitPromotionWei =
+      integerWei(promotionSplit.promotion_amount_wei);
+
+    if (
+      !reservedAmountWei ||
+      splitReservationWei !== reservedAmountWei ||
+      !baseAmountWei ||
+      BigInt(baseAmountWei) <= 0n ||
+      splitPromotionWei === null ||
+      BigInt(baseAmountWei) + BigInt(splitPromotionWei) !==
+        BigInt(reservedAmountWei)
+    ) {
+      throw new Error(
+        `Invalid LIVE X promotion split for ${row.invite_code}.`,
+      );
+    }
+
+    claimAmountWei = baseAmountWei;
+    promotionAmountWei = splitPromotionWei;
+  }
+
   return {
     code: row.invite_code,
     inviterAddress: row.inviter_wallet,
@@ -106,8 +158,14 @@ function toInviteRecord(
     ...(rewardQueue?.claim_requested_at
       ? { rewardClaimRequestedAt: rewardQueue.claim_requested_at }
       : {}),
-    ...(rewardQueue?.reserved_amount_wei
-      ? { rewardReservedAmountWei: rewardQueue.reserved_amount_wei }
+    ...(reservedAmountWei
+      ? { rewardReservedAmountWei: reservedAmountWei }
+      : {}),
+    ...(claimAmountWei
+      ? { rewardClaimAmountWei: claimAmountWei }
+      : {}),
+    ...(promotionAmountWei !== null
+      ? { rewardPromotionAmountWei: promotionAmountWei }
       : {}),
     ...(rewardQueue?.reserved_at
       ? { rewardReservedAt: rewardQueue.reserved_at }
@@ -235,20 +293,45 @@ export async function GET(request: NextRequest) {
 
   const invitationRows = toInvitationRows(data).filter(isUserVisibleInvite);
   const inviteCodes = invitationRows.map((invitation) => invitation.invite_code);
-  const queueResult = inviteCodes.length > 0
-    ? await supabaseAdmin
-        .from('reward_queue_entries')
-        .select(
-          'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
-        )
-        .in('invite_code', inviteCodes)
-    : { data: [] as RewardQueueRow[], error: null };
+  const [queueResult, promotionResult] = inviteCodes.length > 0
+    ? await Promise.all([
+        supabaseAdmin
+          .from('reward_queue_entries')
+          .select(
+            'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
+          )
+          .in('invite_code', inviteCodes),
+        supabaseAdmin
+          .from('reward_x_promotion_splits')
+          .select(
+            'invite_code, mode, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+          )
+          .in('invite_code', inviteCodes)
+          .eq('mode', 'LIVE'),
+      ])
+    : [
+        { data: [] as RewardQueueRow[], error: null },
+        { data: [] as RewardXPromotionSplitRow[], error: null },
+      ];
 
   if (queueResult.error) {
     console.error('Failed to load invitation reward claims:', queueResult.error);
     return NextResponse.json(
       { error: 'Failed to load invitation reward status.' },
       { status: 500 },
+    );
+  }
+  const promotionLookupAvailable =
+    promotionResult.error === null;
+
+  if (promotionResult.error) {
+    // X promotion display enrichment is intentionally fail-soft. Core invite
+    // and Claim availability must not disappear because this optional read
+    // failed. The UI receives no claim/promotion split fields and can fall
+    // back to the immutable reservation as a maximum total only.
+    console.warn(
+      'Invitation X promotion display enrichment unavailable:',
+      promotionResult.error,
     );
   }
 
@@ -258,12 +341,37 @@ export async function GET(request: NextRequest) {
       entry,
     ]),
   );
-  const invites = invitationRows.map((invitation) =>
-    toInviteRecord(
-      invitation,
-      rewardQueueByInvite.get(invitation.invite_code),
-    ),
-  );
+  const promotionRows: RewardXPromotionSplitRow[] =
+    promotionLookupAvailable
+      ? (promotionResult.data ?? []) as RewardXPromotionSplitRow[]
+      : [];
+  const promotionSplitByInvite =
+    new Map<string, RewardXPromotionSplitRow>(
+      promotionRows.map(
+        (entry) => [entry.invite_code, entry],
+      ),
+    );
+
+  let invites: InviteRecord[];
+  try {
+    invites = invitationRows.map((invitation) =>
+      toInviteRecord(
+        invitation,
+        rewardQueueByInvite.get(invitation.invite_code),
+        promotionSplitByInvite.get(invitation.invite_code),
+        promotionLookupAvailable,
+      ),
+    );
+  } catch (rewardError) {
+    console.error(
+      'Failed to resolve invitation reward display amounts:',
+      rewardError,
+    );
+    return NextResponse.json(
+      { error: 'Failed to load invitation reward status.' },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     { invites },
