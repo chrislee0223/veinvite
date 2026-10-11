@@ -7,7 +7,8 @@ export type WalletAuthFailureBucket =
   | 'wallet_challenge'
   | 'wallet_verification'
   | 'wallet_session'
-  | 'wallet_rate_limit';
+  | 'wallet_rate_limit'
+  | 'wallet_unknown';
 
 type FailureContext = {
   code: string;
@@ -63,5 +64,9 @@ export function walletAuthFailureBucket({
   if (stage === 'AUTH_WALLET_SIGNATURE') return 'wallet_signature';
   if (stage === 'AUTH_SERVER_VERIFICATION') return 'wallet_verification';
 
-  return 'wallet_session';
+  if (stage === 'AUTH_SESSION_CHECK' || stage === 'AUTH_SESSION_PERSISTENCE') {
+    return 'wallet_session';
+  }
+
+  return 'wallet_unknown';
 }
