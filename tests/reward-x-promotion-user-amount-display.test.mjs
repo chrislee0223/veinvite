@@ -18,6 +18,10 @@ const restricted = await readFile(
   new URL('../src/components/RestrictedApprovedRewardClaims.tsx', import.meta.url),
   'utf8',
 );
+const homeHelpers = await readFile(
+  new URL('../src/lib/homeClientHelpers.ts', import.meta.url),
+  'utf8',
+);
 
 test('reward actions preserve total reservation and expose optional LIVE split amounts', () => {
   assert.match(actionType, /reservedAmountWei: string/);
@@ -64,7 +68,11 @@ test('home displays the actual claim amount while keeping promotion separate', (
   );
   assert.match(
     home,
-    /\^\\d\+\$\/u\.test\([\s\S]*invite\.rewardPromotionAmountWei/,
+    /formatPositiveB3trWei\([\s\S]*invite\.rewardPromotionAmountWei/,
+  );
+  assert.match(
+    homeHelpers,
+    /formatPositiveB3trWei[\s\S]*\^\\d\+\$\/[\s\S]*BigInt\(value\) > 0n/,
   );
 });
 
