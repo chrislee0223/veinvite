@@ -257,3 +257,46 @@ test(
     assert.match(legalPage, /productAnalyticsCopy\?\.updated/);
   },
 );
+
+test('wallet-auth failure categories are bounded and safe', async () => {
+  const { walletAuthFailureBucket } = await import(
+    '../src/lib/walletAuthAnalyticsFailure.ts'
+  );
+  const classify = (code, stage, message) =>
+    walletAuthFailureBucket({ code, stage, message });
+  assert.equal(classify('AUTH_CERTIFICATE_SIGNATURE_INVALID', 'AUTH_SERVER_VERIFICATION'), 'wallet_signature');
+  assert.equal(classify('AUTH_TYPED_SIGNER_MISMATCH', 'AUTH_SERVER_VERIFICATION'), 'wallet_signature');
+  assert.equal(classify('AUTH_RATE_LIMITED', 'AUTH_CHALLENGE_REQUEST'), 'wallet_rate_limit');
+  assert.equal(classify('AUTH_CONTEXT_CHANGED', 'AUTH_SERVER_VERIFICATION'), 'wallet_challenge');
+  assert.equal(classify('AUTH_WALLET_PROVIDER', 'AUTH_WALLET_PROVIDER'), 'wallet_provider');
+  assert.equal(classify('AUTH_SESSION_PERSISTENCE', 'AUTH_SESSION_PERSISTENCE'), 'wallet_session');
+  assert.equal(classify('AUTH_WALLET_SIGNATURE', 'AUTH_WALLET_SIGNATURE', 'Wallet message signature request timed out.'), 'wallet_signature_timeout');
+  assert.equal(classify('AUTH_SERVER_VERIFICATION', 'AUTH_SERVER_VERIFICATION'), 'wallet_verification');
+  assert.equal(classify('FUTURE_UNKNOWN', 'FUTURE_UNKNOWN', 'unknown wallet address'), 'wallet_unknown');
+  const classifier = await read('src/lib/walletAuthAnalyticsFailure.ts');
+  assert.doesNotMatch(classifier, /console\.log|localStorage|walletAddress|challenge\.nonce/);
+});
+
+test('wallet diagnostic collection is passive, cancellable and consistent with DB', async () => {
+  const newMigration = await read(
+    'supabase/migrations/20261012013000_allow_privacy_safe_wallet_auth_diagnostics_v1.sql'
+  );
+  const codes = [
+    'wallet_provider', 'wallet_signature', 'wallet_signature_timeout',
+    'wallet_challenge', 'wallet_verification', 'wallet_session',
+    'wallet_rate_limit', 'wallet_unknown',
+  ];
+  for (const code of codes) {
+    assert.ok(contract.includes("'"+code+"'"), 'client type missing '+code);
+    assert.ok(ingestion.includes("'"+code+"'"), 'server route missing '+code);
+    assert.ok(newMigration.includes("'"+code+"'"), 'database allowlist missing '+code);
+  }
+  assert.match(walletAuth, /failureCode: walletAuthFailureBucket\(/);
+  assert.match(walletAuth, /if \(isCancelledAuthentication\(error\)\)/);
+  assert.match(walletAuth, /eventName: 'wallet_auth_succeeded'/);
+  assert.match(walletAuth, /eventName: 'wallet_auth_failed'/);
+  assert.match(newMigration, /create or replace function public\.record_app_product_event/);
+  assert.match(newMigration, /drop constraint app_product_events_failure_code_check/);
+  assert.match(newMigration, /security invoker/);
+  assert.doesNotMatch(newMigration, /grant execute[^;]*to (anon|authenticated)/i);
+});

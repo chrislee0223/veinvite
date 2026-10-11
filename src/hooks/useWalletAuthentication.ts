@@ -25,6 +25,7 @@ import {
   reportProductAnalyticsEvent,
 } from '@/lib/productAnalytics';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
+import { walletAuthFailureBucket } from '@/lib/walletAuthAnalyticsFailure';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
@@ -685,7 +686,15 @@ export function useWalletAuthentication() {
           reportProductAnalyticsEvent({
             eventName: 'wallet_auth_failed',
             outcome: 'failure',
-            failureCode: 'wallet_auth',
+            // Strictly bucket known stages: no error messages, wallet addresses,
+            // challenge values, signatures, or referral keys enter analytics.
+            failureCode: walletAuthFailureBucket({
+              code: error instanceof WalletAuthenticationFailure
+                ? error.code
+                : failureStage,
+              stage: failureStage,
+              message: error instanceof Error ? error.message : undefined,
+            }),
             flowKey: walletAuthAnalyticsFlow(),
           });
 
