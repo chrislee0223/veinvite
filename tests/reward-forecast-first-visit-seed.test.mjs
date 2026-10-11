@@ -62,7 +62,7 @@ test('server seed is rendered before browser fallback and newer values win', () 
 test('forecast seed failures and cold reads stay isolated from Home startup', () => {
   assert.match(
     seedServer,
-    /FORECAST_SEED_STARTUP_TIMEOUT_MS = 1_200/,
+    /FORECAST_SEED_BACKGROUND_TIMEOUT_MS = 4_500/,
   );
   assert.match(seedServer, /const controller = new AbortController\(\)/);
   assert.match(seedServer, /\(\) => controller\.abort\(\)/);
@@ -70,13 +70,17 @@ test('forecast seed failures and cold reads stay isolated from Home startup', ()
   assert.match(seedServer, /controller\.signal\.aborted/);
   assert.match(
     seedServer,
-    /Public reward forecast seed transport exceeded/,
+    /Next\.js revalidates unstable_cache after the page can already have/,
   );
   assert.match(
     seedServer,
     /Public reward forecast seed could not be loaded/,
   );
-  assert.match(seedServer, /throw error;/);
+  // A cache callback exception is logged by Next.js as a runtime error even
+  // when Home itself safely ignores the optional result.
+  assert.doesNotMatch(seedServer, /throw error;|throw new Error\(/);
+  assert.match(seedServer, /if \(!controller\.signal\.aborted\)/);
+  assert.match(homePage, /HOME_FORECAST_PREFILL_BUDGET_MS = 400/);
   assert.match(seedServer, /return null;/);
   assert.doesNotMatch(homePage, /throw new Error\([^)]*forecast/i);
 });
