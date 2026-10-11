@@ -162,6 +162,13 @@ function pickPreferredForecast(
 
   for (const candidate of candidates) {
     if (!candidate) continue;
+    // A long-lived tab can keep module memory beyond the 24-hour limit.
+    // Never prefer an expired ready snapshot over a valid pending/new result.
+    if (
+      candidate.status === 'ready' &&
+      (candidate.modelVersion !== REWARD_FORECAST_MODEL_VERSION ||
+        forecastSnapshotAgeMs(candidate.generatedAt, Date.now()) === null)
+    ) continue;
     if (!preferred) {
       preferred = candidate;
       continue;
