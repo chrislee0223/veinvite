@@ -18,6 +18,14 @@ const route = await readFile(
   new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url),
   'utf8',
 );
+const paidPopup = await readFile(
+  new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url),
+  'utf8',
+);
+const openRoute = await readFile(
+  new URL('../src/app/api/rewards/x-promotion/open/route.ts', import.meta.url),
+  'utf8',
+);
 
 test('promotion share URL matches the production verifier contract', () => {
   assert.match(client, /hostname\.toLowerCase\(\) !== 'veinvite\.vercel\.app'/);
@@ -28,10 +36,14 @@ test('promotion share URL matches the production verifier contract', () => {
   assert.match(client, /SHARE_TOKEN_PATTERN/);
 });
 
-test('promotion state and Post submission use wallet-bound no-store server APIs', () => {
+test('promotion state, immediate open, and Post submission use no-store server APIs', () => {
   assert.match(client, /\/api\/rewards\/x-promotion\?inviteCode=/);
+  assert.match(client, /'\/api\/rewards\/x-promotion\/open'/);
   assert.match(client, /'\/api\/rewards\/x-promotion\/submit'/);
   assert.match(client, /cache: 'no-store'/);
+  assert.match(openRoute, /requireWalletSession/);
+  assert.match(openRoute, /sameOrigin/);
+  assert.match(openRoute, /reward_x_promotion_enabled/);
 });
 
 test('feature loading and failures preserve the existing ordinary X share UX', () => {
@@ -123,4 +135,44 @@ test('all supported locales have dedicated X promotion copy', async () => {
 
   assert.deepEqual(copyKeys, locales);
   assert.match(action, /REWARD_X_PROMOTION_COPY\[locale\]/);
+});
+
+
+test('paid reward popup renders the core payout before optional promotion resolution', () => {
+  const renderIndex = paidPopup.indexOf('setFeedback({');
+  const promotionLoadIndex = paidPopup.indexOf('await loadRewardXPromotion');
+  assert.ok(renderIndex >= 0);
+  assert.ok(promotionLoadIndex >= 0);
+  assert.ok(
+    renderIndex < promotionLoadIndex,
+    'core payout popup must render before optional promotion lookup',
+  );
+  assert.match(paidPopup, /openRewardXPromotionOpportunity/);
+  assert.match(paidPopup, /snapshot\.offerStatus ===[\s\S]*'PREPARING'/);
+});
+
+test('paid popup sharing is decoupled from reward receipt acknowledgement', () => {
+  const shareBlock =
+    /onShare:\s*\(\) => \{([\s\S]*?)\n\s*\},/u.exec(paidPopup);
+  assert.ok(shareBlock);
+  assert.match(shareBlock[1], /window\.open/);
+  assert.doesNotMatch(
+    shareBlock[1],
+    /acknowledgeReward|ACKNOWLEDGE_REWARD_RECEIPT|\/seen/u,
+  );
+  assert.match(
+    paidPopup,
+    /onConfirm:[\s\S]*acknowledgeReward/,
+  );
+});
+
+test('promotion-aware popup fails closed on unresolved bonus states', () => {
+  assert.match(
+    paidPopup,
+    /PREPARING, grace, verification, retention and payout-pending/,
+  );
+  assert.match(
+    paidPopup,
+    /Optional share enhancement fails closed/,
+  );
 });
