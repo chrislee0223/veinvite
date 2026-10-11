@@ -51,6 +51,7 @@ import type { ReferralLinkRecord } from '@/lib/referralLinks';
 import type { InviteRecord } from '@/lib/types';
 import {
   formatB3trWei,
+  formatPositiveB3trWei,
   missionFlags,
   nextMissionLabel,
   readCachedReferralLink,
@@ -1010,9 +1011,12 @@ export function HomeClient() {
 
               <div className="rewardList">
                 {outstandingRewards.map((invite) => {
-                  const amount = formatB3trWei(
-                    invite.rewardReservedAmountWei ?? '0',
+                  const claimAmount = formatB3trWei(
+                    invite.rewardClaimAmountWei ??
+                      invite.rewardReservedAmountWei ??
+                      '0',
                   );
+                  const promotionAmount = formatPositiveB3trWei(invite.rewardPromotionAmountWei);
                   const recoveryOffset = invite.rewardRecoveryOffsetWei
                     ? formatB3trWei(invite.rewardRecoveryOffsetWei)
                     : null;
@@ -1030,7 +1034,10 @@ export function HomeClient() {
                             ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
                             : invite.code}
                         </small>
-                        <strong>{progressCopy.fixedReward} · {amount} B3TR</strong>
+                        <strong>{progressCopy.fixedReward} · {claimAmount} B3TR</strong>
+                        {promotionAmount ? (
+                          <span className="rewardAdjustmentMeta">X +{promotionAmount} B3TR</span>
+                        ) : null}
                         {recoveryOffset ? (
                           <span className="rewardAdjustmentMeta">
                             {rewardAdjustedCopy(locale).title} · -{recoveryOffset} B3TR
