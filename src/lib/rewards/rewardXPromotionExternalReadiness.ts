@@ -103,18 +103,12 @@ Promise<RewardXPromotionExternalReadinessResult> {
         ?.reward_x_promotion_external_verification_ready ===
       true
     ) {
-      const { error: pauseError } =
-        await supabaseAdmin
-          .from('reward_runtime_config')
-          .update({
-            reward_x_promotion_external_verification_ready:
-              false,
-          })
-          .eq('id', 1)
-          .eq(
-            'reward_x_promotion_external_verification_ready',
-            true,
-          );
+      const {
+        data: pauseData,
+        error: pauseError,
+      } = await supabaseAdmin.rpc(
+        'pause_reward_x_promotion_external_verification_v1',
+      );
 
       if (pauseError) {
         throw new Error(
@@ -123,7 +117,12 @@ Promise<RewardXPromotionExternalReadinessResult> {
       }
 
       externalVerificationPaused =
-        true;
+        Boolean(
+          pauseData &&
+          typeof pauseData === 'object' &&
+          !Array.isArray(pauseData) &&
+          (pauseData as Record<string, unknown>).paused === true,
+        );
     }
   }
 
