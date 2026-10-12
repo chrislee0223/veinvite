@@ -350,6 +350,7 @@ export const RO_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Verificarea participării nu este disponibilă',
     participationErrorDescription: 'Portofelul a fost verificat, dar nu am putut verifica accesul. Încearcă din nou peste puțin timp.',
     slowVerificationDescription: 'Verificarea portofelului durează mai mult decât de obicei. Finalizează sau anulează semnătura, apoi reconectează portofelul dacă este necesar.',
+    certificateSignatureDescription: "Semnătura portofelului nu a putut fi verificată. Deconectează și reconectează portofelul alegând contul corect. Dacă problema revine, trimite codul de eroare și referința de mai jos echipei de asistență.",
     rateLimitDescription: 'Prea multe încercări de verificare. Așteaptă puțin înainte de a încerca din nou.',
     tryAgain: 'Încearcă din nou',
     disconnectWallet: 'Deconectează portofelul',
