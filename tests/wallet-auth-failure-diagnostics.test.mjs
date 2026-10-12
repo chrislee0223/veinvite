@@ -104,6 +104,7 @@ test('wallet recovery and post-auth check copy exists in every supported locale'
       'participationErrorTitle',
       'participationErrorDescription',
       'slowVerificationDescription',
+      'certificateSignatureDescription',
       'rateLimitDescription',
     ]) {
       assert.ok(copy[key]?.trim()?.length >= 8, `missing ${locale}.${key}`);
@@ -118,6 +119,7 @@ test('wallet recovery and post-auth check copy exists in every supported locale'
     'participationErrorTitle',
     'participationErrorDescription',
     'slowVerificationDescription',
+    'certificateSignatureDescription',
     'rateLimitDescription',
   ]) {
     assert.match(gate, new RegExp(`t\\.${key}`));
@@ -144,6 +146,7 @@ test('supplemental wallet language packs include all four recovery and participa
       'participationErrorTitle',
       'participationErrorDescription',
       'slowVerificationDescription',
+      'certificateSignatureDescription',
       'rateLimitDescription',
     ]) {
       assert.match(section, new RegExp(`\\b${key}: ['"]`), `${locale} is missing ${key}`);
@@ -175,4 +178,22 @@ test('invalid VeWorld certificates fail closed without a second incompatible sig
   assert.match(route, /verifyMessage\(/);
   assert.match(route, /verifyTypedData\(/);
   assert.match(route, /issue_wallet_session_after_verified_challenge/);
+});
+
+test('invalid certificate displays localized reconnect guidance and prevents automatic retry loops', async () => {
+  const gate = await readFile(
+    new URL('../src/components/WalletSessionGate.tsx', import.meta.url), 'utf8',
+  );
+  const hook = await readFile(
+    new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url), 'utf8',
+  );
+  const copy = WALLET_SESSION_COPY.ko.certificateSignatureDescription;
+  assert.match(copy, /연결을 해제/);
+  assert.match(copy, /참조 번호/);
+  assert.match(gate, /errorCode === 'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
+  assert.match(gate, /needsWalletReconnect\s*\? t\.certificateSignatureDescription/);
+  assert.match(gate, /hasError\s*\?\s*\(\s*needsWalletReconnect \? null : \(/);
+  assert.match(gate, /data-veinvite-wallet-auth-error-code=\{errorCode\}/);
+  assert.match(gate, /Ref: \$\{referenceId\}/);
+  assert.doesNotMatch(hook, /verification\.body\.code ===[\s\S]*'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
 });
