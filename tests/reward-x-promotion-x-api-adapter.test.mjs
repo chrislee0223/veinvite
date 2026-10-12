@@ -18,6 +18,14 @@ const route = await readFile(
   'utf8',
 );
 
+const lifecycle = await readFile(
+  new URL(
+    '../src/lib/rewards/rewardXPromotionLifecycle.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const migration = await readFile(
   new URL(
     '../supabase/migrations/20261009133000_add_x_promotion_submission_invalidation_v1.sql',
@@ -130,5 +138,34 @@ test('promotion URL matching requires the canonical referral path and exact xp t
   assert.doesNotMatch(
     adapter,
     /url\.toString\(\)\.toLowerCase\(\)\.includes\(token\)/,
+  );
+});
+
+
+test('an immediate X 404 gets propagation grace before terminal invalidation', () => {
+  const notFoundStart = route.indexOf(
+    "if (lookup.status === 'NOT_FOUND')",
+  );
+  assert.ok(notFoundStart >= 0);
+  const notFoundBlock = route.slice(
+    notFoundStart,
+    route.indexOf(
+      "if (!lookup.isOriginalPost)",
+      notFoundStart,
+    ),
+  );
+
+  assert.match(notFoundBlock, /POST_NOT_FOUND_RETRY/);
+  assert.match(notFoundBlock, /pendingResponse/);
+  assert.doesNotMatch(notFoundBlock, /invalidateSubmission/);
+  assert.doesNotMatch(notFoundBlock, /terminalResponse/);
+
+  assert.match(
+    lifecycle,
+    /u\.submitted_at <= now\(\)-interval '10 minutes'/,
+  );
+  assert.match(
+    lifecycle,
+    /lookup\.status === 'NOT_FOUND'[\s\S]*invalidatePendingSubmission/,
   );
 });
