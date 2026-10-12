@@ -331,26 +331,14 @@ export async function POST(
     }
 
     if (lookup.status === 'NOT_FOUND') {
-      const invalidated =
-        await invalidateSubmission(
-          inviteCode,
-          parsedPost.postId,
-          lookup.reason,
-        );
-
-      if (!invalidated) {
-        return pendingResponse(
-          'INVALIDATION_RETRY_REQUIRED',
-          inviteCode,
-          parsedPost.postId,
-        );
-      }
-
-      return terminalResponse(
-        'This X Post could not be found.',
+      // A just-published X Post can briefly be unavailable to the lookup
+      // endpoint. The durable submission is already recorded, so keep it
+      // pending and let lifecycle maintenance retry after its 10-minute
+      // initial propagation grace. A repeated NOT_FOUND there is terminal.
+      return pendingResponse(
+        'POST_NOT_FOUND_RETRY',
         inviteCode,
         parsedPost.postId,
-        lookup.reason,
       );
     }
 
