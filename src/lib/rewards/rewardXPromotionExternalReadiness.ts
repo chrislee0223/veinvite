@@ -8,9 +8,10 @@ import {
   getVeBetterNetworkConfig,
 } from '@/lib/vebetter/network';
 
-// Official X API Post-lookup quickstart sample Post.
-// Keeping the probe on X's own documented sample avoids depending on
-// a VeInvite user Post or creating a synthetic promotion opportunity.
+// Stable syntactically valid X Post lookup probe. The readiness check
+// accepts either FOUND or an authenticated NOT_FOUND response as proof that
+// the bearer token and X API endpoint are reachable. This avoids depending
+// on the continued existence of any particular external Post.
 const X_API_READINESS_POST_ID =
   '1228393702244134912';
 
@@ -77,7 +78,11 @@ Promise<RewardXPromotionExternalReadinessResult> {
   let externalVerificationPaused =
     false;
 
-  if (status !== 'READY') {
+  const ready =
+    status === 'READY' ||
+    status === 'POST_NOT_FOUND';
+
+  if (!ready) {
     const { data: config, error: configError } =
       await supabaseAdmin
         .from('reward_runtime_config')
@@ -124,7 +129,7 @@ Promise<RewardXPromotionExternalReadinessResult> {
 
   return {
     network,
-    ready: status === 'READY',
+    ready,
     status,
     checkedAt,
     externalVerificationPaused,
