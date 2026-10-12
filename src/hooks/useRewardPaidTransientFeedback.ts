@@ -227,13 +227,8 @@ export function useRewardPaidTransientFeedback({
           NOTIFICATION_COPY[locale].confirm,
         onConfirm: () => {
           if (wallet) {
-            clearRewardPaidToast(
-              wallet,
-              payload.receiptId,
-            );
-            setPendingReward(
-              readRewardPaidToast(wallet),
-            );
+            clearRewardPaidToast(wallet, payload.receiptId);
+            setPendingReward(readRewardPaidToast(wallet));
           }
           return acknowledgeReward(payload);
         },
