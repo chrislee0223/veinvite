@@ -35,12 +35,17 @@ type ShieldState =
   | { status: 'ready' };
 
 function resolveStartupLocale(): SupportedLocale {
-  const saved = window.localStorage.getItem(
-    LANGUAGE_STORAGE_KEY,
-  );
-
-  if (isLocale(saved)) {
-    return saved;
+  // Storage can throw SecurityError in private or hardened wallet WebViews.
+  // Startup copy must never block the authentication screen.
+  try {
+    const saved = window.localStorage.getItem(
+      LANGUAGE_STORAGE_KEY,
+    );
+    if (isLocale(saved)) {
+      return saved;
+    }
+  } catch {
+    // Browser locale remains available when persisted preferences are blocked.
   }
 
   return resolveBrowserLocale(
