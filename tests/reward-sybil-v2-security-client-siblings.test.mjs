@@ -10,6 +10,7 @@ const [
   reviewedBehaviorPatterns,
   protocolDestinations,
   policy,
+  preservedSiblingSwitch,
   overlapFixMigration,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
@@ -34,6 +35,7 @@ const [
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
+  readFile('src/lib/sybil/v2/preservedSiblingSwitch.ts', 'utf8'),
   readFile('supabase/migrations/20261009141000_harden_overlapping_security_client_siblings_v1.sql', 'utf8'),
 ]);
 
@@ -212,21 +214,21 @@ test('current DB security-client functions reject overlapping observation window
 });
 
 
-test('previously confirmed sequential sibling switches survive later overlapping wallet sessions', () => {
-  // The first observation records a real <=10 minute sequential switch.
-  // Subsequent alternating logins overlap the aggregate windows and must
-  // neither fabricate a new switch nor downgrade that immutable HIGH signal.
-  assert.match(pipeline, /const currentImmediateSwitch =/u);
-  assert.match(pipeline, /switchGapSeconds >= 0/u);
-  assert.match(pipeline, /switchGapSeconds === null/u);
-  assert.match(pipeline, /\.eq\('dedupe_key', switchEvidenceKey\)/u);
-  assert.match(pipeline, /\.eq\('related_wallet', siblingWallet\)/u);
-  assert.match(pipeline, /evidence\.sameInviterSibling === true/u);
-  assert.match(pipeline, /evidence\.peerInviteCode === sibling\.invite_code/u);
-  assert.match(pipeline, /evidence\.sharedClientId === sharedClientId/u);
-  assert.match(pipeline, /savedGap >= 0[\s\S]*savedGap <= 10 \* 60/u);
-  assert.match(pipeline, /currentImmediateSwitch \|\| preservedImmediateSwitch/u);
-  assert.match(pipeline, /if \(priorSwitchError\)[\s\S]*throw new Error/u);
-  // No automatic BLACK on client/funder association alone.
+test('previously confirmed sibling switches survive later overlapping wallet sessions', () => {
+  // Do not infer a new switch from overlapping aggregate timestamps.
+  assert.match(pipeline, /await confirmedSiblingImmediateSwitch/u);
+  assert.match(preservedSiblingSwitch, /if \(switchGapSeconds !== null\)/u);
+  assert.match(preservedSiblingSwitch, /return switchGapSeconds >= 0 && switchGapSeconds <= 600/u);
+  // Only exact immutable evidence of an earlier real switch may be replayed.
+  assert.match(preservedSiblingSwitch, /\.eq\('dedupe_key', evidenceKey\)/u);
+  assert.match(preservedSiblingSwitch, /\.eq\('related_wallet', siblingWallet\)/u);
+  assert.match(preservedSiblingSwitch, /evidence\.sameInviterSibling === true/u);
+  assert.match(preservedSiblingSwitch, /evidence\.peerInviteCode === siblingInviteCode/u);
+  assert.match(preservedSiblingSwitch, /evidence\.sharedClientId === sharedClientId/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.switchGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.activationGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.peerActivationGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /if \(error\)[\s\S]*throw new Error/u);
+  // Association alone never auto-BLACKs a legitimate shared device.
   assert.match(policy, /if \(highEvidenceDomains\.length >= 1\)[\s\S]*state: 'HOLD'/u);
 });
