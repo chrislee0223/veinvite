@@ -1972,13 +1972,84 @@ async function loadSecurityIdentitySignals(
               Number.isNaN(siblingFirstSeen)
                 ? null
                 : Math.abs(siblingActivatedAt - siblingFirstSeen) / 1000;
-            const immediateSwitch =
+            const currentImmediateSwitch =
               switchGapSeconds !== null &&
               activationGapSeconds !== null &&
               siblingActivationGapSeconds !== null &&
+              switchGapSeconds >= 0 &&
               switchGapSeconds <= 10 * 60 &&
               activationGapSeconds <= 10 * 60 &&
               siblingActivationGapSeconds <= 10 * 60;
+
+            // First/last observation windows can overlap after the wallets
+            // switch back and forth. An overlapping window is never *new*
+            // switch evidence, but it must not erase a previously verified
+            // sequential switch that was recorded before the overlap.
+            let preservedImmediateSwitch = false;
+            if (
+              switchGapSeconds === null &&
+              activationGapSeconds !== null &&
+              siblingActivationGapSeconds !== null &&
+              activationGapSeconds <= 10 * 60 &&
+              siblingActivationGapSeconds <= 10 * 60
+            ) {
+              const switchEvidenceKey =
+                `sybil-v2:${invitation.invite_code}:security_client_sibling_immediate_switch:${sharedClientId}:${sibling.invite_code}`;
+              const { data: priorSwitch, error: priorSwitchError } =
+                await supabaseAdmin
+                  .from('sybil_v2_evidence_records')
+                  .select('evidence')
+                  .eq('dedupe_key', switchEvidenceKey)
+                  .eq('network', invitation.activation_network)
+                  .eq('invite_code', invitation.invite_code)
+                  .eq('subject_wallet', inviteeWallet)
+                  .eq('related_wallet', siblingWallet)
+                  .eq(
+                    'signal_code',
+                    'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
+                  )
+                  .maybeSingle();
+
+              if (priorSwitchError) {
+                throw new Error(
+                  `Historical sequential switch evidence could not be loaded: ${priorSwitchError.message}`,
+                );
+              }
+
+              const saved = priorSwitch?.evidence;
+              if (
+                saved &&
+                typeof saved === 'object' &&
+                !Array.isArray(saved)
+              ) {
+                const evidence = saved as Record<string, unknown>;
+                const savedGap = evidence.switchGapSeconds;
+                const savedActivation = evidence.activationGapSeconds;
+                const savedPeerActivation = evidence.peerActivationGapSeconds;
+                preservedImmediateSwitch =
+                  evidence.sameInviterSibling === true &&
+                  evidence.immediateSwitch === true &&
+                  evidence.sharedClientId === sharedClientId &&
+                  evidence.peerInviteCode === sibling.invite_code &&
+                  evidence.peerWallet === siblingWallet &&
+                  evidence.inviterWallet === inviterWallet &&
+                  typeof savedGap === 'number' &&
+                  Number.isFinite(savedGap) &&
+                  savedGap >= 0 &&
+                  savedGap <= 10 * 60 &&
+                  typeof savedActivation === 'number' &&
+                  Number.isFinite(savedActivation) &&
+                  savedActivation <= 10 * 60 &&
+                  savedActivation >= 0 &&
+                  typeof savedPeerActivation === 'number' &&
+                  Number.isFinite(savedPeerActivation) &&
+                  savedPeerActivation <= 10 * 60 &&
+                  savedPeerActivation >= 0;
+              }
+            }
+
+            const immediateSwitch =
+              currentImmediateSwitch || preservedImmediateSwitch;
 
             const signals: SybilV2Signal[] = [{
               code: 'SECURITY_CLIENT_SIBLING_LINK',
