@@ -95,11 +95,13 @@ test('an abort during backoff stops without sending another GET', async () => {
 });
 
 test('session resiliency stays GET-only and distinguishes precheck versus cookie failures', async () => {
-  const [hook, helper, sessionGate, provider] = await Promise.all([
+  const [hook, helper, sessionGate, provider, shield, documentSync] = await Promise.all([
     readFile('src/hooks/useWalletAuthentication.ts', 'utf8'),
     readFile('src/lib/walletSessionReadRetry.ts', 'utf8'),
     readFile('src/components/WalletSessionGate.tsx', 'utf8'),
     readFile('src/components/VeChainProvider.tsx', 'utf8'),
+    readFile('src/components/LocaleHydrationShield.tsx', 'utf8'),
+    readFile('src/components/LocaleDocumentSync.tsx', 'utf8'),
   ]);
   assert.match(hook, /const readCurrentSession = async \(\) => \{/);
   assert.match(hook, /await fetchWalletSessionWithTransientRetry\(\{/);
@@ -115,7 +117,7 @@ test('session resiliency stays GET-only and distinguishes precheck versus cookie
   assert.match(helper, /signal\.addEventListener\('abort'/);
   assert.match(hook, /await requestCertificate\(/);
   assert.match(hook, /proofType =\s*'certificate'/);
-  for (const code of [sessionGate, provider]) {
+  for (const code of [sessionGate, provider, shield, documentSync]) {
     assert.match(code, /window\.localStorage\.getItem\([\s\S]*LANGUAGE_STORAGE_KEY/);
     assert.match(code, /catch \{/);
     assert.match(code, /return resolveBrowserLocale\(/);
