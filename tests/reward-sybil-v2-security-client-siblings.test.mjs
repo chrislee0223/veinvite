@@ -11,6 +11,7 @@ const [
   protocolDestinations,
   policy,
   preservedSiblingSwitch,
+  siblingSignalsSource,
   overlapFixMigration,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
@@ -36,12 +37,13 @@ const [
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
   readFile('src/lib/sybil/v2/preservedSiblingSwitch.ts', 'utf8'),
+  readFile('src/lib/sybil/v2/sameInviterSiblingSignals.ts','utf8'),
   readFile('supabase/migrations/20261009141000_harden_overlapping_security_client_siblings_v1.sql', 'utf8'),
 ]);
 
 test('same-inviter sibling wallets on one security client are detected before payout', () => {
-  assert.match(pipeline, /SECURITY_CLIENT_SIBLING_LINK/u);
-  assert.match(pipeline, /SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH/u);
+  assert.match(siblingSignalsSource, /SECURITY_CLIENT_SIBLING_LINK/u);
+  assert.match(siblingSignalsSource, /SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH/u);
   assert.match(pipeline, /sameInviterSibling:\s*true/u);
   assert.match(pipeline, /switchGapSeconds <= 10 \* 60/u);
   assert.match(pipeline, /peerActivationGapSeconds/u);
@@ -51,11 +53,11 @@ test('same-inviter sibling wallets on one security client are detected before pa
 
 test('generic sibling sharing is medium while an immediate switch is high evidence', () => {
   assert.match(
-    pipeline,
+    siblingSignalsSource,
     /code:\s*'SECURITY_CLIENT_SIBLING_LINK'[\s\S]*strength:\s*'MEDIUM'[\s\S]*score:\s*60/u,
   );
   assert.match(
-    pipeline,
+    siblingSignalsSource,
     /code:\s*'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH'[\s\S]*strength:\s*'HIGH'[\s\S]*score:\s*100/u,
   );
   assert.match(
@@ -231,4 +233,30 @@ test('previously confirmed sibling switches survive later overlapping wallet ses
   assert.match(preservedSiblingSwitch, /if \(error\)[\s\S]*throw new Error/u);
   // Association alone never auto-BLACKs a legitimate shared device.
   assert.match(policy, /if \(highEvidenceDomains\.length >= 1\)[\s\S]*state: 'HOLD'/u);
+});
+
+
+test('all sibling candidates are inspected and independently evidenced', () => {
+  const begin = pipeline.indexOf('const siblingInvitationsResult =');
+  const end = pipeline.indexOf('// Downstream wallet switching',begin);
+  const section = pipeline.slice(begin,end);
+  assert.match(section, /const siblingSignals: SybilV2Signal\[\] = \[\]/u);
+  assert.match(section, /for \(const sibling of siblingInvitations\)/u);
+  assert.match(section, /for \(const siblingRow of siblingRows\)/u);
+  assert.match(section, /siblingSignals\.push\(\.\.\.signals\)/u);
+  assert.match(section, /distinctSiblingSecuritySignals\(siblingSignals\)/u);
+  // An early return inside a loop can silently skip the later, stronger peer.
+  const firstReturn = section.indexOf('return {');
+  const allLoopsDone = section.indexOf('if (siblingSignals.length > 0)');
+  assert.ok(firstReturn < 0 || firstReturn > allLoopsDone);
+  assert.match(section, /await insertEvidenceRecord\(/u);
+  assert.match(section, /sameInviterSibling: true/u);
+});
+
+test('sibling aggregation collapses repeated evidence without turning association into automatic BLACK', () => {
+  assert.match(siblingSignalsSource, /new Map\(/u);
+  assert.match(siblingSignalsSource, /signal\.code/u);
+  assert.match(siblingSignalsSource, /signal\.independentKey/u);
+  assert.match(siblingSignalsSource, /family: 'SECURITY_IDENTITY'/u);
+  assert.doesNotMatch(siblingSignalsSource, /'RESTRICTED'|'BLACKLIST'/u);
 });
