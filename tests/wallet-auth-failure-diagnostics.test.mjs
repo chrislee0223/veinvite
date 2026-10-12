@@ -92,17 +92,15 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
     hook,
     /verification\.body\.code ===[\s\S]*'AUTH_CERTIFICATE_SIGNATURE_INVALID'/,
   );
-  assert.match(
-    hook,
-    /proofType = 'message';[\s\S]*verification = await verifyCurrentProof\(\)/,
-  );
-  assert.match(hook, /signature = await withTimeout\(\s*signMessage\(challenge\.message\)/);
+  assert.match(hook, /proofType = 'typed_data';[\s\S]*verification = await verifyCurrentProof\(\)/);
+  assert.match(hook, /signature = await requestTypedData\(/);
+  assert.match(hook, /buildWalletAuthTypedData\(/);
   assert.doesNotMatch(hook, /await retryCertificateProof\(\)/);
   assert.doesNotMatch(
     hook,
     /AUTH_CERTIFICATE_SIGNATURE_INVALID[\s\S]{0,1200}\/api\/auth\/challenge/,
   );
-  assert.doesNotMatch(hook, /await requestTypedData\(/);
+
 });
 
 test('wallet recovery and post-auth check copy exists in every supported locale', async () => {
@@ -162,7 +160,7 @@ test('supplemental wallet language packs include all four recovery and participa
 });
 
 
-test('certificate failures offer one message proof over the original challenge, without weakening session checks', async () => {
+test('certificate failures offer one DAppKit EIP-712 proof over the original challenge, without weakening session checks', async () => {
   const hook = await readFile(
     new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url),
     'utf8',
@@ -186,15 +184,29 @@ test('certificate failures offer one message proof over the original challenge, 
   assert.ok(retryMarker > 0 && endMarker > retryMarker);
   const retrySection = hook.slice(retryMarker, endMarker);
   assert.match(retrySection, /'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
-  assert.match(retrySection, /signMessage\(challenge\.message\)/);
+  assert.match(retrySection, /buildWalletAuthTypedData\(\{/);
+  for (const field of [
+    'walletAddress,', 'nonce: challenge.nonce,',
+    'expiresAt: challenge.expiresAt,', 'origin: challenge.origin,',
+    'network: challenge.network,', 'message: challenge.message,',
+  ]) {
+    assert.ok(retrySection.includes(field), 'typed proof must bind ' + field);
+  }
+  assert.match(retrySection, /signature = await requestTypedData\(/);
+  assert.match(retrySection, /typedProof\.domain,[\s\S]*typedProof\.types,[\s\S]*typedProof\.value,[\s\S]*\{ signer: walletAddress \}/);
   assert.match(retrySection, /certificate = undefined;/);
-  assert.match(retrySection, /proofType = 'message';/);
+  assert.match(retrySection, /proofType = 'typed_data';/);
   assert.match(retrySection, /verification = await verifyCurrentProof\(\)/);
   assert.equal(
-    (retrySection.match(/signMessage\(challenge\.message\)/g) ?? []).length,
+    (retrySection.match(/signature = await requestTypedData\(/g) ?? []).length,
     1,
-    'fallback opens only one independent message signing request',
+    'fallback opens exactly one typed-data signing request',
   );
+  // VeChainKit useSignMessage() gives another certificate on DAppKit.
+  assert.doesNotMatch(retrySection, /signMessage\(challenge\.message\)/);
+  assert.doesNotMatch(retrySection, /proofType = 'message'/);
+  // A display timeout cannot safely cancel a wallet-owned prompt.
+  assert.doesNotMatch(retrySection, /withTimeout\(\s*requestTypedData/);
   assert.doesNotMatch(retrySection, /requestCertificate|retryCertificateProof/);
   assert.doesNotMatch(retrySection, /\/api\/auth\/challenge/);
   // Both successful proof types require the server's cryptographic verification
