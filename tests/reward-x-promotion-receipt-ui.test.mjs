@@ -237,3 +237,20 @@ test('receipt suppresses generic sharing while a LIVE promotion is preparing', (
   assert.match(component, /promotion\.state === 'PREPARING'[\s\S]*promotionCopy\.preparing/);
   assert.match(component, /promotion \? \([\s\S]*\) : rewardShareIntentUrl \? \(/);
 });
+
+
+test('receipt generic X sharing waits for authoritative no-promotion state', () => {
+  assert.match(component, /promotionLookupResolved/);
+  assert.match(
+    component,
+    /payload\.promotion === null[\s\S]*setPromotionLookupResolved\(true\)/,
+  );
+  assert.match(
+    component,
+    /promotionLookupResolved && rewardShareIntentUrl/,
+  );
+  assert.match(
+    component,
+    /Fail closed for X sharing only/,
+  );
+});
