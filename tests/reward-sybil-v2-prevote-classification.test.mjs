@@ -16,6 +16,7 @@ const narrowSameClient = await readFile(
   'utf8',
 );
 const policy = await readFile('src/lib/sybil/v2/policy.ts','utf8');
+const securityTiming = await readFile('src/lib/sybil/v2/securityClientTiming.ts','utf8');
 
 test('known protocol/service wallets are excluded from Sybil hub inference', () => {
   for (const suffix of [
@@ -43,7 +44,7 @@ test('same-client link stays HOLD evidence while only an immediate inviter-to-in
   assert.ok(pipeline.includes('sharedClientPreVoteObservation('));
   assert.match(pipeline, /SECURITY_CLIENT_INVITER_IMMEDIATE_SWITCH/u);
   assert.match(pipeline, /switchGapSeconds <= 10 \* 60/u);
-  assert.match(pipeline, /activationGapSeconds <= 10 \* 60/u);
+  assert.match(securityTiming, /activationGapSeconds <= 600/u);
   assert.match(pipeline, /apply_sybil_v2_security_client_inviter_restriction/u);
   assert.match(narrowSameClient, /interval '10 minutes'/u);
   assert.match(narrowSameClient, /SAME_CLIENT_IMMEDIATE_SWITCH_NOT_CONFIRMED/u);
