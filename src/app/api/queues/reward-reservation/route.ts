@@ -190,16 +190,27 @@ const queueCallback = handleCallback(
   },
   {
     visibilityTimeoutSeconds: 180,
-    retry: (_error, metadata) => {
+    retry: (error, metadata) => {
+      // Recovery sweeps retain durable liveness authority after Queue
+      // exhaustion. Avoid retrying a persistently failing message forever.
+      if (metadata.deliveryCount >= 10) {
+        console.error('Reward reservation Queue retries exhausted; recovery remains pending:', {
+          messageId: metadata.messageId,
+          deliveryCount: metadata.deliveryCount,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { acknowledge: true };
+      }
+
       const exponent = Math.max(
         0,
-        Math.min(metadata.deliveryCount - 1, 5),
+        Math.min(metadata.deliveryCount - 1, 7),
       );
 
       return {
         afterSeconds: Math.min(
-          120,
-          5 * (2 ** exponent),
+          900,
+          30 * (2 ** exponent),
         ),
       };
     },
