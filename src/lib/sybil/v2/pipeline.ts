@@ -24,6 +24,7 @@ import {
   strictSequentialClientSwitchGapSeconds,
 } from '@/lib/sybil/v2/securityClientTiming';
 import { confirmedSiblingImmediateSwitch } from '@/lib/sybil/v2/preservedSiblingSwitch';
+import { siblingSecuritySignals, distinctSiblingSecuritySignals } from '@/lib/sybil/v2/sameInviterSiblingSignals';
 import {
   loadRapidRewardConsolidationSignals,
 } from '@/lib/sybil/v2/rapidRewardConsolidationEvidence';
@@ -1939,6 +1940,7 @@ async function loadSecurityIdentitySignals(
             !excludedWallets.has(normalizeWallet(row.invitee_wallet)),
           );
 
+        const siblingSignals: SybilV2Signal[] = [];
         for (const sibling of siblingInvitations) {
           const siblingWallet = normalizeWallet(String(sibling.invitee_wallet));
           const siblingRows = relatedClientRows.filter(
@@ -1986,23 +1988,7 @@ async function loadSecurityIdentitySignals(
               siblingActivationGapSeconds,
             });
 
-            const signals: SybilV2Signal[] = [{
-              code: 'SECURITY_CLIENT_SIBLING_LINK',
-              family: 'SECURITY_IDENTITY',
-              strength: 'MEDIUM',
-              score: 60,
-              independentKey: sharedClientId,
-            }];
-
-            if (immediateSwitch) {
-              signals.push({
-                code: 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
-                family: 'SECURITY_IDENTITY',
-                strength: 'HIGH',
-                score: 100,
-                independentKey: sharedClientId,
-              });
-            }
+            const signals = siblingSecuritySignals(sharedClientId, immediateSwitch);
 
             for (const signal of signals) {
               await insertEvidenceRecord({
@@ -2034,8 +2020,14 @@ async function loadSecurityIdentitySignals(
               });
             }
 
-            return { signals, complete: true };
+            siblingSignals.push(...signals);
           }
+        }
+        if (siblingSignals.length > 0) {
+          return {
+            signals: distinctSiblingSecuritySignals(siblingSignals),
+            complete: true,
+          };
         }
       }
     }
