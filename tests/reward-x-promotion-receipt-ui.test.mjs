@@ -95,6 +95,21 @@ test('promotion state parser accepts PREPARING only without an opportunity deadl
   assert.equal(preparing?.state, 'PREPARING');
   assert.equal(preparing?.postDeadlineAt, null);
 
+  const released = parseRewardXPromotionSnapshot({
+    inviteCode: 'ABCDEFG',
+    state: 'RELEASED',
+    amountWei: '10000000000000000000',
+    amountB3tr: '10',
+    openedAt: null,
+    postDeadlineAt: null,
+    submissionGraceSeconds: 0,
+    shareToken: null,
+    submittedAt: null,
+    verifyAfter: null,
+    paidAt: null,
+  });
+  assert.equal(released?.state, 'RELEASED');
+
   assert.equal(
     parseRewardXPromotionSnapshot({
       inviteCode: 'ABCDEFG',
