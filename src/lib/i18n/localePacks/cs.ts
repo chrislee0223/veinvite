@@ -350,6 +350,7 @@ export const CS_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Kontrola účasti není dostupná',
     participationErrorDescription: 'Peněženka byla ověřena, ale přístup k účasti se nepodařilo zkontrolovat. Zkuste to za chvíli znovu.',
     slowVerificationDescription: 'Ověření peněženky trvá déle než obvykle. Potvrďte nebo zrušte podpis v peněžence. Případně ji odpojte a znovu připojte.',
+    certificateSignatureDescription: "Podpis peněženky se nepodařilo ověřit. Odpojte peněženku a znovu ji připojte se správným účtem. Pokud se problém opakuje, sdělte podpoře chybový kód a referenční číslo níže.",
     rateLimitDescription: 'Příliš mnoho pokusů o ověření. Chvíli počkejte a zkuste to znovu.',
     tryAgain: 'Zkusit znovu',
     disconnectWallet: 'Odpojit peněženku',
