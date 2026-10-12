@@ -266,6 +266,8 @@ export function RewardReceiptView({
 
   const showPromotionAmount = Boolean(
     promotion &&
+    promotion.state !== 'PREPARING' &&
+    promotion.state !== 'OPEN' &&
     promotion.state !== 'EXPIRED' &&
     promotion.state !== 'RELEASED',
   );
@@ -332,10 +334,7 @@ export function RewardReceiptView({
                   className="notificationXShare"
                   onClick={sharePromotionOnX}
                 >
-                  {promotionCopy.shareBonus.replace(
-                    '{amount}',
-                    promotion.amountB3tr,
-                  )}
+                  {rewardReceiptShareLabel(locale)}
                 </button>
               ) : null}
 
