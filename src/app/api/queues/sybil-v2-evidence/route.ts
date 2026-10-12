@@ -43,10 +43,14 @@ const queueCallback = handleCallback(
     // New historical/funding evidence can strengthen an existing cluster.
     // Reassess unreserved peers immediately instead of waiting for the daily
     // recovery cron. Claim-ready rows remain protected by the reward gates.
-    await runSybilV2AssessmentBatch(10);
+    // Re-delivery of an already complete checkpoint adds no new peer evidence.
+    // Fresh evidence still propagates to a small bounded peer batch.
+    if (!result.reusedCheckpoint) {
+      await runSybilV2AssessmentBatch(3);
+    }
   },
   {
-    visibilityTimeoutSeconds: 240,
+    visibilityTimeoutSeconds: 300,
     retry: (_error, metadata) => {
       const exponent = Math.max(
         0,

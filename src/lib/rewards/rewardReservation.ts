@@ -361,6 +361,7 @@ async function reserveCandidate({
     return 'awaiting_finality';
   }
 
+  const repriceResponses: ReservationRpcResult[] = [];
   for (let attempt = 0; attempt < MAX_REPRICE_ATTEMPTS; attempt += 1) {
     // Emergency pause and the mainnet funded-reward gate apply to creation of
     // new immutable reward liabilities as well as token settlement. Re-read
@@ -513,6 +514,8 @@ async function reserveCandidate({
       return 'reserved';
     }
     if (result.reason === 'RECALCULATE') {
+      // Preserve the DB refusal details so REPRICE_EXHAUSTED is actionable.
+      repriceResponses.push(result);
       continue;
     }
     if (result.reason === 'AWAITING_FINALITY') {
@@ -542,6 +545,10 @@ async function reserveCandidate({
   return skipCandidate(
     candidate,
     'REPRICE_EXHAUSTED',
+    {
+      priceAttempts: repriceResponses.length,
+      lastRpcResponse: repriceResponses.at(-1) ?? null,
+    },
   );
 }
 

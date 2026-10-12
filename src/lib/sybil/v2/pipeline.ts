@@ -203,6 +203,7 @@ type AssessmentRpcResult = {
 
 type ClearanceRpcResult = {
   issued?: boolean;
+  reused?: boolean;
   reason?: string;
   clearanceId?: string;
   verdict?: string;
@@ -237,6 +238,7 @@ type BehaviorPatternRestrictionRpcResult = {
 
 export type SybilV2EvidenceCollectionResult = {
   inviteCode: string;
+  reusedCheckpoint: boolean;
   historicalChainComplete: boolean;
   fundingChainComplete: boolean;
   historicalRewardEvents: number;
@@ -616,6 +618,7 @@ export async function collectSybilV2EvidenceForInvite(
       fundingChainComplete: true,
       historicalRewardEvents: previous.historical_reward_event_count,
       preactivationB3trOutflows: previous.preactivation_b3tr_outflow_count,
+      reusedCheckpoint: true,
       error: null,
     };
   }
@@ -713,6 +716,7 @@ export async function collectSybilV2EvidenceForInvite(
     fundingChainComplete: fundingStatus === 'COMPLETE',
     historicalRewardEvents,
     preactivationB3trOutflows: b3trOutflows,
+    reusedCheckpoint: false,
     error,
   };
 }
@@ -3363,6 +3367,7 @@ async function issueClearance(
 
   if (
     result.issued === true &&
+    result.reused !== true &&
     (
       result.verdict === 'CLEAR' ||
       result.verdict === 'WATCH'

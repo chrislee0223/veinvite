@@ -1135,7 +1135,7 @@ export async function GET(
     try {
       sybilV2PolicyReassessment =
         await runSybilV2PolicyReassessmentBatch(
-          10,
+          3,
         );
     } catch (error) {
       recoveryFailure = error;
@@ -1151,7 +1151,7 @@ export async function GET(
     try {
       sybilV2Assessment =
         await runSybilV2AssessmentBatch(
-          25,
+          3,
         );
     } catch (error) {
       recoveryFailure = error;

@@ -131,7 +131,8 @@ test('unclaimed referrals are reassessed when newer cluster evidence arrives', a
     'src/app/api/queues/sybil-v2-evidence/route.ts',
     'utf8',
   );
-  assert.match(queueSource, /runSybilV2AssessmentBatch\(10\)/u);
+  assert.match(queueSource, /if \(!result\.reusedCheckpoint\)/u);
+  assert.match(queueSource, /runSybilV2AssessmentBatch\(3\)/u);
 
   const pipeline = await readFile(
     'src/lib/sybil/v2/pipeline.ts',

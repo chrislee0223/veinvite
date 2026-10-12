@@ -61,7 +61,7 @@ test('reservation continuation retries finality without requesting Claim or tran
   );
   assert.match(
     queueConsumer,
-    /visibilityTimeoutSeconds:\s*180/,
+    /visibilityTimeoutSeconds:\s*300/,
   );
   assert.doesNotMatch(
     queueConsumer,

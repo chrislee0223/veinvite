@@ -100,6 +100,35 @@ const queueCallback = handleCallback(
       return;
     }
 
+    // CLEAR proof messages are revision-scoped. Older revisions must not
+    // continually reassess and reprice a newer verdict. The current proof
+    // and durable liveness recovery remain the authoritative wake-ups.
+    if (
+      message.trigger === 'SYBIL_CLEARANCE' &&
+      typeof message.assessmentRevision === 'number'
+    ) {
+      const { data: assessment, error: assessmentError } =
+        await supabaseAdmin
+          .from('sybil_v2_referral_assessments')
+          .select('revision')
+          .eq('invite_code', message.inviteCode)
+          .maybeSingle();
+
+      if (assessmentError) {
+        throw new Error(
+          `Sybil clearance revision could not be loaded: ${assessmentError.message}`,
+        );
+      }
+
+      const latestRevision = Number(assessment?.revision);
+      if (
+        Number.isSafeInteger(latestRevision) &&
+        latestRevision > message.assessmentRevision
+      ) {
+        return;
+      }
+    }
+
     const invitation = await readInvitationState(
       message.inviteCode,
     );
@@ -189,17 +218,28 @@ const queueCallback = handleCallback(
     );
   },
   {
-    visibilityTimeoutSeconds: 180,
-    retry: (_error, metadata) => {
+    visibilityTimeoutSeconds: 300,
+    retry: (error, metadata) => {
+      // Recovery sweeps retain durable liveness authority after Queue
+      // exhaustion. Avoid retrying a persistently failing message forever.
+      if (metadata.deliveryCount >= 10) {
+        console.error('Reward reservation Queue retries exhausted; recovery remains pending:', {
+          messageId: metadata.messageId,
+          deliveryCount: metadata.deliveryCount,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { acknowledge: true };
+      }
+
       const exponent = Math.max(
         0,
-        Math.min(metadata.deliveryCount - 1, 5),
+        Math.min(metadata.deliveryCount - 1, 7),
       );
 
       return {
         afterSeconds: Math.min(
-          120,
-          5 * (2 ** exponent),
+          900,
+          30 * (2 ** exponent),
         ),
       };
     },
