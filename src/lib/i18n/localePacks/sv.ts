@@ -350,6 +350,7 @@ export const SV_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Kontroll av deltagande är inte tillgänglig',
     participationErrorDescription: 'Din plånbok är verifierad, men vi kunde inte kontrollera åtkomsten. Försök igen om en stund.',
     slowVerificationDescription: 'Verifieringen av plånboken tar längre tid än väntat. Slutför eller avbryt signeringen i plånboken. Koppla från och anslut igen vid behov.',
+    certificateSignatureDescription: "Wallet-signaturen kunde inte verifieras. Koppla från och anslut plånboken igen med rätt konto. Om felet återkommer, skicka felkoden och referensnumret nedan till supporten.",
     rateLimitDescription: 'För många verifieringsförsök. Vänta en stund innan du försöker igen.',
     tryAgain: 'Försök igen',
     disconnectWallet: 'Koppla från plånbok',
