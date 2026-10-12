@@ -13,6 +13,11 @@ import {
 const INVITE_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{7}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
+type LiveSplitRow = {
+  id: string | number;
+  promotion_amount_wei: string | number;
+};
+
 type OpportunityRow = {
   id: string | number;
   obligation_id: string | number;
@@ -49,6 +54,7 @@ type VerificationRow = {
 };
 
 type PromotionState =
+  | 'PREPARING'
   | 'OPEN'
   | 'SUBMISSION_GRACE'
   | 'VERIFYING'
@@ -196,10 +202,121 @@ export async function GET(
       opportunity.data as unknown as OpportunityRow | null;
 
     if (!opportunityRow) {
+      // A LIVE split can exist for a short time before the isolated
+      // maintenance job opens its opportunity. Expose that durable promise as
+      // PREPARING so the client does not fall back to a generic, non-qualifying
+      // X share link during this window.
+      const split =
+        await supabaseAdmin
+          .from('reward_x_promotion_splits')
+          .select(
+            'id,promotion_amount_wei',
+          )
+          .eq('invite_code', inviteCode)
+          .eq('recipient_wallet', wallet)
+          .eq('mode', 'LIVE')
+          .maybeSingle();
+
+      if (split.error) {
+        throw new Error(
+          `X promotion split could not be loaded: ${split.error.message}`,
+        );
+      }
+
+      const splitRow =
+        split.data as unknown as LiveSplitRow | null;
+
+      if (!splitRow) {
+        return NextResponse.json(
+          {
+            newOffersEnabled,
+            promotion: null,
+          },
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'no-store',
+            },
+          },
+        );
+      }
+
+      const amountWei =
+        String(splitRow.promotion_amount_wei ?? '');
+
+      if (
+        !/^\d+$/u.test(amountWei) ||
+        BigInt(amountWei) < 1n
+      ) {
+        // A zero-value split is intentionally not a promotion promise.
+        return NextResponse.json(
+          {
+            newOffersEnabled,
+            promotion: null,
+          },
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'no-store',
+            },
+          },
+        );
+      }
+
+      const obligation =
+        await supabaseAdmin
+          .from('reward_x_promotion_obligations')
+          .select(
+            'financial_state,paid_at',
+          )
+          .eq('split_id', splitRow.id)
+          .eq('invite_code', inviteCode)
+          .eq('recipient_wallet', wallet)
+          .maybeSingle();
+
+      if (obligation.error) {
+        throw new Error(
+          `X promotion obligation could not be loaded: ${obligation.error.message}`,
+        );
+      }
+
+      const financialState =
+        String(
+          obligation.data?.financial_state ?? '',
+        );
+
+      if (
+        financialState !== 'RESERVED' &&
+        financialState !== 'HELD' &&
+        financialState !== 'RELEASED'
+      ) {
+        throw new Error(
+          'Stored X promotion preparation state is invalid.',
+        );
+      }
+
       return NextResponse.json(
         {
           newOffersEnabled,
-          promotion: null,
+          promotion: {
+            inviteCode,
+            state:
+              financialState === 'RELEASED'
+                ? 'RELEASED'
+                : 'PREPARING',
+            amountWei,
+            amountB3tr:
+              formatWeiAsB3tr(amountWei, 18),
+            openedAt: null,
+            postDeadlineAt: null,
+            submissionGraceSeconds: 0,
+            shareToken: null,
+            submittedAt: null,
+            verifyAfter: null,
+            paidAt: safeIso(
+              obligation.data?.paid_at,
+            ),
+          },
         },
         {
           status: 200,
