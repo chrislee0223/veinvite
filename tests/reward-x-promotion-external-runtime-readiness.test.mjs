@@ -78,22 +78,31 @@ test('runtime probe verifies X endpoint without depending on Post existence or s
   );
 });
 
-test('non-ready runtime probe pauses only the external offer gate', () => {
+test('non-ready runtime probe pauses only through the narrow service RPC', () => {
+  assert.match(runtime, /if \(!ready\)/);
   assert.match(
     runtime,
-    /if \(!ready\)/,
-  );
-  assert.match(
-    runtime,
-    /reward_x_promotion_external_verification_ready:[\s\S]*false/,
+    /pause_reward_x_promotion_external_verification_v1/,
   );
   assert.doesNotMatch(
     runtime,
-    /reward_x_promotion_enabled:[\s\S]*false/,
+    /\.from\('reward_runtime_config'\)[\s\S]*\.update\(/,
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.pause_reward_x_promotion_external_verification_v1\(\)[\s\S]*security definer/i,
+  );
+  assert.match(
+    migration,
+    /set reward_x_promotion_external_verification_ready=false/,
   );
   assert.doesNotMatch(
-    runtime,
-    /reward_x_promotion_payout_enabled:[\s\S]*false/,
+    migration.match(/create or replace function public\.pause_reward_x_promotion_external_verification_v1\(\)[\s\S]*?\$function\$;/i)?.[0] ?? '',
+    /reward_x_promotion_enabled\s*=|reward_x_promotion_payout_enabled\s*=/,
+  );
+  assert.match(
+    migration,
+    /grant execute on function public\.pause_reward_x_promotion_external_verification_v1\(\)[\s\S]*to service_role/i,
   );
 });
 
