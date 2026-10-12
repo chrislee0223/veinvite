@@ -12,8 +12,13 @@ import {
 } from '@/lib/i18n/locales';
 
 function resolveCurrentLocale(): SupportedLocale {
-  const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (isLocale(saved)) return saved;
+  // A denied localStorage read must not break root layout hydration.
+  try {
+    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (isLocale(saved)) return saved;
+  } catch {
+    // Fall through to browser language without changing wallet/session state.
+  }
   return resolveBrowserLocale(window.navigator.languages, 'en');
 }
 

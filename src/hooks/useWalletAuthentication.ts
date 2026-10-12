@@ -4,6 +4,7 @@ import {
   useCallback,
   useState,
 } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import {
   useSignMessage,
   useWallet as useVeChainKitWallet,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/productAnalytics';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
 import { walletAuthFailureBucket } from '@/lib/walletAuthAnalyticsFailure';
+import { fetchWalletSessionWithTransientRetry } from '@/lib/walletSessionReadRetry';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
@@ -268,15 +270,21 @@ export function useWalletAuthentication() {
         };
 
         const readCurrentSession = async () => {
-          const response = await fetch(
-            '/api/auth/session',
-            {
-              method: 'GET',
-              cache: 'no-store',
-              credentials: 'include',
-              signal: controller.signal,
-            },
-          );
+          // Only the idempotent GET is retried, and only for transport
+          // errors or transient HTTP 5xx. This never repeats a wallet
+          // signing prompt or an unsuccessful cryptographic proof.
+          const response = await fetchWalletSessionWithTransientRetry({
+            signal: controller.signal,
+            fetchSession: () => fetch(
+              '/api/auth/session',
+              {
+                method: 'GET',
+                cache: 'no-store',
+                credentials: 'include',
+                signal: controller.signal,
+              },
+            ),
+          });
           const session =
             await readJson<SessionResponse>(response);
 
@@ -312,6 +320,7 @@ export function useWalletAuthentication() {
             }
 
             if (session.authenticated) {
+              failureStage = 'AUTH_SESSION_WALLET_MISMATCH';
               // A provider can momentarily report a different account while
               // VeWorld/WalletConnect is restoring or while locale/UI state is
               // changing. Never destroy the known-good browser session or open
@@ -635,6 +644,32 @@ export function useWalletAuthentication() {
             );
           }
 
+          // Stable, non-identifying client diagnostics distinguish a
+          // failed initial GET from a post-signature cookie confirmation.
+          // The existing analytics "wallet_session" allowlist and schema
+          // intentionally remain unchanged. Never send a wallet address,
+          // raw error, proof, challenge, session cookie or invite URL.
+          const sessionFailurePhase =
+            failureStage === 'AUTH_SESSION_CHECK'
+              ? 'precheck'
+              : failureStage === 'AUTH_SESSION_PERSISTENCE'
+                ? 'cookie_persistence'
+                : null;
+          if (sessionFailurePhase) {
+            Sentry.captureMessage(
+              sessionFailurePhase === 'precheck'
+                ? 'VeInvite wallet session precheck failed'
+                : 'VeInvite wallet cookie persistence check failed',
+              {
+                level: 'warning',
+                tags: {
+                  area: 'wallet_auth',
+                  phase: sessionFailurePhase,
+                },
+              },
+            );
+          }
+
           reportProductAnalyticsEvent({
             eventName: 'wallet_auth_failed',
             outcome: 'failure',
@@ -656,7 +691,11 @@ export function useWalletAuthentication() {
                 error instanceof Error
                   ? error.message
                   : 'Wallet verification failed.',
-                failureStage,
+                failureStage === 'AUTH_SESSION_CHECK'
+                  ? 'AUTH_SESSION_PRECHECK_FAILED'
+                  : failureStage === 'AUTH_SESSION_PERSISTENCE'
+                    ? 'AUTH_SESSION_COOKIE_PERSISTENCE_FAILED'
+                    : failureStage,
               );
         } finally {
           clearActiveWalletAuthentication(run);

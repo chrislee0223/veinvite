@@ -55,12 +55,17 @@ function resolveVeInviteLanguage(): Locale {
     return 'en';
   }
 
-  const saved = window.localStorage.getItem(
-    LANGUAGE_STORAGE_KEY,
-  );
-
-  if (isLocale(saved)) {
-    return saved;
+  // Private-mode / hardened WebViews may throw SecurityError on storage.
+  // Language is a preference only; never let that block wallet login.
+  try {
+    const saved = window.localStorage.getItem(
+      LANGUAGE_STORAGE_KEY,
+    );
+    if (isLocale(saved)) {
+      return saved;
+    }
+  } catch {
+    // Continue with the browser locale; authentication is unaffected.
   }
 
   return resolveBrowserLocale(
