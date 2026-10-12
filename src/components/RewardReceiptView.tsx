@@ -45,6 +45,8 @@ export function RewardReceiptView({
   const activePromotionInviteRef = useRef(receiptInviteCode);
   const [promotion, setPromotion] =
     useState<RewardXPromotionSnapshot | null>(null);
+  const [promotionLookupResolved, setPromotionLookupResolved] =
+    useState(false);
   const [promotionPostUrl, setPromotionPostUrl] = useState('');
   const [promotionSubmitting, setPromotionSubmitting] = useState(false);
   const [promotionError, setPromotionError] = useState('');
@@ -74,6 +76,7 @@ export function RewardReceiptView({
 
       if (payload.promotion === null) {
         setPromotion(null);
+        setPromotionLookupResolved(true);
         return;
       }
 
@@ -85,15 +88,17 @@ export function RewardReceiptView({
         parsed.inviteCode === inviteCode
       ) {
         setPromotion(parsed);
+        setPromotionLookupResolved(true);
       }
     } catch {
-      // Promotion is optional. The existing reward receipt/share UI remains usable.
+      // Fail closed for X sharing only. The reward receipt itself stays usable.
     }
   }, []);
 
   useEffect(() => {
     activePromotionInviteRef.current = receiptInviteCode;
     setPromotion(null);
+    setPromotionLookupResolved(false);
     setPromotionPostUrl('');
     setPromotionError('');
     setPromotionSubmitting(false);
