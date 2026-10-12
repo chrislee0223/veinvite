@@ -350,6 +350,7 @@ export const HA_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Ba a iya duba matsayin shiga ba',
     participationErrorDescription: 'An tabbatar da walat ɗinka, amma ba a iya duba izinin shiga ba. Ka sake gwadawa nan ba da jimawa ba.',
     slowVerificationDescription: 'Tabbatar da walat yana ɗaukar lokaci. Kammala ko soke sa hannu a cikin walat, ko cire haɗin ka sake haɗawa.',
+    certificateSignatureDescription: "Ba a iya tabbatar da sa hannun walat ɗin ba. Cire haɗin walat ka sake haɗawa da asusun da ya dace. Idan matsalar ta sake faruwa, aika lambar kuskure da lambar tunani da ke ƙasa ga tallafi.",
     rateLimitDescription: 'An yi ƙoƙarin tabbatarwa da yawa. Jira kaɗan kafin ka sake gwadawa.',
     tryAgain: 'Sake gwadawa',
     disconnectWallet: 'Cire haɗin wallet',
