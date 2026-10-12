@@ -28,7 +28,7 @@ const lifecycle = await readFile(
 
 const retryMigration = await readFile(
   new URL(
-    '../supabase/migrations/20261009032000_add_x_promotion_post_submission_retry_foundation_v1.sql',
+    '../supabase/migrations/20261009142000_add_x_promotion_lifecycle_maintenance_v1.sql',
     import.meta.url,
   ),
   'utf8',
