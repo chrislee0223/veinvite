@@ -97,14 +97,12 @@ test('non-ready runtime probe pauses only the external offer gate', () => {
 });
 
 test('maintenance performs external readiness before lifecycle and payout work', () => {
-  const readinessIndex =
-    cron.indexOf('runExternalReadinessJob');
-  const lifecycleIndex =
-    cron.indexOf('runLifecycleJob');
-  const payoutIndex =
-    cron.indexOf('runPayoutJob');
-
-  assert.ok(readinessIndex >= 0);
-  assert.ok(lifecycleIndex > readinessIndex);
-  assert.ok(payoutIndex > lifecycleIndex);
+  assert.match(
+    cron,
+    /const externalReadiness =[\s\S]*await runExternalReadinessJob\(\)[\s\S]*const lifecycle =[\s\S]*await runLifecycleJob\(\)[\s\S]*const payout =[\s\S]*await runPayoutJob\(\)/,
+  );
+  assert.match(
+    cron,
+    /status:[\s\S]*externalReadiness\.ok[\s\S]*lifecycle\.ok/,
+  );
 });
