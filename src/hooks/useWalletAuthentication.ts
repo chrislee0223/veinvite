@@ -29,7 +29,6 @@ import { walletAuthFailureBucket } from '@/lib/walletAuthAnalyticsFailure';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
-const WALLET_SIGNATURE_TIMEOUT_MS = 45_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
 const WALLET_PROVIDER_SETTLE_TIMEOUT_MS = 5_000;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
@@ -457,24 +456,26 @@ export function useWalletAuthentication() {
                     'certificate';
                 };
 
-              // Native VeChain certificates remain the primary DAppKit proof.
-              // On a cryptographic rejection only, a separately verified
-              // EIP-191 proof may be offered as a one-time recovery.
+              // Native VeChain certificates remain the single DAppKit proof.
+              // A failed certificate cannot be repaired by labeling another
+              // VeChainKit/DAppKit certificate as an EIP-191 message signature.
               failureStage = 'AUTH_WALLET_SIGNATURE';
               await signCertificateProof();
             } else {
               failureStage = 'AUTH_WALLET_SIGNATURE';
-              signature =
-                await withTimeout(
-                  signMessage(
-                    challenge.message,
-                  ),
-                  WALLET_SIGNATURE_TIMEOUT_MS,
-                  'Wallet signature request timed out.',
-                );
+              // The signature prompt belongs to the wallet SDK, not to our
+              // AbortController. Promise.race against a 45s timeout would
+              // abandon the in-flight prompt and release our global signing
+              // lock while the wallet could still finish it later.
+              // WalletSessionGate already shows the non-terminal "slow"
+              // state after 45s, while confirmed disconnect is the escape.
+              // Keep the lock until the original prompt settles.
+              signature = await signMessage(
+                challenge.message,
+              );
+              assertStillCurrent();
               proofType =
                 'message';
-              assertStillCurrent();
             }
 
             if (
