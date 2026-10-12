@@ -9,6 +9,7 @@ type WalletSessionCopy = {
   participationErrorTitle: string;
   participationErrorDescription: string;
   slowVerificationDescription: string;
+  certificateSignatureDescription: string;
   rateLimitDescription: string;
   tryAgain: string;
   disconnectWallet: string;
@@ -28,6 +29,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Participation check unavailable',
     participationErrorDescription: 'Your wallet is verified, but we could not check participation access. Try again shortly.',
     slowVerificationDescription: 'Wallet verification is taking longer than expected. Complete or cancel the request in your wallet, or disconnect and reconnect.',
+    certificateSignatureDescription: "The wallet signature could not be verified. Disconnect and reconnect the wallet, selecting the intended account. If it happens again, share the error code and reference ID with support.",
     rateLimitDescription: 'Too many verification attempts. Please wait a moment before trying again.',
     tryAgain: 'Try again',
     disconnectWallet: 'Disconnect wallet',
@@ -45,6 +47,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: '참여 상태를 확인할 수 없어요',
     participationErrorDescription: '지갑 인증은 완료됐지만 참여 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.',
     slowVerificationDescription: '지갑 응답이 지연되고 있어요. 지갑에서 서명을 완료하거나 취소한 뒤 다시 시도해 주세요. 계속되면 연결을 해제하고 다시 연결해 주세요.',
+    certificateSignatureDescription: "지갑 서명을 검증할 수 없어요. 지갑 연결을 해제한 뒤 올바른 계정으로 다시 연결해 주세요. 문제가 반복되면 아래 오류 코드와 참조 번호를 지원팀에 알려 주세요.",
     rateLimitDescription: '인증 시도가 너무 많아요. 잠시 기다렸다가 다시 시도해 주세요.',
     tryAgain: '다시 시도',
     disconnectWallet: '지갑 연결 해제',
@@ -62,6 +65,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: '暂时无法确认参与状态',
     participationErrorDescription: '钱包已验证，但暂时无法检查参与资格。请稍后重试。',
     slowVerificationDescription: '钱包验证响应时间较长。请在钱包中完成或取消签名；如仍无响应，请断开后重新连接。',
+    certificateSignatureDescription: "无法验证钱包签名。请断开钱包连接，重新连接并选择正确账户。如果问题再次出现，请向支持团队提供下方错误代码和参考编号。",
     rateLimitDescription: '验证尝试次数过多。请稍后再试。',
     tryAgain: '重试',
     disconnectWallet: '断开钱包连接',
@@ -79,6 +83,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'भागीदारी की जाँच उपलब्ध नहीं है',
     participationErrorDescription: 'आपका वॉलेट सत्यापित है, लेकिन भागीदारी की स्थिति नहीं जाँची जा सकी। कृपया थोड़ी देर बाद फिर प्रयास करें।',
     slowVerificationDescription: 'वॉलेट की पुष्टि में देर हो रही है। वॉलेट में हस्ताक्षर पूरा करें या रद्द करें। ज़रूरत पड़े तो डिस्कनेक्ट करके फिर कनेक्ट करें।',
+    certificateSignatureDescription: "वॉलेट के हस्ताक्षर की पुष्टि नहीं हो सकी। वॉलेट डिस्कनेक्ट करके सही खाता चुनते हुए दोबारा कनेक्ट करें। समस्या दोहराने पर नीचे दिया त्रुटि कोड और संदर्भ संख्या सहायता टीम को बताएँ।",
     rateLimitDescription: 'पुष्टि के बहुत अधिक प्रयास हुए हैं। कृपया थोड़ी देर बाद फिर प्रयास करें।',
     tryAgain: 'फिर कोशिश करें',
     disconnectWallet: 'वॉलेट डिस्कनेक्ट करें',
@@ -96,6 +101,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'No se pudo comprobar la participación',
     participationErrorDescription: 'Tu cartera está verificada, pero no pudimos comprobar el acceso. Vuelve a intentarlo en unos momentos.',
     slowVerificationDescription: 'La verificación está tardando. Completa o cancela la firma en tu cartera. Si sigue sin responder, desconéctala y vuelve a conectarla.',
+    certificateSignatureDescription: "No se pudo verificar la firma de la cartera. Desconecta y vuelve a conectar la cartera, seleccionando la cuenta correcta. Si ocurre de nuevo, envía el código de error y la referencia al equipo de soporte.",
     rateLimitDescription: 'Demasiados intentos de verificación. Espera un momento antes de volver a intentarlo.',
     tryAgain: 'Intentar de nuevo',
     disconnectWallet: 'Desconectar cartera',
@@ -113,6 +119,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: '参加状況を確認できません',
     participationErrorDescription: 'ウォレットの認証は完了しましたが、参加状況を確認できませんでした。少し待ってから再試行してください。',
     slowVerificationDescription: 'ウォレットの応答に時間がかかっています。署名を完了またはキャンセルしてください。続く場合は接続を解除して再接続してください。',
+    certificateSignatureDescription: "ウォレットの署名を検証できませんでした。接続を解除し、正しいアカウントを選んで再接続してください。再発する場合は、下のエラーコードと参照番号をサポートにお知らせください。",
     rateLimitDescription: '認証の試行回数が多すぎます。少し待ってから再試行してください。',
     tryAgain: 'もう一度試す',
     disconnectWallet: 'ウォレットの接続を解除',
@@ -130,6 +137,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Verifica della partecipazione non disponibile',
     participationErrorDescription: 'Il wallet è stato verificato, ma non è stato possibile controllare l’accesso. Riprova tra poco.',
     slowVerificationDescription: 'La verifica del wallet sta impiegando troppo tempo. Completa o annulla la firma nel wallet oppure disconnetti e riconnetti.',
+    certificateSignatureDescription: "Non è stato possibile verificare la firma del wallet. Disconnetti e riconnetti il wallet selezionando l'account corretto. Se il problema si ripete, comunica al supporto il codice errore e il riferimento qui sotto.",
     rateLimitDescription: 'Troppi tentativi di verifica. Attendi un momento prima di riprovare.',
     tryAgain: 'Riprova',
     disconnectWallet: 'Disconnetti wallet',
@@ -147,6 +155,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Katılım durumu kontrol edilemiyor',
     participationErrorDescription: 'Cüzdanınız doğrulandı ancak katılım erişimi kontrol edilemedi. Lütfen biraz sonra tekrar deneyin.',
     slowVerificationDescription: 'Cüzdan doğrulaması beklenenden uzun sürüyor. İmzayı cüzdanınızda tamamlayın veya iptal edin. Gerekirse bağlantıyı kesip yeniden bağlanın.',
+    certificateSignatureDescription: "Cüzdan imzası doğrulanamadı. Cüzdan bağlantısını kesip doğru hesabı seçerek yeniden bağlanın. Sorun tekrarlanırsa aşağıdaki hata kodunu ve referans numarasını destek ekibine iletin.",
     rateLimitDescription: 'Çok fazla doğrulama denemesi yapıldı. Lütfen biraz bekleyip tekrar deneyin.',
     tryAgain: 'Tekrar dene',
     disconnectWallet: 'Cüzdan bağlantısını kes',
@@ -164,6 +173,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Deelnamestatus niet beschikbaar',
     participationErrorDescription: 'Je wallet is geverifieerd, maar de toegang kon niet worden gecontroleerd. Probeer het zo opnieuw.',
     slowVerificationDescription: 'De walletverificatie duurt langer dan verwacht. Rond de handtekening af of annuleer deze. Verbreek zo nodig de verbinding en maak opnieuw verbinding.',
+    certificateSignatureDescription: "De wallet-handtekening kon niet worden geverifieerd. Koppel de wallet los en verbind opnieuw met het juiste account. Geef bij herhaling de foutcode en referentie hieronder door aan ondersteuning.",
     rateLimitDescription: 'Te veel verificatiepogingen. Wacht even voordat je het opnieuw probeert.',
     tryAgain: 'Opnieuw proberen',
     disconnectWallet: 'Wallet loskoppelen',
@@ -181,6 +191,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Teilnahmestatus nicht verfügbar',
     participationErrorDescription: 'Deine Wallet wurde verifiziert, aber der Teilnahmezugang konnte nicht geprüft werden. Versuche es gleich noch einmal.',
     slowVerificationDescription: 'Die Wallet-Verifizierung dauert länger als erwartet. Bestätige oder storniere die Signatur in deiner Wallet. Trenne bei Bedarf die Verbindung und verbinde dich erneut.',
+    certificateSignatureDescription: "Die Wallet-Signatur konnte nicht geprüft werden. Trenne die Wallet und verbinde sie mit dem richtigen Konto erneut. Falls das Problem erneut auftritt, gib dem Support den Fehlercode und die Referenz unten an.",
     rateLimitDescription: 'Zu viele Verifizierungsversuche. Warte kurz, bevor du es erneut versuchst.',
     tryAgain: 'Erneut versuchen',
     disconnectWallet: 'Wallet trennen',
@@ -198,6 +209,7 @@ export const WALLET_SESSION_COPY: Record<Locale, WalletSessionCopy> = {
     participationErrorTitle: 'Vérification de la participation indisponible',
     participationErrorDescription: 'Votre wallet est vérifié, mais nous n’avons pas pu contrôler l’accès. Réessayez dans quelques instants.',
     slowVerificationDescription: 'La vérification du wallet prend plus de temps que prévu. Confirmez ou annulez la signature dans votre wallet. Au besoin, déconnectez-le puis reconnectez-le.',
+    certificateSignatureDescription: "La signature du portefeuille n'a pas pu être vérifiée. Déconnectez puis reconnectez le portefeuille en choisissant le bon compte. Si le problème revient, transmettez le code et la référence ci-dessous au support.",
     rateLimitDescription: 'Trop de tentatives de vérification. Patientez avant de réessayer.',
     tryAgain: 'Réessayer',
     disconnectWallet: 'Déconnecter le wallet',
