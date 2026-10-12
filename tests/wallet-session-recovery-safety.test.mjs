@@ -130,3 +130,18 @@ test('pending global signing lock cannot be silently freed by UI delay', () => {
   clearActiveWalletAuthentication(pending);
   assert.equal(getActiveWalletAuthentication(), null);
 });
+
+test('non-DAppKit wallet-owned signing waits for the real SDK promise, not a 45s Promise.race', async () => {
+  const [hook, gate, persistence] = await Promise.all([
+    readFile('src/hooks/useWalletAuthentication.ts', 'utf8'),
+    readFile('src/components/WalletSessionGate.tsx', 'utf8'),
+    readFile('scripts/check-reentry-persistence.mjs', 'utf8'),
+  ]);
+  assert.match(hook, /signature\s*=\s*await signMessage\(\s*challenge\.message,\s*\)/);
+  assert.doesNotMatch(hook, /await withTimeout\(\s*signMessage\(/);
+  assert.doesNotMatch(hook, /WALLET_SIGNATURE_TIMEOUT_MS/);
+  assert.match(gate, /WALLET_AUTH_SLOW_NOTICE_MS\s*=\s*45_000/);
+  assert.match(gate, /setState\('slow'\)/);
+  assert.match(gate, /releaseCancelledWalletAuthenticationAfterDisconnect\(\)/);
+  assert.match(persistence, /Wallet-owned signing must hold its lock until settlement or confirmed disconnect/);
+});
