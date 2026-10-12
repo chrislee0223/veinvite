@@ -54,11 +54,11 @@ test('external verification activation requires a fresh READY runtime probe', ()
   );
   assert.match(
     migration,
-    /v_row\.status='READY'[\s\S]*checked_at >=/i,
+    /v_row\.status in \('READY','POST_NOT_FOUND'\)[\s\S]*checked_at >=/i,
   );
 });
 
-test('runtime probe uses X official documented lookup sample and never stores credentials', () => {
+test('runtime probe verifies X endpoint without depending on Post existence or storing credentials', () => {
   assert.match(
     runtime,
     /1228393702244134912/,
@@ -67,6 +67,7 @@ test('runtime probe uses X official documented lookup sample and never stores cr
     runtime,
     /lookupXPromotionPost/,
   );
+  assert.match(runtime, /status === 'POST_NOT_FOUND'/);
   assert.doesNotMatch(
     runtime,
     /X_API_BEARER_TOKEN/,
@@ -80,7 +81,7 @@ test('runtime probe uses X official documented lookup sample and never stores cr
 test('non-ready runtime probe pauses only the external offer gate', () => {
   assert.match(
     runtime,
-    /status !== 'READY'/,
+    /if \(!ready\)/,
   );
   assert.match(
     runtime,
