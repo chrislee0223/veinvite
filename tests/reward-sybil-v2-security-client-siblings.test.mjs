@@ -210,3 +210,23 @@ test('current DB security-client functions reject overlapping observation window
   assert.doesNotMatch(overlapFixMigration, /v_switch_gap_seconds := 0;/u);
   assert.match(overlapFixMigration, /'preVoteDetection', case/u);
 });
+
+
+test('previously confirmed sequential sibling switches survive later overlapping wallet sessions', () => {
+  // The first observation records a real <=10 minute sequential switch.
+  // Subsequent alternating logins overlap the aggregate windows and must
+  // neither fabricate a new switch nor downgrade that immutable HIGH signal.
+  assert.match(pipeline, /const currentImmediateSwitch =/u);
+  assert.match(pipeline, /switchGapSeconds >= 0/u);
+  assert.match(pipeline, /switchGapSeconds === null/u);
+  assert.match(pipeline, /\.eq\('dedupe_key', switchEvidenceKey\)/u);
+  assert.match(pipeline, /\.eq\('related_wallet', siblingWallet\)/u);
+  assert.match(pipeline, /evidence\.sameInviterSibling === true/u);
+  assert.match(pipeline, /evidence\.peerInviteCode === sibling\.invite_code/u);
+  assert.match(pipeline, /evidence\.sharedClientId === sharedClientId/u);
+  assert.match(pipeline, /savedGap >= 0[\s\S]*savedGap <= 10 \* 60/u);
+  assert.match(pipeline, /currentImmediateSwitch \|\| preservedImmediateSwitch/u);
+  assert.match(pipeline, /if \(priorSwitchError\)[\s\S]*throw new Error/u);
+  // No automatic BLACK on client/funder association alone.
+  assert.match(policy, /if \(highEvidenceDomains\.length >= 1\)[\s\S]*state: 'HOLD'/u);
+});
