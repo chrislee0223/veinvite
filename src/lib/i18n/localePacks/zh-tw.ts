@@ -350,6 +350,7 @@ export const ZH_TW_LOCALE_PACK: LocalePack = {
     participationErrorTitle: '暫時無法確認參與狀態',
     participationErrorDescription: '錢包已驗證，但暫時無法確認參與資格。請稍後再試。',
     slowVerificationDescription: '錢包驗證時間較長。請在錢包中完成或取消簽章。如仍無回應，請中斷連線後重新連接。',
+    certificateSignatureDescription: "無法驗證錢包簽名。請中斷錢包連線，重新連線並選擇正確帳戶。若問題再次發生，請向支援團隊提供下方錯誤代碼與參考編號。",
     rateLimitDescription: '驗證嘗試次數過多，請稍後再試。',
     tryAgain: '再試一次',
     disconnectWallet: '中斷錢包連線',
