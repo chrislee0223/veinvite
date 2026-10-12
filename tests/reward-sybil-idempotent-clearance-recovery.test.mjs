@@ -6,12 +6,14 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const [
   migration,
+  finalityMigration,
   sybilPipeline,
   evidenceConsumer,
   reservation,
   reservationConsumer,
 ] = await Promise.all([
   read('supabase/migrations/20261012194500_dedupe_sybil_v2_clearance_revision.sql'),
+  read('supabase/migrations/20261012201000_skip_sybil_finality_heartbeat_revision.sql'),
   read('src/lib/sybil/v2/pipeline.ts'),
   read('src/app/api/queues/sybil-v2-evidence/route.ts'),
   read('src/lib/rewards/rewardReservation.ts'),
@@ -68,4 +70,12 @@ test('continuation Queue retries are bounded and leave durable liveness monitori
   assert.match(reservationConsumer, /acknowledge: true/);
   assert.match(reservationConsumer, /afterSeconds: Math\.min\(\s+900/);
   assert.match(reservation, /read_stale_reward_reservation_liveness/);
+});
+
+test('forward-only finalized block heartbeat cannot create a new SYSTEM revision', () => {
+  assert.match(finalityMigration, /p_evidence_cutoff_block >= v_existing\.evidence_cutoff_block/);
+  assert.match(finalityMigration, /- 'finalizedBlock'/);
+  assert.match(finalityMigration, /v_existing\.policy_version = btrim\(p_policy_version\)/);
+  assert.match(finalityMigration, /v_existing\.state = v_state/);
+  assert.match(finalityMigration, /'unchanged', true/);
 });
