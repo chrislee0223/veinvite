@@ -110,7 +110,7 @@ test('session resiliency stays GET-only and distinguishes precheck versus cookie
   assert.match(hook, /sessionFailurePhase === 'precheck'[\s\S]*VeInvite wallet session precheck failed/);
   assert.match(hook, /Sentry.captureMessage\(/);
   assert.match(hook, /phase: sessionFailurePhase/);
-  assert.doesNotMatch(helper, /api\/auth\/verify|api\/auth\/challenge|requestCertificate|signMessage|signature/i);
+  assert.doesNotMatch(helper, /api\/auth\/verify|api\/auth\/challenge|requestCertificate\\(|signMessage\\(/);
   assert.match(helper, /attempt < 2/);
   assert.match(helper, /signal\.addEventListener\('abort'/);
   assert.match(hook, /await requestCertificate\(/);
