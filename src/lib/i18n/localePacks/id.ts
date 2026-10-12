@@ -350,6 +350,7 @@ export const ID_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Pemeriksaan partisipasi tidak tersedia',
     participationErrorDescription: 'Dompet Anda sudah terverifikasi, tetapi akses partisipasi belum bisa diperiksa. Coba lagi sebentar lagi.',
     slowVerificationDescription: 'Verifikasi dompet memerlukan waktu lebih lama. Selesaikan atau batalkan tanda tangan di dompet. Jika perlu, putuskan lalu sambungkan kembali.',
+    certificateSignatureDescription: "Tanda tangan dompet tidak dapat diverifikasi. Putuskan koneksi lalu sambungkan kembali dengan akun yang benar. Jika terulang, kirimkan kode kesalahan dan nomor referensi di bawah ke dukungan.",
     rateLimitDescription: 'Terlalu banyak percobaan verifikasi. Tunggu sebentar sebelum mencoba lagi.',
     tryAgain: 'Coba lagi',
     disconnectWallet: 'Putuskan wallet',
