@@ -23,6 +23,7 @@ import {
   sharedClientPreVoteObservation,
   strictSequentialClientSwitchGapSeconds,
 } from '@/lib/sybil/v2/securityClientTiming';
+import { confirmedSiblingImmediateSwitch } from '@/lib/sybil/v2/preservedSiblingSwitch';
 import {
   loadRapidRewardConsolidationSignals,
 } from '@/lib/sybil/v2/rapidRewardConsolidationEvidence';
@@ -1972,13 +1973,18 @@ async function loadSecurityIdentitySignals(
               Number.isNaN(siblingFirstSeen)
                 ? null
                 : Math.abs(siblingActivatedAt - siblingFirstSeen) / 1000;
-            const immediateSwitch =
-              switchGapSeconds !== null &&
-              activationGapSeconds !== null &&
-              siblingActivationGapSeconds !== null &&
-              switchGapSeconds <= 10 * 60 &&
-              activationGapSeconds <= 10 * 60 &&
-              siblingActivationGapSeconds <= 10 * 60;
+            const immediateSwitch = await confirmedSiblingImmediateSwitch({
+              inviteCode: invitation.invite_code,
+              network: invitation.activation_network,
+              inviterWallet,
+              inviteeWallet,
+              siblingWallet,
+              siblingInviteCode: sibling.invite_code,
+              sharedClientId,
+              switchGapSeconds,
+              activationGapSeconds,
+              siblingActivationGapSeconds,
+            });
 
             const signals: SybilV2Signal[] = [{
               code: 'SECURITY_CLIENT_SIBLING_LINK',
@@ -2034,11 +2040,8 @@ async function loadSecurityIdentitySignals(
       }
     }
 
-    // A suspicious inviter may itself be a recent VeInvite invitee. If two of
-    // its downstream invitees immediately switch wallets on one security
-    // client, surface that as a separate cluster-link domain. This does not
-    // blacklist the inviter by association; it only corroborates other
-    // independent evidence such as funding or historical behavior.
+    // Downstream wallet switching is a separate cluster-link signal.
+    // This does not blacklist the inviter by association.
     const downstreamInvitationsResult = await supabaseAdmin
       .from('invitations')
       .select(

@@ -10,6 +10,7 @@ const [
   reviewedBehaviorPatterns,
   protocolDestinations,
   policy,
+  preservedSiblingSwitch,
   overlapFixMigration,
 ] = await Promise.all([
   readFile('src/lib/sybil/v2/pipeline.ts', 'utf8'),
@@ -34,6 +35,7 @@ const [
     'utf8',
   ),
   readFile('src/lib/sybil/v2/policy.ts', 'utf8'),
+  readFile('src/lib/sybil/v2/preservedSiblingSwitch.ts', 'utf8'),
   readFile('supabase/migrations/20261009141000_harden_overlapping_security_client_siblings_v1.sql', 'utf8'),
 ]);
 
@@ -209,4 +211,24 @@ test('current DB security-client functions reject overlapping observation window
   assert.match(overlapFixMigration, /else null/u);
   assert.doesNotMatch(overlapFixMigration, /v_switch_gap_seconds := 0;/u);
   assert.match(overlapFixMigration, /'preVoteDetection', case/u);
+});
+
+
+test('previously confirmed sibling switches survive later overlapping wallet sessions', () => {
+  // Do not infer a new switch from overlapping aggregate timestamps.
+  assert.match(pipeline, /await confirmedSiblingImmediateSwitch/u);
+  assert.match(preservedSiblingSwitch, /if \(switchGapSeconds !== null\)/u);
+  assert.match(preservedSiblingSwitch, /return switchGapSeconds >= 0 && switchGapSeconds <= 600/u);
+  // Only exact immutable evidence of an earlier real switch may be replayed.
+  assert.match(preservedSiblingSwitch, /\.eq\('dedupe_key', evidenceKey\)/u);
+  assert.match(preservedSiblingSwitch, /\.eq\('related_wallet', siblingWallet\)/u);
+  assert.match(preservedSiblingSwitch, /evidence\.sameInviterSibling === true/u);
+  assert.match(preservedSiblingSwitch, /evidence\.peerInviteCode === siblingInviteCode/u);
+  assert.match(preservedSiblingSwitch, /evidence\.sharedClientId === sharedClientId/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.switchGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.activationGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /bounded\(evidence\.peerActivationGapSeconds\)/u);
+  assert.match(preservedSiblingSwitch, /if \(error\)[\s\S]*throw new Error/u);
+  // Association alone never auto-BLACKs a legitimate shared device.
+  assert.match(policy, /if \(highEvidenceDomains\.length >= 1\)[\s\S]*state: 'HOLD'/u);
 });

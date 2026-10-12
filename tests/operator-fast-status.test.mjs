@@ -127,3 +127,46 @@ test('historical compaction migration keeps only identifier-free final-language 
   assert.match(compaction, /delete from public\.app_usage_sessions/u);
   assert.doesNotMatch(compaction, /wallet_address\s+text/iu);
 });
+
+
+const recognizedMetrics = await read(
+  'supabase/migrations/20261012025800_separate_operator_entry_eligibility_and_recognized_referrals_v1.sql',
+);
+
+test('operator funnel distinguishes historical eligibility from active and recognized referrals', () => {
+  assert.match(recognizedMetrics, /'validParticipants',im\.valid/u);
+  assert.match(recognizedMetrics, /'entryEligibleParticipants',im\.valid/u);
+  assert.match(recognizedMetrics, /'activeAcceptedParticipants',im\.active_accepted/u);
+  assert.match(recognizedMetrics, /'historicalMissionCompletions',im\.complete/u);
+  assert.match(recognizedMetrics, /'recognizedCompletedReferrals'/u);
+  assert.match(recognizedMetrics, /network_qualified_referral_relationships/u);
+  assert.match(recognizedMetrics, /qualified\.network = 'mainnet'/u);
+  assert.match(recognizedMetrics, /analytics_excluded_wallets/u);
+  assert.match(recognizedMetrics, /status <> 'CANCELLED'/u);
+  assert.match(recognizedMetrics, /invitation_status <> 'CANCELLED'/u);
+});
+
+test('operator metrics retain independent fast/raw reconciliation and immutable history', () => {
+  const fastStart = recognizedMetrics.indexOf(
+    'CREATE OR REPLACE FUNCTION public.read_operator_fast_status',
+  );
+  const rawStart = recognizedMetrics.indexOf(
+    'CREATE OR REPLACE FUNCTION public.compute_operator_raw_status',
+  );
+  assert.ok(fastStart >= 0 && rawStart > fastStart);
+  const fast = recognizedMetrics.slice(fastStart, rawStart);
+  const raw = recognizedMetrics.slice(rawStart);
+  for (const key of [
+    'entryEligibleParticipants',
+    'activeAcceptedParticipants',
+    'historicalMissionCompletions',
+    'recognizedCompletedReferrals',
+  ]) {
+    assert.ok(fast.includes(key), 'fast missing ' + key);
+    assert.ok(raw.includes(key), 'raw missing ' + key);
+  }
+  assert.match(fast, /operator_fast_invitations/u);
+  assert.doesNotMatch(raw, /operator_fast_invitations/u);
+  assert.doesNotMatch(recognizedMetrics, /\b(?:update|delete|truncate)\s+(?:from\s+)?public\.(?:invitations|sybil_v2_referral_assessments|reward_payouts|reward_queue_entries)/iu);
+  assert.doesNotMatch(recognizedMetrics, /security\s+definer/iu);
+});
