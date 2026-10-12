@@ -26,14 +26,14 @@ test('lifecycle and payout use independent heartbeat job names', () => {
   assert.match(route, /markCronJobFailed\(\s*PAYOUT_JOB_NAME/);
 });
 
-test('payout failure is isolated while lifecycle failure keeps HTTP failure signal', () => {
+test('payout failure stays isolated while external-readiness or lifecycle execution failure keeps HTTP failure signal', () => {
   assert.match(
     route,
-    /status:\s*lifecycle\.ok \? 200 : 500/,
+    /status:[\s\S]*externalReadiness\.ok\s*&&[\s\S]*lifecycle\.ok[\s\S]*\? 200[\s\S]*: 500/,
   );
   assert.match(
     route,
-    /ok:\s*lifecycle\.ok\s*&&\s*payout\.ok/,
+    /ok:\s*externalReadiness\.ok\s*&&\s*lifecycle\.ok\s*&&\s*payout\.ok/,
   );
 });
 
