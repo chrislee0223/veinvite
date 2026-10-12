@@ -198,6 +198,11 @@ export function WalletSessionSurface({
   onSecondary: () => void;
 }) {
   const t = WALLET_SESSION_COPY[locale];
+  // A cryptographically rejected certificate should not invite repeated
+  // attempts with the same wallet state. Require an explicit wallet reconnect.
+  const needsWalletReconnect =
+    hasError &&
+    errorCode === 'AUTH_CERTIFICATE_SIGNATURE_INVALID';
   const switchT = WALLET_SWITCH_COPY[
     isLocale(locale) ? locale : 'en'
   ];
@@ -292,7 +297,9 @@ export function WalletSessionSurface({
             ? switchT.description
             : isSlow
               ? t.slowVerificationDescription
-              : hasError && errorCode === 'AUTH_RATE_LIMITED'
+              : needsWalletReconnect
+                ? t.certificateSignatureDescription
+                : hasError && errorCode === 'AUTH_RATE_LIMITED'
               ? t.rateLimitDescription
               : hasError && errorCode === 'AUTH_VERIFICATION_SLOW'
                 ? t.slowVerificationDescription
@@ -338,6 +345,7 @@ export function WalletSessionSurface({
           }}
         >
           {hasError ? (
+            needsWalletReconnect ? null : (
             <button
               type="button"
               disabled={isDisconnecting}
@@ -362,6 +370,7 @@ export function WalletSessionSurface({
                 ? switchT.continueCurrent
                 : t.tryAgain}
             </button>
+            )
           ) : null}
 
           <button

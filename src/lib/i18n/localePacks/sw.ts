@@ -350,6 +350,7 @@ export const SW_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Ukaguzi wa ushiriki haupatikani',
     participationErrorDescription: 'Wallet yako imethibitishwa, lakini hatukuweza kukagua ruhusa ya kushiriki. Jaribu tena baada ya muda mfupi.',
     slowVerificationDescription: 'Uthibitishaji wa wallet unachukua muda mrefu. Kamilisha au ghairi sahihi kwenye wallet. Ikibidi, kata muunganisho kisha uunganishe tena.',
+    certificateSignatureDescription: "Sahihi ya pochi haikuweza kuthibitishwa. Tenganisha pochi, kisha uiunganishe tena ukichagua akaunti sahihi. Tatizo likijirudia, tuma msimbo wa hitilafu na namba ya rejea hapa chini kwa usaidizi.",
     rateLimitDescription: 'Majaribio mengi mno ya uthibitishaji. Subiri kidogo kabla ya kujaribu tena.',
     tryAgain: 'Jaribu tena',
     disconnectWallet: 'Tenganisha wallet',

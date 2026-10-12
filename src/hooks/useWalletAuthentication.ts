@@ -29,7 +29,6 @@ import { walletAuthFailureBucket } from '@/lib/walletAuthAnalyticsFailure';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
-const WALLET_SIGNATURE_TIMEOUT_MS = 45_000;
 const WALLET_SIGNATURE_SETTLE_MS = 350;
 const WALLET_PROVIDER_SETTLE_TIMEOUT_MS = 5_000;
 const CANCEL_SETTLE_TIMEOUT_MS = 1_000;
@@ -457,24 +456,26 @@ export function useWalletAuthentication() {
                     'certificate';
                 };
 
-              // Native VeChain certificates remain the primary DAppKit proof.
-              // On a cryptographic rejection only, a separately verified
-              // EIP-191 proof may be offered as a one-time recovery.
+              // Native VeChain certificates remain the single DAppKit proof.
+              // A failed certificate cannot be repaired by labeling another
+              // VeChainKit/DAppKit certificate as an EIP-191 message signature.
               failureStage = 'AUTH_WALLET_SIGNATURE';
               await signCertificateProof();
             } else {
               failureStage = 'AUTH_WALLET_SIGNATURE';
-              signature =
-                await withTimeout(
-                  signMessage(
-                    challenge.message,
-                  ),
-                  WALLET_SIGNATURE_TIMEOUT_MS,
-                  'Wallet signature request timed out.',
-                );
+              // The signature prompt belongs to the wallet SDK, not to our
+              // AbortController. Promise.race against a 45s timeout would
+              // abandon the in-flight prompt and release our global signing
+              // lock while the wallet could still finish it later.
+              // WalletSessionGate already shows the non-terminal "slow"
+              // state after 45s, while confirmed disconnect is the escape.
+              // Keep the lock until the original prompt settles.
+              signature = await signMessage(
+                challenge.message,
+              );
+              assertStillCurrent();
               proofType =
                 'message';
-              assertStillCurrent();
             }
 
             if (
@@ -528,69 +529,20 @@ export function useWalletAuthentication() {
                 };
               };
 
-            let verification =
+            const verification =
               await verifyCurrentProof();
 
-            // Some VeWorld clients return a well-formed certificate whose
-            // native proof fails SDK cryptographic verification. Retrying
-            // the same certificate method can fail repeatedly. Offer ONE
-            // alternate, independently verified EIP-191 message signature
-            // over the *same* server nonce-bound challenge, never an auth
-            // bypass or a new unbound challenge. A wallet which cannot
-            // supply a valid message signature remains unauthenticated.
-            if (
-              !verification.response.ok &&
-              verification.body.code ===
-                'AUTH_CERTIFICATE_SIGNATURE_INVALID' &&
-              proofType === 'certificate'
-            ) {
-              failureStage = 'AUTH_WALLET_PROVIDER';
-              await withTimeout(
-                waitForWalletProviderReconciliation(),
-                WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
-                'Wallet connection is still synchronizing. Please try again.',
-              );
-              assertStillCurrent();
-
-              const retrySigner =
-                account?.address
-                  ?.trim()
-                  .toLowerCase() || walletAddress;
-              const retryDappSigner =
-                dappKitAccount
-                  ?.trim()
-                  .toLowerCase() || null;
-
-              if (
-                retrySigner !== walletAddress ||
-                retryDappSigner !== walletAddress
-              ) {
-                throw new Error(
-                  'Wallet connection changed during verification. Please reconnect the wallet and try again.',
-                );
-              }
-
-              await wait(WALLET_SIGNATURE_SETTLE_MS);
-              assertStillCurrent();
-
-              failureStage = 'AUTH_WALLET_SIGNATURE';
-              signature = await withTimeout(
-                signMessage(challenge.message),
-                WALLET_SIGNATURE_TIMEOUT_MS,
-                'Wallet message signature request timed out.',
-              );
-              assertStillCurrent();
-              if (!signature) {
-                throw new Error(
-                  'Wallet message verification proof was not returned.',
-                );
-              }
-              certificate = undefined;
-              proofType = 'message';
-              failureStage = 'AUTH_SERVER_VERIFICATION';
-              verification = await verifyCurrentProof();
-            }
-
+            // DAppKit's useSignMessage() returns another VeChain certificate
+            // for VeWorld, not an EIP-191 signature. It cannot be used as an
+            // alternate message proof, and labeling it that way rejects the
+            // wrong recovered signer. EIP-712 was also disabled previously
+            // after real-world typed-signer mismatches: do not silently
+            // reintroduce that known failure path as a fallback.
+            //
+            // Surface the original server-verified denial and its reference
+            // code so the user can explicitly reconnect the wallet. Do not
+            // spawn another incompatible wallet signing prompt or weaken
+            // the one-time challenge and session issuance requirements.
             const verifyResponse =
               verification.response;
             const verified =

@@ -66,22 +66,21 @@ if (
 ) {
   failures.push('Wallet logout/switch must keep the shared transport-settle guard that prevents reconnect races.');
 }
-// Mobile wallet handoffs can require longer than 15 seconds to approve a
-// signature. Keep a finite interval, rather than locking the UI indefinitely.
-const signatureTimeoutMatch = walletAuth.match(
-  /WALLET_SIGNATURE_TIMEOUT_MS\s*=\s*([\d_]+)/,
-);
-const signatureTimeoutMs = signatureTimeoutMatch
-  ? Number(signatureTimeoutMatch[1].replaceAll('_', ''))
-  : NaN;
+// Mobile wallet prompts can remain alive after an app-side timeout.
+// A Promise.race timeout on a wallet-owned signature must never release the
+// global signing lock while its SDK prompt can still resolve. Instead, show
+// a non-terminal slow status and allow confirmed disconnect to release the
+// stale proof. Network/provider waits remain time-bounded separately.
 if (
-  !Number.isFinite(signatureTimeoutMs) ||
-  signatureTimeoutMs < 15_000 ||
-  signatureTimeoutMs > 60_000 ||
-  !/withTimeout/.test(walletAuth) ||
-  !/AbortController/.test(walletAuth)
+  !/signature\s*=\s*await signMessage\(\s*challenge\.message,\s*\);/.test(walletAuth) ||
+  /await withTimeout\(\s*signMessage\(/.test(walletAuth) ||
+  !/waitForWalletProviderReconciliation\(\)/.test(walletAuth) ||
+  !/AbortController/.test(walletAuth) ||
+  !/WALLET_AUTH_SLOW_NOTICE_MS\s*=\s*45_000/.test(walletSessionGate) ||
+  !/setState\('slow'\)/.test(walletSessionGate) ||
+  !/releaseCancelledWalletAuthenticationAfterDisconnect\(\)/.test(walletSessionGate)
 ) {
-  failures.push('Wallet ownership verification must remain bounded and cancellable instead of waiting forever.');
+  failures.push('Wallet-owned signing must hold its lock until settlement or confirmed disconnect; after 45 seconds the UI may only show a slow state.');
 }
 if (!/credentials:\s*['"]include['"]/.test(walletAuth) || !/persistedSession\.authenticated/.test(walletAuth)) {
   failures.push('Wallet authentication must explicitly include browser credentials and verify that the issued session cookie was retained.');

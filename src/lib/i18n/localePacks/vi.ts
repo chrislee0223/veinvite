@@ -350,6 +350,7 @@ export const VI_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Không thể kiểm tra trạng thái tham gia',
     participationErrorDescription: 'Ví của bạn đã được xác minh, nhưng chúng tôi chưa thể kiểm tra quyền tham gia. Vui lòng thử lại sau ít phút.',
     slowVerificationDescription: 'Quá trình xác minh ví đang mất nhiều thời gian. Hãy hoàn tất hoặc hủy yêu cầu ký trong ví. Nếu cần, ngắt kết nối rồi kết nối lại.',
+    certificateSignatureDescription: "Không thể xác minh chữ ký ví. Hãy ngắt kết nối rồi kết nối lại ví và chọn đúng tài khoản. Nếu lỗi tiếp tục xảy ra, gửi mã lỗi và mã tham chiếu bên dưới cho bộ phận hỗ trợ.",
     rateLimitDescription: 'Bạn đã thử xác minh quá nhiều lần. Vui lòng đợi một lát rồi thử lại.',
     tryAgain: 'Thử lại',
     disconnectWallet: 'Ngắt kết nối ví',

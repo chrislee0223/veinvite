@@ -350,6 +350,7 @@ export const PT_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'Verificação de participação indisponível',
     participationErrorDescription: 'A sua carteira foi verificada, mas não foi possível confirmar o acesso. Tente novamente daqui a pouco.',
     slowVerificationDescription: 'A verificação da carteira está a demorar. Conclua ou cancele a assinatura na carteira. Se necessário, desligue e volte a ligar.',
+    certificateSignatureDescription: "Não foi possível verificar a assinatura da carteira. Desconecte e reconecte a carteira selecionando a conta correta. Se o problema persistir, informe o código de erro e a referência abaixo ao suporte.",
     rateLimitDescription: 'Demasiadas tentativas de verificação. Aguarde um momento antes de voltar a tentar.',
     tryAgain: 'Tentar novamente',
     disconnectWallet: 'Desconectar carteira',

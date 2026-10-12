@@ -350,6 +350,7 @@ export const AR_LOCALE_PACK: LocalePack = {
     participationErrorTitle: 'تعذّر التحقق من حالة المشاركة',
     participationErrorDescription: 'تم التحقق من محفظتك، لكن تعذّر التحقق من إمكانية المشاركة. حاول مجددًا بعد قليل.',
     slowVerificationDescription: 'استغرق التحقق من المحفظة وقتًا أطول من المتوقع. أكمل التوقيع أو ألغِه داخل المحفظة، ثم أعد الاتصال إذا لزم الأمر.',
+    certificateSignatureDescription: "تعذّر التحقق من توقيع المحفظة. افصل المحفظة وأعد ربطها مع اختيار الحساب الصحيح. إذا تكرر الخطأ، أرسل رمز الخطأ والرقم المرجعي أدناه إلى الدعم.",
     rateLimitDescription: 'عدد محاولات التحقق كبير جدًا. انتظر قليلًا ثم حاول مجددًا.',
     tryAgain: 'إعادة المحاولة',
     disconnectWallet: 'فصل المحفظة',
