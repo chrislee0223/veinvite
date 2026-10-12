@@ -100,6 +100,35 @@ const queueCallback = handleCallback(
       return;
     }
 
+    // CLEAR proof messages are revision-scoped. Older revisions must not
+    // continually reassess and reprice a newer verdict. The current proof
+    // and durable liveness recovery remain the authoritative wake-ups.
+    if (
+      message.trigger === 'SYBIL_CLEARANCE' &&
+      typeof message.assessmentRevision === 'number'
+    ) {
+      const { data: assessment, error: assessmentError } =
+        await supabaseAdmin
+          .from('sybil_v2_referral_assessments')
+          .select('revision')
+          .eq('invite_code', message.inviteCode)
+          .maybeSingle();
+
+      if (assessmentError) {
+        throw new Error(
+          `Sybil clearance revision could not be loaded: ${assessmentError.message}`,
+        );
+      }
+
+      const latestRevision = Number(assessment?.revision);
+      if (
+        Number.isSafeInteger(latestRevision) &&
+        latestRevision > message.assessmentRevision
+      ) {
+        return;
+      }
+    }
+
     const invitation = await readInvitationState(
       message.inviteCode,
     );
@@ -189,7 +218,7 @@ const queueCallback = handleCallback(
     );
   },
   {
-    visibilityTimeoutSeconds: 180,
+    visibilityTimeoutSeconds: 300,
     retry: (error, metadata) => {
       // Recovery sweeps retain durable liveness authority after Queue
       // exhaustion. Avoid retrying a persistently failing message forever.
