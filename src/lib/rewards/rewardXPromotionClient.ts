@@ -115,7 +115,9 @@ export function parseRewardXPromotionSnapshot(
     return new Date(candidate).toISOString();
   };
 
-  const preparing = state === 'PREPARING';
+  const deadlineOptional =
+    state === 'PREPARING' ||
+    state === 'RELEASED';
   const deadline =
     row.postDeadlineAt === null || row.postDeadlineAt === undefined
       ? null
@@ -124,7 +126,10 @@ export function parseRewardXPromotionSnapshot(
         ? new Date(row.postDeadlineAt).toISOString()
         : null;
 
-  if ((!preparing && !deadline) || (preparing && deadline !== null)) {
+  if (
+    (!deadlineOptional && !deadline) ||
+    (deadlineOptional && deadline !== null)
+  ) {
     return null;
   }
 
