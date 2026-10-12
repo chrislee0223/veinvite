@@ -26,6 +26,14 @@ const lifecycle = await readFile(
   'utf8',
 );
 
+const retryMigration = await readFile(
+  new URL(
+    '../supabase/migrations/20261009032000_add_x_promotion_post_submission_retry_foundation_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const migration = await readFile(
   new URL(
     '../supabase/migrations/20261009133000_add_x_promotion_submission_invalidation_v1.sql',
@@ -161,7 +169,7 @@ test('an immediate X 404 gets propagation grace before terminal invalidation', (
   assert.doesNotMatch(notFoundBlock, /terminalResponse/);
 
   assert.match(
-    lifecycle,
+    retryMigration,
     /u\.submitted_at <= now\(\)-interval '10 minutes'/,
   );
   assert.match(
