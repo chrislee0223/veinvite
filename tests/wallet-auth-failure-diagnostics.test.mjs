@@ -88,18 +88,10 @@ test('mobile auth sends server diagnostic codes to visible support UI without ch
   assert.doesNotMatch(hook, /await connectV2\(/);
   assert.match(hook, /await requestCertificate\(/);
   assert.match(hook, /proofType =\s*'certificate'/);
-  assert.match(
-    hook,
-    /verification\.body\.code ===[\s\S]*'AUTH_CERTIFICATE_SIGNATURE_INVALID'/,
-  );
-  assert.match(hook, /proofType = 'typed_data';[\s\S]*verification = await verifyCurrentProof\(\)/);
-  assert.match(hook, /signature = await requestTypedData\(/);
-  assert.match(hook, /buildWalletAuthTypedData\(/);
+  assert.match(hook, /const verification =\s*await verifyCurrentProof\(\)/);
+  assert.doesNotMatch(hook, /verification\.body\.code ===[\s\S]*'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
   assert.doesNotMatch(hook, /await retryCertificateProof\(\)/);
-  assert.doesNotMatch(
-    hook,
-    /AUTH_CERTIFICATE_SIGNATURE_INVALID[\s\S]{0,1200}\/api\/auth\/challenge/,
-  );
+  assert.doesNotMatch(hook, /await requestTypedData\(/);
 
 });
 
@@ -160,58 +152,27 @@ test('supplemental wallet language packs include all four recovery and participa
 });
 
 
-test('certificate failures offer one DAppKit EIP-712 proof over the original challenge, without weakening session checks', async () => {
+test('invalid VeWorld certificates fail closed without a second incompatible signature prompt', async () => {
   const hook = await readFile(
-    new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url),
-    'utf8',
+    new URL('../src/hooks/useWalletAuthentication.ts', import.meta.url), 'utf8',
   );
   const route = await readFile(
-    new URL('../src/app/api/auth/verify/route.ts', import.meta.url),
-    'utf8',
+    new URL('../src/app/api/auth/verify/route.ts', import.meta.url), 'utf8',
   );
-
-  assert.match(
-    hook,
-    /retrySigner !== walletAddress[\s\S]*retryDappSigner !==[\s\S]*walletAddress/,
+  const verifiedAt = hook.indexOf('const verification =');
+  const responseAt = hook.indexOf('const verifyResponse =', verifiedAt);
+  assert.ok(verifiedAt >= 0 && responseAt > verifiedAt);
+  const retrySection = hook.slice(verifiedAt, responseAt);
+  assert.match(retrySection, /await verifyCurrentProof\(\)/);
+  assert.doesNotMatch(
+    retrySection,
+    /requestTypedData|signMessage|requestCertificate|retryCertificateProof/,
   );
-  const retryMarker = hook.indexOf(
-    "verification.body.code ===",
-  );
-  const endMarker = hook.indexOf(
-    "const verifyResponse =",
-    retryMarker,
-  );
-  assert.ok(retryMarker > 0 && endMarker > retryMarker);
-  const retrySection = hook.slice(retryMarker, endMarker);
-  assert.match(retrySection, /'AUTH_CERTIFICATE_SIGNATURE_INVALID'/);
-  assert.match(retrySection, /buildWalletAuthTypedData\(\{/);
-  for (const field of [
-    'walletAddress,', 'nonce: challenge.nonce,',
-    'expiresAt: challenge.expiresAt,', 'origin: challenge.origin,',
-    'network: challenge.network,', 'message: challenge.message,',
-  ]) {
-    assert.ok(retrySection.includes(field), 'typed proof must bind ' + field);
-  }
-  assert.match(retrySection, /signature = await requestTypedData\(/);
-  assert.match(retrySection, /typedProof\.domain,[\s\S]*typedProof\.types,[\s\S]*typedProof\.value,[\s\S]*\{ signer: walletAddress \}/);
-  assert.match(retrySection, /certificate = undefined;/);
-  assert.match(retrySection, /proofType = 'typed_data';/);
-  assert.match(retrySection, /verification = await verifyCurrentProof\(\)/);
-  assert.equal(
-    (retrySection.match(/signature = await requestTypedData\(/g) ?? []).length,
-    1,
-    'fallback opens exactly one typed-data signing request',
-  );
-  // VeChainKit useSignMessage() gives another certificate on DAppKit.
-  assert.doesNotMatch(retrySection, /signMessage\(challenge\.message\)/);
-  assert.doesNotMatch(retrySection, /proofType = 'message'/);
-  // A display timeout cannot safely cancel a wallet-owned prompt.
-  assert.doesNotMatch(retrySection, /withTimeout\(\s*requestTypedData/);
-  assert.doesNotMatch(retrySection, /requestCertificate|retryCertificateProof/);
-  assert.doesNotMatch(retrySection, /\/api\/auth\/challenge/);
-  // Both successful proof types require the server's cryptographic verification
-  // and the same atomic, nonce-consuming session issue path.
-  assert.match(route, /verifyMessage\(/);
+  assert.match(hook, /await requestCertificate\(/);
+  assert.match(hook, /proofType =\s*'certificate'/);
+  assert.match(hook, /DAppKit's useSignMessage\(\) returns another VeChain certificate/);
   assert.match(route, /verifyVeWorldCertificate\(/);
+  assert.match(route, /verifyMessage\(/);
+  assert.match(route, /verifyTypedData\(/);
   assert.match(route, /issue_wallet_session_after_verified_challenge/);
 });
