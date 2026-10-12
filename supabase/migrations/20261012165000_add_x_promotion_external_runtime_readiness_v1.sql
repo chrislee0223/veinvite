@@ -90,7 +90,7 @@ begin
 
   v_ready :=
     v_row.status in ('READY','POST_NOT_FOUND')
-    and v_row.checked_at >= clock_timestamp()-make_interval(secs=>v_max_age);
+    and v_row.checked_at >= now()-make_interval(secs=>v_max_age);
 
   return jsonb_build_object(
     'ready',v_ready,
@@ -106,6 +106,52 @@ $function$;
 revoke all on function public.read_reward_x_promotion_external_runtime_readiness_v1(text,integer)
   from public,anon,authenticated;
 grant execute on function public.read_reward_x_promotion_external_runtime_readiness_v1(text,integer)
+  to service_role;
+
+create or replace function public.pause_reward_x_promotion_external_verification_v1()
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public'
+as $function$
+declare
+  v_cfg public.reward_runtime_config%rowtype;
+begin
+  select * into v_cfg
+  from public.reward_runtime_config
+  where id=1
+  for update;
+
+  if not found then
+    raise exception 'REWARD_RUNTIME_CONFIG_MISSING';
+  end if;
+
+  if not v_cfg.reward_x_promotion_external_verification_ready then
+    return jsonb_build_object(
+      'paused',false,
+      'reason','ALREADY_PAUSED',
+      'externalVerificationStartedAt',
+      v_cfg.reward_x_promotion_external_verification_started_at
+    );
+  end if;
+
+  update public.reward_runtime_config
+  set reward_x_promotion_external_verification_ready=false
+  where id=1
+    and reward_x_promotion_external_verification_ready=true;
+
+  return jsonb_build_object(
+    'paused',true,
+    'reason','EXTERNAL_RUNTIME_NOT_READY',
+    'externalVerificationStartedAt',
+    v_cfg.reward_x_promotion_external_verification_started_at
+  );
+end;
+$function$;
+
+revoke all on function public.pause_reward_x_promotion_external_verification_v1()
+  from public,anon,authenticated;
+grant execute on function public.pause_reward_x_promotion_external_verification_v1()
   to service_role;
 
 create or replace function public.guard_reward_x_promotion_external_verification_readiness_v1()
@@ -189,3 +235,6 @@ comment on table public.reward_x_promotion_external_runtime_checks is
   'Immutable runtime audit of Production X API verification probes. Contains no credentials or Post text.';
 comment on function public.read_reward_x_promotion_external_runtime_readiness_v1(text,integer) is
   'Returns ready only when the newest external X API runtime probe proves authenticated endpoint reachability (FOUND or authenticated NOT_FOUND) and is fresh. Used to fail closed before enabling new X promotion offers.';
+
+comment on function public.pause_reward_x_promotion_external_verification_v1() is
+  'Service-only fail-closed pause. Can only turn external verification readiness off; it cannot enable offers, alter the activation boundary, or modify any other reward runtime setting.';
