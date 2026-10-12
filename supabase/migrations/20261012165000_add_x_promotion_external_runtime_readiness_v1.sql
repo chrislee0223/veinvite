@@ -89,7 +89,7 @@ begin
   end if;
 
   v_ready :=
-    v_row.status='READY'
+    v_row.status in ('READY','POST_NOT_FOUND')
     and v_row.checked_at >= clock_timestamp()-make_interval(secs=>v_max_age);
 
   return jsonb_build_object(
@@ -188,4 +188,4 @@ revoke all on function public.guard_reward_x_promotion_external_verification_rea
 comment on table public.reward_x_promotion_external_runtime_checks is
   'Immutable runtime audit of Production X API verification probes. Contains no credentials or Post text.';
 comment on function public.read_reward_x_promotion_external_runtime_readiness_v1(text,integer) is
-  'Returns ready only when the newest external X API runtime probe is READY and fresh. Used to fail closed before enabling new X promotion offers.';
+  'Returns ready only when the newest external X API runtime probe proves authenticated endpoint reachability (FOUND or authenticated NOT_FOUND) and is fresh. Used to fail closed before enabling new X promotion offers.';
