@@ -50,7 +50,7 @@ const queueCallback = handleCallback(
     }
   },
   {
-    visibilityTimeoutSeconds: 240,
+    visibilityTimeoutSeconds: 300,
     retry: (_error, metadata) => {
       const exponent = Math.max(
         0,
