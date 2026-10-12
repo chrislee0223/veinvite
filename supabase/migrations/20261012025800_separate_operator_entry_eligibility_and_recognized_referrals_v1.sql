@@ -165,7 +165,7 @@ select jsonb_build_object(
   )
 )
 from im cross join u cross join l;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.compute_operator_raw_status(p_usage_date date DEFAULT ((now() AT TIME ZONE 'Asia/Seoul'::text))::date)
@@ -353,7 +353,7 @@ select jsonb_build_object(
   )
 )
 from im cross join u cross join l;
-$function$
+$function$;
 
 
 commit;
