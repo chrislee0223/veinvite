@@ -170,3 +170,36 @@ test('operator metrics retain independent fast/raw reconciliation and immutable 
   assert.doesNotMatch(recognizedMetrics, /\b(?:update|delete|truncate)\s+(?:from\s+)?public\.(?:invitations|sybil_v2_referral_assessments|reward_payouts|reward_queue_entries)/iu);
   assert.doesNotMatch(recognizedMetrics, /security\s+definer/iu);
 });
+
+
+const invalidationSeparatedMetrics = await read(
+  'supabase/migrations/20261012075200_separate_invalidated_and_inprogress_operator_participants_v1.sql',
+);
+
+test('current accepted participant count excludes historical invalidations in fast and raw sources', () => {
+  assert.match(invalidationSeparatedMetrics, /'activeAcceptedParticipants',im\.active_accepted/g);
+  assert.match(invalidationSeparatedMetrics, /'inProgressAcceptedParticipants',im\.in_progress_accepted/g);
+  assert.match(invalidationSeparatedMetrics, /'historicallyInvalidatedParticipants',im\.invalidated/g);
+  assert.match(invalidationSeparatedMetrics, /sybil_v2_referral_invalidations/g);
+  assert.match(invalidationSeparatedMetrics, /invalidation\.status = 'ACTIVE'/g);
+  assert.match(invalidationSeparatedMetrics, /and not historically_invalidated\)::bigint active_accepted/g);
+  assert.match(invalidationSeparatedMetrics, /and historically_invalidated\)::bigint invalidated/g);
+  assert.match(invalidationSeparatedMetrics, /'recognizedCompletedReferrals'/g);
+  assert.doesNotMatch(
+    invalidationSeparatedMetrics,
+    /\b(?:update|delete|truncate)\s+(?:from\s+)?public\.(?:invitations|sybil_v2_referral_assessments|sybil_v2_referral_invalidations|reward_payouts|reward_queue_entries)/iu,
+  );
+});
+
+test('invalidation separation retains independent raw and projection-based fast reconciliation', () => {
+  const boundary = invalidationSeparatedMetrics.indexOf('CREATE OR REPLACE FUNCTION public.compute_operator_raw_status');
+  const fast = invalidationSeparatedMetrics.slice(0, boundary);
+  const raw = invalidationSeparatedMetrics.slice(boundary);
+  assert.ok(boundary > 0);
+  assert.match(fast, /operator_fast_invitations/u);
+  assert.doesNotMatch(raw, /operator_fast_invitations/u);
+  for (const name of ['activeAcceptedParticipants','inProgressAcceptedParticipants','historicallyInvalidatedParticipants']) {
+    assert.ok(fast.includes(name) && raw.includes(name), 'missing key ' + name);
+  }
+  assert.doesNotMatch(invalidationSeparatedMetrics, /security\s+definer/iu);
+});
