@@ -14,6 +14,9 @@ import {
   tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
+  runRewardXPromotionExternalReadinessCheck,
+} from '@/lib/rewards/rewardXPromotionExternalReadiness';
+import {
   runRewardXPromotionLifecycleMaintenance,
 } from '@/lib/rewards/rewardXPromotionLifecycle';
 import {
@@ -116,6 +119,32 @@ async function claimJob(
     MIN_SUCCESS_INTERVAL_SECONDS,
     leaseSeconds,
   );
+}
+
+async function runExternalReadinessJob():
+Promise<JobResult> {
+  try {
+    const result =
+      await runRewardXPromotionExternalReadinessCheck();
+
+    return {
+      ok: true,
+      skipped: false,
+      result,
+    };
+  } catch (error) {
+    console.error(
+      'X promotion external readiness check failed:',
+      error,
+    );
+
+    return {
+      ok: false,
+      skipped: false,
+      error:
+        'X promotion external readiness check failed.',
+    };
+  }
 }
 
 async function runLifecycleJob():
@@ -305,6 +334,12 @@ export async function GET(
     );
   }
 
+  // Verify the external X dependency first. A non-ready result is safe and
+  // may pause only new X promotion offers; an execution failure is surfaced
+  // separately without hiding lifecycle or payout diagnostics.
+  const externalReadiness =
+    await runExternalReadinessJob();
+
   // Keep lifecycle and payout monitoring independent. A failure in the
   // optional payout worker must not hide or overwrite lifecycle health.
   // Sequential execution avoids races with opportunity/security transitions.
@@ -316,17 +351,23 @@ export async function GET(
   return NextResponse.json(
     {
       ok:
+        externalReadiness.ok &&
         lifecycle.ok &&
         payout.ok,
       jobs: {
+        externalReadiness,
         lifecycle,
         payout,
       },
     },
     {
-      // Preserve the existing lifecycle failure signal. A payout-only
-      // failure is isolated to its own heartbeat and does not fail the route.
-      status: lifecycle.ok ? 200 : 500,
+      // External readiness and lifecycle are safety-critical. A payout-only
+      // failure stays isolated to its own heartbeat and does not fail the route.
+      status:
+        externalReadiness.ok &&
+        lifecycle.ok
+          ? 200
+          : 500,
       headers: {
         'Cache-Control':
           'no-store',
