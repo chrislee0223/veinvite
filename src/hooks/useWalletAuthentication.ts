@@ -26,7 +26,6 @@ import {
 } from '@/lib/productAnalytics';
 import { USAGE_ANALYTICS_WALLET_AUTH_EVENT } from '@/lib/usageAnalyticsPreference';
 import { walletAuthFailureBucket } from '@/lib/walletAuthAnalyticsFailure';
-import { buildWalletAuthTypedData } from '@/lib/walletAuthTypedData';
 
 const WALLET_PATTERN =
   /^0x[0-9a-fA-F]{40}$/;
@@ -184,7 +183,6 @@ export function useWalletAuthentication() {
   const {
     account: dappKitAccount,
     requestCertificate,
-    requestTypedData,
   } = useDappKitWallet();
 
   const [
@@ -354,9 +352,7 @@ export function useWalletAuthentication() {
               !challengeResponse.ok ||
               !challenge.message ||
               !challenge.nonce ||
-              !challenge.expiresAt ||
-              !challenge.origin ||
-              !challenge.network
+              !challenge.expiresAt
             ) {
               throw new WalletAuthenticationFailure(
                 challenge.error ||
@@ -532,81 +528,20 @@ export function useWalletAuthentication() {
                 };
               };
 
-            let verification =
+            const verification =
               await verifyCurrentProof();
 
-            // VeChainKit useSignMessage() returns another VeChain certificate
-            // for DAppKit wallets, not an EIP-191 proof. Do not mislabel
-            // that signature as a message proof: the server would recover
-            // the wrong signer and reject otherwise connected wallets.
-            // Use DAppKit's actual typed-data signer for ONE alternative,
-            // bound to this same server nonce, origin and wallet. The server
-            // independently verifies EIP-712 before issuing any session.
-            // Keep the wallet-owned prompt in the global auth coordinator
-            // until it settles; Promise.race timeouts cannot close VeWorld UI.
-            if (
-              !verification.response.ok &&
-              verification.body.code ===
-                'AUTH_CERTIFICATE_SIGNATURE_INVALID' &&
-              proofType === 'certificate'
-            ) {
-              failureStage = 'AUTH_WALLET_PROVIDER';
-              await withTimeout(
-                waitForWalletProviderReconciliation(),
-                WALLET_PROVIDER_SETTLE_TIMEOUT_MS,
-                'Wallet connection is still synchronizing. Please try again.',
-              );
-              assertStillCurrent();
-
-              const retrySigner =
-                account?.address
-                  ?.trim()
-                  .toLowerCase() || walletAddress;
-              const retryDappSigner =
-                dappKitAccount
-                  ?.trim()
-                  .toLowerCase() || null;
-
-              if (
-                retrySigner !== walletAddress ||
-                retryDappSigner !== walletAddress
-              ) {
-                throw new Error(
-                  'Wallet connection changed during verification. Please reconnect the wallet and try again.',
-                );
-              }
-
-              await wait(WALLET_SIGNATURE_SETTLE_MS);
-              assertStillCurrent();
-
-              const typedProof = buildWalletAuthTypedData({
-                walletAddress,
-                nonce: challenge.nonce,
-                expiresAt: challenge.expiresAt,
-                origin: challenge.origin,
-                network: challenge.network,
-                message: challenge.message,
-              });
-
-              failureStage = 'AUTH_WALLET_SIGNATURE';
-              signature = await requestTypedData(
-                typedProof.domain,
-                typedProof.types,
-                typedProof.value,
-                { signer: walletAddress },
-              );
-              assertStillCurrent();
-              if (!signature) {
-                throw new Error(
-                  'Wallet typed-data verification proof was not returned.',
-                );
-              }
-              certificate = undefined;
-              proofType = 'typed_data';
-              failureStage = 'AUTH_SERVER_VERIFICATION';
-              verification = await verifyCurrentProof();
-            }
-
+            // DAppKit's useSignMessage() returns another VeChain certificate
+            // for VeWorld, not an EIP-191 signature. It cannot be used as an
+            // alternate message proof, and labeling it that way rejects the
+            // wrong recovered signer. EIP-712 was also disabled previously
+            // after real-world typed-signer mismatches: do not silently
+            // reintroduce that known failure path as a fallback.
+            //
+            // Surface the original server-verified denial and its reference
+            // code so the user can explicitly reconnect the wallet. Do not
+            // spawn another incompatible wallet signing prompt or weaken
+            // the one-time challenge and session issuance requirements.
             const verifyResponse =
               verification.response;
             const verified =
@@ -731,7 +666,6 @@ export function useWalletAuthentication() {
         connection.isConnectedWithDappKit,
         dappKitAccount,
         requestCertificate,
-        requestTypedData,
         signMessage,
       ],
     );
