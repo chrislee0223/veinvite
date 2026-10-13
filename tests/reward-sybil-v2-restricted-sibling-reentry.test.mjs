@@ -96,7 +96,7 @@ test('pipeline emits high evidence only for restricted sibling wallet replacemen
   );
   assert.match(
     reentry,
-    /switchGapSeconds > 24 \\* 60 \\* 60/u,
+    /switchGapSeconds > 24 \* 60 \* 60/u,
   );
   assert.match(
     reentry,
@@ -104,7 +104,7 @@ test('pipeline emits high evidence only for restricted sibling wallet replacemen
   );
   assert.match(
     reentry,
-    /family:\\s*'SECURITY_IDENTITY'[\\s\\S]*strength:\\s*signalStrength[\\s\\S]*score:\\s*signalScore/u,
+    /family:\s*'SECURITY_IDENTITY'[\s\S]*strength:\s*signalStrength[\s\S]*score:\s*signalScore/u,
   );
 });
 
@@ -136,8 +136,8 @@ test('pipeline re-verifies the restricted sibling pattern in the database before
 });
 
 test('24h same-client reentry is observation-only without corroborated prior restriction', () => {
-  assert.match(reentry, /sinceRestrictionSeconds > 24 \\* 60 \\* 60/u);
-  assert.match(reentry, /switchGapSeconds <= 10 \\* 60 && priorIsIndependent/u);
+  assert.match(reentry, /sinceRestrictionSeconds > 24 \* 60 \* 60/u);
+  assert.match(reentry, /switchGapSeconds <= 10 \* 60 && priorIsIndependent/u);
   assert.match(reentry, /SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY_OBSERVATION/u);
   assert.match(reentry, /priorIndependentlyCorroborated: priorIsIndependent/u);
   assert.match(reentry, /preVoteDetection: null/u);
