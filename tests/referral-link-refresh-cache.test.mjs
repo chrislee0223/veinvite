@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const [
   source,
+  startupLoader,
   homeHelpers,
   walletControl,
   walletResume,
@@ -15,6 +16,7 @@ const [
   walletProviderReconciler,
 ] = await Promise.all([
   readFile('src/components/HomeClient.tsx', 'utf8'),
+  readFile('src/hooks/useHomeStartupLoader.ts', 'utf8'),
   readFile('src/lib/homeClientHelpers.ts', 'utf8'),
   readFile('src/components/WalletControl.tsx', 'utf8'),
   readFile('src/components/WalletConnectionResume.tsx', 'utf8'),
@@ -28,7 +30,7 @@ const [
 
 test('Home restores permanent referral links from wallet-scoped session storage', () => {
   assert.match(source, /readCachedReferralLink\(wallet\)/);
-  assert.match(source, /writeCachedReferralLink\(requestWallet, linkData\.referralLink\)/);
+  assert.match(startupLoader, /writeCachedReferralLink\(requestWallet, linkData\.referralLink\)/);
   assert.match(homeHelpers, /REFERRAL_LINK_SESSION_PREFIX/);
   assert.match(homeHelpers, /window\.sessionStorage\.getItem/);
   assert.match(homeHelpers, /wallet\.toLowerCase\(\)/);
@@ -37,10 +39,10 @@ test('Home restores permanent referral links from wallet-scoped session storage'
 
 test('cached links stay non-authoritative until the server verifies them', () => {
   assert.match(source, /setReferralLinkVerified\(false\)/);
-  assert.match(source, /setReferralLinkVerified\(true\)/);
+  assert.match(startupLoader, /setReferralLinkVerified\(true\)/);
   assert.match(source, /disabled=\{!referralLinkVerified \|\| !permanentInviteUrl\}/);
   assert.match(source, /shareDisabled=\{!referralLinkVerified \|\| !permanentInviteUrl\}/);
-  assert.match(source, /sameWallet\(activeWalletRef\.current, requestWallet\)/);
+  assert.match(startupLoader, /sameWallet\(activeWalletRef\.current, requestWallet\)/);
   assert.match(homeHelpers, /export function sameWallet/);
 });
 
@@ -52,9 +54,9 @@ test('refresh never claims to create a new link and never guesses slot counts', 
 });
 
 test('server remains authoritative and the referral ensure endpoint is unchanged', () => {
-  assert.match(source, /fetch\('\/api\/referral-links', \{/);
-  assert.match(source, /method: 'POST'/);
-  assert.match(source, /setReferralLink\(linkData\.referralLink\)/);
+  assert.match(startupLoader, /fetch\('\/api\/referral-links', \{/);
+  assert.match(startupLoader, /method: 'POST'/);
+  assert.match(startupLoader, /setReferralLink\(linkData\.referralLink\)/);
 });
 
 test('explicit wallet connects record a mobile-resume intent before opening the modal', () => {
@@ -149,7 +151,7 @@ test('VeWorld refresh shield stays up through wallet restore and explicit Home d
   assert.match(source, /publishHomeStartupState\(\{/);
   assert.match(source, /invitesReady && referralLinkVerified/);
   assert.match(source, /status: hasStartupError/);
-  assert.match(source, /setInvitesFailed\(true\)/);
+  assert.match(startupLoader, /setInvitesFailed\(true\)/);
   assert.match(source, /setReferralLinkFailed\(true\)/);
 
   assert.match(homeStartupReadiness, /hasBootstrappedSession/);
