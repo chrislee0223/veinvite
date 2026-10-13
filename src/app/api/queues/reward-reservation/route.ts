@@ -10,6 +10,12 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import { ensureSybilV2ReadyForReward } from '@/lib/sybil/v2/pipeline';
 import { isSybilV2EnforcementEnabled } from '@/lib/sybil/v2/rollout';
 
+// Do not occupy Vercel's full 300-second function window waiting on
+// PostgREST when the database/schema cache is unavailable. A failed read
+// stays fail-closed and Vercel Queue may back off before retrying.
+const RESERVATION_QUEUE_READ_TIMEOUT_MS = 8_000;
+const RESERVATION_DB_OUTAGE_BACKOFF_SECONDS = 900;
+
 type ReservationQueueRow = {
   status: string;
   reserved_amount_wei: string | null;
@@ -50,6 +56,7 @@ async function readReservationState(
       'status, reserved_amount_wei, reserved_at',
     )
     .eq('invite_code', inviteCode)
+    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
     .maybeSingle();
 
   if (error) {
@@ -68,6 +75,7 @@ async function readInvitationState(
     .from('invitations')
     .select('status, reward_status')
     .eq('invite_code', inviteCode)
+    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
     .maybeSingle();
 
   if (error) {
@@ -112,6 +120,7 @@ const queueCallback = handleCallback(
           .from('sybil_v2_referral_assessments')
           .select('revision')
           .eq('invite_code', message.inviteCode)
+          .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
           .maybeSingle();
 
       if (assessmentError) {
@@ -229,6 +238,20 @@ const queueCallback = handleCallback(
           error: error instanceof Error ? error.message : String(error),
         });
         return { acknowledge: true };
+      }
+
+      const errorText = error instanceof Error ? error.message : String(error);
+      // A transient database outage is not evidence that a referral should
+      // be permanently discarded. Back off rather than flooding a failed
+      // schema-cache/PostgREST endpoint with overlapping Queue attempts.
+      if (
+        /PGRST002|could not query the database for the schema cache|upstream request timeout|connection (?:terminated|timeout)|abort|timed? ?out|timeout|HTTP 50[34]/i.test(errorText)
+      ) {
+        console.warn('Reward reservation Queue deferring database outage:', {
+          messageId: metadata.messageId,
+          deliveryCount: metadata.deliveryCount,
+        });
+        return { afterSeconds: RESERVATION_DB_OUTAGE_BACKOFF_SECONDS };
       }
 
       const exponent = Math.max(

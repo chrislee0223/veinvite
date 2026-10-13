@@ -934,8 +934,9 @@ export async function GET(
       'Vote reconcile heartbeat start failed:',
       error,
     );
-    errors.push(
-      'CRON_HEARTBEAT_START_FAILED',
+    return NextResponse.json(
+      { code: 'CRON_HEARTBEAT_START_FAILED' },
+      { status: 503 },
     );
   }
 
