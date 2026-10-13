@@ -345,7 +345,7 @@ test('referral hydration placeholders have a visual fail-safe', async () => {
   );
 });
 
-test('8-second watchdog does not forcibly release an incomplete Home', async () => {
+test('18-second watchdog does not forcibly release an incomplete Home', async () => {
   const source = await readFile(
     new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
     'utf8',
@@ -353,7 +353,7 @@ test('8-second watchdog does not forcibly release an incomplete Home', async () 
 
   assert.match(
     source,
-    /STARTUP_RECOVERY_MS\s*=\s*8_000/,
+    /STARTUP_RECOVERY_MS\s*=\s*18_000/,
   );
   assert.match(
     source,
