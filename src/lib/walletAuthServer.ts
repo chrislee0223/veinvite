@@ -65,6 +65,7 @@ export function readWalletSessionTokens(
 
 export async function getWalletSessionFromTokens(
   tokens: string[],
+  signal?: AbortSignal,
 ): Promise<WalletSession | null> {
   const normalizedTokens = Array.from(
     new Set(
@@ -85,10 +86,7 @@ export async function getWalletSessionFromTokens(
   );
   const now = new Date().toISOString();
 
-  const {
-    data,
-    error,
-  } = await supabaseAdmin
+  const query = supabaseAdmin
     .from('wallet_auth_sessions')
     .select(
       'id, wallet_address, expires_at, created_at',
@@ -99,8 +97,13 @@ export async function getWalletSessionFromTokens(
     .order('created_at', {
       ascending: false,
     })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  // Optional first-render budget: abort a stuck database read instead of
+  // keeping Home/Referral SSR blocked. Authorization still fails closed.
+  const { data, error } = await (
+    signal ? query.abortSignal(signal) : query
+  ).maybeSingle();
 
   if (error) {
     throw new Error(
