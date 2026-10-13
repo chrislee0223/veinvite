@@ -56,8 +56,8 @@ async function readReservationState(
       'status, reserved_amount_wei, reserved_at',
     )
     .eq('invite_code', inviteCode)
-    .maybeSingle()
-    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS));
+    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
+    .maybeSingle();
 
   if (error) {
     throw new Error(
@@ -75,8 +75,8 @@ async function readInvitationState(
     .from('invitations')
     .select('status, reward_status')
     .eq('invite_code', inviteCode)
-    .maybeSingle()
-    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS));
+    .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
+    .maybeSingle();
 
   if (error) {
     throw new Error(
@@ -120,8 +120,8 @@ const queueCallback = handleCallback(
           .from('sybil_v2_referral_assessments')
           .select('revision')
           .eq('invite_code', message.inviteCode)
-          .maybeSingle()
-          .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS));
+          .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
+          .maybeSingle();
 
       if (assessmentError) {
         throw new Error(
