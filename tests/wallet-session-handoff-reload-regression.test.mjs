@@ -112,7 +112,7 @@ function sessionRouteHarness(currentWallet){
   context.exports=context.module.exports;
   const source=ts.transpileModule(files.session,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   runInNewContext(source,context,{filename:'session-route-handoff.js'});
-  return {...result,DELETE:context.module.exports.DELETE,setSessionWallet:(x)=>{sessionWallet=x}};
+  return Object.assign(result, {DELETE:context.module.exports.DELETE,setSessionWallet:(x)=>{sessionWallet=x}});
 }
 function req(expected){
   return {nextUrl:{origin:'https://veinvite.vercel.app'},headers:{get:(key)=>{
