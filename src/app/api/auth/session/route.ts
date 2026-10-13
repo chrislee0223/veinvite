@@ -503,6 +503,16 @@ export async function DELETE(
         { status: 500, headers: { 'Cache-Control': 'no-store' } },
       );
     }
+
+    // Do NOT send a Set-Cookie deletion for a provider handoff. An in-flight
+    // response for A could otherwise clear B's newly minted cookie in another
+    // tab after the server correctly scoped the database revocation to A.
+    // A is now revoked server-side; B's signed proof overwrites the stale
+    // browser cookie on success. Explicit logout still clears cookies below.
+    return NextResponse.json(
+      { authenticated: false },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+    );
   } else {
     try {
       await revokeWalletSession(request);
