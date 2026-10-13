@@ -95,7 +95,6 @@ export type WalletSessionQaPreview = {
 
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
 const WALLET_AUTH_SLOW_NOTICE_MS = 45_000;
-const PASSIVE_DISCONNECT_GRACE_MS = 7_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
 const WALLET_SESSION_INVALID_EVENT =
@@ -616,11 +615,8 @@ export function WalletSessionGate({
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(initialWallet);
-  const pageLifecycleRef = useRef(false);
   const walletAddressRef =
     useRef<string | null>(walletAddress);
-  const pendingDisconnectTimerRef =
-    useRef<number | null>(null);
   const pendingErrorTimerRef =
     useRef<number | null>(null);
   const bootReadyDispatchedRef = useRef(false);
@@ -653,25 +649,6 @@ export function WalletSessionGate({
         'veinvite-language-change',
         handleLanguageChange,
       );
-    };
-  }, [previewMode]);
-
-  useEffect(() => {
-    if (previewMode) return;
-
-    const handlePageHide = () => {
-      pageLifecycleRef.current = true;
-    };
-    const handlePageShow = () => {
-      pageLifecycleRef.current = false;
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-    window.addEventListener('pageshow', handlePageShow);
-
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      window.removeEventListener('pageshow', handlePageShow);
     };
   }, [previewMode]);
 
@@ -713,135 +690,27 @@ export function WalletSessionGate({
     };
   }, [previewMode]);
 
+  // A VeChainKit/DAppKit provider disappearing during refresh, page restore,
+  // or background/foreground transitions is *not* proof of user logout.
+  // The connected-wallet gate already fails closed while the account is
+  // unavailable. Only a user's explicit disconnect / wallet switch may
+  // revoke the HttpOnly browser session. In particular, never DELETE the
+  // session from a timer, pageshow, visibilitychange or wallet_disconnected
+  // SDK event: the SDK also emits those during transient rehydration.
   useEffect(() => {
     if (previewMode) return;
-
     walletAddressRef.current = walletAddress;
-
-    if (
-      walletAddress &&
-      pendingDisconnectTimerRef.current !== null
-    ) {
-      window.clearTimeout(
-        pendingDisconnectTimerRef.current,
-      );
-      pendingDisconnectTimerRef.current = null;
-    }
   }, [previewMode, walletAddress]);
 
   useEffect(() => {
     if (previewMode) return;
-
     return () => {
-      if (
-        pendingDisconnectTimerRef.current !== null
-      ) {
-        window.clearTimeout(
-          pendingDisconnectTimerRef.current,
-        );
-        pendingDisconnectTimerRef.current = null;
-      }
       if (pendingErrorTimerRef.current !== null) {
         window.clearTimeout(pendingErrorTimerRef.current);
         pendingErrorTimerRef.current = null;
       }
     };
   }, [previewMode]);
-
-  useEffect(() => {
-    if (previewMode) return;
-
-    const scheduleConfirmedDisconnect = () => {
-      if (
-        pageLifecycleRef.current ||
-        document.visibilityState === 'hidden' ||
-        walletAddressRef.current ||
-        !sessionWalletRef.current
-      ) {
-        return;
-      }
-
-      if (
-        pendingDisconnectTimerRef.current !== null
-      ) {
-        window.clearTimeout(
-          pendingDisconnectTimerRef.current,
-        );
-      }
-
-      pendingDisconnectTimerRef.current =
-        window.setTimeout(() => {
-          pendingDisconnectTimerRef.current = null;
-
-          if (
-            pageLifecycleRef.current ||
-            document.visibilityState === 'hidden' ||
-            walletAddressRef.current ||
-            !sessionWalletRef.current
-          ) {
-            return;
-          }
-
-          void clearWalletSession({
-            confirmedDisconnected: true,
-          }).catch((error) => {
-            console.error(
-              'Failed to clear VeInvite session after confirmed wallet disconnect:',
-              error,
-            );
-          });
-        }, PASSIVE_DISCONNECT_GRACE_MS);
-    };
-
-    const handleWalletDisconnected = () => {
-      scheduleConfirmedDisconnect();
-    };
-    const handlePageShow = () => {
-      window.setTimeout(
-        scheduleConfirmedDisconnect,
-        0,
-      );
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleConfirmedDisconnect();
-      }
-    };
-
-    window.addEventListener(
-      'wallet_disconnected',
-      handleWalletDisconnected,
-    );
-    window.addEventListener(
-      'pageshow',
-      handlePageShow,
-    );
-    document.addEventListener(
-      'visibilitychange',
-      handleVisibilityChange,
-    );
-
-    const initialSchedule = window.setTimeout(
-      scheduleConfirmedDisconnect,
-      0,
-    );
-
-    return () => {
-      window.clearTimeout(initialSchedule);
-      window.removeEventListener(
-        'wallet_disconnected',
-        handleWalletDisconnected,
-      );
-      window.removeEventListener(
-        'pageshow',
-        handlePageShow,
-      );
-      document.removeEventListener(
-        'visibilitychange',
-        handleVisibilityChange,
-      );
-    };
-  }, [clearWalletSession, previewMode]);
 
   const verify = useCallback(async () => {
     if (previewMode || !walletAddress) {
