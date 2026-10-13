@@ -11,6 +11,7 @@ import {
   useConnectModal,
   useWallet,
 } from '@vechain/vechain-kit';
+import { useWallet as useDappKitWallet } from '@vechain/dapp-kit-react';
 
 import { Brand } from '@/components/Brand';
 import { RestrictedApprovedRewardClaims } from '@/components/RestrictedApprovedRewardClaims';
@@ -25,6 +26,7 @@ import {
   WalletAuthenticationFailure,
 } from '@/hooks/useWalletAuthentication';
 import {
+  isWalletAuthenticationInProgress,
   releaseCancelledWalletAuthenticationAfterDisconnect,
 } from '@/lib/walletAuthenticationCoordinator';
 import type { InitialLegalConsentStatus } from '@/lib/legalConsent';
@@ -49,6 +51,7 @@ import {
 import {
   isWalletSessionMismatch,
   markWalletConnectIntent,
+  readPersistedDappKitAccount,
   settleExplicitWalletDisconnect,
 } from '@/lib/walletConnectionResume';
 
@@ -94,6 +97,7 @@ export type WalletSessionQaPreview = {
 };
 
 const SESSION_ERROR_SURFACE_DELAY_MS = 600;
+const CONFIRMED_SDK_DISCONNECT_MS = 20_000;
 const WALLET_AUTH_SLOW_NOTICE_MS = 45_000;
 const SESSION_CLEARED_EVENT =
   'veinvite-wallet-session-cleared';
@@ -581,8 +585,10 @@ export function WalletSessionGate({
     initialSessionWallet?.toLowerCase() ?? null;
   const {
     account,
+    connection,
     disconnect,
   } = useWallet();
+  const { account: dappKitWallet } = useDappKitWallet();
   const {
     open: openConnectModal,
   } = useConnectModal();
@@ -617,6 +623,11 @@ export function WalletSessionGate({
     useRef<string | null>(initialWallet);
   const walletAddressRef =
     useRef<string | null>(walletAddress);
+  const providerStateRef = useRef({
+    dappWallet: dappKitWallet,
+    isLoading: connection?.isLoading ?? true,
+    connected: connection?.isConnectedWithDappKit ?? false,
+  });
   const pendingErrorTimerRef =
     useRef<number | null>(null);
   const bootReadyDispatchedRef = useRef(false);
@@ -690,17 +701,82 @@ export function WalletSessionGate({
     };
   }, [previewMode]);
 
-  // A VeChainKit/DAppKit provider disappearing during refresh, page restore,
-  // or background/foreground transitions is *not* proof of user logout.
-  // The connected-wallet gate already fails closed while the account is
-  // unavailable. Only a user's explicit disconnect / wallet switch may
-  // revoke the HttpOnly browser session. In particular, never DELETE the
-  // session from a timer, pageshow, visibilitychange or wallet_disconnected
-  // SDK event: the SDK also emits those during transient rehydration.
+  // SDK connection restoration is not proof of logout. Track both providers
+  // and the persisted account so background/foreground and reload cannot
+  // discard the server session simply because VeChainKit briefly goes null.
   useEffect(() => {
     if (previewMode) return;
     walletAddressRef.current = walletAddress;
-  }, [previewMode, walletAddress]);
+    providerStateRef.current = {
+      dappWallet: dappKitWallet,
+      isLoading: connection?.isLoading ?? true,
+      connected: connection?.isConnectedWithDappKit ?? false,
+    };
+  }, [
+    previewMode, walletAddress, dappKitWallet,
+    connection?.isLoading, connection?.isConnectedWithDappKit,
+  ]);
+
+  useEffect(() => {
+    if (previewMode) return;
+    let disconnectTimer: number | null = null;
+    const handleWalletDisconnected = () => {
+      if (disconnectTimer !== null) window.clearTimeout(disconnectTimer);
+      // Only a real SDK disconnect event may start this check. Never
+      // schedule server DELETE on initial mount, pageshow or visibility.
+      disconnectTimer = window.setTimeout(() => {
+        disconnectTimer = null;
+        if (
+          document.visibilityState !== 'visible' ||
+          walletAddressRef.current ||
+          !sessionWalletRef.current ||
+          providerStateRef.current.isLoading ||
+          providerStateRef.current.connected ||
+          providerStateRef.current.dappWallet ||
+          readPersistedDappKitAccount() ||
+          isWalletAuthenticationInProgress()
+        ) return;
+
+        const formerWallet = sessionWalletRef.current;
+        // The scoped server gate prevents a delayed disconnect from deleting
+        // another tab's newly verified wallet. No wallet state grants access.
+        void (async () => {
+          try {
+            const response = await fetch('/api/auth/session', {
+              method: 'GET', credentials: 'include', cache: 'no-store',
+            });
+            if (!response.ok) return;
+            const session = (await response.json()) as {
+              authenticated?: boolean; walletAddress?: string;
+            };
+            if (
+              session.authenticated !== true ||
+              session.walletAddress?.toLowerCase() !== formerWallet ||
+              walletAddressRef.current ||
+              providerStateRef.current.dappWallet ||
+              providerStateRef.current.isLoading ||
+              readPersistedDappKitAccount()
+            ) return;
+
+            const cleared = await fetch('/api/auth/session', {
+              method: 'DELETE', credentials: 'include',
+              headers: { 'X-VeInvite-Session-Handoff-Wallet': formerWallet },
+            });
+            if (cleared.ok && !walletAddressRef.current) {
+              window.dispatchEvent(new Event(SESSION_CLEARED_EVENT));
+            }
+          } catch {
+            // A failed network check must never sign out a recoverable wallet.
+          }
+        })();
+      }, CONFIRMED_SDK_DISCONNECT_MS);
+    };
+    window.addEventListener('wallet_disconnected', handleWalletDisconnected);
+    return () => {
+      window.removeEventListener('wallet_disconnected', handleWalletDisconnected);
+      if (disconnectTimer !== null) window.clearTimeout(disconnectTimer);
+    };
+  }, [previewMode]);
 
   useEffect(() => {
     if (previewMode) return;
