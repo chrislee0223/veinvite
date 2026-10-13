@@ -45,11 +45,15 @@ test('database budget guard counts live and already-paid assigned reservations',
   );
 });
 
-test('application pricing reads lifetime committed cohort funding', () => {
+test('application pricing reads exact lifetime cohort commitment from the DB snapshot', () => {
+  // The snapshot itself calls the authoritative committed-funding reader and
+  // casts Wei to text. Calling its numeric-returning RPC separately is unsafe.
   assert.match(predictivePlanning, /read_reward_cohort_committed_wei/);
-  assert.match(predictivePlanning, /rewardCohortCommittedWei/);
-  assert.match(
+  assert.match(predictivePlanning, /read_reward_cohort_planning_snapshot/);
+  assert.match(predictivePlanning, /record\.cohortReservedWei/);
+  assert.match(predictivePlanning, /cohortReservedWei must be an exact decimal string/);
+  assert.doesNotMatch(
     predictivePlanning,
-    /Paid rewards never make the cohort budget reusable/,
+    /supabaseAdmin\.rpc\(\s*'read_reward_cohort_committed_wei'/,
   );
 });
