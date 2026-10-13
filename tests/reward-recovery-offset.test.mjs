@@ -386,13 +386,24 @@ test('planning snapshot and application planning share one lifetime gross commit
     commitmentAuthoritySql,
     /v_cohort_reserved := public\.read_reward_cohort_committed_wei/u,
   );
+  // PostgreSQL calculates the same lifetime commitment inside its JSON
+  // planning snapshot and exposes it as text. An extra numeric RPC used to
+  // silently round large amounts when PostgREST parsed the JSON number.
   assert.match(
     predictivePlanning,
-    /'read_reward_cohort_committed_wei'/u,
+    /'read_reward_cohort_planning_snapshot'/u,
   );
   assert.match(
     predictivePlanning,
-    /cohortReservedWei = readIntegerString\([\s\S]*?rewardCohortCommittedWei/u,
+    /typeof record\.cohortReservedWei !== 'string'/u,
+  );
+  assert.match(
+    predictivePlanning,
+    /const cohortReservedWei = readIntegerString\(\s*record\.cohortReservedWei/u,
+  );
+  assert.doesNotMatch(
+    predictivePlanning,
+    /supabaseAdmin\.rpc\(\s*'read_reward_cohort_committed_wei'/u,
   );
 });
 
