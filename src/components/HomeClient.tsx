@@ -55,6 +55,7 @@ import {
   missionFlags,
   nextMissionLabel,
   readCachedReferralLink,
+  sameWallet,
 } from '@/lib/homeClientHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useHomeStartupLoader } from '@/hooks/useHomeStartupLoader';
