@@ -228,6 +228,19 @@ const queueCallback = handleCallback(
       return;
     }
 
+    // Repeating the same refused immutable quote every few seconds cannot
+    // clear a cohort-commitment mismatch. Acknowledge only this invitation's
+    // pricing conflict; the five-minute durable reservation recovery still
+    // retries and keeps the missing-reservation liveness alarm active.
+    // This does not grant clearance, create a reservation or suppress cron.
+    if (sweep.pricingConflictInviteCodes.includes(message.inviteCode)) {
+      console.warn('Reward reservation Queue deferred pricing conflict to durable recovery:', {
+        inviteCode: message.inviteCode,
+        messageId: metadata.messageId,
+      });
+      return;
+    }
+
     throw new Error(
       `Reward reservation continuation remains pending: trigger=${message.trigger ?? 'LEGACY'}, assessmentRevision=${message.assessmentRevision ?? 'none'}, attempted=${sweep.attempted}, reserved=${sweep.reserved}, awaitingFinality=${sweep.awaitingFinality}, skipped=${sweep.skipped}`,
     );
