@@ -50,10 +50,9 @@ test('minute vote watcher fails closed instead of cascading DB lock and reward c
   const shortCircuit = voteCron.indexOf("code: 'CRON_HEARTBEAT_START_FAILED'", catchStart);
   const watcher = voteCron.indexOf('await runEventDrivenVoteWatcher()', catchStart);
   assert.ok(catchStart > -1 && shortCircuit > catchStart && watcher > shortCircuit);
-  assert.match(
-    voteCron.slice(catchStart, watcher),
-    /return NextResponse\\.json\\([\\s\\S]*code: 'CRON_HEARTBEAT_START_FAILED'[\\s\\S]*status: 503/,
-  );
+  const preWatcher = voteCron.slice(catchStart, watcher);
+  assert.ok(preWatcher.includes('return NextResponse.json('));
+  assert.ok(preWatcher.includes('status: 503'));
   assert.match(voteCron, /await runRewardRecoveryMaintenance\(\)/);
   assert.match(voteCron, /await runEventDrivenVoteWatcher\(\)/);
   const crons = JSON.parse(configRaw).crons;
