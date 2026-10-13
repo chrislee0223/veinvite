@@ -22,7 +22,7 @@ test('queue aborts each PostgREST state read before the 300s function timeout', 
   assert.match(queue, /visibilityTimeoutSeconds: 300/);
   assert.match(queue, /hasDurableReservation\(before\)/);
   assert.match(queue, /hasDurableReservation\(after\)/);
-  assert.match(queue, /assessment\.revision/);
+  assert.match(queue, /assessment\?\.revision/);
   assert.match(queue, /latestRevision > message\.assessmentRevision/);
 });
 
