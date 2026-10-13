@@ -934,22 +934,9 @@ export async function GET(
       'Vote reconcile heartbeat start failed:',
       error,
     );
-    // The database is already unavailable. Never fan out multiple lock,
-    // fallback, reservation and Sybil queries from this minute's invocation:
-    // doing so amplifies the outage and crowds out user sessions.
-    // The next scheduled minute remains the retry/recovery opportunity.
     return NextResponse.json(
-      {
-        error: 'Vote reconciliation temporarily unavailable.',
-        code: 'CRON_HEARTBEAT_START_FAILED',
-      },
-      {
-        status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-          'Retry-After': '60',
-        },
-      },
+      { code: 'CRON_HEARTBEAT_START_FAILED' },
+      { status: 503 },
     );
   }
 
