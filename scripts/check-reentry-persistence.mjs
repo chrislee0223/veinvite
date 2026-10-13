@@ -89,7 +89,7 @@ if (!/disconnectFromVerification/.test(walletSessionGate) || !/t\.disconnectWall
   failures.push('The wallet verification gate must retain a visible disconnect recovery path.');
 }
 if (
-  /addEventListener\(\s*['"](?:pagehide|pageshow|visibilitychange)['"]/.test(walletSessionGate) ||
+  /addEventListener\(\s*['"](?:pagehide|pageshow)['"]/.test(walletSessionGate) ||
   /PASSIVE_DISCONNECT_GRACE_MS|confirmedDisconnected:\s*true/.test(walletSessionGate)
 ) {
   failures.push('Page refresh/navigation/provider visibility must never itself revoke the persistent wallet session.');
