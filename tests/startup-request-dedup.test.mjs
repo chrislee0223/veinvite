@@ -59,7 +59,7 @@ const [
 test('server startup bootstrap resolves restriction and legal consent together', () => {
   assert.match(
     bootstrap,
-    /Promise\.all\(\[[\s\S]*loadActiveSybilV2Restriction[\s\S]*readInitialLegalConsentStatus/s,
+    /Promise\.allSettled\(\[[\s\S]*loadActiveSybilV2Restriction[\s\S]*readInitialLegalConsentStatus/s,
   );
   assert.match(
     bootstrap,
