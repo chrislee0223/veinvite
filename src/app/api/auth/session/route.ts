@@ -529,7 +529,8 @@ export async function DELETE(
       name: LEGACY_WALLET_SESSION_COOKIE_NAME,
     });
   }
-  // The independent Sybil-observation cookie must survive logout/handoff.
+  // Deliberately keep the security-client cookie on logout and handoff. It
+  // is independent of authentication and helps detect wallet/device reuse.
   return response;
 }
 
