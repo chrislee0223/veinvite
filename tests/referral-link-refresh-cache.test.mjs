@@ -152,7 +152,7 @@ test('VeWorld refresh shield stays up through wallet restore and explicit Home d
   assert.match(source, /invitesReady && referralLinkVerified/);
   assert.match(source, /status: hasStartupError/);
   assert.match(startupLoader, /setInvitesFailed\(true\)/);
-  assert.match(source, /setReferralLinkFailed\(true\)/);
+  assert.match(startupLoader, /setReferralLinkFailed\(true\)/);
 
   assert.match(homeStartupReadiness, /hasBootstrappedSession/);
   assert.match(homeStartupReadiness, /hasPersistedWallet/);
