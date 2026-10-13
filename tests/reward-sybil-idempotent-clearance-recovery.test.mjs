@@ -64,7 +64,8 @@ test('pricing exhaustion logs the database refusal while retaining immutable res
 
 test('continuation Queue retries are bounded and leave durable liveness monitoring intact', () => {
   assert.match(reservationConsumer, /metadata\.deliveryCount >= 10/);
-  assert.match(reservationConsumer, /latestRevision > message\.assessmentRevision/);
+  assert.match(reservationConsumer, /latestRevision !== message\.assessmentRevision/);
+  assert.match(reservationConsumer, /assessment\.state !== 'CLEAR' && assessment\.state !== 'WATCH'/);
   assert.match(reservationConsumer, /visibilityTimeoutSeconds: 300/);
   assert.match(evidenceConsumer, /visibilityTimeoutSeconds: 300/);
   assert.match(reservationConsumer, /acknowledge: true/);

@@ -118,7 +118,7 @@ const queueCallback = handleCallback(
       const { data: assessment, error: assessmentError } =
         await supabaseAdmin
           .from('sybil_v2_referral_assessments')
-          .select('revision')
+          .select('revision,state')
           .eq('invite_code', message.inviteCode)
           .abortSignal(AbortSignal.timeout(RESERVATION_QUEUE_READ_TIMEOUT_MS))
           .maybeSingle();
@@ -130,9 +130,15 @@ const queueCallback = handleCallback(
       }
 
       const latestRevision = Number(assessment?.revision);
+      // A clearance event may outlive the assessment that issued it.
+      // Do not process stale proofs or a referral that has since reverted
+      // to pending review. A subsequent fresh clearance or the durable
+      // recovery sweep is responsible for resuming the reservation.
       if (
-        Number.isSafeInteger(latestRevision) &&
-        latestRevision > message.assessmentRevision
+        !assessment ||
+        !Number.isSafeInteger(latestRevision) ||
+        latestRevision !== message.assessmentRevision ||
+        (assessment.state !== 'CLEAR' && assessment.state !== 'WATCH')
       ) {
         return;
       }
