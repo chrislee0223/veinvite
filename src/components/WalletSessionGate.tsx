@@ -720,14 +720,19 @@ export function WalletSessionGate({
   useEffect(() => {
     if (previewMode) return;
     let disconnectTimer: number | null = null;
-    const handleWalletDisconnected = () => {
+    let disconnectEventAt: number | null = null;
+    const armConfirmedDisconnectCheck = () => {
+      if (disconnectEventAt === null) return;
       if (disconnectTimer !== null) window.clearTimeout(disconnectTimer);
-      // Only a real SDK disconnect event may start this check. Never
-      // schedule server DELETE on initial mount, pageshow or visibility.
+      // Visibility merely resumes a previously observed real SDK disconnect.
+      // It never starts a sign-out without that explicit provider event.
+      const remaining = Math.max(
+        0, CONFIRMED_SDK_DISCONNECT_MS - (Date.now() - disconnectEventAt),
+      );
       disconnectTimer = window.setTimeout(() => {
         disconnectTimer = null;
+        if (document.visibilityState !== 'visible') return;
         if (
-          document.visibilityState !== 'visible' ||
           walletAddressRef.current ||
           !sessionWalletRef.current ||
           providerStateRef.current.isLoading ||
@@ -735,7 +740,11 @@ export function WalletSessionGate({
           providerStateRef.current.dappWallet ||
           readPersistedDappKitAccount() ||
           isWalletAuthenticationInProgress()
-        ) return;
+        ) {
+          disconnectEventAt = null;
+          return;
+        }
+        disconnectEventAt = null;
 
         const formerWallet = sessionWalletRef.current;
         if (!formerWallet) return;
@@ -770,11 +779,22 @@ export function WalletSessionGate({
             // A failed network check must never sign out a recoverable wallet.
           }
         })();
-      }, CONFIRMED_SDK_DISCONNECT_MS);
+      }, remaining);
+    };
+    const handleWalletDisconnected = () => {
+      disconnectEventAt = Date.now();
+      armConfirmedDisconnectCheck();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        armConfirmedDisconnectCheck();
+      }
     };
     window.addEventListener('wallet_disconnected', handleWalletDisconnected);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('wallet_disconnected', handleWalletDisconnected);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (disconnectTimer !== null) window.clearTimeout(disconnectTimer);
     };
   }, [previewMode]);
