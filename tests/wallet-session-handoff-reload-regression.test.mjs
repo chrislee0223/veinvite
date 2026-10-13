@@ -136,8 +136,7 @@ test('an A->B handoff can only revoke the verified old A session',async()=>{
   assert.equal(out.status,200);
   assert.deepEqual(app.updatedWallets,[A]);
   assert.equal(app.unscopedRevokes,0);
-  assert.equal(app.cookies.length,2);
-  assert.ok(app.cookies.every(x=>x.maxAge===0));
+  assert.equal(app.cookies.length,0,'scoped handoff must never clear a new B cookie');
 });
 
 test('missing cookie, malformed wallet or CSRF origin does not clear newer browser session',async()=>{
