@@ -2,14 +2,25 @@ const QA_BASE_URL = 'http://127.0.0.1:3100';
 
 async function warm(
   path: string,
-  timeoutMs = 30_000,
+  timeoutMs = 90_000,
 ): Promise<void> {
-  const response = await fetch(`${QA_BASE_URL}${path}`, {
-    signal: AbortSignal.timeout(timeoutMs),
-    headers: {
-      Accept: 'text/html',
-    },
-  });
+  // Next.js dev-mode cold route compilation on GitHub runners can exceed the
+  // generic 30s fetch timeout even when the eventual render is healthy.
+  // Preserve the actual HTTP/error gate; report which route failed.
+  let response: Response;
+  try {
+    response = await fetch(`${QA_BASE_URL}${path}`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        Accept: 'text/html',
+      },
+    });
+  } catch (error) {
+    throw new Error(
+      `Playwright QA warmup failed for ${path} within ${timeoutMs}ms`,
+      { cause: error },
+    );
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -27,5 +38,5 @@ export default async function globalSetup(): Promise<void> {
   // layout failure on the first four tests.
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
-  await warm('/qa/network-slot-visual', 60_000);
+  await warm('/qa/network-slot-visual', 90_000);
 }
