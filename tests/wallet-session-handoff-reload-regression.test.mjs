@@ -22,7 +22,12 @@ const files = Object.fromEntries(entries);
 
 test('a refresh, SDK event, pageshow or hidden tab never automatically DELETEs a valid session',()=>{
   assert.doesNotMatch(files.gate,/PASSIVE_DISCONNECT_GRACE_MS|scheduleConfirmedDisconnect|confirmedDisconnected: true/);
-  assert.doesNotMatch(files.gate,/addEventListener\(\s*'wallet_disconnected'/);
+  assert.match(files.gate,/CONFIRMED_SDK_DISCONNECT_MS = 20_000/);
+  assert.match(files.gate,/addEventListener\(\s*'wallet_disconnected'/);
+  assert.match(files.gate,/providerStateRef\.current\.isLoading/);
+  assert.match(files.gate,/readPersistedDappKitAccount\(\)/);
+  assert.match(files.gate,/X-VeInvite-Session-Handoff-Wallet': formerWallet/);
+  assert.doesNotMatch(files.gate,/addEventListener\(\s*'pageshow'[\s\S]*clearWalletSession/);
   assert.doesNotMatch(files.auth,/confirmedDisconnected|ClearWalletSessionOptions/);
   assert.match(files.auth,/if \(\s*!connectedWallet \|\|\s*!WALLET_PATTERN\.test\(connectedWallet\)/);
   assert.match(files.gate,/const disconnectFromVerification =[\s\S]*await clearWalletSession\(\)/);
