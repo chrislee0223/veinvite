@@ -104,10 +104,6 @@ type WalletCertificate = {
   signature: string;
 };
 
-type ClearWalletSessionOptions = {
-  confirmedDisconnected?: boolean;
-};
-
 function wait(
   milliseconds: number,
 ): Promise<void> {
@@ -712,23 +708,17 @@ export function useWalletAuthentication() {
 
   const clearWalletSession =
     useCallback(
-      async (
-        options: ClearWalletSessionOptions = {},
-      ) => {
+      async () => {
         const connectedWallet =
           account?.address
             ?.trim()
             .toLowerCase() ?? null;
 
-        // Passive provider churn must remain non-destructive. A caller may
-        // bypass the live-account requirement only after a visible grace period
-        // has confirmed that the wallet really stayed disconnected.
+        // Only an explicit connected-wallet action may clear a session.
+        // SDK provider gaps during refresh or WebView resume are not logout.
         if (
-          !options.confirmedDisconnected &&
-          (
-            !connectedWallet ||
-            !WALLET_PATTERN.test(connectedWallet)
-          )
+          !connectedWallet ||
+          !WALLET_PATTERN.test(connectedWallet)
         ) {
           return;
         }
