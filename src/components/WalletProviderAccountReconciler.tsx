@@ -220,10 +220,16 @@ export function WalletProviderAccountReconciler() {
             cancelActiveWalletAuthentication();
 
           const clearBrowserSession = async () => {
+            // Explicitly retire only wallet A. If another tab has already
+            // authenticated wallet B, the server returns 409 without
+            // revoking B or issuing a stale Set-Cookie clear.
             const clearResponse = await fetch('/api/auth/session', {
               method: 'DELETE',
               cache: 'no-store',
               credentials: 'include',
+              headers: {
+                'X-VeInvite-Session-Handoff-Wallet': sessionWallet,
+              },
             });
             return clearResponse.ok;
           };

@@ -399,6 +399,9 @@ jobs:
       - name: Reward accounting regression tests
         run: npm run test:rewards
 
+      - name: Wallet session handoff behavioral regressions
+        run: node --test tests/wallet-session-handoff-reload-regression.test.mjs
+
       - name: Sentry observability regression tests
         run: npm run test:sentry
 

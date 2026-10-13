@@ -451,58 +451,96 @@ export async function POST(
 export async function DELETE(
   request: NextRequest,
 ) {
-  try {
-    await revokeWalletSession(request);
-  } catch (error) {
-    console.error(
-      'Failed to revoke wallet session:',
-      error,
-    );
+  // Automatic A -> B provider handoff is allowed to retire only A's session.
+  // If B has already signed in on another tab, do not delete B's row OR send
+  // Set-Cookie that could clear B's newer session. Ordinary user-initiated
+  // logout keeps its previous full-session revocation semantics.
+  const handoffWalletHeader = request.headers.get(
+    'x-veinvite-session-handoff-wallet',
+  );
+  if (handoffWalletHeader !== null) {
+    const expectedWallet = handoffWalletHeader.trim().toLowerCase();
+    const origin = request.headers.get('origin');
+    if (
+      !WALLET_PATTERN.test(expectedWallet) ||
+      (origin !== null && (() => {
+        try {
+          return new URL(origin).origin !== request.nextUrl.origin;
+        } catch {
+          return true;
+        }
+      })())
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid wallet handoff request.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
 
+    try {
+      const currentSession = await getWalletSession(request);
+      if (
+        !currentSession ||
+        currentSession.walletAddress !== expectedWallet
+      ) {
+        // Critical: a mismatched handoff must not send cookie deletion.
+        return NextResponse.json(
+          { error: 'Wallet session changed during handoff.' },
+          { status: 409, headers: { 'Cache-Control': 'no-store' } },
+        );
+      }
+      const { error } = await supabaseAdmin
+        .from('wallet_auth_sessions')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('id', currentSession.id)
+        .eq('wallet_address', expectedWallet)
+        .is('revoked_at', null);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to retire a verified wallet handoff session:', error);
+      return NextResponse.json(
+        { error: 'Failed to retire wallet handoff session.' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
+    // Do NOT send a Set-Cookie deletion for a provider handoff. An in-flight
+    // response for A could otherwise clear B's newly minted cookie in another
+    // tab after the server correctly scoped the database revocation to A.
+    // A is now revoked server-side; B's signed proof overwrites the stale
+    // browser cookie on success. Explicit logout still clears cookies below.
     return NextResponse.json(
-      {
-        error:
-          'Failed to revoke wallet session.',
-      },
-      {
-        status: 500,
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
+      { authenticated: false },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
     );
+  } else {
+    try {
+      await revokeWalletSession(request);
+    } catch (error) {
+      console.error('Failed to revoke wallet session:', error);
+      return NextResponse.json(
+        { error: 'Failed to revoke wallet session.' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
   }
 
   const response = NextResponse.json(
-    {
-      authenticated: false,
-    },
-    {
-      status: 200,
-      headers: {
-        'Cache-Control': 'no-store',
-      },
-    },
+    { authenticated: false },
+    { status: 200, headers: { 'Cache-Control': 'no-store' } },
   );
-
-  clearSessionCookie({
-    response,
-    name: WALLET_SESSION_COOKIE_NAME,
-  });
-
+  clearSessionCookie({ response, name: WALLET_SESSION_COOKIE_NAME });
   if (
     LEGACY_WALLET_SESSION_COOKIE_NAME !==
     WALLET_SESSION_COOKIE_NAME
   ) {
     clearSessionCookie({
       response,
-      name:
-        LEGACY_WALLET_SESSION_COOKIE_NAME,
+      name: LEGACY_WALLET_SESSION_COOKIE_NAME,
     });
   }
-
-  // Deliberately keep the security-client cookie on logout. It is independent
-  // from authentication and is what allows VeInvite to recognize that multiple
-  // verified wallets were later used in the same browser environment.
+  // Deliberately keep the security-client cookie on logout and handoff. It
+  // is independent of authentication and helps detect wallet/device reuse.
   return response;
 }
+

@@ -119,12 +119,14 @@ if (
 }
 
 if (
-  !walletAuth.includes('confirmedDisconnected?: boolean') ||
-  !walletAuth.includes('!options.confirmedDisconnected') ||
-  !walletSessionGate.includes('confirmedDisconnected: true')
+  !walletSessionGate.includes('CONFIRMED_SDK_DISCONNECT_MS = 20_000') ||
+  !walletSessionGate.includes('armConfirmedDisconnectCheck') ||
+  !walletSessionGate.includes('disconnectEventAt = Date.now()') ||
+  !walletSessionGate.includes("X-VeInvite-Session-Handoff-Wallet': formerWallet") ||
+  walletAuth.includes('confirmedDisconnected?: boolean')
 ) {
   failures.push(
-    'Passive provider churn must stay non-destructive, while a wallet that remains disconnected after the visible grace period must be able to clear the stale browser session.',
+    'Provider gaps must not revoke sessions; confirmed disconnect must retire only the old wallet after the visible grace period.',
   );
 }
 
@@ -221,12 +223,13 @@ if (
 }
 
 if (
-  !walletSessionGate.includes('PASSIVE_DISCONNECT_GRACE_MS = 7_000') ||
-  !walletSessionGate.includes("window.addEventListener(\n      'pageshow'") ||
-  !walletSessionGate.includes("document.addEventListener(\n      'visibilitychange'")
+  !walletSessionGate.includes("document.addEventListener('visibilitychange', handleVisibilityChange)") ||
+  !walletSessionGate.includes("if (disconnectEventAt === null) return") ||
+  !walletSessionGate.includes("if (document.visibilityState === 'visible')") ||
+  !walletSessionGate.includes('armConfirmedDisconnectCheck()')
 ) {
   failures.push(
-    'A VeWorld disconnect that occurs while the page is backgrounded must be re-evaluated on visible return instead of leaving the startup shield waiting forever.',
+    'A previously observed SDK disconnect must be rechecked when the page becomes visible without initiating a fresh passive logout.',
   );
 }
 

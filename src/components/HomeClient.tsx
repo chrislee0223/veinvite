@@ -56,9 +56,9 @@ import {
   nextMissionLabel,
   readCachedReferralLink,
   sameWallet,
-  writeCachedReferralLink,
 } from '@/lib/homeClientHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
+import { useHomeStartupLoader } from '@/hooks/useHomeStartupLoader';
 import {
   buildProductionSharePageUrl,
   SOCIAL_SHARE_CARD_VERSION,
@@ -306,110 +306,13 @@ export function HomeClient() {
       );
   }, [clearFeedback]);
 
-  const load = useCallback(async (quiet = false) => {
-    if (!wallet) return;
-    const requestWallet = wallet;
-
-    try {
-      const [inviteResult, linkResult] = await Promise.allSettled([
-        fetch(
-          `/api/invites?inviter=${encodeURIComponent(requestWallet)}`,
-          { cache: 'no-store' },
-        ),
-        fetch('/api/referral-links', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviterAddress: requestWallet }),
-        }),
-      ]);
-
-      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
-
-      if (inviteResult.status === 'rejected') {
-        if (!quiet) {
-          setInvitesReady(false);
-          setInvitesFailed(true);
-          showFeedback('error', t.loadError);
-        }
-      } else {
-        try {
-          const inviteResponse = inviteResult.value;
-          const inviteData = (await inviteResponse.json()) as {
-            invites?: InviteRecord[];
-            error?: string;
-          };
-          if (!inviteResponse.ok) {
-            throw new Error(inviteData.error ?? t.loadError);
-          }
-          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
-          setInvites(inviteData.invites ?? []);
-          setInvitesReady(true);
-          setInvitesFailed(false);
-        } catch (error) {
-          if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
-            setInvitesReady(false);
-            setInvitesFailed(true);
-            showFeedback(
-              'error',
-              error instanceof Error ? error.message : t.loadError,
-            );
-          }
-        }
-      }
-
-      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
-
-      if (linkResult.status === 'rejected') {
-        if (!quiet) {
-          setReferralLinkVerified(false);
-          setReferralLinkFailed(true);
-          showFeedback('error', t.createError);
-        }
-        return;
-      }
-
-      try {
-        const linkResponse = linkResult.value;
-        const linkData = (await linkResponse.json()) as {
-          referralLink?: ReferralLinkRecord | null;
-          error?: string;
-        };
-        if (!linkResponse.ok || !linkData.referralLink) {
-          throw new Error(linkData.error ?? t.createError);
-        }
-        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
-
-        setReferralLink(linkData.referralLink);
-        setReferralLinkVerified(true);
-        setReferralLinkFailed(false);
-        writeCachedReferralLink(requestWallet, linkData.referralLink);
-      } catch (error) {
-        if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
-          setReferralLinkVerified(false);
-          setReferralLinkFailed(true);
-          showFeedback(
-            'error',
-            error instanceof Error ? error.message : t.createError,
-          );
-        }
-      }
-    } catch (error) {
-      if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
-        setInvitesReady(false);
-        setInvitesFailed(true);
-        setReferralLinkVerified(false);
-        setReferralLinkFailed(true);
-        showFeedback(
-          'error',
-          error instanceof Error ? error.message : t.genericError,
-        );
-      }
-    }
-  }, [wallet, t.loadError, t.createError, t.genericError, showFeedback]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useHomeStartupLoader({
+    wallet, copy: t, activeWalletRef,
+    setInvites, setInvitesReady, setInvitesFailed,
+    setReferralLink, setReferralLinkVerified, setReferralLinkFailed,
+    invitesReady, referralLinkVerified, invitesFailed, referralLinkFailed,
+    showFeedback,
+  });
 
   useEffect(() => {
     if (!wallet) return;
