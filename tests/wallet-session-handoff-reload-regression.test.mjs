@@ -11,6 +11,7 @@ const paths = {
   handoff: 'src/components/WalletProviderAccountReconciler.tsx',
   session: 'src/app/api/auth/session/route.ts',
   home: 'src/components/HomeClient.tsx',
+  startupLoader: 'src/hooks/useHomeStartupLoader.ts',
   shield: 'src/components/LocaleHydrationShield.tsx',
   serverAuth: 'src/lib/walletAuthServer.ts',
   referral: 'src/app/api/referral-links/route.ts',
@@ -46,12 +47,12 @@ test('the provider handoff must scope both deletes to the previous wallet, not t
 });
 
 test('home auto-recovery is bounded and never retries a rejected authentication as transient',()=>{
-  assert.match(files.home,/startupRetryAttemptsRef\.current >= 3/);
-  assert.match(files.home,/const retryDelays = \[650, 1500, 3000\]/);
-  assert.match(files.home,/if \(inviteResponse\.status < 500\)/);
-  assert.match(files.home,/if \(linkResponse\.status < 500\)/);
-  assert.match(files.home,/!startupRetryAllowedRef\.current/);
-  assert.match(files.home,/setInvitesFailed\(false\);\s*setReferralLinkFailed\(false\);\s*void load\(\)/);
+  assert.match(files.startupLoader,/startupRetryAttemptsRef\.current >= 3/);
+  assert.match(files.startupLoader,/const retryDelays = \[650, 1500, 3000\]/);
+  assert.match(files.startupLoader,/if \(inviteResponse\.status < 500\)/);
+  assert.match(files.startupLoader,/if \(linkResponse\.status < 500\)/);
+  assert.match(files.startupLoader,/!startupRetryAllowedRef\.current/);
+  assert.match(files.startupLoader,/setInvitesFailed\(false\);\s*setReferralLinkFailed\(false\);\s*void load\(\)/);
   assert.match(files.referral,/idempotent "ensure link"/);
   assert.match(files.shield,/STARTUP_RECOVERY_MS = 18_000/);
   assert.match(files.shield,/STARTUP_ERROR_GRACE_MS = 2_500/);
