@@ -52,7 +52,7 @@ test('minute vote watcher fails closed instead of cascading DB lock and reward c
   assert.ok(catchStart > -1 && shortCircuit > catchStart && watcher > shortCircuit);
   assert.match(
     voteCron.slice(catchStart, watcher),
-    /return NextResponse\.json\([\s\S]*status: 503[\s\S]*'Retry-After': '60'/,
+    /return NextResponse\\.json\\([\\s\\S]*code: 'CRON_HEARTBEAT_START_FAILED'[\\s\\S]*status: 503/,
   );
   assert.match(voteCron, /await runRewardRecoveryMaintenance\(\)/);
   assert.match(voteCron, /await runEventDrivenVoteWatcher\(\)/);
