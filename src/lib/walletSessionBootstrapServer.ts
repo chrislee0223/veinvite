@@ -73,10 +73,12 @@ export async function readWalletSessionBootstrap(
   const initialSession =
     await getWalletSessionFromTokens(sessionTokens, signal).catch(
       (error) => {
-        console.error(
-          'Failed to bootstrap VeInvite wallet session:',
-          error,
-        );
+        if (!signal?.aborted) {
+          console.error(
+            'Failed to bootstrap VeInvite wallet session:',
+            error,
+          );
+        }
         return null;
       },
     );
@@ -91,36 +93,55 @@ export async function readWalletSessionBootstrap(
     };
   }
 
-  const [initialRestriction, initialLegalConsentStatus] =
-    await Promise.all([
+  const [restrictionResult, consentResult] =
+    await Promise.allSettled([
       loadActiveSybilV2Restriction({
         walletAddress: initialSessionWallet,
         network: getVeBetterNetwork(),
         signal,
-      }).catch((error) => {
-        console.error(
-          'Failed to bootstrap VeInvite participation restriction:',
-          error,
-        );
-        return null;
       }),
       readInitialLegalConsentStatus(
         initialSessionWallet,
         signal,
-      ).catch((error) => {
+      ),
+    ]);
+
+  // Do not treat a failed restriction/consent lookup as an absence of
+  // restrictions or an accepted legal agreement. Keep the initial wallet
+  // unverified, so the client must repeat the authoritative checks.
+  if (
+    restrictionResult.status === 'rejected' ||
+    consentResult.status === 'rejected' ||
+    signal?.aborted
+  ) {
+    // A cancelled optional first-render lookup is expected during a DB outage;
+    // only unexpected failures should produce a production error alert.
+    if (!signal?.aborted) {
+      if (restrictionResult.status === 'rejected') {
+        console.error(
+          'Failed to bootstrap VeInvite participation restriction:',
+          restrictionResult.reason,
+        );
+      }
+      if (consentResult.status === 'rejected') {
         console.error(
           'Failed to bootstrap VeInvite legal consent:',
-          error,
+          consentResult.reason,
         );
-        return null;
-      }),
-    ]);
+      }
+    }
+    return {
+      initialSessionWallet: null,
+      initialRestrictionKind: null,
+      initialLegalConsentStatus: null,
+    };
+  }
 
   return {
     initialSessionWallet,
     initialRestrictionKind:
-      initialRestriction?.restriction_kind ?? null,
-    initialLegalConsentStatus,
+      restrictionResult.value?.restriction_kind ?? null,
+    initialLegalConsentStatus: consentResult.value,
   };
 }
 
