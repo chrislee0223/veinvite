@@ -84,7 +84,7 @@ export async function tryClaimCronJob(
         minSuccessIntervalSeconds,
       p_lease_seconds: leaseSeconds,
     },
-  );
+  ).abortSignal(AbortSignal.timeout(CRON_HEARTBEAT_TIMEOUT_MS));
 
   if (error) {
     throw new Error(
