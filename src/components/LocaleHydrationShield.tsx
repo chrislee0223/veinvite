@@ -23,7 +23,8 @@ const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_LOADING_EVENT = 'veinvite-app-loading';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
-const STARTUP_RECOVERY_MS = 8_000;
+const STARTUP_RECOVERY_MS = 18_000;
+const STARTUP_ERROR_GRACE_MS = 2_500;
 const INTERACTIVE_STARTUP_GATE_SELECTOR = [
   '[data-veinvite-wallet-session-gate="interactive"]',
   '[data-veinvite-legal-consent-gate="interactive"]',
@@ -111,6 +112,7 @@ function LocaleHydrationShieldRuntime() {
     let firstFrame = 0;
     let secondFrame = 0;
     let fallbackTimer = 0;
+    let startupErrorTimer = 0;
     let loadingFrame = 0;
     let released = false;
     let interactiveGateVisible = false;
@@ -119,6 +121,10 @@ function LocaleHydrationShieldRuntime() {
     const clearFallbackTimer = () => {
       window.clearTimeout(fallbackTimer);
       fallbackTimer = 0;
+    };
+    const clearStartupErrorTimer = () => {
+      window.clearTimeout(startupErrorTimer);
+      startupErrorTimer = 0;
     };
 
     const setShieldVisible = (visible: boolean) => {
@@ -135,6 +141,7 @@ function LocaleHydrationShieldRuntime() {
       }
       released = true;
       clearFallbackTimer();
+      clearStartupErrorTimer();
 
       firstFrame = window.requestAnimationFrame(() => {
         secondFrame = window.requestAnimationFrame(() => {
@@ -189,6 +196,7 @@ function LocaleHydrationShieldRuntime() {
 
       released = false;
       clearFallbackTimer();
+      clearStartupErrorTimer();
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
       setState({ status: 'loading' });
@@ -212,11 +220,20 @@ function LocaleHydrationShieldRuntime() {
         event as CustomEvent<{ message?: string }>
       ).detail;
       clearFallbackTimer();
-      setShieldVisible(true);
-      setState({
-        status: 'error',
-        message: detail?.message,
-      });
+      clearStartupErrorTimer();
+      // A first Home read can fail just before the bounded recovery retry
+      // succeeds. Keep the branded loading view during that grace window.
+      // A persistent failure still exposes the actionable Retry UI.
+      startupErrorTimer = window.setTimeout(() => {
+        if (released || hasInteractiveStartupGate()) {
+          return;
+        }
+        setShieldVisible(true);
+        setState({
+          status: 'error',
+          message: detail?.message,
+        });
+      }, STARTUP_ERROR_GRACE_MS);
     };
     const handleProviderReady = () => {
       if (!isHome) {
@@ -290,6 +307,7 @@ function LocaleHydrationShieldRuntime() {
       );
       observer?.disconnect();
       clearFallbackTimer();
+      clearStartupErrorTimer();
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
       window.cancelAnimationFrame(loadingFrame);
