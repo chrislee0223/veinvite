@@ -36,6 +36,11 @@ test('timed-out startup never grants authorization or mutates a wallet session',
   assert.match(sessionAuth, /signal \? query\.abortSignal\(signal\) : query/);
   assert.doesNotMatch(bootstrap, /\.delete\(|cookieStore\.set\(|\.rpc\('revoke_|signMessage\(|sendTransaction\(/);
   assert.match(bootstrap, /loadActiveSybilV2Restriction\(\{[\s\S]*signal,/);
+  assert.match(bootstrap, /Promise\.allSettled\(\[/);
+  assert.match(bootstrap, /restrictionResult\.status === 'rejected'/);
+  assert.match(bootstrap, /consentResult\.status === 'rejected'/);
+  assert.match(bootstrap, /if \(!signal\?\.aborted\) \{/);
+  assert.match(bootstrap, /initialSessionWallet: null,[\s\S]*initialLegalConsentStatus: null/);
 });
 
 test('security and legal checks abort their real PostgREST transport under deadline', () => {
