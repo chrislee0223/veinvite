@@ -84,16 +84,14 @@ test('confirmed external VeWorld disconnect can clear a stale session after the 
     'utf8',
   );
 
-  assert.match(
-    source,
-    /PASSIVE_DISCONNECT_GRACE_MS\s*=\s*7_000/,
-  );
-  assert.match(
-    source,
-    /clearWalletSession\(\{[\s\S]*confirmedDisconnected:\s*true/,
-  );
-  assert.match(source, /'pageshow'/);
+  assert.match(source, /CONFIRMED_SDK_DISCONNECT_MS\s*=\s*20_000/);
+  assert.match(source, /addEventListener\('wallet_disconnected'/);
+  assert.match(source, /armConfirmedDisconnectCheck\(\)/);
+  assert.match(source, /readPersistedDappKitAccount\(\)/);
+  assert.match(source, /providerStateRef\.current\.isLoading/);
+  assert.match(source, /X-VeInvite-Session-Handoff-Wallet': formerWallet/);
   assert.match(source, /'visibilitychange'/);
+  assert.doesNotMatch(source, /addEventListener\('pageshow'/);
 });
 
 test('an external VeWorld account switch repairs a persistent VeChainKit/DAppKit mismatch in place', async () => {
