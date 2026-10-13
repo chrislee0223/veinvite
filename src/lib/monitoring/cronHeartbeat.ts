@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 const MAX_ERROR_LENGTH = 2000;
+// Cron heartbeat writes are idempotent; bound the transport wait so a
+// database outage cannot consume an entire Vercel Function execution.
+const CRON_HEARTBEAT_TIMEOUT_MS = 8_000;
 
 function normalizeCronError(error: unknown) {
   const message =
@@ -29,7 +32,8 @@ async function upsertCronJobState(
       {
         onConflict: 'job_name',
       },
-    );
+    )
+    .abortSignal(AbortSignal.timeout(CRON_HEARTBEAT_TIMEOUT_MS));
 
   if (error) {
     throw new Error(
