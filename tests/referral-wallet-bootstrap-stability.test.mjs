@@ -46,7 +46,7 @@ test('direct referral routes bootstrap the verified server session before client
   assert.match(bootstrap, /loadActiveSybilV2Restriction/);
   assert.match(
     bootstrap,
-    /initialRestriction\?\.restriction_kind \?\? null/,
+    /restrictionResult\.value\?\.restriction_kind \?\? null/,
   );
 });
 
