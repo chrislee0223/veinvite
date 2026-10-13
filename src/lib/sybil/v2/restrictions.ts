@@ -53,7 +53,7 @@ export async function loadActiveSybilV2Restriction({
       .eq('wallet_address', wallet)
       .eq('network', network)
       .eq('status', 'ACTIVE')
-      .maybeSingle().abortSignal(signal ?? AbortSignal.timeout(60_000)),
+      .abortSignal(signal ?? AbortSignal.timeout(60_000)).maybeSingle(),
     supabaseAdmin
       .from('operator_sybil_v2_temporary_participation_holds')
       .select(
