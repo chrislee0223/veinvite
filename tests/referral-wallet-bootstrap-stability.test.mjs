@@ -28,7 +28,7 @@ const [
 
 test('direct referral routes bootstrap the verified server session before client wallet restoration', () => {
   for (const source of [permanentPage, invitePage]) {
-    assert.match(source, /readWalletSessionBootstrap\(\)/);
+    assert.match(source, /readWalletSessionBootstrapForFirstPaint\(\)/);
     assert.match(
       source,
       /initialSessionWallet=\{bootstrap\.initialSessionWallet\}/,
