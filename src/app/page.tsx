@@ -5,7 +5,7 @@ import { RewardForecastSeedProvider } from '@/components/RewardForecastSeedProvi
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { readPublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeedServer';
 import { resolveOptionalPrefillWithin } from '@/lib/rewards/resolveOptionalPrefillWithin';
-import { readWalletSessionBootstrap } from '@/lib/walletSessionBootstrapServer';
+import { readWalletSessionBootstrapForFirstPaint } from '@/lib/walletSessionBootstrapServer';
 
 // A public estimate is optional. Keep the first Home render bounded even when a
 // cold Vercel -> Supabase connection exceeds the seed reader's own timeout.
@@ -14,7 +14,7 @@ const HOME_FORECAST_PREFILL_BUDGET_MS = 400;
 
 export default async function HomePage() {
   const [bootstrap, initialRewardForecast] = await Promise.all([
-    readWalletSessionBootstrap(),
+    readWalletSessionBootstrapForFirstPaint(),
     resolveOptionalPrefillWithin(
       readPublicRewardForecastSeed(),
       null,
