@@ -222,29 +222,19 @@ export async function readPredictiveRewardPlanning(input: {
       : {}),
   };
 
-  let cohortReservedWei = readIntegerString(record.cohortReservedWei, 'cohortReservedWei');
-  if (latestAllocation && rewardCohortRoundId) {
-    const { data: committedData, error: committedError } = await supabaseAdmin.rpc(
-      'read_reward_cohort_committed_wei',
-      {
-        p_network: input.network,
-        p_app_id: input.appId,
-        p_reward_cohort_round_id: rewardCohortRoundId,
-        p_allocation_receipt_id: latestAllocation.id,
-      },
-    );
-
-    if (committedError) {
-      throw new Error(`Reward cohort committed funding could not be loaded: ${committedError.message}`);
-    }
-
-    // Lifetime committed funding includes paid reservations as well as unsettled
-    // liabilities. Paid rewards never make the cohort budget reusable.
-    cohortReservedWei = readIntegerString(
-      committedData,
-      'rewardCohortCommittedWei',
-    );
+  // This snapshot already calls read_reward_cohort_committed_wei inside
+  // PostgreSQL and serializes the exact numeric Wei amount as JSON text.
+  // Never re-fetch that numeric-returning RPC through PostgREST here: JSON
+  // parsing would round Wei amounts above Number.MAX_SAFE_INTEGER and make
+  // the immutable reservation RPC reject every quote with RECALCULATE.
+  // Requiring text makes a future numeric regression fail closed.
+  if (typeof record.cohortReservedWei !== 'string') {
+    throw new Error('cohortReservedWei must be an exact decimal string.');
   }
+  const cohortReservedWei = readIntegerString(
+    record.cohortReservedWei,
+    'cohortReservedWei',
+  );
 
   const forecast = latestAllocation && rewardCohortRoundId
     ? calculatePredictiveRewardPolicy({
