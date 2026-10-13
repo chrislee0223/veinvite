@@ -11,6 +11,7 @@ const [
   publicApi,
   claimApi,
   home,
+  homeLoader,
   permanentClient,
   permanentPage,
   referralCopy,
@@ -28,6 +29,7 @@ const [
   readFile(new URL('../src/app/api/referral-links/[key]/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/api/referral-links/[key]/claim/route.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/PermanentReferralClient.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/r/[key]/page.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/lib/i18n/referralLinkCopy.ts', import.meta.url), 'utf8'),
@@ -123,7 +125,7 @@ test('claim API resumes the same sponsor before checking capacity and only then 
 });
 
 test('home uses one permanent link, two independently rendered slots, and an active-friend count', () => {
-  assert.match(home, /\/api\/referral-links/i);
+  assert.match(homeLoader, /\/api\/referral-links/i);
   assert.match(home, /`\/r\/\$\{referralLink\.key\}`/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{1\}/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{2\}/i);
@@ -149,9 +151,9 @@ test('home keeps referral rules in the guide and removes redundant card chrome w
 });
 
 test('home preserves invitation and reward history when permanent-link ensure has a transient failure', () => {
-  assert.match(home, /Promise\.allSettled/i);
-  assert.match(home, /setInvites\(inviteData\.invites \?\? \[\]\)/i);
-  assert.match(home, /linkResult\.status === 'rejected'/i);
+  assert.match(homeLoader, /Promise\.allSettled/i);
+  assert.match(homeLoader, /setInvites\(inviteData\.invites \?\? \[\]\)/i);
+  assert.match(homeLoader, /linkResult\.status === 'rejected'/i);
 });
 
 test('permanent link landing is noindex and both new claims and returning participants enter the existing mission route', () => {
