@@ -22,6 +22,9 @@ export type RateLimitCheck = {
 };
 
 const JWT_FUTURE_RETRY_MS = 750;
+// Fail closed promptly when PostgREST is unhealthy instead of occupying
+// authentication and analytics functions for their full runtime.
+const RATE_LIMIT_RPC_TIMEOUT_MS = 8_000;
 
 function hashSubject(
   scope: string,
@@ -89,7 +92,7 @@ async function consumeRateLimit(
         p_window_seconds:
           check.windowSeconds,
       },
-    );
+    ).abortSignal(AbortSignal.timeout(RATE_LIMIT_RPC_TIMEOUT_MS));
 
   let {
     data,
