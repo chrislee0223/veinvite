@@ -738,6 +738,7 @@ export function WalletSessionGate({
         ) return;
 
         const formerWallet = sessionWalletRef.current;
+        if (!formerWallet) return;
         // The scoped server gate prevents a delayed disconnect from deleting
         // another tab's newly verified wallet. No wallet state grants access.
         void (async () => {
