@@ -43,9 +43,8 @@ export function useHomeStartupLoader({
     if (!wallet) return;
     const requestWallet = wallet;
 
-    // Only transient transport/server failures merit automatic startup retry.
-    // Never loop on a failed wallet-session or security authorization.
-    if (!quiet) startupRetryAllowedRef.current = true;
+    // The authorization failure latch is only rearmed when the wallet changes.
+    // A transient automatic retry must never undo a 401/403/429 decision.
 
     try {
       const [inviteResult, linkResult] = await Promise.allSettled([
