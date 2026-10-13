@@ -88,16 +88,22 @@ if (!/credentials:\s*['"]include['"]/.test(walletAuth) || !/persistedSession\.au
 if (!/disconnectFromVerification/.test(walletSessionGate) || !/t\.disconnectWallet/.test(walletSessionGate)) {
   failures.push('The wallet verification gate must retain a visible disconnect recovery path.');
 }
-if (!/pagehide/.test(walletSessionGate) || !/pageLifecycleRef/.test(walletSessionGate) || !/document\.visibilityState\s*===\s*['"]hidden['"]/.test(walletSessionGate)) {
-  failures.push('Page refresh/navigation must not be mistaken for an explicit wallet logout that revokes the server session.');
+if (
+  /addEventListener\(\s*['"](?:pagehide|pageshow|visibilitychange)['"]/.test(walletSessionGate) ||
+  /PASSIVE_DISCONNECT_GRACE_MS|confirmedDisconnected:\s*true/.test(walletSessionGate)
+) {
+  failures.push('Page refresh/navigation/provider visibility must never itself revoke the persistent wallet session.');
 }
 if (
-  !/PASSIVE_DISCONNECT_GRACE_MS\s*=\s*7_000/.test(walletSessionGate) ||
-  !/pendingDisconnectTimerRef/.test(walletSessionGate) ||
-  !/walletAddressRef\.current/.test(walletSessionGate) ||
-  !/confirmedDisconnected:\s*true/.test(walletSessionGate)
+  !/CONFIRMED_SDK_DISCONNECT_MS\s*=\s*20_000/.test(walletSessionGate) ||
+  !/addEventListener\(\s*'wallet_disconnected'/.test(walletSessionGate) ||
+  !/providerStateRef\.current\.isLoading/.test(walletSessionGate) ||
+  !/providerStateRef\.current\.dappWallet/.test(walletSessionGate) ||
+  !/readPersistedDappKitAccount\(\)/.test(walletSessionGate) ||
+  !/isWalletAuthenticationInProgress\(\)/.test(walletSessionGate) ||
+  !/X-VeInvite-Session-Handoff-Wallet': formerWallet/.test(walletSessionGate)
 ) {
-  failures.push('Transient WalletConnect/VeWorld disconnect events must receive a reconnect grace window before a confirmed disconnect may revoke the persistent session.');
+  failures.push('Provider disconnect must wait for settled two-provider evidence and retire only the former verified wallet session.');
 }
 if (!/initialSessionWallet/.test(walletSessionGate) || !/autoAttemptedWalletRef\s*=\s*useRef<string \| null>\(initialWallet\)/.test(walletSessionGate)) {
   failures.push('A server-validated wallet session must bootstrap the client gate so refresh does not request another phone signature.');
@@ -173,7 +179,7 @@ if (!/HOME_STARTUP_STATE_EVENT/.test(walletRuntime) || !/readPublishedHomeStartu
 if (!/HOME_STABILITY_MS\s*=\s*160/.test(walletRuntime) || !/hasBootstrappedSession/.test(homeStartupReadiness) || !/hasPersistedWallet/.test(homeStartupReadiness) || !/return 'hold'/.test(homeStartupReadiness)) {
   failures.push('Startup must retain a bounded final stability frame while server-session or persisted VeWorld evidence keeps a temporarily disconnected Home covered.');
 }
-if (!/STARTUP_RECOVERY_MS\s*=\s*8_000/.test(hydrationShield) || !/setState\(\{ status: 'error' \}\)/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
+if (!/STARTUP_RECOVERY_MS\s*=\s*18_000/.test(hydrationShield) || !/STARTUP_ERROR_GRACE_MS\s*=\s*2_500/.test(hydrationShield) || !/setState\(\{ status: 'error' \}\)/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
   failures.push('The branded startup surface must remain bounded and switch to explicit recovery instead of force-releasing an incomplete Home.');
 }
 if (!/<LocaleHydrationShield \/>[\s\S]*<AppProviders>/.test(rootLayout) || !/<Brand compact \/>/.test(hydrationShield)) {
