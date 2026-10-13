@@ -11,6 +11,23 @@ import {
 } from '@/lib/sybil/v2/version';
 import type { VeBetterNetwork } from '@/lib/vebetter/network';
 
+// Previous cookie-only restrictions do not independently prove the next wallet is Sybil.
+const INDEPENDENT_RESTRICTION_REASONS = new Set([
+  'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
+  'HISTORICAL_DENSE_B3TR_BURST',
+  'HISTORICAL_COMMON_B3TR_SINK',
+  'VEPASSPORT_SIGNAL_THRESHOLD_REACHED',
+  'AUTO_SECURITY_CLIENT_SIBLING_SYNC_REWARD_RESTRICTION',
+  'AUTO_BEHAVIOR_PATTERN_RESTRICTION',
+]);
+
+function independentlyCorroborated(source: string, reasonCodes: unknown): boolean {
+  if (!Array.isArray(reasonCodes)) return false;
+  const codes = reasonCodes.filter((x): x is string => typeof x === 'string');
+  return (source === 'OPERATOR' && codes.includes('OPERATOR_BLACKLIST')) ||
+    codes.some((x) => INDEPENDENT_RESTRICTION_REASONS.has(x));
+}
+
 type RestrictedSiblingInvitation = {
   invite_code: string;
   inviter_wallet: string;
@@ -71,6 +88,10 @@ async function persistRestrictedSiblingEvidence({
   clientId,
   switchGapSeconds,
   activationGapSeconds,
+  signalCode,
+  signalStrength,
+  signalScore,
+  priorIndependentlyCorroborated,
 }: {
   invitation: RestrictedSiblingInvitation;
   inviteeWallet: string;
@@ -80,6 +101,10 @@ async function persistRestrictedSiblingEvidence({
   clientId: string;
   switchGapSeconds: number;
   activationGapSeconds: number;
+  signalCode: string;
+  signalStrength: 'MEDIUM' | 'HIGH';
+  signalScore: number;
+  priorIndependentlyCorroborated: boolean;
 }) {
   if (!invitation.activation_network) return;
 
@@ -90,9 +115,9 @@ async function persistRestrictedSiblingEvidence({
       network: invitation.activation_network,
       subject_wallet: inviteeWallet,
       evidence_family: 'SECURITY_IDENTITY',
-      signal_code: 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY',
-      strength: 'HIGH',
-      score: 100,
+      signal_code: signalCode,
+      strength: signalStrength,
+      score: signalScore,
       related_wallet: peerWallet,
       app_id: null,
       observed_block: null,
@@ -106,12 +131,14 @@ async function persistRestrictedSiblingEvidence({
         peerRestrictionImposedAt,
         sharedClientId: clientId,
         sequentialWalletReplacement: true,
+        priorIndependentlyCorroborated,
         switchGapSeconds,
         activationGapSeconds,
-        preVoteDetection: true,
+        // No vote has completed yet, so this value is unknown.
+        preVoteDetection: null,
       },
       dedupe_key:
-        `sybil-v2:${invitation.invite_code}:security-client-restricted-sibling-reentry:${clientId}:${peerInviteCode}`,
+        `sybil-v2:${invitation.invite_code}:security-client-restricted-sibling-reentry:${signalCode.toLowerCase()}:${clientId}:${peerInviteCode}`,
     }, {
       onConflict: 'dedupe_key',
       ignoreDuplicates: true,
@@ -160,7 +187,7 @@ export async function loadRestrictedSiblingReentrySignals(
 
   const restrictionsResult = await supabaseAdmin
     .from('sybil_v2_wallet_restrictions')
-    .select('related_invite_code,wallet_address,imposed_at')
+    .select('related_invite_code,wallet_address,imposed_at,source,reason_codes')
     .eq('network', invitation.activation_network)
     .eq('status', 'ACTIVE')
     .is('resolved_at', null)
@@ -191,6 +218,8 @@ export async function loadRestrictedSiblingReentrySignals(
             inviteCode: String(row.invite_code),
             wallet,
             imposedAt: String(restriction.imposed_at),
+            source: String(restriction.source),
+            reasonCodes: restriction.reason_codes,
           }
         : null;
     })
@@ -198,6 +227,8 @@ export async function loadRestrictedSiblingReentrySignals(
       inviteCode: string;
       wallet: string;
       imposedAt: string;
+      source: string;
+      reasonCodes: unknown;
     } => row !== null);
 
   if (restrictedPeers.length === 0) {
@@ -217,9 +248,12 @@ export async function loadRestrictedSiblingReentrySignals(
     return [];
   }
 
-  const eligiblePeers = restrictedPeers.filter(
-    (peer) => !excludedWallets.has(peer.wallet),
-  );
+  const eligiblePeers = restrictedPeers
+    .filter((peer) => !excludedWallets.has(peer.wallet))
+    .sort((a, b) =>
+      Number(independentlyCorroborated(b.source, b.reasonCodes)) -
+      Number(independentlyCorroborated(a.source, a.reasonCodes)),
+    );
 
   if (eligiblePeers.length === 0) {
     return [];
@@ -283,6 +317,14 @@ export async function loadRestrictedSiblingReentrySignals(
     }
 
     for (const peer of eligiblePeers) {
+      const sinceRestrictionSeconds =
+        (activationAt - Date.parse(peer.imposedAt)) / 1000;
+      if (
+        !Number.isFinite(sinceRestrictionSeconds) ||
+        sinceRestrictionSeconds < 0 ||
+        sinceRestrictionSeconds > 24 * 60 * 60
+      ) continue;
+
       const peerObservations = (peerObservationsResult.data ?? [])
         .filter(
           (row) =>
@@ -309,16 +351,28 @@ export async function loadRestrictedSiblingReentrySignals(
 
         if (
           switchGapSeconds < 0 ||
-          switchGapSeconds > 10 * 60
+          switchGapSeconds > 24 * 60 * 60
         ) {
           continue;
         }
 
+        const priorIsIndependent = independentlyCorroborated(
+          peer.source, peer.reasonCodes,
+        );
+        const allowAutoRestriction =
+          switchGapSeconds <= 10 * 60 && priorIsIndependent;
+        const signalCode = allowAutoRestriction
+          ? 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY'
+          : 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY_OBSERVATION';
+        const signalStrength = allowAutoRestriction ? 'HIGH' : 'MEDIUM';
+        const signalScore = allowAutoRestriction ? 100 : 45;
+        // 10m–24h reentries, and referrals from cookie-only restrictions,
+        // are observed without cascading into another automatic BLACK.
         const signal: SybilV2Signal = {
-          code: 'SECURITY_CLIENT_RESTRICTED_SIBLING_REENTRY',
+          code: signalCode,
           family: 'SECURITY_IDENTITY',
-          strength: 'HIGH',
-          score: 100,
+          strength: signalStrength,
+          score: signalScore,
           independentKey: clientId,
         };
 
@@ -331,6 +385,10 @@ export async function loadRestrictedSiblingReentrySignals(
           clientId,
           switchGapSeconds,
           activationGapSeconds,
+          signalCode,
+          signalStrength,
+          signalScore,
+          priorIndependentlyCorroborated: priorIsIndependent,
         });
 
         return [signal];
