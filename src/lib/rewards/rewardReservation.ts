@@ -43,6 +43,8 @@ export type RewardReservationSweepResult = {
   reserved: number;
   awaitingFinality: number;
   skipped: number;
+  // Price-consistency refusals are retried by the durable cron, not hot Queue loops.
+  pricingConflictInviteCodes: string[];
 };
 
 export type RewardReservationLiveness = {
@@ -60,6 +62,7 @@ function emptySweepResult(): RewardReservationSweepResult {
     reserved: 0,
     awaitingFinality: 0,
     skipped: 0,
+    pricingConflictInviteCodes: [],
   };
 }
 
@@ -201,7 +204,7 @@ function skipCandidate(
   candidate: ReservationCandidate,
   reason: string,
   details: Record<string, unknown> = {},
-): 'skipped' {
+): 'skipped' | 'pricing_conflict' {
   console.warn(
     'Reward reservation candidate skipped:',
     {
@@ -210,7 +213,9 @@ function skipCandidate(
       ...details,
     },
   );
-  return 'skipped';
+  return reason === 'REPRICE_EXHAUSTED'
+    ? 'pricing_conflict'
+    : 'skipped';
 }
 
 async function readFinalizedBlockNumber(): Promise<number> {
@@ -343,7 +348,7 @@ async function reserveCandidate({
   candidate: ReservationCandidate;
   network: string;
   finalizedBlock: number;
-}): Promise<'reserved' | 'awaiting_finality' | 'skipped'> {
+}): Promise<'reserved' | 'awaiting_finality' | 'skipped' | 'pricing_conflict'> {
   const completionBlock = safeBlock(
     candidate.completion_block,
     'reservation completion block',
@@ -362,6 +367,8 @@ async function reserveCandidate({
   }
 
   const repriceResponses: ReservationRpcResult[] = [];
+  let lastExpectedCohortCommittedWei: string | null = null;
+  let lastExpectedOutstandingWei: string | null = null;
   for (let attempt = 0; attempt < MAX_REPRICE_ATTEMPTS; attempt += 1) {
     // Emergency pause and the mainnet funded-reward gate apply to creation of
     // new immutable reward liabilities as well as token settlement. Re-read
@@ -414,6 +421,9 @@ async function reserveCandidate({
     ) {
       throw new Error('Reward reservation cohort planning mismatch.');
     }
+
+    lastExpectedCohortCommittedWei = planning.cohortReservedWei;
+    lastExpectedOutstandingWei = planning.reservedExistingWei;
 
     const lateQuote = await readLateRewardQuote(
       network,
@@ -547,6 +557,8 @@ async function reserveCandidate({
     'REPRICE_EXHAUSTED',
     {
       priceAttempts: repriceResponses.length,
+      expectedCohortCommittedWei: lastExpectedCohortCommittedWei,
+      expectedOutstandingWei: lastExpectedOutstandingWei,
       lastRpcResponse: repriceResponses.at(-1) ?? null,
     },
   );
@@ -570,6 +582,7 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     reserved: 0,
     awaitingFinality: 0,
     skipped: 0,
+    pricingConflictInviteCodes: [],
   };
 
   // Actual chain completion order remains the fairness ordering. Sequential
@@ -578,7 +591,12 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     const outcome = await reserveCandidate({ candidate, network, finalizedBlock });
     if (outcome === 'reserved') result.reserved += 1;
     else if (outcome === 'awaiting_finality') result.awaitingFinality += 1;
-    else result.skipped += 1;
+    else {
+      result.skipped += 1;
+      if (outcome === 'pricing_conflict') {
+        result.pricingConflictInviteCodes.push(candidate.invite_code);
+      }
+    }
   }
 
   return result;
