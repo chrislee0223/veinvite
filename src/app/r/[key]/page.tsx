@@ -7,7 +7,7 @@ import {
   buildProductionSharePageUrl,
   INVITE_OG_IMAGE_URL,
 } from '@/lib/socialShareCard';
-import { readWalletSessionBootstrap } from '@/lib/walletSessionBootstrapServer';
+import { readWalletSessionBootstrapForFirstPaint } from '@/lib/walletSessionBootstrapServer';
 
 const TITLE = 'Join VeInvite';
 const DESCRIPTION =
@@ -67,7 +67,7 @@ export default async function PermanentReferralPage({
 }) {
   const [{ key }, bootstrap] = await Promise.all([
     params,
-    readWalletSessionBootstrap(),
+    readWalletSessionBootstrapForFirstPaint(),
   ]);
 
   return (

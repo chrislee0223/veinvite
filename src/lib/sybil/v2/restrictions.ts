@@ -32,13 +32,15 @@ export type ActiveSybilV2Restriction = {
 export async function loadActiveSybilV2Restriction({
   walletAddress,
   network,
+  signal,
 }: {
   walletAddress: string;
   network: VeBetterNetwork;
+  signal?: AbortSignal;
 }): Promise<ActiveSybilV2Restriction | null> {
   const wallet = normalizeWallet(walletAddress);
 
-  if (!(await isSybilV2EnforcementEnabled())) {
+  if (!(await isSybilV2EnforcementEnabled(signal))) {
     return null;
   }
 
@@ -51,7 +53,7 @@ export async function loadActiveSybilV2Restriction({
       .eq('wallet_address', wallet)
       .eq('network', network)
       .eq('status', 'ACTIVE')
-      .maybeSingle(),
+      .abortSignal(signal ?? AbortSignal.timeout(60_000)).maybeSingle(),
     supabaseAdmin
       .from('operator_sybil_v2_temporary_participation_holds')
       .select(
@@ -60,7 +62,7 @@ export async function loadActiveSybilV2Restriction({
       .eq('wallet_address', wallet)
       .eq('network', network)
       .order('imposed_at', { ascending: false })
-      .limit(1),
+      .limit(1).abortSignal(signal ?? AbortSignal.timeout(60_000)),
   ]);
 
   if (restrictionResult.error) {

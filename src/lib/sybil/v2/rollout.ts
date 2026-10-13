@@ -11,9 +11,14 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
  * a transient database error must never silently revert the app to legacy
  * anti-abuse behavior.
  */
-export async function isSybilV2EnforcementEnabled(): Promise<boolean> {
-  const { data, error } = await supabaseAdmin.rpc(
+export async function isSybilV2EnforcementEnabled(
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const query = supabaseAdmin.rpc(
     'sybil_v2_enforcement_enabled',
+  );
+  const { data, error } = await (
+    signal ? query.abortSignal(signal) : query
   );
 
   if (error) {
