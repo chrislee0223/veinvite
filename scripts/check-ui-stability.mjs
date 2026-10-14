@@ -180,8 +180,18 @@ const homeRefresh = read('src/components/InviteStatusAutoRefresh.tsx');
 if (!/POLL_INTERVAL_MS\s*=\s*30_000/.test(homeRefresh)) {
   failures.push('Home status polling should stay at the reviewed 30-second interval.');
 }
-if (!/EVIDENCE_SYNC_INTERVAL_MS\s*=\s*5 \* 60_000/.test(homeRefresh)) {
-  failures.push('Inviter evidence reconciliation fallback is missing or unbounded.');
+const homeClientForEvidence = read('src/components/HomeClient.tsx');
+// The 30s observer is read-only. The sole Home reconciler remains bounded at
+// 120s per wallet/invite and never launches payout-capable POSTs in parallel.
+if (
+  !/EVIDENCE_REFRESH_MS\s*=\s*120_000/.test(homeClientForEvidence) ||
+  /method:\s*'POST'/.test(homeRefresh) ||
+  !/acceptedActiveInvites\.slice\(0, 2\)/.test(homeClientForEvidence) ||
+  !/for \(const invite of dueInvites\)/.test(homeClientForEvidence) ||
+  !/evidenceSyncAttemptRef\.current\.set\(key, Date\.now\(\)\)/.test(homeClientForEvidence) ||
+  !/signal: AbortSignal\.timeout\(15_000\)/.test(homeClientForEvidence)
+) {
+  failures.push('Inviter evidence reconciliation must have one bounded, wallet-scoped Home owner.');
 }
 
 const walletSessionGate = read(
