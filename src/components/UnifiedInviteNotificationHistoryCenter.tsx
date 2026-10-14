@@ -896,7 +896,7 @@ export function InviteNotificationHistoryCenter({
                 <p>{structure.emptyBody}</p>
               </div>
             ) : (
-              <div className="notificationHistoryScroll">
+              <div className="notificationHistoryScroll" style={{ overflowY: 'auto' }}>
                 {groups.today.length > 0 ? (
                   <section className="notificationHistoryGroup">
                     <h4>{structure.today}</h4>

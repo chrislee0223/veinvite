@@ -5,6 +5,7 @@ import { ThorClient } from '@vechain/sdk-network';
 import { readVeInviteRewardPoolStatus, VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { readPredictiveRewardPlanning } from '@/lib/rewards/predictivePlanning';
 import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
+import { withRewardReservationSweepLock } from '@/lib/rewards/reservationSweepLock';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -574,6 +575,9 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     return emptySweepResult();
   }
 
+  return withRewardReservationSweepLock(
+    network,
+    async () => {
   const finalizedBlock = await readFinalizedBlockNumber();
   const candidates = await loadCandidates(network);
 
@@ -600,4 +604,7 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
   }
 
   return result;
+    },
+    emptySweepResult,
+  );
 }
