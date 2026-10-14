@@ -11,8 +11,8 @@ import {
 } from '@/lib/housekeeping/ephemeralCleanup';
 import {
   markCronJobFailed,
-  markCronJobStarted,
   markCronJobSucceeded,
+  tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import {
   DEFAULT_RECONCILIATION_BATCH_SIZE,
@@ -189,19 +189,31 @@ export async function GET(
     );
   }
 
-  const failedStages: CronStageFailure[] = [];
-
+  // Both the regular daily trigger and the later recovery trigger enter here.
+  // Atomic DB claiming prevents overlap or double processing on a healthy day.
+  // The shorter success interval admits tomorrow's run despite clock drift.
   try {
-    await markCronJobStarted(
+    const claimed = await tryClaimCronJob(
       'daily-reconcile',
+      12 * 60 * 60,
+      600,
     );
+    if (!claimed) {
+      return NextResponse.json(
+        { skipped: true, reason: 'ALREADY_RUNNING_OR_RECENT_SUCCESS' },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
   } catch (error) {
-    failedStages.push('CRON_HEARTBEAT');
-    logStageFailure(
-      'CRON_HEARTBEAT',
-      error,
+    // A broken database should not trigger every expensive downstream stage.
+    logStageFailure('CRON_HEARTBEAT', error);
+    return NextResponse.json(
+      { error: 'DAILY_RECONCILE_CLAIM_UNAVAILABLE' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
     );
   }
+
+  const failedStages: CronStageFailure[] = [];
   let allocationSync: Awaited<
     ReturnType<typeof syncVeInviteAllocationReceipts>
   > | null = null;
