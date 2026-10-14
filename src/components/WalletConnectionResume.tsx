@@ -122,6 +122,7 @@ export function WalletConnectionResume() {
   const lastAttemptAtRef = useRef(0);
   const leftPageForWalletRef = useRef(false);
   const resumeWindowUntilRef = useRef(0);
+  const coldRestoreScheduledRef = useRef(false);
 
   useEffect(() => {
     veChainKitWalletRef.current = normalizeWallet(
@@ -171,7 +172,10 @@ export function WalletConnectionResume() {
       marker?.getAttribute('data-veinvite-session-bootstrap') === 'verified'
         ? normalizeWallet(marker.getAttribute('data-veinvite-session-wallet'))
         : null;
-    if (!bootstrapWallet) return;
+    if (!bootstrapWallet || coldRestoreScheduledRef.current) return;
+    // initializeAsync may not retain its function identity across provider
+    // renders. One cold-restore schedule per page prevents retry storms.
+    coldRestoreScheduledRef.current = true;
 
     let cancelled = false;
     let firstTimer: number | null = null;
