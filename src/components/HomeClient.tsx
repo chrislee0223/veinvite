@@ -86,6 +86,8 @@ const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
+const HOME_DATA_REFRESH_SETTLED_EVENT =
+  'veinvite-home-data-refresh-settled';
 
 export function HomeClient() {
   const {
@@ -358,12 +360,33 @@ export function HomeClient() {
     if (!wallet) return;
 
     const refreshHomeData = (event: Event) => {
-      const manualRetry =
-        event instanceof CustomEvent &&
-        event.detail?.manual === true;
-      // Ordinary background refresh is silent; an explicit recovery attempt
-      // also clears the previous startup failure and rearms bounded retries.
-      void load(!manualRetry, manualRetry);
+      const detail = event instanceof CustomEvent
+        ? event.detail as {
+            manual?: boolean;
+            source?: string;
+            walletAddress?: string;
+            fingerprint?: string;
+          }
+        : null;
+      const manualRetry = detail?.manual === true;
+      const fromInvitePoll =
+        detail?.source === 'invite-poll' &&
+        detail.walletAddress === wallet &&
+        typeof detail.fingerprint === 'string';
+      // Only an authoritative successful Home read acknowledges the poll.
+      // Background failures remain silent, but are retried on later checks.
+      void load(!manualRetry, manualRetry).then((success) => {
+        if (!fromInvitePoll) return;
+        window.dispatchEvent(
+          new CustomEvent(HOME_DATA_REFRESH_SETTLED_EVENT, {
+            detail: {
+              walletAddress: wallet,
+              fingerprint: detail.fingerprint,
+              success,
+            },
+          }),
+        );
+      });
     };
 
     window.addEventListener(
