@@ -106,7 +106,7 @@ export function InviteStatusAutoRefresh() {
     fingerprint: string;
     requestedAt: number;
   } | null>(null);
-  const checkingRef = useRef(false);
+  const checkingRef = useRef<string | null>(null);
   const lastEvidenceSyncRef =
     useRef<{
       code: string;
@@ -140,7 +140,7 @@ export function InviteStatusAutoRefresh() {
   const check = useCallback(async () => {
     if (
       !walletAddress ||
-      checkingRef.current ||
+      checkingRef.current === walletAddress ||
       document.visibilityState === 'hidden' ||
       shouldDeferHomeRefresh()
     ) {
@@ -148,7 +148,7 @@ export function InviteStatusAutoRefresh() {
     }
 
     const requestWallet = walletAddress;
-    checkingRef.current = true;
+    checkingRef.current = requestWallet;
 
     try {
       let data = await loadInvites();
@@ -254,7 +254,9 @@ export function InviteStatusAutoRefresh() {
       // HomeClient remains usable when a background refresh fails. The next
       // interval/focus event will retry without surfacing a disruptive toast.
     } finally {
-      checkingRef.current = false;
+      if (checkingRef.current === requestWallet) {
+        checkingRef.current = null;
+      }
     }
   }, [
     loadInvites,
@@ -265,7 +267,7 @@ export function InviteStatusAutoRefresh() {
     lastFingerprintRef.current = null;
     pendingRefreshRef.current = null;
     lastEvidenceSyncRef.current = null;
-    checkingRef.current = false;
+    checkingRef.current = null;
 
     if (!walletAddress) {
       return;
