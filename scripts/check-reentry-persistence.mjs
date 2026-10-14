@@ -179,7 +179,26 @@ if (!/HOME_STARTUP_STATE_EVENT/.test(walletRuntime) || !/readPublishedHomeStartu
 if (!/HOME_STABILITY_MS\s*=\s*160/.test(walletRuntime) || !/hasBootstrappedSession/.test(homeStartupReadiness) || !/hasPersistedWallet/.test(homeStartupReadiness) || !/return 'hold'/.test(homeStartupReadiness)) {
   failures.push('Startup must retain a bounded final stability frame while server-session or persisted VeWorld evidence keeps a temporarily disconnected Home covered.');
 }
-if (!/STARTUP_RECOVERY_MS\s*=\s*18_000/.test(hydrationShield) || !/STARTUP_ERROR_GRACE_MS\s*=\s*2_500/.test(hydrationShield) || !/setState\(\{ status: 'error' \}\)/.test(hydrationShield) || !/circle at 50% 38%/.test(hydrationShield)) {
+// The previous literal 2,500ms gate was shorter than the Home auto-retry's
+// 3,000ms backoff, showing Retry while a valid recovery was about to begin.
+// Enforce a bounded grace strictly longer than the real retry schedule.
+const homeStartupLoader = read('src/hooks/useHomeStartupLoader.ts');
+const graceMatch = hydrationShield.match(/STARTUP_ERROR_GRACE_MS\s*=\s*([\d_]+)/);
+const retryBackoffMatch = homeStartupLoader.match(/const retryDelays = \[([\d, ]+)\]/);
+const startupGraceMs = graceMatch ? Number(graceMatch[1].replaceAll('_', '')) : NaN;
+const retryBackoffs = retryBackoffMatch
+  ? retryBackoffMatch[1].split(',').map((part) => Number(part.trim()))
+  : [];
+if (
+  !/STARTUP_RECOVERY_MS\s*=\s*18_000/.test(hydrationShield) ||
+  !Number.isFinite(startupGraceMs) ||
+  retryBackoffs.length !== 3 ||
+  !retryBackoffs.every(Number.isFinite) ||
+  startupGraceMs <= Math.max(...retryBackoffs) + 300 ||
+  startupGraceMs > 6_000 ||
+  !/setState\(\{ status: 'error' \}\)/.test(hydrationShield) ||
+  !/circle at 50% 38%/.test(hydrationShield)
+) {
   failures.push('The branded startup surface must remain bounded and switch to explicit recovery instead of force-releasing an incomplete Home.');
 }
 if (!/<LocaleHydrationShield \/>[\s\S]*<AppProviders>/.test(rootLayout) || !/<Brand compact \/>/.test(hydrationShield)) {
