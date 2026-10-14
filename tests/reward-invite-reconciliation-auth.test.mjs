@@ -49,7 +49,7 @@ test('mission reconciliation requires an authenticated referral owner before con
   const rowLoad = inviteRoute.indexOf('row = await loadInvitation(normalizedCode)', postStart);
   const walletMatch = inviteRoute.indexOf('const sessionOwnsReferral', postStart);
   const syncRateLimit = inviteRoute.indexOf("mode: 'sync'", postStart);
-  const reconciliation = inviteRoute.indexOf('syncInvitationEvidence(row)', postStart);
+  const reconciliation = inviteRoute.indexOf('syncInvitationEvidence(current)', postStart);
 
   assert.ok(postStart >= 0);
   assert.ok(authStart > postStart);
