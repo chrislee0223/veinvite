@@ -39,9 +39,18 @@ export function useHomeStartupLoader({
     startupRetryAllowedRef.current = true;
   }, [wallet]);
 
-  const load = useCallback(async (quiet = false) => {
+  const load = useCallback(async (quiet = false, manualRetry = false) => {
     if (!wallet) return;
     const requestWallet = wallet;
+
+    if (manualRetry) {
+      // User-initiated recovery gets a fresh bounded retry budget. Automatic
+      // retries still never override 401/403/429 authorization decisions.
+      startupRetryAttemptsRef.current = 0;
+      startupRetryAllowedRef.current = true;
+      setInvitesFailed(false);
+      setReferralLinkFailed(false);
+    }
 
     // The authorization failure latch is only rearmed when the wallet changes.
     // A transient automatic retry must never undo a 401/403/429 decision.
