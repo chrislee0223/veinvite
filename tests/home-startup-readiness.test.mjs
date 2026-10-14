@@ -355,7 +355,11 @@ test('background invite changes refresh Home without restarting the wallet sessi
     'utf8',
   );
 
-  assert.match(poller, /lastFingerprintRef\.current = fingerprint;[\s\S]*veinvite-home-data-refresh-requested/);
+  assert.match(poller, /lastFingerprintRef\.current = fingerprint;/);
+  assert.match(poller, /pendingRefreshRef\.current = \{ fingerprint, requestedAt: now \}/);
+  assert.match(poller, /new CustomEvent\(HOME_REFRESH_REQUESTED_EVENT/);
+  assert.match(poller, /HOME_REFRESH_SETTLED_EVENT/);
+  assert.match(poller, /if \(detail\.success === true\) \{/);
   assert.doesNotMatch(poller, /window\.location\.reload\(\)/);
   assert.match(home, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
   assert.match(home, /void load\(!manualRetry, manualRetry\)/);
@@ -447,4 +451,42 @@ test('background invite polling and Home preferences fail safely on slow or rest
   assert.match(home, /try \{[\s\S]*window\.localStorage\.getItem\(LANGUAGE_STORAGE_KEY\)[\s\S]*\} catch \{/);
   assert.match(home, /try \{[\s\S]*window\.sessionStorage\.getItem\([\s\S]*\} catch \{/);
   assert.match(home, /window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\)/);
+});
+
+
+test('silent Home polling cannot replace the authoritative startup or create overlapping reads', async () => {
+  const loader = await readFile(
+    new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url),
+    'utf8',
+  );
+  const home = await readFile(
+    new URL('../src/components/HomeClient.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(loader, /homeReadyRef\.current = invitesReady && referralLinkVerified/);
+  assert.match(loader, /if \(quiet && !homeReadyRef\.current\) return false/);
+  assert.match(loader, /if \(quiet && activeRequestRef\.current !== null\)/);
+  assert.match(loader, /deferredQuietRefreshRef\.current = true/);
+  assert.match(loader, /activeRequestRef\.current === requestGeneration/);
+  assert.match(loader, /const requestGeneration = \+\+requestGenerationRef\.current/);
+  assert.match(loader, /requestGenerationRef\.current === requestGeneration/);
+  assert.match(loader, /return invitesSucceeded && linkSucceeded && isCurrentRequest\(\)/);
+  assert.match(home, /load\(!manualRetry, manualRetry\)\.then\(\(success\) =>/);
+  assert.match(home, /HOME_DATA_REFRESH_SETTLED_EVENT/);
+  assert.match(home, /fingerprint: detail\.fingerprint/);
+  assert.match(home, /success,/);
+});
+
+test('failed invite refresh stays pending for a later retry and wallet switches do not steal the check lock', async () => {
+  const poller = await readFile(
+    new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(poller, /REFRESH_ACK_TIMEOUT_MS = 45_000/);
+  assert.match(poller, /pending\?\.fingerprint === fingerprint/);
+  assert.match(poller, /now - pending\.requestedAt < REFRESH_ACK_TIMEOUT_MS/);
+  assert.match(poller, /pendingRefreshRef\.current = null/);
+  assert.match(poller, /if \(detail\.success === true\) \{[\s\S]*lastFingerprintRef\.current = pending\.fingerprint/);
+  assert.match(poller, /checkingRef\.current === walletAddress/);
+  assert.match(poller, /if \(checkingRef\.current === requestWallet\) \{[\s\S]*checkingRef\.current = null/);
 });
