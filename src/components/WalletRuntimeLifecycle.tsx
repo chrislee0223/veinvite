@@ -176,6 +176,7 @@ export function WalletRuntimeLifecycle() {
                 method: 'POST',
                 credentials: 'include',
                 cache: 'no-store',
+                signal: AbortSignal.timeout(10_000),
                 headers: {
                   'Content-Type': 'application/json',
                   'X-VeInvite-Session-Intent':
