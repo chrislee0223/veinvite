@@ -71,7 +71,7 @@ test('optional X promotion lookup failure cannot remove the core reward action l
 test('home displays the actual claim amount while keeping promotion separate', () => {
   assert.match(
     home,
-    /invite\.rewardClaimAmountWei \?\?[\s\S]*invite\.rewardReservedAmountWei/,
+    /invite\.rewardClaimAmountWei[\s\S]*\? formatB3trWei/,
   );
   assert.match(
     home,
@@ -90,12 +90,26 @@ test('home displays the actual claim amount while keeping promotion separate', (
 test('restricted reward claims also display base and promotion separately', () => {
   assert.match(
     restricted,
-    /action\.claimAmountWei \?\?[\s\S]*action\.reservedAmountWei/,
+    /action\.claimAmountWei[\s\S]*\? formatB3trWei/,
   );
   assert.match(
     restricted,
     /action\.promotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
   );
+});
+
+
+test('claim amount display never falls back to total reservation when promotion enrichment is unavailable', () => {
+  assert.doesNotMatch(
+    home,
+    /rewardClaimAmountWei\s*\?\?[\s\S]{0,160}rewardReservedAmountWei/,
+  );
+  assert.doesNotMatch(
+    restricted,
+    /claimAmountWei\s*\?\?[\s\S]{0,160}reservedAmountWei/,
+  );
+  assert.match(home, /claimAmount[\s\S]*progressCopy\.finalCheck/);
+  assert.match(restricted, /amount[\s\S]*copy\.finalCheck/);
 });
 
 test('display-only wiring cannot enable X promotion or payouts', () => {
