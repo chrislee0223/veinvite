@@ -6,6 +6,9 @@ const tests = [
   { state: 'NOTI-REFERRAL-INVALIDATED', width: 320, height: 568 },
   { state: 'NOTI-REFERRAL-RESTORED', width: 320, height: 568 },
   { state: 'NOTI-REWARD-PAID-POPUP', width: 320, height: 568 },
+  { state: 'NOTI-X-PROMO-OPEN', width: 320, height: 740 },
+  { state: 'NOTI-X-PROMO-RETENTION', width: 393, height: 852 },
+  { state: 'NOTI-X-PROMO-PAID', width: 393, height: 852 },
   { state: 'NOTI-HISTORY-OPEN', width: 393, height: 852 },
   { state: 'NOTI-REFERRAL-RESTORED', width: 393, height: 852 },
   { state: 'NOTI-HISTORY-OPEN', width: 480, height: 840 },
@@ -50,7 +53,7 @@ for (const locale of SUPPORTED_LOCALES) {
         }
         const target = selector.includes('transient')
           ? '.feedbackText,.rewardFeedbackBody strong,.rewardFeedbackAmount,.rewardShareButton,.rewardConfirmButton'
-          : '.notificationHistoryTitle,.notificationHistoryBody,.notificationHistoryTime,.notificationHistoryMarkAll,.notificationHistoryHeading h3,.notificationHistoryMeta b,.notificationReceiptAction';
+          : '.notificationHistoryTitle,.notificationHistoryBody,.notificationHistoryTime,.notificationHistoryMarkAll,.notificationHistoryHeading h3,.notificationHistoryMeta b,.notificationReceiptAction,.promotionHeading strong,.promotionHeading span,.promotionCard>p,.promotionShare,.promotionSubmit label,.promotionSubmit input,.promotionSubmit button,.genericShare';
         for (const el of Array.from(root.querySelectorAll<HTMLElement>(target))) {
           if (!el.textContent?.trim() || el.getClientRects().length === 0) continue;
           const cs = getComputedStyle(el), rect = el.getBoundingClientRect();
