@@ -69,6 +69,7 @@ export function useHomeStartupLoader({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviterAddress: requestWallet }),
+          signal: startupRequestSignal,
         }),
       ]);
 
