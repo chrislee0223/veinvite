@@ -13,6 +13,13 @@ const actions = await readFile(
   ),
   'utf8',
 );
+const stateRoute = await readFile(
+  new URL(
+    '../src/app/api/rewards/x-promotion/route.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 test('core reward receipt isolates X promotion behavior in a child component', () => {
   assert.match(
@@ -69,6 +76,7 @@ test('reward receipt submits only the user-entered X Post URL to the verificatio
 
 test('promotion UI preserves all durable lifecycle states', () => {
   for (const state of [
+    'PREPARING',
     'OPEN',
     'SUBMISSION_GRACE',
     'VERIFYING',
@@ -117,6 +125,37 @@ test('OPEN promotion never falls back to an untagged generic share link', () => 
   assert.match(
     actions,
     /shareUnavailable/,
+  );
+});
+
+test('split-to-opportunity gap is exposed as PREPARING without starting a timer', () => {
+  assert.match(
+    stateRoute,
+    /reward_x_promotion_obligations/,
+  );
+  assert.match(
+    stateRoute,
+    /\['RESERVED', 'HELD'\]/,
+  );
+  assert.match(
+    stateRoute,
+    /state:[\s\S]*'PREPARING'/,
+  );
+  assert.match(
+    stateRoute,
+    /postDeadlineAt: null/,
+  );
+  assert.match(
+    stateRoute,
+    /shareToken: null/,
+  );
+  assert.match(
+    actions,
+    /promotion\?\.state === 'PREPARING'[\s\S]*copy\.preparing/,
+  );
+  assert.doesNotMatch(
+    actions,
+    /promotion\.state === 'PREPARING'[\s\S]{0,250}genericShareIntentUrl/,
   );
 });
 
