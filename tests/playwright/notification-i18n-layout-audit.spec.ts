@@ -21,6 +21,12 @@ for (const locale of SUPPORTED_LOCALES) {
       await page.goto('/qa/notification-state?state=' + scenario.state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded', timeout: 30_000,
       });
+      if (scenario.state.startsWith('NOTI-X-PROMO-')) {
+        const action = page.locator('.notificationReceiptAction').first();
+        await expect(action).toBeVisible();
+        await action.click();
+        await expect(page.locator('.promotionCard')).toBeVisible();
+      }
       const selector = scenario.state === 'NOTI-REWARD-PAID-POPUP'
         ? '.transientSnackbar.reward'
         : '.notificationHistoryPanel';
