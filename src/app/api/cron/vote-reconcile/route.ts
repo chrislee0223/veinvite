@@ -7,9 +7,7 @@ import {
   NextResponse,
 } from 'next/server';
 
-import {
-    type InvitationEvidenceRow,
-} from '@/lib/impact/syncInvitation';
+import type { InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
 import { reconcileInvitationWithLease } from '@/lib/impact/reconcileInvitationWithLease';
 import {
   markCronJobFailed,
@@ -508,8 +506,13 @@ async function reconcileRows(
 
     for (const row of selectedRows) {
       try {
-        const synced =
-          await reconcileInvitationWithLease(row.invite_code);
+        const guarded = await reconcileInvitationWithLease(row.invite_code);
+        if (!guarded.acquired) {
+          // Never advance the voting checkpoint over a busy invitation.
+          failed += 1;
+          continue;
+        }
+        const { synced } = guarded;
 
         if (
           synced.progress.voteCompleted
