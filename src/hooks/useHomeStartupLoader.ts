@@ -33,6 +33,11 @@ export function useHomeStartupLoader({
   showFeedback: (kind: TransientFeedbackKind, message: string) => void;
 }) {
   const requestGenerationRef = useRef(0);
+  const activeRequestRef = useRef<number | null>(null);
+  const deferredQuietRefreshRef = useRef(false);
+  // Silent polling cannot supersede the wallet's authoritative first read.
+  const homeReadyRef = useRef(invitesReady && referralLinkVerified);
+  homeReadyRef.current = invitesReady && referralLinkVerified;
   const startupRetryAttemptsRef = useRef(0);
   const startupRetryAllowedRef = useRef(true);
   useEffect(() => {
@@ -40,12 +45,21 @@ export function useHomeStartupLoader({
     startupRetryAllowedRef.current = true;
   }, [wallet]);
 
-  const load = useCallback(async (quiet = false, manualRetry = false) => {
-    if (!wallet) return;
+  const load = useCallback(async (quiet = false, manualRetry = false): Promise<boolean> => {
+    if (!wallet) return false;
+    if (quiet && !homeReadyRef.current) return false;
+    if (quiet && activeRequestRef.current !== null) {
+      // One queued refresh covers all overlapping polls and claim updates.
+      deferredQuietRefreshRef.current = true;
+      return false;
+    }
     const requestWallet = wallet;
     // Concurrent Home refreshes can resolve out of order. The newest
     // request alone may publish state for this wallet.
     const requestGeneration = ++requestGenerationRef.current;
+    activeRequestRef.current = requestGeneration;
+    let invitesSucceeded = false;
+    let linkSucceeded = false;
     const isCurrentRequest = () =>
       sameWallet(activeWalletRef.current, requestWallet) &&
       requestGenerationRef.current === requestGeneration;
@@ -80,7 +94,7 @@ export function useHomeStartupLoader({
         }),
       ]);
 
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
 
       if (inviteResult.status === 'rejected') {
         if (!quiet) {
@@ -101,10 +115,11 @@ export function useHomeStartupLoader({
             }
             throw new Error(inviteData.error ?? t.loadError);
           }
-          if (!isCurrentRequest()) return;
+          if (!isCurrentRequest()) return false;
           setInvites(inviteData.invites ?? []);
           setInvitesReady(true);
           setInvitesFailed(false);
+          invitesSucceeded = true;
         } catch (error) {
           if (!quiet && isCurrentRequest()) {
             setInvitesReady(false);
@@ -117,7 +132,7 @@ export function useHomeStartupLoader({
         }
       }
 
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
 
       if (linkResult.status === 'rejected') {
         if (!quiet) {
@@ -140,12 +155,13 @@ export function useHomeStartupLoader({
           }
           throw new Error(linkData.error ?? t.createError);
         }
-        if (!isCurrentRequest()) return;
+        if (!isCurrentRequest()) return false;
 
         setReferralLink(linkData.referralLink);
         setReferralLinkVerified(true);
         setReferralLinkFailed(false);
         writeCachedReferralLink(requestWallet, linkData.referralLink);
+        linkSucceeded = true;
       } catch (error) {
         if (!quiet && isCurrentRequest()) {
           setReferralLinkVerified(false);
@@ -167,7 +183,24 @@ export function useHomeStartupLoader({
           error instanceof Error ? error.message : t.genericError,
         );
       }
+    } finally {
+      if (activeRequestRef.current === requestGeneration) {
+        activeRequestRef.current = null;
+        if (deferredQuietRefreshRef.current) {
+          deferredQuietRefreshRef.current = false;
+          if (homeReadyRef.current && sameWallet(activeWalletRef.current, requestWallet)) {
+            // Schedule after the current Promise settles. All background
+            // callers coalesce into one wallet-scoped recovery read.
+            window.setTimeout(() => {
+              if (sameWallet(activeWalletRef.current, requestWallet)) {
+                window.dispatchEvent(new Event('veinvite-home-data-refresh-requested'));
+              }
+            }, 0);
+          }
+        }
+      }
     }
+    return invitesSucceeded && linkSucceeded && isCurrentRequest();
   }, [wallet, t.loadError, t.createError, t.genericError, showFeedback]);
 
   useEffect(() => {
