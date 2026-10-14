@@ -25,6 +25,7 @@ import {
   readPersistedDappKitAccount,
   readWalletConnectIntentAt,
 } from '@/lib/walletConnectionResume';
+import { resolveColdRestoreWallet } from '@/lib/walletColdRestorePolicy';
 
 const CONNECT_INTENT_TTL_MS = 2 * 60_000;
 const RECONCILE_SETTLE_MS = 450;
@@ -157,6 +158,72 @@ export function WalletConnectionResume() {
     isConnectModalOpen,
     veChainKitAccount?.address,
   ]);
+
+  useEffect(() => {
+    // Ordinary desktop refresh has no wallet-app departure/connect-intent
+    // event. The iOS resume recovery below cannot run for this path.
+    // Cold SDK restore needs BOTH a server-verified session marker and matching
+    // provider account evidence. It never signs, grants Home access or revokes.
+    const marker = document.querySelector<HTMLElement>(
+      '[data-veinvite-session-bootstrap]',
+    );
+    const bootstrapWallet =
+      marker?.getAttribute('data-veinvite-session-bootstrap') === 'verified'
+        ? normalizeWallet(marker.getAttribute('data-veinvite-session-wallet'))
+        : null;
+    if (!bootstrapWallet) return;
+
+    let cancelled = false;
+    let firstTimer: number | null = null;
+    let secondTimer: number | null = null;
+
+    const restore = async (attempt: number) => {
+      if (cancelled || veChainKitWalletRef.current) return;
+      if (
+        document.visibilityState === 'hidden' ||
+        modalOpenRef.current ||
+        isWalletAuthenticationInProgress()
+      ) return;
+
+      const match = resolveColdRestoreWallet({
+        bootstrapWallet,
+        veChainKitWallet: veChainKitWalletRef.current,
+        dappKitWallet: dappKitWalletRef.current,
+        persistedDappKitWallet: readPersistedDappKitAccount(),
+      });
+      if (!match) return;
+      if (inFlightRef.current) {
+        if (attempt === 0) {
+          secondTimer = window.setTimeout(() => void restore(1), 2_600);
+        }
+        return;
+      }
+
+      inFlightRef.current = true;
+      if (!cancelled) setRecovering(true);
+      try {
+        await runWalletProviderReconciliation(
+          async () => { await initializeAsync(); },
+        );
+      } catch (error) {
+        console.warn('VeInvite cold wallet transport restore failed:', error);
+      } finally {
+        inFlightRef.current = false;
+        if (!cancelled) setRecovering(false);
+      }
+
+      if (!cancelled && attempt === 0 && !veChainKitWalletRef.current) {
+        secondTimer = window.setTimeout(() => void restore(1), 2_600);
+      }
+    };
+
+    firstTimer = window.setTimeout(() => void restore(0), 850);
+    return () => {
+      cancelled = true;
+      if (firstTimer !== null) window.clearTimeout(firstTimer);
+      if (secondTimer !== null) window.clearTimeout(secondTimer);
+    };
+  }, [initializeAsync]);
 
   const hasRecentConnectIntent = useCallback(() => {
     const intentAt = readWalletConnectIntentAt();
