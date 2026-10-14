@@ -43,10 +43,14 @@ export function useHomeStartupLoader({
   useEffect(() => {
     startupRetryAttemptsRef.current = 0;
     startupRetryAllowedRef.current = true;
+    deferredQuietRefreshRef.current = false;
   }, [wallet]);
 
   const load = useCallback(async (quiet = false, manualRetry = false): Promise<boolean> => {
     if (!wallet) return false;
+    // Wallet changes are visible to HomeClient's render-time ref before
+    // passive cleanup; stale callbacks may not start reads for another wallet.
+    if (!sameWallet(activeWalletRef.current, wallet)) return false;
     if (quiet && !homeReadyRef.current) return false;
     if (quiet && activeRequestRef.current !== null) {
       // One queued refresh covers all overlapping polls and claim updates.
