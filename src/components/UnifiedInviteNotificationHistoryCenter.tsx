@@ -37,6 +37,7 @@ import {
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { RewardReceiptView } from './RewardReceiptView';
+import type { RewardXPromotionPreview } from './RewardReceiptXPromotionActions';
 
 const B3TR_SCALE = 10n ** 18n;
 const NOTIFICATION_CLOSE_FALLBACK_MS = 350;
@@ -320,6 +321,7 @@ export function InviteNotificationHistoryCenter({
   onLoadMore,
   rewardShareUrl = '',
   previewRewardReceipt = null,
+  previewRewardPromotion,
   onRewardShare,
   allowProgrammaticOpen = false,
 }: {
@@ -340,6 +342,7 @@ export function InviteNotificationHistoryCenter({
   onLoadMore: () => void | Promise<void>;
   rewardShareUrl?: string;
   previewRewardReceipt?: RewardReceipt | null;
+  previewRewardPromotion?: RewardXPromotionPreview | null;
   onRewardShare?: (intentUrl: string) => void;
   allowProgrammaticOpen?: boolean;
 }) {
@@ -867,6 +870,7 @@ export function InviteNotificationHistoryCenter({
                 error={receiptError}
                 rewardShareUrl={rewardShareUrl}
                 onRewardShare={onRewardShare}
+                previewPromotion={previewRewardPromotion}
               />
             ) : loading && sorted.length === 0 ? (
               <div className="notificationHistoryState" aria-live="polite" aria-busy="true">
