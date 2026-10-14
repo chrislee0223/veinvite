@@ -378,7 +378,25 @@ function LocaleHydrationShieldRuntime() {
           </span>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              const homeStatus =
+                document.documentElement.dataset.veinviteHomeStartupStatus;
+              if (homeStatus === 'error') {
+                // Recover the two authoritative Home reads in place instead
+                // of repeating server bootstrap and wallet-provider startup.
+                // The Home loader still checks the active wallet and keeps
+                // authorization and referral ownership checks unchanged.
+                window.dispatchEvent(new Event(APP_LOADING_EVENT));
+                window.dispatchEvent(
+                  new CustomEvent('veinvite-home-data-refresh-requested', {
+                    detail: { manual: true },
+                  }),
+                );
+              } else {
+                // An unmounted Home / missing provider requires a true reload.
+                window.location.reload();
+              }
+            }
             style={{
               width: '100%',
               minHeight: '48px',
