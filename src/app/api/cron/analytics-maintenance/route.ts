@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import {
   markCronJobFailed,
-  markCronJobStarted,
   markCronJobSucceeded,
+  tryClaimCronJob,
 } from '@/lib/monitoring/cronHeartbeat';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
@@ -80,14 +80,26 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // A later backup cron uses this same guarded handler. If the primary
+  // already succeeded, return without recomputing aggregates or retention.
   try {
-    await markCronJobStarted(
+    const claimed = await tryClaimCronJob(
       'analytics-maintenance',
+      12 * 60 * 60,
+      600,
     );
+    if (!claimed) {
+      return NextResponse.json(
+        { skipped: true, reason: 'ALREADY_RUNNING_OR_RECENT_SUCCESS' },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
   } catch (error) {
-    console.error(
-      'Analytics maintenance heartbeat start failed:',
-      error,
+    // Avoid a long cascade of PostgREST requests when even the claim fails.
+    console.error('Analytics maintenance cron claim failed:', error);
+    return NextResponse.json(
+      { error: 'ANALYTICS_MAINTENANCE_CLAIM_UNAVAILABLE' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
