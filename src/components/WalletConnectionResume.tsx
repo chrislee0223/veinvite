@@ -169,18 +169,14 @@ export function WalletConnectionResume() {
     // event. The iOS resume recovery below cannot run for this path.
     // Cold SDK restore needs BOTH a server-verified session marker and matching
     // provider account evidence. It never signs, grants Home access or revokes.
-    const marker = document.querySelector<HTMLElement>(
-      '[data-veinvite-session-bootstrap]',
-    );
-    const bootstrapWallet =
-      marker?.getAttribute('data-veinvite-session-bootstrap') === 'verified'
-        ? normalizeWallet(marker.getAttribute('data-veinvite-session-wallet'))
-        : null;
-    if (!bootstrapWallet) return;
-
+    // Next.js may stream the HomePage bootstrap marker after provider effects
+    // mount. Observe for up to 5 seconds rather than giving up forever before
+    // the server-authenticated marker is present.
     let cancelled = false;
     let firstTimer: number | null = null;
     let secondTimer: number | null = null;
+    let probeTimer: number | null = null;
+    let bootstrapWallet: string | null = null;
 
     const restore = async (attempt: number) => {
       if (cancelled || veChainKitWalletRef.current) return;
@@ -222,9 +218,27 @@ export function WalletConnectionResume() {
       }
     };
 
-    firstTimer = window.setTimeout(() => void restore(0), 850);
+    const startOnVerifiedBootstrap = (checksRemaining: number) => {
+      if (cancelled) return;
+      const marker = document.querySelector<HTMLElement>(
+        '[data-veinvite-session-bootstrap]',
+      );
+      bootstrapWallet =
+        marker?.getAttribute('data-veinvite-session-bootstrap') === 'verified'
+          ? normalizeWallet(marker.getAttribute('data-veinvite-session-wallet'))
+          : null;
+      if (bootstrapWallet) {
+        firstTimer = window.setTimeout(() => void restore(0), 850);
+      } else if (checksRemaining > 0) {
+        probeTimer = window.setTimeout(
+          () => startOnVerifiedBootstrap(checksRemaining - 1), 250,
+        );
+      }
+    };
+    startOnVerifiedBootstrap(20);
     return () => {
       cancelled = true;
+      if (probeTimer !== null) window.clearTimeout(probeTimer);
       if (firstTimer !== null) window.clearTimeout(firstTimer);
       if (secondTimer !== null) window.clearTimeout(secondTimer);
     };
