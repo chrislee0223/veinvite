@@ -121,8 +121,7 @@ export function HomeClient() {
   const feedbackIdRef = useRef(0);
   const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
-  // Publish the current wallet before passive effects run. A previous
-  // request must not update Home between account rendering and effect cleanup.
+  // Stop stale requests before wallet-change effects run.
   activeWalletRef.current = wallet;
   const evidenceSyncAttemptRef = useRef<Map<string, number>>(new Map());
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -453,10 +452,7 @@ export function HomeClient() {
         return;
       }
 
-      // Only HomeClient initiates reconciliation. Record attempts before the
-      // request: a timed-out browser fetch may still be running server-side,
-      // where evidence sync can also trigger a protected payout iteration.
-      // Per-wallet/code cooldown survives effect restarts and visibility events.
+      // Record attempt before POST; browser timeout does not stop server work.
       const dueInvites = acceptedActiveInvites.slice(0, 2).filter((invite) => {
         const key = `${requestWallet}:${invite.code}`;
         const previous = evidenceSyncAttemptRef.current.get(key) ?? 0;
@@ -467,8 +463,7 @@ export function HomeClient() {
       running = true;
       let hasSuccessfulSync = false;
       try {
-        // Serialize the two possible invite slots. Do not launch two payout-
-        // capable reconciliation requests in parallel from the same Home.
+        // Serialize payout-capable syncs across both invite slots.
         for (const invite of dueInvites) {
           if (!sameWallet(activeWalletRef.current, requestWallet)) break;
 
@@ -488,8 +483,7 @@ export function HomeClient() {
             );
             if (response.ok) hasSuccessfulSync = true;
           } catch {
-            // Network timeout only stops this browser's wait; the server may
-            // still finish. The per-invite cooldown prevents immediate repeats.
+            // Cooldown prevents retries while server work may continue.
           }
         }
         if (
