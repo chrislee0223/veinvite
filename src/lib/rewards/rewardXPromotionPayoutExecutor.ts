@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import { Address, Hex, Transaction } from '@vechain/sdk-core';
+import { Hex, Transaction } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
 import { readVeInviteRewardPoolStatus } from '@/lib/rewards/onchainPool';
@@ -15,13 +15,12 @@ import {
   type XPromotionPayoutManifest,
 } from '@/lib/rewards/rewardXPromotionPayoutManifest';
 import { verifyFinalizedXPromotionTransactionOnChain } from '@/lib/rewards/rewardXPromotionPayoutVerification';
+import { readRewardXPromotionDistributorIdentity } from '@/lib/rewards/rewardXPromotionPayoutRuntime';
 import { RewardTransactionVerificationError } from '@/lib/rewards/transactionVerification';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig, type VeBetterNetwork } from '@/lib/vebetter/network';
 
 const LOCK_SECONDS = 180;
-const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/u;
-const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
 const HEX_32_PATTERN = /^0x[0-9a-f]{64}$/u;
 const RAW_TX_PATTERN = /^0x[0-9a-f]+$/u;
 
@@ -55,95 +54,6 @@ type IntentState = {
   submission: Record<string, unknown> | null;
   settlement: Record<string, unknown> | null;
 };
-
-type DistributorIdentity = {
-  automaticRewardsEnabled: boolean;
-  workerEnabled: boolean;
-  address: string | null;
-  privateKeyHex: string | null;
-};
-
-function isTrue(value: string | undefined) {
-  return value?.trim().toLowerCase() === 'true';
-}
-
-function normalizeAddress(value: unknown): string | null {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  return ADDRESS_PATTERN.test(normalized) ? normalized : null;
-}
-
-function positiveId(value: unknown, name: string): string {
-  const normalized = String(value ?? '');
-  if (!/^\d+$/u.test(normalized) || BigInt(normalized) < 1n) {
-    throw new Error(`X promotion ${name} is invalid.`);
-  }
-  return BigInt(normalized).toString();
-}
-
-function result(
-  network: VeBetterNetwork,
-  status: RewardXPromotionPayoutStatus,
-  values: Partial<Omit<RewardXPromotionPayoutResult, 'network' | 'status'>> = {},
-): RewardXPromotionPayoutResult {
-  return {
-    status,
-    network,
-    intentId: values.intentId ?? null,
-    manifestId: values.manifestId ?? null,
-    txId: values.txId ?? null,
-    reason: values.reason,
-    transfersPerformed: values.transfersPerformed ?? false,
-  };
-}
-
-function readDistributorIdentity(): DistributorIdentity {
-  const automaticRewardsEnabled = isTrue(
-    process.env.VEINVITE_AUTOMATIC_REWARDS_ENABLED,
-  );
-  const workerEnabled = isTrue(
-    process.env.VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED,
-  );
-  const address = normalizeAddress(
-    process.env.VEINVITE_REWARD_DISTRIBUTOR_ADDRESS,
-  );
-  const rawKey =
-    process.env.VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY?.trim() ?? null;
-
-  if (!automaticRewardsEnabled || !workerEnabled || !address || !rawKey) {
-    return {
-      automaticRewardsEnabled,
-      workerEnabled,
-      address,
-      privateKeyHex: null,
-    };
-  }
-  if (!PRIVATE_KEY_PATTERN.test(rawKey)) {
-    throw new Error('X promotion payout private key has an invalid format.');
-  }
-
-  const privateKeyHex = rawKey.startsWith('0x')
-    ? rawKey.toLowerCase()
-    : `0x${rawKey.toLowerCase()}`;
-  const bytes = Hex.of(privateKeyHex).bytes;
-  try {
-    if (
-      Address.ofPrivateKey(bytes).toString().toLowerCase() !== address
-    ) {
-      throw new Error(
-        'X promotion payout private key does not match the configured reward distributor.',
-      );
-    }
-  } finally {
-    bytes.fill(0);
-  }
-
-  return {
-    automaticRewardsEnabled,
-    workerEnabled,
-    address,
-    privateKeyHex,
-  };
-}
 
 async function readRuntimeGate() {
   const query = await supabaseAdmin
@@ -734,7 +644,8 @@ Promise<RewardXPromotionPayoutResult> {
     });
   }
 
-  const identity = readDistributorIdentity();
+  const identity =
+    readRewardXPromotionDistributorIdentity();
   if (!identity.automaticRewardsEnabled || !identity.workerEnabled) {
     return result(network, 'DISABLED', {
       reason: 'X promotion payout worker is not enabled.',
