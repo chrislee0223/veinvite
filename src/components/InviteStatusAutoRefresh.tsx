@@ -13,6 +13,9 @@ const POLL_INTERVAL_MS = 30_000;
 const EVIDENCE_SYNC_INTERVAL_MS = 5 * 60_000;
 const INITIAL_CHECK_FALLBACK_MS = 5_000;
 const APP_READY_EVENT = 'veinvite-app-ready';
+const HOME_REFRESH_REQUESTED_EVENT = 'veinvite-home-data-refresh-requested';
+const HOME_REFRESH_SETTLED_EVENT = 'veinvite-home-data-refresh-settled';
+const REFRESH_ACK_TIMEOUT_MS = 45_000;
 
 type IdleCapableWindow = Window & {
   requestIdleCallback?: (
@@ -99,7 +102,11 @@ export function InviteStatusAutoRefresh() {
   activeWalletRef.current = walletAddress;
   const lastFingerprintRef =
     useRef<string | null>(null);
-  const checkingRef = useRef(false);
+  const pendingRefreshRef = useRef<{
+    fingerprint: string;
+    requestedAt: number;
+  } | null>(null);
+  const checkingRef = useRef<string | null>(null);
   const lastEvidenceSyncRef =
     useRef<{
       code: string;
@@ -133,7 +140,7 @@ export function InviteStatusAutoRefresh() {
   const check = useCallback(async () => {
     if (
       !walletAddress ||
-      checkingRef.current ||
+      checkingRef.current === walletAddress ||
       document.visibilityState === 'hidden' ||
       shouldDeferHomeRefresh()
     ) {
@@ -141,7 +148,7 @@ export function InviteStatusAutoRefresh() {
     }
 
     const requestWallet = walletAddress;
-    checkingRef.current = true;
+    checkingRef.current = requestWallet;
 
     try {
       let data = await loadInvites();
@@ -223,20 +230,33 @@ export function InviteStatusAutoRefresh() {
       }
 
       if (lastFingerprintRef.current !== fingerprint) {
-        // Refresh the wallet-scoped Home data in place. A background invite
-        // status change must not force a new wallet/session bootstrap, possibly
-        // turning a short database delay into a full-page login error.
-        // HomeClient keeps the authoritative same-wallet fetch guard.
-        lastFingerprintRef.current = fingerprint;
+        // Do not acknowledge a change until Home actually loaded it. A failed
+        // fetch must be retried on a later poll instead of being forgotten.
+        const pending = pendingRefreshRef.current;
+        if (
+          pending?.fingerprint === fingerprint &&
+          now - pending.requestedAt < REFRESH_ACK_TIMEOUT_MS
+        ) {
+          return;
+        }
+        pendingRefreshRef.current = { fingerprint, requestedAt: now };
         window.dispatchEvent(
-          new Event('veinvite-home-data-refresh-requested'),
+          new CustomEvent(HOME_REFRESH_REQUESTED_EVENT, {
+            detail: {
+              source: 'invite-poll',
+              walletAddress: requestWallet,
+              fingerprint,
+            },
+          }),
         );
       }
     } catch {
       // HomeClient remains usable when a background refresh fails. The next
       // interval/focus event will retry without surfacing a disruptive toast.
     } finally {
-      checkingRef.current = false;
+      if (checkingRef.current === requestWallet) {
+        checkingRef.current = null;
+      }
     }
   }, [
     loadInvites,
@@ -245,8 +265,9 @@ export function InviteStatusAutoRefresh() {
 
   useEffect(() => {
     lastFingerprintRef.current = null;
+    pendingRefreshRef.current = null;
     lastEvidenceSyncRef.current = null;
-    checkingRef.current = false;
+    checkingRef.current = null;
 
     if (!walletAddress) {
       return;
@@ -315,6 +336,29 @@ export function InviteStatusAutoRefresh() {
       );
     }
 
+    const onHomeRefreshSettled = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        walletAddress?: string;
+        fingerprint?: string;
+        success?: boolean;
+      }>).detail;
+      const pending = pendingRefreshRef.current;
+      if (
+        !pending ||
+        activeWalletRef.current !== walletAddress ||
+        detail?.walletAddress !== walletAddress ||
+        detail.fingerprint !== pending.fingerprint
+      ) {
+        return;
+      }
+      pendingRefreshRef.current = null;
+      if (detail.success === true) {
+        lastFingerprintRef.current = pending.fingerprint;
+      }
+      // On failure the next 30-second check re-requests the latest state.
+    };
+    window.addEventListener(HOME_REFRESH_SETTLED_EVENT, onHomeRefreshSettled);
+
     const intervalId = window.setInterval(
       () => {
         void check();
@@ -338,6 +382,10 @@ export function InviteStatusAutoRefresh() {
     );
 
     return () => {
+      window.removeEventListener(
+        HOME_REFRESH_SETTLED_EVENT,
+        onHomeRefreshSettled,
+      );
       window.removeEventListener(
         APP_READY_EVENT,
         startInitialCheck,
