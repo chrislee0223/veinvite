@@ -109,14 +109,13 @@ export function RewardReceiptView({
         .notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}
         .notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}
         .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850}
-        .notificationXShare{width:100%;min-height:44px;margin-top:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.75rem;font-weight:950;cursor:pointer}
         .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important}
         .notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}
         .notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}
         .notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(255,110,120,.08);color:#ff8f9b;font-size:1.2rem;font-weight:950}
         .notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}
         .notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}
-        .notificationXShare:focus-visible,.notificationExplorerLink:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        .notificationExplorerLink:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         @keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
         @media(max-width:560px){.notificationReceiptView{padding:16px 14px}.notificationReceiptAmount strong{font-size:1.75rem}}
         @media(prefers-reduced-motion:reduce){.notificationHistorySpinner{animation:none}}
