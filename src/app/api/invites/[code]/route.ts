@@ -4,6 +4,7 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { INVITATION_EVIDENCE_LEASE_SECONDS } from '@/lib/impact/reconcileInvitationWithLease';
 import {
   syncInvitationEvidence,
   type InvitationEvidenceRow,
@@ -35,7 +36,7 @@ const INVITE_SYNC_CODE_LIMIT = 240;
 const INVITE_SYNC_IP_LIMIT = 2400;
 const INVITE_WINDOW_SECONDS = 60 * 60;
 // Distributed per-invite lease. Browser timeouts do not cancel server work.
-const INVITE_SYNC_LOCK_SECONDS = 180;
+const INVITE_SYNC_LOCK_SECONDS = INVITATION_EVIDENCE_LEASE_SECONDS;
 
 const invitationColumns = `
   invite_code,

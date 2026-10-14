@@ -187,10 +187,20 @@ export function InviteeClient({ code }: { code: string }) {
     mode: ProgressReadMode = 'read',
   ) => {
     try {
-      const response = await fetch(`/api/invites/${code}`, {
+      let response = await fetch(`/api/invites/${code}`, {
         method: mode === 'sync' ? 'POST' : 'GET',
         cache: 'no-store',
+        signal: AbortSignal.timeout(mode === 'sync' ? 15_000 : 10_000),
       });
+      if (mode === 'sync' && response.status === 409) {
+        // Another device or the vote worker already owns the verifier.
+        // A bounded read updates progress without launching another scan.
+        response = await fetch(`/api/invites/${code}`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(10_000),
+        });
+      }
       const data = await readInviteResponse(response);
       setInvite(data.invite!);
       setProgress(data.progress!);
@@ -202,7 +212,12 @@ export function InviteeClient({ code }: { code: string }) {
   }, [code]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    } catch {
+      // Private-mode storage restrictions must not block onboarding.
+    }
     const queryLanguage = new URLSearchParams(window.location.search).get('lang');
     const savedLocale = isLocale(saved) ? saved : null;
     const queryLocale = localeFromLanguageTag(queryLanguage);
@@ -366,7 +381,11 @@ export function InviteeClient({ code }: { code: string }) {
   const saveLocale = (nextLocale: Locale) => {
     setLocale(nextLocale);
     setKitLanguage(nextLocale);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    } catch {
+      // Keep the selected language in memory if persistence is blocked.
+    }
     document.documentElement.lang = nextLocale;
     window.dispatchEvent(new CustomEvent('veinvite-language-change', { detail: nextLocale }));
   };

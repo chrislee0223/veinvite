@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  syncInvitationEvidence,
-  type InvitationEvidenceRow,
-} from '@/lib/impact/syncInvitation';
+import { type InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
+import { reconcileInvitationWithLease } from '@/lib/impact/reconcileInvitationWithLease';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterNetworkConfig,
@@ -195,8 +193,24 @@ export async function runReconciliationBatch(
     // the worker predictable on the current small launch workload.
     for (const row of rows) {
       try {
-        const synced =
-          await syncInvitationEvidence(row);
+        const guarded = await reconcileInvitationWithLease(row.invite_code);
+        if (!guarded.acquired) {
+          // Skipped work is incomplete, not successful; retry next cycle.
+          results.push({
+            inviteCode: row.invite_code,
+            status: row.status,
+            rewardStatus: row.reward_status,
+            appsCompleted: row.apps_completed ?? 0,
+            vot3Converted: row.vot3_converted ?? false,
+            voteCompleted: row.vote_completed ?? false,
+            impactCheckpointSaved: false,
+            impactSyncComplete: false,
+            networkMismatch: false,
+            error: 'Invitation is being verified by another worker.',
+          });
+          continue;
+        }
+        const { synced } = guarded;
 
         results.push({
           inviteCode: row.invite_code,
