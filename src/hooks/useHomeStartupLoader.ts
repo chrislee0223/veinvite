@@ -140,7 +140,7 @@ export function useHomeStartupLoader({
           setReferralLinkFailed(true);
           showFeedback('error', t.createError);
         }
-        return;
+        return false;
       }
 
       try {
