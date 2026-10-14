@@ -10,6 +10,8 @@ import { usePathname } from 'next/navigation';
 import { Brand } from './Brand';
 import {
   APP_STARTUP_ERROR_EVENT,
+  HOME_STARTUP_STATE_EVENT,
+  type HomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import {
   LANGUAGE_STORAGE_KEY,
