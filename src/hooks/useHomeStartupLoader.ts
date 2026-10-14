@@ -56,6 +56,10 @@ export function useHomeStartupLoader({
     // A transient automatic retry must never undo a 401/403/429 decision.
 
     try {
+      // A stalled Supabase request must settle before the global 18-second
+      // Home startup watchdog expires. Both reads are recoverable and the
+      // permanent referral-link ensure endpoint is idempotent.
+      const startupRequestSignal = AbortSignal.timeout(10_000);
       const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
           `/api/invites?inviter=${encodeURIComponent(requestWallet)}`,
