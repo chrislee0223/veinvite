@@ -25,6 +25,7 @@ type OpportunityRow = {
 
 type ObligationRow = {
   id: string | number;
+  promotion_amount_wei?: string | number;
   financial_state: string;
   held_at: string | null;
   released_at: string | null;
@@ -49,6 +50,7 @@ type VerificationRow = {
 };
 
 type PromotionState =
+  | 'PREPARING'
   | 'OPEN'
   | 'SUBMISSION_GRACE'
   | 'VERIFYING'
@@ -196,6 +198,88 @@ export async function GET(
       opportunity.data as unknown as OpportunityRow | null;
 
     if (!opportunityRow) {
+      // A LIVE split creates its durable obligation before the 15-minute
+      // lifecycle job opens the user-facing opportunity. During that gap,
+      // return PREPARING so clients do not offer an untagged generic X share.
+      // The 24-hour user clock has not started yet.
+      const pendingObligation =
+        await supabaseAdmin
+          .from('reward_x_promotion_obligations')
+          .select(
+            'id,promotion_amount_wei,financial_state,held_at,released_at,paid_at',
+          )
+          .eq('invite_code', inviteCode)
+          .eq('recipient_wallet', wallet)
+          .maybeSingle();
+
+      if (pendingObligation.error) {
+        throw new Error(
+          `X promotion pending obligation could not be loaded: ${pendingObligation.error.message}`,
+        );
+      }
+
+      const pendingRow =
+        pendingObligation.data as unknown as
+          ObligationRow | null;
+      const pendingFinancialState =
+        pendingRow
+          ? String(
+              pendingRow.financial_state ?? '',
+            )
+          : '';
+
+      if (
+        pendingRow &&
+        ['RESERVED', 'HELD'].includes(
+          pendingFinancialState,
+        )
+      ) {
+        const pendingAmountWei =
+          String(
+            pendingRow.promotion_amount_wei ?? '',
+          );
+
+        if (
+          !/^\d+$/u.test(pendingAmountWei) ||
+          BigInt(pendingAmountWei) < 1n
+        ) {
+          throw new Error(
+            'Stored X promotion pending obligation is malformed.',
+          );
+        }
+
+        return NextResponse.json(
+          {
+            newOffersEnabled,
+            promotion: {
+              inviteCode,
+              state:
+                'PREPARING' as PromotionState,
+              amountWei:
+                pendingAmountWei,
+              amountB3tr:
+                formatWeiAsB3tr(
+                  pendingAmountWei,
+                  18,
+                ),
+              openedAt: null,
+              postDeadlineAt: null,
+              submissionGraceSeconds: 0,
+              shareToken: null,
+              submittedAt: null,
+              verifyAfter: null,
+              paidAt: null,
+            },
+          },
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'no-store',
+            },
+          },
+        );
+      }
+
       return NextResponse.json(
         {
           newOffersEnabled,
