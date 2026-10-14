@@ -251,7 +251,7 @@ test('invite auto-refresh cannot let an old wallet request seed the new wallet f
   );
   assert.match(
     source,
-    /lastFingerprintRef\.current = null;[\s\S]*pendingRefreshRef\.current = null;[\s\S]*lastEvidenceSyncRef\.current = null;[\s\S]*checkingRef\.current = null;/,
+    /lastFingerprintRef\.current = null;[\s\S]*pendingRefreshRef\.current = null;[\s\S]*checkingRef\.current = null;/,
   );
 });
 

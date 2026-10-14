@@ -447,7 +447,7 @@ test('background invite polling and Home preferences fail safely on slow or rest
     readFile(new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.equal((poller.match(/signal: AbortSignal\.timeout\(10_000\)/g) ?? []).length, 2);
+  assert.equal((poller.match(/signal: AbortSignal\.timeout\(10_000\)/g) ?? []).length, 1);
   assert.match(home, /try \{[\s\S]*window\.localStorage\.getItem\(LANGUAGE_STORAGE_KEY\)[\s\S]*\} catch \{/);
   assert.match(home, /try \{[\s\S]*window\.sessionStorage\.getItem\([\s\S]*\} catch \{/);
   assert.match(home, /window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\)/);
@@ -489,4 +489,48 @@ test('failed invite refresh stays pending for a later retry and wallet switches 
   assert.match(poller, /if \(detail\.success === true\) \{[\s\S]*lastFingerprintRef\.current = pending\.fingerprint/);
   assert.match(poller, /checkingRef\.current === walletAddress/);
   assert.match(poller, /if \(checkingRef\.current === requestWallet\) \{[\s\S]*checkingRef\.current = null/);
+});
+
+
+test('only HomeClient can initiate payout-capable invite reconciliation, with bounded serialized attempts', async () => {
+  const [home, observer, loader] = await Promise.all([
+    readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url), 'utf8'),
+  ]);
+
+  // Passive 30-second observer must not POST evidence or trigger rewards.
+  assert.match(observer, /\/api\/invites\?inviter=/);
+  assert.doesNotMatch(observer, /method:\s*'POST'/);
+  assert.doesNotMatch(observer, /EVIDENCE_SYNC_INTERVAL_MS|lastEvidenceSyncRef|evidenceSyncCandidate/);
+  assert.match(observer, /new CustomEvent\(HOME_REFRESH_REQUESTED_EVENT/);
+
+  // The two Home referral slots are reconciled sequentially, never in parallel.
+  assert.match(home, /for \(const invite of dueInvites\)/);
+  assert.match(home, /acceptedActiveInvites\.slice\(0, 2\)/);
+  assert.match(home, /evidenceSyncAttemptRef\.current\.set\(key, Date\.now\(\)\)/);
+  assert.match(home, /Date\.now\(\) - previous >= EVIDENCE_REFRESH_MS/);
+  assert.match(home, /signal: AbortSignal\.timeout\(15_000\)/);
+  assert.match(home, /credentials: 'same-origin'/);
+  assert.match(home, /if \(response\.ok\) hasSuccessfulSync = true/);
+  assert.match(home, /hasSuccessfulSync &&[\s\S]*sameWallet\(activeWalletRef\.current, requestWallet\)/);
+  assert.doesNotMatch(home, /Promise\.allSettled\(\s*acceptedActiveInvites/);
+
+  // Timed-out browser requests can continue on the server; never retry in a tight loop.
+  assert.match(home, /const evidenceSyncAttemptRef = useRef<Map<string, number>>\(new Map\(\)\)/);
+  assert.match(home, /evidenceSyncAttemptRef\.current\.get\(key\)/);
+  assert.match(loader, /if \(!sameWallet\(activeWalletRef\.current, wallet\)\) return false/);
+  assert.match(home, /activeWalletRef\.current = wallet;/);
+});
+
+test('Home evidence sync respects existing payout authorization and cannot change reward policy', async () => {
+  const endpoint = await readFile(
+    new URL('../src/app/api/invites/[code]/route.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(endpoint, /const session = await requireWalletSession\(\{ request \}\)/);
+  assert.match(endpoint, /if \(!sessionOwnsReferral\)/);
+  assert.match(endpoint, /await enforceInviteRateLimit\(/);
+  assert.match(endpoint, /await syncInvitationEvidence\(row\)/);
+  assert.match(endpoint, /await runAutomaticRewardPayout\(\)/);
 });

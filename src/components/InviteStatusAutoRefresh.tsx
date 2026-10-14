@@ -10,7 +10,6 @@ import { useWallet } from '@vechain/vechain-kit';
 import type { InviteRecord } from '@/lib/types';
 
 const POLL_INTERVAL_MS = 30_000;
-const EVIDENCE_SYNC_INTERVAL_MS = 5 * 60_000;
 const INITIAL_CHECK_FALLBACK_MS = 5_000;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const HOME_REFRESH_REQUESTED_EVENT = 'veinvite-home-data-refresh-requested';
@@ -71,24 +70,9 @@ function shouldDeferHomeRefresh(): boolean {
   );
 }
 
-function evidenceSyncCandidate(
-  invites: InviteRecord[] | undefined,
-): InviteRecord | null {
-  return invites?.find(
-    (invite) =>
-      invite.status === 'ACTIVATING' ||
-      invite.status === 'UNDER_REVIEW',
-  ) ?? null;
-}
-
 /**
- * Keeps the inviter home screen in sync when invitee/reward state changes in a
- * different browser or device. A lightweight invite-list check runs every 30s.
- * While an accepted referral is still active, the verified inviter also
- * provides a bounded five-minute reconciliation fallback for their own invite.
- * This complements (rather than replaces) the daily scheduled worker and the
- * invitee page's own polling, so a closed invitee tab or one missed scheduler
- * run cannot leave active progress stale indefinitely.
+ * Passive invite-state observer; HomeClient alone owns evidence-sync POSTs.
+ * Leave reward reconciliation and payouts to the authenticated server path.
  */
 export function InviteStatusAutoRefresh() {
   const { account } = useWallet();
@@ -107,11 +91,6 @@ export function InviteStatusAutoRefresh() {
     requestedAt: number;
   } | null>(null);
   const checkingRef = useRef<string | null>(null);
-  const lastEvidenceSyncRef =
-    useRef<{
-      code: string;
-      at: number;
-    } | null>(null);
 
   const loadInvites = useCallback(async () => {
     if (!walletAddress) {
@@ -151,7 +130,7 @@ export function InviteStatusAutoRefresh() {
     checkingRef.current = requestWallet;
 
     try {
-      let data = await loadInvites();
+      const data = await loadInvites();
 
       if (
         !data ||
@@ -160,66 +139,7 @@ export function InviteStatusAutoRefresh() {
         return;
       }
 
-      const candidate =
-        evidenceSyncCandidate(data.invites);
-      const previousSync =
-        lastEvidenceSyncRef.current;
       const now = Date.now();
-      const shouldSyncEvidence =
-        Boolean(candidate) &&
-        (
-          previousSync?.code !==
-            candidate?.code ||
-          !previousSync ||
-          now - previousSync.at >=
-            EVIDENCE_SYNC_INTERVAL_MS
-        );
-
-      if (candidate && shouldSyncEvidence) {
-        // Record the attempt before the request so a temporary node/API failure
-        // cannot create a tight retry loop on focus/visibility events.
-        lastEvidenceSyncRef.current = {
-          code: candidate.code,
-          at: now,
-        };
-
-        try {
-          const syncResponse = await fetch(
-            `/api/invites/${encodeURIComponent(
-              candidate.code,
-            )}`,
-            {
-              method: 'POST',
-              credentials: 'same-origin',
-              cache: 'no-store',
-              signal: AbortSignal.timeout(10_000),
-            },
-          );
-
-          if (activeWalletRef.current !== requestWallet) {
-            return;
-          }
-
-          if (syncResponse.ok) {
-            const refreshed =
-              await loadInvites();
-            if (activeWalletRef.current !== requestWallet) {
-              return;
-            }
-            if (refreshed) {
-              data = refreshed;
-            }
-          }
-        } catch {
-          // This is a best-effort fallback. The regular scheduler and invitee
-          // polling remain available, and another fallback attempt is allowed
-          // after the bounded interval.
-        }
-      }
-
-      if (activeWalletRef.current !== requestWallet) {
-        return;
-      }
 
       const fingerprint =
         invitationsFingerprint(data.invites);
@@ -266,7 +186,6 @@ export function InviteStatusAutoRefresh() {
   useEffect(() => {
     lastFingerprintRef.current = null;
     pendingRefreshRef.current = null;
-    lastEvidenceSyncRef.current = null;
     checkingRef.current = null;
 
     if (!walletAddress) {
