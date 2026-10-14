@@ -86,7 +86,7 @@ test('minute watcher scans finalized governance vote events before loading or re
   );
   assert.match(
     route,
-    /await syncInvitationEvidence\(row\)/,
+    /await reconcileInvitationWithLease\(row\.invite_code\)/,
   );
 });
 
