@@ -159,7 +159,15 @@ test('leaderboard snapshots run only after round growth reporting succeeds', () 
 
 test('leaderboard publication remains owned by reconcile while maintenance and Sybil backfill stay isolated', () => {
   const config = JSON.parse(vercelConfig);
-  assert.equal(config.crons.length, 5);
+  assert.equal(config.crons.length, 7);
+  assert.deepEqual(
+    config.crons.find((entry) => entry.path === '/api/cron/reconcile-retry'),
+    { path: '/api/cron/reconcile-retry', schedule: '17 3 * * *' },
+  );
+  assert.deepEqual(
+    config.crons.find((entry) => entry.path === '/api/cron/analytics-maintenance-retry'),
+    { path: '/api/cron/analytics-maintenance-retry', schedule: '47 3 * * *' },
+  );
 
   const reconciliationCron = config.crons.find(
     (entry) => entry.path === '/api/cron/reconcile',
