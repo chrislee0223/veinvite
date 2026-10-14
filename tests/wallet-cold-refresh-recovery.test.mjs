@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
 import test from 'node:test';
-import ts from 'typescript';
+import { resolveColdRestoreWallet as decide } from '../src/lib/walletColdRestorePolicy.ts';
 
 const [policy, resume, gate, prompt, shield] = await Promise.all([
   readFile(new URL('../src/lib/walletColdRestorePolicy.ts',import.meta.url),'utf8'),
@@ -12,12 +11,6 @@ const [policy, resume, gate, prompt, shield] = await Promise.all([
   readFile(new URL('../src/components/LocaleHydrationShield.tsx',import.meta.url),'utf8'),
 ]);
 
-const context = { module: {exports:{}}, exports: {} };
-context.exports=context.module.exports;
-runInNewContext(ts.transpileModule(policy,{
-  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
-}).outputText,context);
-const decide=context.module.exports.resolveColdRestoreWallet;
 const A='0x'+'a'.repeat(40),B='0x'+'b'.repeat(40);
 
 test('cold restore requires existing verified session and same provider identity',()=>{
