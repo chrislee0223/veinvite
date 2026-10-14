@@ -136,7 +136,7 @@ test('scheduled routes record heartbeat liveness', () => {
   );
   assert.match(
     dailyCron,
-    /markCronJobStarted[\s\S]*'daily-reconcile'/,
+    /tryClaimCronJob[\s\S]*'daily-reconcile'/,
   );
   assert.match(
     dailyCron,
@@ -144,7 +144,7 @@ test('scheduled routes record heartbeat liveness', () => {
   );
   assert.match(
     analyticsCron,
-    /markCronJobStarted[\s\S]*'analytics-maintenance'/,
+    /tryClaimCronJob[\s\S]*'analytics-maintenance'/,
   );
   assert.match(
     analyticsCron,
