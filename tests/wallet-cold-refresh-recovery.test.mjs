@@ -29,7 +29,8 @@ test('PC reload reinitializes SDK without the mobile wallet-return precondition'
   assert.match(resume,/getAttribute\('data-veinvite-session-bootstrap'\) === 'verified'/);
   assert.match(resume,/resolveColdRestoreWallet\(\{/);
   assert.match(resume,/runWalletProviderReconciliation\(/);
-  assert.match(resume,/await initializeAsync\(\)/);
+  assert.match(resume,/await initializeAsyncRef\.current\(\)/);
+  assert.match(resume,/cold bootstrap exactly once per mount/);
   assert.match(resume,/window\.setTimeout\(\(\) => void restore\(0\), 850\)/);
   assert.match(resume,/if \(!bootstrapWallet\) return/);
   assert.match(resume,/if \(!match\) return/);
