@@ -889,22 +889,9 @@ async function replayRecentVoteEventsFallback() {
 }
 
 /**
- * Pro-plan vote watcher:
- * - every minute: scan only newly finalized AllocationVoteCast events; load
- *   active VeInvite referrals from Postgres only when at least one vote exists,
- *   then reconcile only matching invitees;
- * - after five minutes without a successful recovery pass: retry pending
- *   Sybil v2 assessment / reward reservation and drain a bounded amount of
- *   due post-payout observation / bridge work; a newly detected vote can
- *   trigger this recovery immediately;
- * - after 30 minutes without a successful fallback pass: replay the most recent
- *   finalized vote window without consulting the primary cursor, then run the
- *   existing full reconciliation only for VeInvite wallets that actually voted.
- *   Failed passes release their lease so the next one-minute invocation can
- *   retry instead of waiting for the next wall-clock boundary.
- *
- * Reward authority remains unchanged: syncInvitationEvidence and the existing
- * Sybil v2 clearance / reservation gates stay fail-closed.
+ * Minutely finalized-vote watcher, periodic Sybil/reservation recovery and
+ * 30-minute replay fallback. A busy invitation fails closed without advancing
+ * the cursor; only unchanged reward/Sybil gates authorize payout.
  */
 export async function GET(
   request: NextRequest,
