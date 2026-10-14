@@ -176,6 +176,7 @@ for (const locale of HIGH_RISK_LOCALES) {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
+      await openPromotionReceiptIfNeeded(page, state);
       await verifyNotificationLayout(page, locale);
       await page.setViewportSize(DESKTOP);
       await verifyNotificationLayout(page, locale);
