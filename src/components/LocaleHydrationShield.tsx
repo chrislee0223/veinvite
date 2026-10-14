@@ -246,6 +246,10 @@ function LocaleHydrationShieldRuntime() {
         // 2.5-second error grace must not cover an in-flight recovery.
         clearStartupErrorTimer();
         setState({ status: 'loading' });
+        // Re-arm the watchdog after the recoverable request resumes.
+        // Otherwise cancelling the previous error grace also removes the
+        // only fallback if this new request never reaches readiness.
+        armFallbackTimer();
       }
     };
     const handleProviderReady = () => {
