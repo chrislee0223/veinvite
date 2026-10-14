@@ -377,6 +377,7 @@ test('an actual Home load failure can be retried without losing the wallet sessi
   assert.match(shield, /new Event\(APP_LOADING_EVENT\)/);
   assert.match(shield, /window\.location\.reload\(\)/);
   assert.match(loader, /if \(manualRetry\) \{/);
+  assert.match(loader, /AbortSignal\.timeout\(10_000\)/);
   assert.match(loader, /startupRetryAllowedRef\.current = true/);
   assert.match(loader, /if \(inviteResponse\.status < 500\)/);
   assert.match(loader, /if \(linkResponse\.status < 500\)/);
