@@ -13,6 +13,10 @@ import {
   formatWeiAsB3tr,
   type RoundReport,
 } from '@/lib/reporting/roundReport';
+import {
+  addPaidXPromotionToRoundReport,
+  readRewardXPromotionReportingTotals,
+} from '@/lib/reporting/rewardXPromotionReporting';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -785,7 +789,7 @@ export async function GET(request: NextRequest) {
         round.remainder_wei,
       );
 
-    const report: RoundReport = {
+    const baseReport: RoundReport = {
       rewardRoundId: String(round.id),
       network: round.network,
       periodStart,
@@ -853,6 +857,19 @@ export async function GET(request: NextRequest) {
         ),
       },
     };
+
+    const promotionTotals =
+      await readRewardXPromotionReportingTotals({
+        network: round.network,
+        appId: round.app_id,
+        currentAllocationReceiptId:
+          String(allocationReceipt.id),
+      });
+    const report =
+      addPaidXPromotionToRoundReport(
+        baseReport,
+        promotionTotals,
+      );
 
     return NextResponse.json(
       {
