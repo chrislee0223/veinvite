@@ -63,7 +63,7 @@ export function useHomeStartupLoader({
       const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
           `/api/invites?inviter=${encodeURIComponent(requestWallet)}`,
-          { cache: 'no-store' },
+          { cache: 'no-store', signal: startupRequestSignal },
         ),
         fetch('/api/referral-links', {
           method: 'POST',
