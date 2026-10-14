@@ -26,7 +26,9 @@ const APP_LOADING_EVENT = 'veinvite-app-loading';
 const PROVIDER_READY_EVENT =
   'veinvite-provider-ready';
 const STARTUP_RECOVERY_MS = 18_000;
-const STARTUP_ERROR_GRACE_MS = 2_500;
+// The Home auto-retry backoff reaches 3,000ms. A smaller error grace
+// flashes the full-page Retry screen before the next recovery begins.
+const STARTUP_ERROR_GRACE_MS = 3_500;
 const INTERACTIVE_STARTUP_GATE_SELECTOR = [
   '[data-veinvite-wallet-session-gate="interactive"]',
   '[data-veinvite-legal-consent-gate="interactive"]',
@@ -223,9 +225,9 @@ function LocaleHydrationShieldRuntime() {
       ).detail;
       clearFallbackTimer();
       clearStartupErrorTimer();
-      // A first Home read can fail just before the bounded recovery retry
-      // succeeds. Keep the branded loading view during that grace window.
-      // A persistent failure still exposes the actionable Retry UI.
+      // Keep the loading screen up for the full bounded retry backoff
+      // (up to 3,000ms). Home's loading event cancels this timer when the
+      // next attempt begins; a terminal failure still shows Retry.
       startupErrorTimer = window.setTimeout(() => {
         if (released || hasInteractiveStartupGate()) {
           return;

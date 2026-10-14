@@ -32,6 +32,7 @@ export function useHomeStartupLoader({
   referralLinkFailed: boolean;
   showFeedback: (kind: TransientFeedbackKind, message: string) => void;
 }) {
+  const requestGenerationRef = useRef(0);
   const startupRetryAttemptsRef = useRef(0);
   const startupRetryAllowedRef = useRef(true);
   useEffect(() => {
@@ -42,6 +43,12 @@ export function useHomeStartupLoader({
   const load = useCallback(async (quiet = false, manualRetry = false) => {
     if (!wallet) return;
     const requestWallet = wallet;
+    // Concurrent Home refreshes can resolve out of order. The newest
+    // request alone may publish state for this wallet.
+    const requestGeneration = ++requestGenerationRef.current;
+    const isCurrentRequest = () =>
+      sameWallet(activeWalletRef.current, requestWallet) &&
+      requestGenerationRef.current === requestGeneration;
 
     if (manualRetry) {
       // User-initiated recovery gets a fresh bounded retry budget. Automatic
@@ -73,7 +80,7 @@ export function useHomeStartupLoader({
         }),
       ]);
 
-      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+      if (!isCurrentRequest()) return;
 
       if (inviteResult.status === 'rejected') {
         if (!quiet) {
@@ -94,12 +101,12 @@ export function useHomeStartupLoader({
             }
             throw new Error(inviteData.error ?? t.loadError);
           }
-          if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+          if (!isCurrentRequest()) return;
           setInvites(inviteData.invites ?? []);
           setInvitesReady(true);
           setInvitesFailed(false);
         } catch (error) {
-          if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+          if (!quiet && isCurrentRequest()) {
             setInvitesReady(false);
             setInvitesFailed(true);
             showFeedback(
@@ -110,7 +117,7 @@ export function useHomeStartupLoader({
         }
       }
 
-      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+      if (!isCurrentRequest()) return;
 
       if (linkResult.status === 'rejected') {
         if (!quiet) {
@@ -133,14 +140,14 @@ export function useHomeStartupLoader({
           }
           throw new Error(linkData.error ?? t.createError);
         }
-        if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+        if (!isCurrentRequest()) return;
 
         setReferralLink(linkData.referralLink);
         setReferralLinkVerified(true);
         setReferralLinkFailed(false);
         writeCachedReferralLink(requestWallet, linkData.referralLink);
       } catch (error) {
-        if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+        if (!quiet && isCurrentRequest()) {
           setReferralLinkVerified(false);
           setReferralLinkFailed(true);
           showFeedback(
@@ -150,7 +157,7 @@ export function useHomeStartupLoader({
         }
       }
     } catch (error) {
-      if (!quiet && sameWallet(activeWalletRef.current, requestWallet)) {
+      if (!quiet && isCurrentRequest()) {
         setInvitesReady(false);
         setInvitesFailed(true);
         setReferralLinkVerified(false);
