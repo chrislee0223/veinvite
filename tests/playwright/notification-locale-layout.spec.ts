@@ -33,6 +33,23 @@ const EXTRA_STATES = [
   'NOTI-X-PROMO-PAID',
 ] as const;
 
+function isPromotionState(state: string): boolean {
+  return state.startsWith('NOTI-X-PROMO-');
+}
+
+async function openPromotionReceiptIfNeeded(
+  page: Page,
+  state: string,
+) {
+  if (!isPromotionState(state)) return;
+
+  const action = page.locator('.notificationReceiptAction').first();
+  await expect(action).toBeVisible();
+  await action.click();
+  await expect(page.locator('.promotionCard')).toBeVisible();
+}
+
+
 async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
   const panel = page.locator('.notificationHistoryPanel');
   await expect(panel).toBeVisible();
@@ -142,6 +159,7 @@ for (const locale of SUPPORTED_LOCALES) {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
+      await openPromotionReceiptIfNeeded(page, state);
       await verifyNotificationLayout(page, locale);
       // Verify resizing the same real component to a typical phone width.
       await page.setViewportSize(MOBILE);
