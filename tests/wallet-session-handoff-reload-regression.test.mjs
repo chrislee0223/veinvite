@@ -55,7 +55,7 @@ test('home auto-recovery is bounded and never retries a rejected authentication 
   assert.match(files.startupLoader,/setInvitesFailed\(false\);\s*setReferralLinkFailed\(false\);\s*void load\(\)/);
   assert.match(files.referral,/idempotent "ensure link"/);
   assert.match(files.shield,/STARTUP_RECOVERY_MS = 18_000/);
-  assert.match(files.shield,/STARTUP_ERROR_GRACE_MS = 2_500/);
+  assert.match(files.shield,/STARTUP_ERROR_GRACE_MS = 3_500/);
   assert.match(files.shield,/clearStartupErrorTimer\(\)/);
   assert.match(files.shield,/if \(released \|\| hasInteractiveStartupGate\(\)\)/);
 });
