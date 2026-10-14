@@ -2,32 +2,67 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const receipt = await readFile(
+const receiptView = await readFile(
   new URL('../src/components/RewardReceiptView.tsx', import.meta.url),
   'utf8',
 );
+const actions = await readFile(
+  new URL(
+    '../src/components/RewardReceiptXPromotionActions.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
-test('reward receipt loads the wallet-bound X promotion state', () => {
+test('core reward receipt isolates X promotion behavior in a child component', () => {
   assert.match(
-    receipt,
+    receiptView,
+    /<RewardReceiptXPromotionActions/,
+  );
+  assert.doesNotMatch(
+    receiptView,
+    /\/api\/rewards\/x-promotion/,
+  );
+  assert.doesNotMatch(
+    receiptView,
+    /reward_x_promotion_enabled|reward_x_promotion_payout_enabled/,
+  );
+});
+
+test('reward receipt action loads the wallet-bound X promotion state', () => {
+  assert.match(
+    actions,
     /\/api\/rewards\/x-promotion\?inviteCode=/,
   );
-  assert.match(receipt, /cache: 'no-store'/);
+  assert.match(actions, /cache: 'no-store'/);
+  assert.match(
+    actions,
+    /notifyRewardClaimSessionInvalid/,
+  );
 });
 
 test('OPEN promotion share uses the server-issued xp token', () => {
-  assert.match(receipt, /url\.searchParams\.set\([\s\S]*'xp'/);
-  assert.match(receipt, /promotion\?\.state === 'OPEN'/);
-  assert.match(receipt, /promotionShareIntentUrl/);
+  assert.match(
+    actions,
+    /url\.searchParams\.set\([\s\S]*'xp'/,
+  );
+  assert.match(
+    actions,
+    /promotion\?\.state === 'OPEN'/,
+  );
+  assert.match(
+    actions,
+    /promotionShareIntentUrl/,
+  );
 });
 
 test('reward receipt submits only the user-entered X Post URL to the verification API', () => {
   assert.match(
-    receipt,
+    actions,
     /fetch\([\s\S]*'\/api\/rewards\/x-promotion\/submit'/,
   );
   assert.match(
-    receipt,
+    actions,
     /JSON\.stringify\(\{[\s\S]*inviteCode,[\s\S]*postUrl: postUrl\.trim\(\)/,
   );
 });
@@ -44,35 +79,53 @@ test('promotion UI preserves all durable lifecycle states', () => {
     'EXPIRED',
     'RELEASED',
   ]) {
-    assert.match(receipt, new RegExp(`'${state}'`));
+    assert.match(
+      actions,
+      new RegExp(`'${state}'`),
+    );
   }
 });
 
 test('promotion UI does not mutate payout or runtime authority', () => {
   assert.doesNotMatch(
-    receipt,
+    actions,
     /reward_x_promotion_enabled\s*=|reward_x_promotion_payout_enabled\s*=/,
   );
   assert.doesNotMatch(
-    receipt,
+    actions,
     /reward_queue_entries|reward_payouts|reward_receipts/,
   );
 });
 
-test('generic X sharing remains available when no active promotion exists', () => {
-  assert.match(receipt, /showGenericShare/);
-  assert.match(receipt, /rewardShareIntentUrl/);
-});
-
-
-test('generic sharing stays hidden until promotion lookup succeeds', () => {
-  assert.match(receipt, /promotionLookupSucceeded/);
+test('generic sharing stays fail-closed until promotion lookup succeeds', () => {
+  assert.match(actions, /lookupSucceeded/);
   assert.match(
-    receipt,
-    /\(promotionLookupSucceeded && !promotion\)/,
+    actions,
+    /lookupSucceeded &&[\s\S]*!promotion/,
   );
   assert.match(
-    receipt,
-    /setPromotionLookupSucceeded\(true\)/,
+    actions,
+    /setLookupSucceeded\(true\)/,
+  );
+});
+
+test('OPEN promotion never falls back to an untagged generic share link', () => {
+  assert.match(
+    actions,
+    /promotion\.state === 'PAID'[\s\S]*promotion\.state === 'EXPIRED'[\s\S]*promotion\.state === 'RELEASED'/,
+  );
+  assert.match(
+    actions,
+    /shareUnavailable/,
+  );
+});
+
+test('post URL input uses a per-instance id and session failures reuse wallet auth recovery', () => {
+  assert.match(actions, /const inputId = useId\(\)/);
+  assert.match(actions, /htmlFor=\{inputId\}/);
+  assert.match(actions, /id=\{inputId\}/);
+  assert.match(
+    actions,
+    /response\.status === 401[\s\S]*response\.status === 403[\s\S]*notifyRewardClaimSessionInvalid\(\)/,
   );
 });
