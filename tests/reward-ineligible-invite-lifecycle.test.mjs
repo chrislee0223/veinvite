@@ -192,7 +192,7 @@ test('terminal rejection acknowledgement refreshes stale Home invite state witho
   assert.match(homeClient, /HOME_DATA_REFRESH_REQUESTED_EVENT/u);
   assert.match(
     homeClient,
-    /const refreshHomeData = \(\) => \{\s*void load\(true\);/u,
+    /const refreshHomeData = \(event: Event\) => \{[\s\S]*void load\(!manualRetry, manualRetry\);/u,
   );
 });
 
