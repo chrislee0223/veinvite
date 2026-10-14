@@ -34,7 +34,7 @@ type PromotionState =
   | 'EXPIRED'
   | 'RELEASED';
 
-type PromotionView = {
+export type RewardXPromotionPreview = {
   inviteCode: string;
   state: PromotionState;
   amountWei: string;
@@ -49,7 +49,7 @@ type PromotionView = {
 };
 
 type PromotionResponse = {
-  promotion?: PromotionView | null;
+  promotion?: RewardXPromotionPreview | null;
   error?: string;
 };
 
@@ -152,7 +152,7 @@ async function readJson<T>(
 async function loadPromotion(
   inviteCode: string,
   signal?: AbortSignal,
-): Promise<PromotionView | null> {
+): Promise<RewardXPromotionPreview | null> {
   const response = await fetch(
     `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
     {
@@ -188,16 +188,18 @@ export function RewardReceiptXPromotionActions({
   receipt,
   rewardShareUrl,
   onRewardShare,
+  previewPromotion,
 }: {
   locale: SupportedLocale;
   receipt: RewardReceipt;
   rewardShareUrl: string;
   onRewardShare?: (intentUrl: string) => void;
+  previewPromotion?: RewardXPromotionPreview | null;
 }) {
   const copy = promotionCopy(locale);
   const inputId = useId();
   const [promotion, setPromotion] =
-    useState<PromotionView | null>(null);
+    useState<RewardXPromotionPreview | null>(null);
   const [lookupSucceeded, setLookupSucceeded] =
     useState(false);
   const [loading, setLoading] =
@@ -212,6 +214,16 @@ export function RewardReceiptXPromotionActions({
 
   useEffect(() => {
     requestRef.current += 1;
+
+    if (previewPromotion !== undefined) {
+      setPromotion(previewPromotion);
+      setLookupSucceeded(true);
+      setLoading(false);
+      setError('');
+      setPostUrl('');
+      setSubmitting(false);
+      return;
+    }
     const requestId = requestRef.current;
     const controller = new AbortController();
 
@@ -257,6 +269,7 @@ export function RewardReceiptXPromotionActions({
     receipt.id,
     receipt.inviteCode,
     copy.retry,
+    previewPromotion,
   ]);
 
   const promotionShareUrl = useMemo(
@@ -311,6 +324,7 @@ export function RewardReceiptXPromotionActions({
 
   const submitPost = async () => {
     if (
+      previewPromotion !== undefined ||
       submitting ||
       !postUrl.trim()
     ) {
