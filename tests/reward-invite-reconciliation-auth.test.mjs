@@ -30,6 +30,10 @@ const inviterRefresh = readFileSync(
   ),
   'utf8',
 );
+const homeClient = readFileSync(
+  new URL('../src/components/HomeClient.tsx', import.meta.url),
+  'utf8',
+);
 
 test('mission reconciliation requires an authenticated referral owner before consuming shared sync budget', () => {
   assert.match(inviteRoute, /requireWalletSession/u);
@@ -55,14 +59,18 @@ test('mission reconciliation requires an authenticated referral owner before con
   assert.ok(reconciliation > syncRateLimit);
 });
 
-test('inviter home can perform only its authenticated low-frequency recovery sync', () => {
+test('inviter Home is the sole low-frequency client reconciler; passive poll cannot cause payouts', () => {
   assert.match(homePage, /<WalletSessionGate/u);
   assert.match(homePage, /<InviteStatusAutoRefresh \/>/u);
-  assert.match(inviterRefresh, /const EVIDENCE_SYNC_INTERVAL_MS = 5 \* 60_000/u);
-  assert.match(inviterRefresh, /evidenceSyncCandidate/u);
-  assert.match(inviterRefresh, /method: 'POST'/u);
-  assert.match(inviterRefresh, /credentials: 'same-origin'/u);
-  assert.match(inviterRefresh, /lastEvidenceSyncRef\.current = \{/u);
+  assert.doesNotMatch(inviterRefresh, /method:\s*'POST'/u);
+  assert.match(inviterRefresh, /const POLL_INTERVAL_MS = 30_000/u);
+  assert.match(homeClient, /const EVIDENCE_REFRESH_MS = 120_000/u);
+  assert.match(homeClient, /acceptedActiveInvites\.slice\(0, 2\)/u);
+  assert.match(homeClient, /for \(const invite of dueInvites\)/u);
+  assert.match(homeClient, /method: 'POST'/u);
+  assert.match(homeClient, /credentials: 'same-origin'/u);
+  assert.match(homeClient, /signal: AbortSignal\.timeout\(15_000\)/u);
+  assert.match(homeClient, /evidenceSyncAttemptRef\.current\.set\(key, Date\.now\(\)\)/u);
 });
 
 test('shared-network headroom grows without weakening per-invite reconciliation limits', () => {
