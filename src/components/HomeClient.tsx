@@ -166,7 +166,13 @@ export function HomeClient() {
   });
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    // Hardened wallet WebViews can deny storage even when JavaScript works.
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    } catch {
+      // Keep the browser locale; preferences cannot block Home startup.
+    }
     const initialLocale = isLocale(saved)
       ? saved
       : resolveBrowserLocale(window.navigator.languages, 'en');
@@ -192,12 +198,21 @@ export function HomeClient() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = searchParams.get('_vercel_share');
-    const storedToken = window.sessionStorage.getItem(
-      VERCEL_SHARE_STORAGE_KEY,
-    );
+    let storedToken: string | null = null;
+    try {
+      storedToken = window.sessionStorage.getItem(
+        VERCEL_SHARE_STORAGE_KEY,
+      );
+    } catch {
+      // The query token remains usable without session persistence.
+    }
     const token = tokenFromUrl ?? storedToken ?? '';
     if (!token) return;
-    window.sessionStorage.setItem(VERCEL_SHARE_STORAGE_KEY, token);
+    try {
+      window.sessionStorage.setItem(VERCEL_SHARE_STORAGE_KEY, token);
+    } catch {
+      // An inaccessible storage backend is not a login failure.
+    }
     setVercelShareToken(token);
   }, []);
 
@@ -251,7 +266,11 @@ export function HomeClient() {
   const changeLocale = (nextLocale: SupportedLocale) => {
     clearFeedback();
     setLocale(nextLocale);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    } catch {
+      // Language remains changeable for this page session.
+    }
     document.documentElement.lang = nextLocale;
     window.dispatchEvent(
       new CustomEvent('veinvite-language-change', {
