@@ -405,3 +405,46 @@ test('18-second watchdog does not forcibly release an incomplete Home', async ()
     /fallbackTimer\s*=\s*window\.setTimeout\(\s*release\s*,/s,
   );
 });
+
+
+test('Home Retry waits through the full automatic backoff instead of flashing error', async () => {
+  const [shield, loader] = await Promise.all([
+    readFile(new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url), 'utf8'),
+  ]);
+  const grace = Number(shield.match(/STARTUP_ERROR_GRACE_MS = ([\\d_]+)/)?.[1]?.replaceAll('_', ''));
+  const backoffs = loader.match(/const retryDelays = \\[([\\d, ]+)\\]/)?.[1]
+    .split(',')
+    .map((value) => Number(value.trim()));
+  assert.ok(Number.isFinite(grace));
+  assert.ok(backoffs?.length);
+  assert.ok(grace > Math.max(...backoffs), 'Error screen must outlast the longest retry backoff');
+  assert.match(shield, /if \\(status === 'loading' && startupErrorTimer\\)/);
+  assert.match(shield, /clearStartupErrorTimer\\(\\)/);
+  assert.match(shield, /armFallbackTimer\\(\\)/);
+});
+
+test('stale overlapping Home reads cannot overwrite a newer wallet-scoped refresh', async () => {
+  const loader = await readFile(
+    new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(loader, /const requestGenerationRef = useRef\\(0\\)/);
+  assert.match(loader, /const requestGeneration = \\+\\+requestGenerationRef\\.current/);
+  assert.match(loader, /const isCurrentRequest = \\(\\) =>[\\s\\S]*sameWallet\\(activeWalletRef\\.current, requestWallet\\)[\\s\\S]*requestGenerationRef\\.current === requestGeneration/);
+  assert.match(loader, /if \\(!isCurrentRequest\\(\\)\\) return;/);
+  assert.match(loader, /if \\(!quiet && isCurrentRequest\\(\\)\\)/);
+  assert.match(loader, /if \\(inviteResponse\\.status < 500\\)/);
+  assert.match(loader, /if \\(linkResponse\\.status < 500\\)/);
+});
+
+test('background invite polling and Home preferences fail safely on slow or restricted browsers', async () => {
+  const [poller, home] = await Promise.all([
+    readFile(new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.equal((poller.match(/signal: AbortSignal\\.timeout\\(10_000\\)/g) ?? []).length, 2);
+  assert.match(home, /try \\{[\\s\\S]*window\\.localStorage\\.getItem\\(LANGUAGE_STORAGE_KEY\\)[\\s\\S]*\\} catch \\{/);
+  assert.match(home, /try \\{[\\s\\S]*window\\.sessionStorage\\.getItem\\([\\s\\S]*\\} catch \\{/);
+  assert.match(home, /window\\.localStorage\\.setItem\\(LANGUAGE_STORAGE_KEY, nextLocale\\)/);
+});
