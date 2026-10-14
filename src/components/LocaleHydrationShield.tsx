@@ -381,7 +381,12 @@ function LocaleHydrationShieldRuntime() {
             onClick={() => {
               const homeStatus =
                 document.documentElement.dataset.veinviteHomeStartupStatus;
-              if (homeStatus === 'error') {
+              const homeWallet =
+                document.documentElement.dataset.veinviteHomeStartupWallet;
+              if (
+                homeWallet &&
+                (homeStatus === 'error' || homeStatus === 'loading')
+              ) {
                 // Recover the two authoritative Home reads in place instead
                 // of repeating server bootstrap and wallet-provider startup.
                 // The Home loader still checks the active wallet and keeps
