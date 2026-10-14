@@ -49,7 +49,7 @@ test('mission reconciliation requires an authenticated referral owner before con
   const rowLoad = inviteRoute.indexOf('row = await loadInvitation(normalizedCode)', postStart);
   const walletMatch = inviteRoute.indexOf('const sessionOwnsReferral', postStart);
   const syncRateLimit = inviteRoute.indexOf("mode: 'sync'", postStart);
-  const reconciliation = inviteRoute.indexOf('syncInvitationEvidence(row)', postStart);
+  const reconciliation = inviteRoute.indexOf('syncInvitationEvidence(current)', postStart);
 
   assert.ok(postStart >= 0);
   assert.ok(authStart > postStart);
@@ -98,4 +98,52 @@ test('passive invite reads stay public but reveal details only to the verified r
   assert.match(inviteRoute, /row\.invitee_wallet\?\.toLowerCase\(\)/u);
   assert.match(invitePage, /<WalletSessionGate(?:\s|>)/u);
   assert.match(invitePage, /<InviteeClient code=\{normalizedCode\} \/>/u);
+});
+
+test('same-invite sync has a distributed per-code lease after authenticated ownership and rate limiting', () => {
+  const post = inviteRoute.slice(inviteRoute.indexOf('export async function POST'));
+  const auth = post.indexOf('requireWalletSession({ request })');
+  const owner = post.indexOf('if (!sessionOwnsReferral)');
+  const throttle = post.indexOf("mode: 'sync'");
+  const acquire = post.indexOf("await supabaseAdmin.rpc('try_acquire_operator_lock'");
+  const rescan = post.indexOf('const current = await loadInvitation(normalizedCode)');
+  const sync = post.indexOf('syncInvitationEvidence(current)');
+  const release = post.indexOf("await supabaseAdmin.rpc('release_operator_lock'");
+  const payout = post.indexOf('await runAutomaticRewardPayout()');
+  assert.ok(auth >= 0 && owner > auth);
+  assert.ok(throttle > owner && acquire > throttle);
+  assert.ok(rescan > acquire && sync > rescan);
+  assert.ok(release > sync && payout > release);
+  assert.match(post, /invite_evidence_sync:/u);
+  assert.match(post, /const ownerToken = randomUUID\(\)/u);
+  assert.match(post, /p_lease_seconds: INVITE_SYNC_LOCK_SECONDS/u);
+  assert.match(post, /if \(acquired !== true\) \{[\s\S]*status: 409/u);
+  assert.match(post, /'Retry-After': '15'/u);
+  assert.match(post, /try \{[\s\S]*synced = await syncInvitationEvidence\(current\);[\s\S]*\} finally \{/u);
+  assert.match(post, /p_owner_token: ownerToken/u);
+});
+
+test('operator Sybil decisions cannot be overwritten by a stale post-vote scan', () => {
+  const source = readFileSync(
+    new URL('../src/lib/impact/syncInvitation.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /\.eq\('sybil_status', 'CLEAR'\)/u);
+  assert.match(source, /\.eq\('sybil_checked_at', existingSybilCheckedAt\)/u);
+  assert.match(source, /\.eq\('sybil_status', row\.sybil_status\)/u);
+  assert.match(source, /\.eq\('status', row\.status\)/u);
+  assert.match(source, /expectedCheckedAt === null[\s\S]*\.is\('sybil_checked_at', null\)/u);
+  assert.match(source, /updateVerdict\.eq\('sybil_checked_at', expectedCheckedAt\)/u);
+  assert.match(source, /row = await reloadConcurrentInvitationVerdict\(row\.invite_code\)/u);
+  assert.match(source, /impactCheckpointSaved = false/u);
+});
+
+test('Home HTTP 429 and authorization failures cannot hot-loop automatic retries', () => {
+  const loader = readFileSync(
+    new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url), 'utf8',
+  );
+  assert.match(loader, /if \(inviteResponse\.status < 500\) \{[\s\S]*startupRetryAllowedRef\.current = false/u);
+  assert.match(loader, /if \(linkResponse\.status < 500\) \{[\s\S]*startupRetryAllowedRef\.current = false/u);
+  assert.match(loader, /!startupRetryAllowedRef\.current \|\|/u);
+  assert.match(loader, /const retryDelays = \[650, 1500, 3000\]/u);
 });

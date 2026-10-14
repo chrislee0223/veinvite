@@ -531,6 +531,6 @@ test('Home evidence sync respects existing payout authorization and cannot chang
   assert.match(endpoint, /const session = await requireWalletSession\(\{ request \}\)/);
   assert.match(endpoint, /if \(!sessionOwnsReferral\)/);
   assert.match(endpoint, /await enforceInviteRateLimit\(/);
-  assert.match(endpoint, /await syncInvitationEvidence\(row\)/);
+  assert.match(endpoint, /await syncInvitationEvidence\(current\)/);
   assert.match(endpoint, /await runAutomaticRewardPayout\(\)/);
 });

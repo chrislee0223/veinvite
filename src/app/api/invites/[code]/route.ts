@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   NextRequest,
   NextResponse,
@@ -33,6 +34,8 @@ const INVITE_READ_IP_LIMIT = 7200;
 const INVITE_SYNC_CODE_LIMIT = 240;
 const INVITE_SYNC_IP_LIMIT = 2400;
 const INVITE_WINDOW_SECONDS = 60 * 60;
+// Distributed per-invite lease. Browser timeouts do not cancel server work.
+const INVITE_SYNC_LOCK_SECONDS = 180;
 
 const invitationColumns = `
   invite_code,
@@ -593,15 +596,52 @@ export async function POST(
   if (syncRateLimitResponse) return syncRateLimitResponse;
 
   try {
-    if (row.ineligibility_check_id !== null) {
-      return closedIneligibleInviteResponse();
-    }
-    if (await isVerifiedLegacyIneligibleInvitation(row)) {
-      return legacyIneligibleInviteResponse();
+    const lockName = `invite_evidence_sync:${normalizedCode}`;
+    const ownerToken = randomUUID();
+    const { data: acquired, error: lockError } =
+      await supabaseAdmin.rpc('try_acquire_operator_lock', {
+        p_lock_name: lockName,
+        p_owner_token: ownerToken,
+        p_lease_seconds: INVITE_SYNC_LOCK_SECONDS,
+      });
+    if (lockError) throw lockError;
+
+    if (acquired !== true) {
+      // Another verified caller is reconciling the same invitation.
+      // Do not run a second expensive chain scan or payout side effect.
+      return NextResponse.json(
+        { error: 'Invitation verification is already in progress.' },
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store', 'Retry-After': '15' },
+        },
+      );
     }
 
-    const synced =
-      await syncInvitationEvidence(row);
+    let synced: Awaited<ReturnType<typeof syncInvitationEvidence>>;
+    try {
+      // The previous row was loaded before the distributed lock. Reload
+      // under the lease so an operator's intervening verdict is respected.
+      const current = await loadInvitation(normalizedCode);
+      if (!current) return invalidInviteResponse();
+      if (current.ineligibility_check_id !== null) {
+        return closedIneligibleInviteResponse();
+      }
+      if (await isVerifiedLegacyIneligibleInvitation(current)) {
+        return legacyIneligibleInviteResponse();
+      }
+      synced = await syncInvitationEvidence(current);
+    } finally {
+      const { error: releaseError } =
+        await supabaseAdmin.rpc('release_operator_lock', {
+          p_lock_name: lockName,
+          p_owner_token: ownerToken,
+        });
+      if (releaseError) {
+        // A failed release stays locked only until the bounded lease expires.
+        console.error('Invitation verification lease release failed:', releaseError);
+      }
+    }
 
     // Once immutable on-chain evidence has promoted the referral to a verified
     // completed/eligible state, make one fail-closed automatic payout attempt.
