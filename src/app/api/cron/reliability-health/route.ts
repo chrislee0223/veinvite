@@ -29,21 +29,29 @@ export async function GET(request: NextRequest) {
       { status: 503, headers: { 'Cache-Control': 'no-store' } },
     );
   }
-  if (!supplied || supplied.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+  const suppliedBytes = Buffer.from(supplied ?? '');
+  const expectedBytes = Buffer.from(expected);
+  if (!supplied || suppliedBytes.length !== expectedBytes.length ||
+      !timingSafeEqual(suppliedBytes, expectedBytes)) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401, headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('cron_job_states')
-    .select('job_name,last_succeeded_at')
-    .in('job_name', MONITORED_JOBS.map((job) => job.name))
-    .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+  let rows: Array<{ job_name: string; last_succeeded_at: string | null }> = [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('cron_job_states')
+      .select('job_name,last_succeeded_at')
+      .in('job_name', MONITORED_JOBS.map((job) => job.name))
+      .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
 
-  if (error) {
+    if (error) {
+      throw new Error(error.message);
+    }
+    rows = data ?? [];
+  } catch (error) {
     console.error('VeInvite reliability check could not read cron states:', error);
     return NextResponse.json(
       { error: 'CRON_HEALTH_DB_UNAVAILABLE' },
@@ -51,8 +59,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const lastSuccess = new Map(
-    (data ?? []).map((row) => [row.job_name, row.last_succeeded_at]),
+  const lastSuccess = new Map<string, string | null>(
+    rows.map((row) => [row.job_name, row.last_succeeded_at]),
   );
   const now = Date.now();
   const staleJobs = MONITORED_JOBS.filter(({ name, maxAgeMinutes }) => {
