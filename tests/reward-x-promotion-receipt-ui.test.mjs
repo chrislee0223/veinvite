@@ -63,3 +63,16 @@ test('generic X sharing remains available when no active promotion exists', () =
   assert.match(receipt, /showGenericShare/);
   assert.match(receipt, /rewardShareIntentUrl/);
 });
+
+
+test('generic sharing stays hidden until promotion lookup succeeds', () => {
+  assert.match(receipt, /promotionLookupSucceeded/);
+  assert.match(
+    receipt,
+    /\(promotionLookupSucceeded && !promotion\)/,
+  );
+  assert.match(
+    receipt,
+    /setPromotionLookupSucceeded\(true\)/,
+  );
+});
