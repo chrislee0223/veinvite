@@ -11,6 +11,10 @@ import {
   buildVeBetterRoundReportPosts,
   normalizeVeBetterRoundReport,
 } from '@/lib/reporting/veBetterRoundReport';
+import {
+  addPaidXPromotionToVeBetterRoundReport,
+  readRewardXPromotionReportingTotals,
+} from '@/lib/reporting/rewardXPromotionReporting';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -160,8 +164,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const report = normalizeVeBetterRoundReport(data);
-    const posts = buildVeBetterRoundReportPosts(report);
+    const baseReport =
+      normalizeVeBetterRoundReport(data);
+    const promotionTotals =
+      await readRewardXPromotionReportingTotals({
+        network: pool.network,
+        appId: pool.appId,
+        currentAllocationReceiptId:
+          baseReport.allocationReceiptId,
+      });
+    const report =
+      addPaidXPromotionToVeBetterRoundReport(
+        baseReport,
+        promotionTotals,
+      );
+    const posts =
+      buildVeBetterRoundReportPosts(report);
 
     return NextResponse.json(
       {
