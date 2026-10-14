@@ -52,6 +52,10 @@
       "schedule": "17 0 * * *"
     },
     {
+      "path": "/api/cron/reconcile-retry",
+      "schedule": "17 3 * * *"
+    },
+    {
       "path": "/api/cron/vote-reconcile",
       "schedule": "* * * * *"
     },
@@ -62,6 +66,10 @@
     {
       "path": "/api/cron/analytics-maintenance",
       "schedule": "47 0 * * *"
+    },
+    {
+      "path": "/api/cron/analytics-maintenance-retry",
+      "schedule": "47 3 * * *"
     },
     {
       "path": "/api/cron/sybil-post-vote-observation",
