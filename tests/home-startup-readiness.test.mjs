@@ -371,7 +371,8 @@ test('an actual Home load failure can be retried without losing the wallet sessi
     'utf8',
   );
 
-  assert.match(shield, /if \(homeStatus === 'error'\)/);
+  assert.match(shield, /homeStatus === 'error' \|\| homeStatus === 'loading'/);
+  assert.match(shield, /homeWallet/);
   assert.match(shield, /new CustomEvent\('veinvite-home-data-refresh-requested'/);
   assert.match(shield, /new Event\(APP_LOADING_EVENT\)/);
   assert.match(shield, /window\.location\.reload\(\)/);
