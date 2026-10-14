@@ -253,10 +253,11 @@ export function RestrictedApprovedRewardClaims({
         const pending =
           claimPendingCode === action.inviteCode;
         const amount =
-          formatB3trWei(
-            action.claimAmountWei ??
-              action.reservedAmountWei,
-          );
+          action.claimAmountWei
+            ? formatB3trWei(
+                action.claimAmountWei,
+              )
+            : null;
         const promotionAmount =
           action.promotionAmountWei &&
           /^\d+$/u.test(action.promotionAmountWei) &&
@@ -299,7 +300,9 @@ export function RestrictedApprovedRewardClaims({
                   fontSize: '0.98rem',
                 }}
               >
-                {amount} B3TR
+                {amount
+                  ? `${amount} B3TR`
+                  : copy.finalCheck}
               </strong>
               {promotionAmount ? (
                 <span
