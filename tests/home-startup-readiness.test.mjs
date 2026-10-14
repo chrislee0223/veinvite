@@ -362,7 +362,7 @@ test('background invite changes refresh Home without restarting the wallet sessi
   assert.match(poller, /if \(detail\.success === true\) \{/);
   assert.doesNotMatch(poller, /window\.location\.reload\(\)/);
   assert.match(home, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
-  assert.match(home, /void load\(!manualRetry, manualRetry\)/);
+  assert.match(home, /void load\(!manualRetry, manualRetry\)\.then/);
 });
 
 test('an actual Home load failure can be retried without losing the wallet session', async () => {
