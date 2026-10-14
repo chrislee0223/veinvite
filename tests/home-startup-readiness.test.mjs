@@ -436,7 +436,7 @@ test('stale overlapping Home reads cannot overwrite a newer wallet-scoped refres
   assert.match(loader, /const requestGenerationRef = useRef\(0\)/);
   assert.match(loader, /const requestGeneration = \+\+requestGenerationRef\.current/);
   assert.match(loader, /const isCurrentRequest = \(\) =>[\s\S]*sameWallet\(activeWalletRef\.current, requestWallet\)[\s\S]*requestGenerationRef\.current === requestGeneration/);
-  assert.match(loader, /if \(!isCurrentRequest\(\)\) return;/);
+  assert.match(loader, /if \(!isCurrentRequest\(\)\) return false;/);
   assert.match(loader, /if \(!quiet && isCurrentRequest\(\)\)/);
   assert.match(loader, /if \(inviteResponse\.status < 500\)/);
   assert.match(loader, /if \(linkResponse\.status < 500\)/);
