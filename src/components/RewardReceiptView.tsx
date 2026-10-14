@@ -191,6 +191,8 @@ export function RewardReceiptView({
     useState(false);
   const [promotionError, setPromotionError] =
     useState('');
+  const [promotionLookupSucceeded, setPromotionLookupSucceeded] =
+    useState(false);
   const [postUrl, setPostUrl] = useState('');
   const [submittingPost, setSubmittingPost] =
     useState(false);
@@ -218,6 +220,7 @@ export function RewardReceiptView({
       promotionRequestRef.current;
     setPromotion(null);
     setPromotionError('');
+    setPromotionLookupSucceeded(false);
     setPostUrl('');
     setSubmittingPost(false);
 
@@ -238,6 +241,7 @@ export function RewardReceiptView({
           promotionRequestRef.current === requestId
         ) {
           setPromotion(next);
+          setPromotionLookupSucceeded(true);
         }
       })
       .catch((promotionLoadError) => {
@@ -405,10 +409,10 @@ export function RewardReceiptView({
       'SUBMISSION_GRACE';
 
   const showGenericShare =
-    !promotion ||
-    promotion.state === 'PAID' ||
-    promotion.state === 'EXPIRED' ||
-    promotion.state === 'RELEASED';
+    (promotionLookupSucceeded && !promotion) ||
+    promotion?.state === 'PAID' ||
+    promotion?.state === 'EXPIRED' ||
+    promotion?.state === 'RELEASED';
 
   const promotionStatusText =
     promotion?.state === 'OPEN'
