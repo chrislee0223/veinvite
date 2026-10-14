@@ -5,7 +5,10 @@ import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { getVeChainExplorerTransactionUrl } from '@/lib/vechainExplorer';
-import { RewardReceiptXPromotionActions } from './RewardReceiptXPromotionActions';
+import {
+  RewardReceiptXPromotionActions,
+  type RewardXPromotionPreview,
+} from './RewardReceiptXPromotionActions';
 
 function shortTx(value: string): string {
   if (value.length < 18) return value;
@@ -19,6 +22,7 @@ export function RewardReceiptView({
   error,
   rewardShareUrl = '',
   onRewardShare,
+  previewPromotion,
 }: {
   locale: SupportedLocale;
   receipt: RewardReceipt | null;
@@ -26,6 +30,7 @@ export function RewardReceiptView({
   error: string;
   rewardShareUrl?: string;
   onRewardShare?: (intentUrl: string) => void;
+  previewPromotion?: RewardXPromotionPreview | null;
 }) {
   const structure = NOTIFICATION_HISTORY_COPY[locale];
   const copy = REWARD_RECEIPT_COPY[locale];
@@ -82,6 +87,7 @@ export function RewardReceiptView({
             receipt={receipt}
             rewardShareUrl={rewardShareUrl}
             onRewardShare={onRewardShare}
+            previewPromotion={previewPromotion}
           />
 
           {error ? (
