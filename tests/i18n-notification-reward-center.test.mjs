@@ -20,6 +20,7 @@ const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
 const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
+const rewardPromotionActions = read('src/components/RewardReceiptXPromotionActions.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const rootLayout = read('src/app/layout.tsx');
 const legacyInvitePage = read('src/app/i/[code]/page.tsx');
@@ -165,16 +166,17 @@ test('reward adjustment and paid copy cover every supported locale', () => {
 test('paid reward receipt shares the verified permanent invite link on X', () => {
   assert.match(center, /rewardShareUrl/);
   assert.match(center, /<RewardReceiptView/);
-  assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
-  assert.match(rewardReceiptView, /className="notificationXShare"/);
-  assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
+  assert.match(rewardReceiptView, /<RewardReceiptXPromotionActions/);
+  assert.match(rewardPromotionActions, /rewardReceiptXIntentUrl/);
+  assert.match(rewardPromotionActions, /className="genericShare"/);
+  assert.match(rewardPromotionActions, /window\.open\(\s*intentUrl/);
   assert.match(rewardPaidTransient, /buildProductionSharePageUrl/);
   assert.match(
     rewardPaidTransient,
     /amountB3tr: payload\.amountB3tr/,
   );
   assert.match(
-    rewardReceiptView,
+    rewardPromotionActions,
     /amountB3tr: receipt\.amountB3tr/,
   );
   assert.doesNotMatch(rewardPaidTransient, /262\.97/);
