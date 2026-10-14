@@ -126,7 +126,7 @@ test('post URL input uses a per-instance id and session failures reuse wallet au
   assert.match(actions, /id=\{inputId\}/);
   assert.match(
     actions,
-    /response\.status === 401[\s\S]*response\.status === 403[\s\S]*notifyRewardClaimSessionInvalid\(\)/,
+    /response\.status === 401[\s\S]*notifyRewardClaimSessionInvalid\(\)/,
   );
 });
 
@@ -150,5 +150,13 @@ test('production reward receipt accepts only an optional preview injection', () 
   assert.match(
     receiptView,
     /previewPromotion=\{previewPromotion\}/,
+  );
+});
+
+
+test('promotion 403 responses do not invalidate a valid wallet session', () => {
+  assert.doesNotMatch(
+    actions,
+    /response\.status === 401\s*\|\|\s*response\.status === 403/,
   );
 });
