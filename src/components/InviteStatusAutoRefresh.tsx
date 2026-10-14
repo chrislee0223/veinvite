@@ -130,7 +130,7 @@ export function InviteStatusAutoRefresh() {
     checkingRef.current = requestWallet;
 
     try {
-      let data = await loadInvites();
+      const data = await loadInvites();
 
       if (
         !data ||
@@ -140,7 +140,6 @@ export function InviteStatusAutoRefresh() {
       }
 
       const now = Date.now();
-      if (activeWalletRef.current !== requestWallet) return;
 
       const fingerprint =
         invitationsFingerprint(data.invites);
