@@ -116,3 +116,20 @@ test('maintenance performs external readiness before lifecycle and payout work',
     /status:[\s\S]*externalReadiness\.ok[\s\S]*lifecycle\.ok/,
   );
 });
+
+
+test('external readiness bounds every Supabase wait', () => {
+  assert.match(
+    runtime,
+    /EXTERNAL_READINESS_DB_TIMEOUT_MS\s*=\s*8_000/,
+  );
+  const timeoutCalls =
+    runtime.match(
+      /\.abortSignal\([\s\S]*?EXTERNAL_READINESS_DB_TIMEOUT_MS[\s\S]*?\)/g,
+    ) ?? [];
+  assert.equal(
+    timeoutCalls.length,
+    3,
+    'insert, runtime gate read, and pause RPC must all have bounded waits',
+  );
+});
