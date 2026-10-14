@@ -117,6 +117,7 @@ export function InviteStatusAutoRefresh() {
       )}`,
       {
         cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
       },
     );
 
@@ -184,6 +185,7 @@ export function InviteStatusAutoRefresh() {
               method: 'POST',
               credentials: 'same-origin',
               cache: 'no-store',
+              signal: AbortSignal.timeout(10_000),
             },
           );
 
