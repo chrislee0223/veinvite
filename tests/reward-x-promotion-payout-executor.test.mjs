@@ -10,6 +10,14 @@ const source = await readFile(
   'utf8',
 );
 
+const payoutRuntime = await readFile(
+  new URL(
+    '../src/lib/rewards/rewardXPromotionPayoutRuntime.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const candidates = await readFile(
   new URL(
     '../src/lib/rewards/rewardXPromotionPayoutCandidates.ts',
@@ -27,8 +35,18 @@ const cron = await readFile(
 );
 
 test('new X promotion signing requires worker, DB LIVE and DB payout gates', () => {
-  assert.match(source, /VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED/);
-  assert.match(source, /VEINVITE_AUTOMATIC_REWARDS_ENABLED/);
+  assert.match(
+    source,
+    /readRewardXPromotionDistributorIdentity/,
+  );
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED/,
+  );
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_AUTOMATIC_REWARDS_ENABLED/,
+  );
   assert.match(
     source,
     /reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_live_started_at/,
@@ -257,4 +275,24 @@ test('committed exact-tx recovery remains before new payout gating', () => {
   assert.ok(recovery > committedLookup);
   assert.ok(runtimeGate > recovery);
   assert.ok(payoutGate > runtimeGate);
+});
+
+
+test('payout executor and readiness share one distributor identity validator', () => {
+  assert.match(
+    source,
+    /readRewardXPromotionDistributorIdentity/,
+  );
+  assert.doesNotMatch(
+    source,
+    /function readDistributorIdentity/,
+  );
+  assert.match(
+    payoutRuntime,
+    /export function readRewardXPromotionDistributorIdentity/,
+  );
+  assert.match(
+    payoutRuntime,
+    /Address\.ofPrivateKey/,
+  );
 });
