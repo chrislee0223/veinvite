@@ -441,17 +441,10 @@ export function RewardReceiptXPromotionActions({
                     : '';
 
   if (loading) {
-    return (
-      <p
-        className="promotionLoading"
-        aria-live="polite"
-      >
-        X Promotion…
-        <style jsx>{`
-          .promotionLoading{margin:12px 0 0;color:#777168;font-size:.59rem}
-        `}</style>
-      </p>
-    );
+    // Stay visually silent until the wallet-bound server state is known.
+    // This avoids exposing Promotion UI while the feature is disabled and
+    // also avoids offering an unsafe generic share before eligibility is known.
+    return null;
   }
 
   return (
