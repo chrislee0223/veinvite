@@ -341,6 +341,7 @@ function fixtureForState(
         unreadCount: 1,
         open: true,
         previewRewardReceipt: QA_REWARD_RECEIPT,
+        previewRewardPromotion: null,
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
       };
