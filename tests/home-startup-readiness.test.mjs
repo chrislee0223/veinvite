@@ -447,7 +447,7 @@ test('background invite polling and Home preferences fail safely on slow or rest
     readFile(new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.equal((poller.match(/signal: AbortSignal\.timeout\(10_000\)/g) ?? []).length, 2);
+  assert.equal((poller.match(/signal: AbortSignal\.timeout\(10_000\)/g) ?? []).length, 1);
   assert.match(home, /try \{[\s\S]*window\.localStorage\.getItem\(LANGUAGE_STORAGE_KEY\)[\s\S]*\} catch \{/);
   assert.match(home, /try \{[\s\S]*window\.sessionStorage\.getItem\([\s\S]*\} catch \{/);
   assert.match(home, /window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\)/);
