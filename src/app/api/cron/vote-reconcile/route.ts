@@ -8,9 +8,9 @@ import {
 } from 'next/server';
 
 import {
-  syncInvitationEvidence,
-  type InvitationEvidenceRow,
+    type InvitationEvidenceRow,
 } from '@/lib/impact/syncInvitation';
+import { reconcileInvitationWithLease } from '@/lib/impact/reconcileInvitationWithLease';
 import {
   markCronJobFailed,
   markCronJobStarted,
@@ -509,7 +509,7 @@ async function reconcileRows(
     for (const row of selectedRows) {
       try {
         const synced =
-          await syncInvitationEvidence(row);
+          await reconcileInvitationWithLease(row.invite_code);
 
         if (
           synced.progress.voteCompleted
