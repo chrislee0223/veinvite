@@ -237,6 +237,17 @@ function LocaleHydrationShieldRuntime() {
         });
       }, STARTUP_ERROR_GRACE_MS);
     };
+    const handleHomeStartupState = (event: Event) => {
+      if (!isHome || released) return;
+      const status =
+        (event as CustomEvent<HomeStartupState>).detail?.status;
+      if (status === 'loading' && startupErrorTimer) {
+        // A bounded Home retry has begun. A previous failed request's
+        // 2.5-second error grace must not cover an in-flight recovery.
+        clearStartupErrorTimer();
+        setState({ status: 'loading' });
+      }
+    };
     const handleProviderReady = () => {
       if (!isHome) {
         release();
