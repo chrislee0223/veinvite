@@ -121,6 +121,10 @@ export function HomeClient() {
   const feedbackIdRef = useRef(0);
   const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
+  // Publish the current wallet before passive effects run. A previous
+  // request must not update Home between account rendering and effect cleanup.
+  activeWalletRef.current = wallet;
+  const evidenceSyncAttemptRef = useRef<Map<string, number>>(new Map());
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
@@ -439,27 +443,61 @@ export function HomeClient() {
     if (!wallet || acceptedActiveInvites.length < 1) return;
 
     let running = false;
+    const requestWallet = wallet;
     const reconcile = async () => {
       if (
         running ||
+        !sameWallet(activeWalletRef.current, requestWallet) ||
         document.visibilityState !== 'visible'
       ) {
         return;
       }
 
+      // Only HomeClient initiates reconciliation. Record attempts before the
+      // request: a timed-out browser fetch may still be running server-side,
+      // where evidence sync can also trigger a protected payout iteration.
+      // Per-wallet/code cooldown survives effect restarts and visibility events.
+      const dueInvites = acceptedActiveInvites.slice(0, 2).filter((invite) => {
+        const key = `${requestWallet}:${invite.code}`;
+        const previous = evidenceSyncAttemptRef.current.get(key) ?? 0;
+        return Date.now() - previous >= EVIDENCE_REFRESH_MS;
+      });
+      if (!dueInvites.length) return;
+
       running = true;
+      let hasSuccessfulSync = false;
       try {
-        await Promise.allSettled(
-          acceptedActiveInvites.slice(0, 2).map((invite) =>
-            fetch(`/api/invites/${invite.code}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: '{}',
-              cache: 'no-store',
-            }),
-          ),
-        );
-        await load(true);
+        // Serialize the two possible invite slots. Do not launch two payout-
+        // capable reconciliation requests in parallel from the same Home.
+        for (const invite of dueInvites) {
+          if (!sameWallet(activeWalletRef.current, requestWallet)) break;
+
+          const key = `${requestWallet}:${invite.code}`;
+          evidenceSyncAttemptRef.current.set(key, Date.now());
+          try {
+            const response = await fetch(
+              `/api/invites/${encodeURIComponent(invite.code)}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                signal: AbortSignal.timeout(15_000),
+              },
+            );
+            if (response.ok) hasSuccessfulSync = true;
+          } catch {
+            // Network timeout only stops this browser's wait; the server may
+            // still finish. The per-invite cooldown prevents immediate repeats.
+          }
+        }
+        if (
+          hasSuccessfulSync &&
+          sameWallet(activeWalletRef.current, requestWallet)
+        ) {
+          await load(true);
+        }
       } finally {
         running = false;
       }
