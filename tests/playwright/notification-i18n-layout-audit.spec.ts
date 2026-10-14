@@ -23,6 +23,13 @@ for (const locale of SUPPORTED_LOCALES) {
         : '.notificationHistoryPanel';
       const surface = page.locator(selector);
       await expect(surface).toBeVisible();
+      // The notification component injects its own stylesheet during hydration.
+      // Wait for the expected scroll CSS before taking layout measurements,
+      // rather than treating a delayed style injection as an overflow bug.
+      const scrollSurface = surface.locator('.notificationHistoryScroll');
+      if (await scrollSurface.count()) {
+        await expect(scrollSurface).toHaveCSS('overflow-y', 'auto', { timeout: 5000 });
+      }
       await page.evaluate(async () => {
         await Promise.race([
           document.fonts.ready,
