@@ -10,6 +10,7 @@ const analytics = read('src/app/api/cron/analytics-maintenance/route.ts');
 const dailyBackup = read('src/app/api/cron/reconcile-retry/route.ts');
 const analyticsBackup = read('src/app/api/cron/analytics-maintenance-retry/route.ts');
 const config = JSON.parse(read('vercel.json'));
+const health = read('src/app/api/cron/reliability-health/route.ts');
 
 test('all reservation paths serialize before reading chain state or pricing', () => {
   assert.match(reservation, /return withRewardReservationSweepLock\([\s\S]*?readFinalizedBlockNumber\(\)/);
@@ -66,4 +67,16 @@ test('reservation retries still fail closed and retain authoritative scheduled r
   assert.match(queue, /RESERVATION_DB_OUTAGE_BACKOFF_SECONDS = 900/);
   assert.match(reservation, /await rewardReservationRuntimeOpen\(network\)/);
   assert.match(reservation, /MAX_REPRICE_ATTEMPTS = 4/);
+});
+
+test('independent monitoring detects missing jobs without performing reward writes', () => {
+  assert.match(health, /CRON_HEALTH_STALE/);
+  assert.match(health, /CRON_HEALTH_DB_UNAVAILABLE/);
+  assert.match(health, /MONITORED_JOBS/);
+  assert.match(health, /timingSafeEqual/);
+  assert.doesNotMatch(health, /reserveEligibleReferralRewards|runAutomaticRewardPayout|runSybilV2AssessmentBatch/);
+  assert.deepEqual(
+    config.crons.find((job) => job.path === '/api/cron/reliability-health'),
+    { path: '/api/cron/reliability-health', schedule: '0 */6 * * *' },
+  );
 });
