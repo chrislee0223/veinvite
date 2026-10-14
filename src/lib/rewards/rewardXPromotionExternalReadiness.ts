@@ -14,6 +14,8 @@ import {
 // on the continued existence of any particular external Post.
 const X_API_READINESS_POST_ID =
   '1228393702244134912';
+const EXTERNAL_READINESS_DB_TIMEOUT_MS =
+  8_000;
 
 type RuntimeCheckStatus =
   | 'READY'
@@ -67,7 +69,12 @@ Promise<RewardXPromotionExternalReadinessResult> {
           lookupStatus:
             lookup.status,
         },
-      });
+      })
+      .abortSignal(
+        AbortSignal.timeout(
+          EXTERNAL_READINESS_DB_TIMEOUT_MS,
+        ),
+      );
 
   if (insertError) {
     throw new Error(
@@ -90,6 +97,11 @@ Promise<RewardXPromotionExternalReadinessResult> {
           'reward_x_promotion_external_verification_ready',
         )
         .eq('id', 1)
+        .abortSignal(
+          AbortSignal.timeout(
+            EXTERNAL_READINESS_DB_TIMEOUT_MS,
+          ),
+        )
         .single();
 
     if (configError) {
@@ -106,9 +118,15 @@ Promise<RewardXPromotionExternalReadinessResult> {
       const {
         data: pauseData,
         error: pauseError,
-      } = await supabaseAdmin.rpc(
-        'pause_reward_x_promotion_external_verification_v1',
-      );
+      } = await supabaseAdmin
+        .rpc(
+          'pause_reward_x_promotion_external_verification_v1',
+        )
+        .abortSignal(
+          AbortSignal.timeout(
+            EXTERNAL_READINESS_DB_TIMEOUT_MS,
+          ),
+        );
 
       if (pauseError) {
         throw new Error(
