@@ -345,6 +345,47 @@ test('referral hydration placeholders have a visual fail-safe', async () => {
   );
 });
 
+test('background invite changes refresh Home without restarting the wallet session', async () => {
+  const poller = await readFile(
+    new URL('../src/components/InviteStatusAutoRefresh.tsx', import.meta.url),
+    'utf8',
+  );
+  const home = await readFile(
+    new URL('../src/components/HomeClient.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(poller, /lastFingerprintRef\.current = fingerprint;[\s\S]*veinvite-home-data-refresh-requested/);
+  assert.doesNotMatch(poller, /window\.location\.reload\(\)/);
+  assert.match(home, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.match(home, /void load\(!manualRetry, manualRetry\)/);
+});
+
+test('an actual Home load failure can be retried without losing the wallet session', async () => {
+  const shield = await readFile(
+    new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),
+    'utf8',
+  );
+  const loader = await readFile(
+    new URL('../src/hooks/useHomeStartupLoader.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(shield, /homeStatus === 'error' \|\| homeStatus === 'loading'/);
+  assert.match(shield, /homeWallet/);
+  assert.match(shield, /new CustomEvent\('veinvite-home-data-refresh-requested'/);
+  assert.match(shield, /new Event\(APP_LOADING_EVENT\)/);
+  assert.match(shield, /HOME_STARTUP_STATE_EVENT/);
+  assert.match(shield, /status === 'loading' && startupErrorTimer/);
+  assert.match(shield, /clearStartupErrorTimer\(\)/);
+  assert.match(shield, /window\.location\.reload\(\)/);
+  assert.match(loader, /if \(manualRetry\) \{/);
+  assert.match(loader, /AbortSignal\.timeout\(10_000\)/);
+  assert.match(loader, /startupRetryAllowedRef\.current = true/);
+  assert.match(loader, /if \(inviteResponse\.status < 500\)/);
+  assert.match(loader, /if \(linkResponse\.status < 500\)/);
+});
+
 test('18-second watchdog does not forcibly release an incomplete Home', async () => {
   const source = await readFile(
     new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url),

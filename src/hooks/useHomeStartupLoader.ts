@@ -39,23 +39,37 @@ export function useHomeStartupLoader({
     startupRetryAllowedRef.current = true;
   }, [wallet]);
 
-  const load = useCallback(async (quiet = false) => {
+  const load = useCallback(async (quiet = false, manualRetry = false) => {
     if (!wallet) return;
     const requestWallet = wallet;
+
+    if (manualRetry) {
+      // User-initiated recovery gets a fresh bounded retry budget. Automatic
+      // retries still never override 401/403/429 authorization decisions.
+      startupRetryAttemptsRef.current = 0;
+      startupRetryAllowedRef.current = true;
+      setInvitesFailed(false);
+      setReferralLinkFailed(false);
+    }
 
     // The authorization failure latch is only rearmed when the wallet changes.
     // A transient automatic retry must never undo a 401/403/429 decision.
 
     try {
+      // A stalled Supabase request must settle before the global 18-second
+      // Home startup watchdog expires. Both reads are recoverable and the
+      // permanent referral-link ensure endpoint is idempotent.
+      const startupRequestSignal = AbortSignal.timeout(10_000);
       const [inviteResult, linkResult] = await Promise.allSettled([
         fetch(
           `/api/invites?inviter=${encodeURIComponent(requestWallet)}`,
-          { cache: 'no-store' },
+          { cache: 'no-store', signal: startupRequestSignal },
         ),
         fetch('/api/referral-links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviterAddress: requestWallet }),
+          signal: startupRequestSignal,
         }),
       ]);
 

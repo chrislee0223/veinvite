@@ -10,6 +10,8 @@ import { usePathname } from 'next/navigation';
 import { Brand } from './Brand';
 import {
   APP_STARTUP_ERROR_EVENT,
+  HOME_STARTUP_STATE_EVENT,
+  type HomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import {
   LANGUAGE_STORAGE_KEY,
@@ -235,6 +237,21 @@ function LocaleHydrationShieldRuntime() {
         });
       }, STARTUP_ERROR_GRACE_MS);
     };
+    const handleHomeStartupState = (event: Event) => {
+      if (!isHome || released) return;
+      const status =
+        (event as CustomEvent<HomeStartupState>).detail?.status;
+      if (status === 'loading' && startupErrorTimer) {
+        // A bounded Home retry has begun. A previous failed request's
+        // 2.5-second error grace must not cover an in-flight recovery.
+        clearStartupErrorTimer();
+        setState({ status: 'loading' });
+        // Re-arm the watchdog after the recoverable request resumes.
+        // Otherwise cancelling the previous error grace also removes the
+        // only fallback if this new request never reaches readiness.
+        armFallbackTimer();
+      }
+    };
     const handleProviderReady = () => {
       if (!isHome) {
         release();
@@ -265,6 +282,10 @@ function LocaleHydrationShieldRuntime() {
     window.addEventListener(
       APP_STARTUP_ERROR_EVENT,
       handleStartupError,
+    );
+    window.addEventListener(
+      HOME_STARTUP_STATE_EVENT,
+      handleHomeStartupState,
     );
     window.addEventListener(
       PROVIDER_READY_EVENT,
@@ -300,6 +321,10 @@ function LocaleHydrationShieldRuntime() {
       window.removeEventListener(
         APP_STARTUP_ERROR_EVENT,
         handleStartupError,
+      );
+      window.removeEventListener(
+        HOME_STARTUP_STATE_EVENT,
+        handleHomeStartupState,
       );
       window.removeEventListener(
         PROVIDER_READY_EVENT,
@@ -378,7 +403,30 @@ function LocaleHydrationShieldRuntime() {
           </span>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              const homeStatus =
+                document.documentElement.dataset.veinviteHomeStartupStatus;
+              const homeWallet =
+                document.documentElement.dataset.veinviteHomeStartupWallet;
+              if (
+                homeWallet &&
+                (homeStatus === 'error' || homeStatus === 'loading')
+              ) {
+                // Recover the two authoritative Home reads in place instead
+                // of repeating server bootstrap and wallet-provider startup.
+                // The Home loader still checks the active wallet and keeps
+                // authorization and referral ownership checks unchanged.
+                window.dispatchEvent(new Event(APP_LOADING_EVENT));
+                window.dispatchEvent(
+                  new CustomEvent('veinvite-home-data-refresh-requested', {
+                    detail: { manual: true },
+                  }),
+                );
+              } else {
+                // An unmounted Home / missing provider requires a true reload.
+                window.location.reload();
+              }
+            }}
             style={{
               width: '100%',
               minHeight: '48px',

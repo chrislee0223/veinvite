@@ -338,8 +338,13 @@ export function HomeClient() {
   useEffect(() => {
     if (!wallet) return;
 
-    const refreshHomeData = () => {
-      void load(true);
+    const refreshHomeData = (event: Event) => {
+      const manualRetry =
+        event instanceof CustomEvent &&
+        event.detail?.manual === true;
+      // Ordinary background refresh is silent; an explicit recovery attempt
+      // also clears the previous startup failure and rearms bounded retries.
+      void load(!manualRetry, manualRetry);
     };
 
     window.addEventListener(

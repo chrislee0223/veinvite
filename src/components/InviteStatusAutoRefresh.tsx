@@ -221,10 +221,14 @@ export function InviteStatusAutoRefresh() {
       }
 
       if (lastFingerprintRef.current !== fingerprint) {
-        // A full reload remains the safest way to refresh every Home-derived
-        // state at once. Checks pause while another tab/modal is active so the
-        // user is not pulled out of Guide, Leaderboard, Settings, or a dialog.
-        window.location.reload();
+        // Refresh the wallet-scoped Home data in place. A background invite
+        // status change must not force a new wallet/session bootstrap, possibly
+        // turning a short database delay into a full-page login error.
+        // HomeClient keeps the authoritative same-wallet fetch guard.
+        lastFingerprintRef.current = fingerprint;
+        window.dispatchEvent(
+          new Event('veinvite-home-data-refresh-requested'),
+        );
       }
     } catch {
       // HomeClient remains usable when a background refresh fails. The next
