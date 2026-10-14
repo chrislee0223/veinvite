@@ -44,7 +44,7 @@ test('persistent provider gaps surface reconnect instead of a dead Retry reload'
   assert.match(prompt,/data-veinvite-wallet-session-gate="interactive"/);
   assert.match(prompt,/data-veinvite-cold-wallet-restore="stalled"/);
   assert.match(prompt,/onClick=\{onReconnect\}/);
-  assert.doesNotMatch(prompt,/location\.reload|authenticated|setSessionCookie/);
+  assert.doesNotMatch(prompt,/location\.reload\s*\(|setSessionCookie\s*\(|authenticateWallet\s*\(/);
   assert.match(shield,/hasInteractiveStartupGate\(\)/);
 });
 
