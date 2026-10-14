@@ -401,7 +401,7 @@ function LocaleHydrationShieldRuntime() {
                 // An unmounted Home / missing provider requires a true reload.
                 window.location.reload();
               }
-            }
+            }}
             style={{
               width: '100%',
               minHeight: '48px',
