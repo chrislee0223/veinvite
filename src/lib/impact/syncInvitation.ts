@@ -264,6 +264,20 @@ function buildProgress(args: {
  * - a non-positive B3TR conversion amount;
  * - a vote that predates the qualifying conversion.
  */
+async function reloadConcurrentInvitationVerdict(inviteCode: string): Promise<InvitationEvidenceRow> {
+  // An operator or another worker may change the verdict during a long
+  // on-chain scan. Never return a stale CLEAR/status to payout authorities.
+  const { data, error } = await supabaseAdmin
+    .from('invitations')
+    .select('*')
+    .eq('invite_code', inviteCode)
+    .single();
+  if (error || !data) {
+    throw new Error('Could not reload the current invitation security decision.');
+  }
+  return data as InvitationEvidenceRow;
+}
+
 export async function syncInvitationEvidence(
   initial: InvitationEvidenceRow,
 ): Promise<{
@@ -871,6 +885,9 @@ export async function syncInvitationEvidence(
             'invite_code',
             row.invite_code,
           )
+          .eq('sybil_status', 'CLEAR')
+          .eq('sybil_checked_at', existingSybilCheckedAt)
+          .eq('status', row.status)
           .select('*')
           .maybeSingle();
 
@@ -884,6 +901,9 @@ export async function syncInvitationEvidence(
         } else if (completedRow) {
           row =
             completedRow as InvitationEvidenceRow;
+        } else {
+          row = await reloadConcurrentInvitationVerdict(row.invite_code);
+          impactCheckpointSaved = false;
         }
       }
     } else {
@@ -915,30 +935,30 @@ export async function syncInvitationEvidence(
           voteCompletedAt,
         );
 
-      const {
-        data: sybilRow,
-        error: sybilUpdateError,
-      } = await supabaseAdmin
+      // Compare the observed verdict and timestamp rather than blindly
+      // overriding a BLACK/REVIEW decision written during chain scans.
+      const expectedCheckedAt = row.sybil_checked_at;
+      const updateVerdict = supabaseAdmin
         .from('invitations')
         .update({
           status: nextStatus,
-          sybil_status:
-            sybilDecision.status,
-          sybil_risk_level:
-            sybilDecision.riskLevel,
-          sybil_risk_score:
-            sybilDecision.riskScore,
-          sybil_reason:
-            sybilDecision.reason,
-          sybil_checked_at:
-            checkedAt,
-          sybil_source:
-            sybilDecision.source,
+          sybil_status: sybilDecision.status,
+          sybil_risk_level: sybilDecision.riskLevel,
+          sybil_risk_score: sybilDecision.riskScore,
+          sybil_reason: sybilDecision.reason,
+          sybil_checked_at: checkedAt,
+          sybil_source: sybilDecision.source,
         })
-        .eq(
-          'invite_code',
-          row.invite_code,
-        )
+        .eq('invite_code', row.invite_code)
+        .eq('status', row.status)
+        .eq('sybil_status', row.sybil_status);
+      const guardedVerdict = expectedCheckedAt === null
+        ? updateVerdict.is('sybil_checked_at', null)
+        : updateVerdict.eq('sybil_checked_at', expectedCheckedAt);
+      const {
+        data: sybilRow,
+        error: sybilUpdateError,
+      } = await guardedVerdict
         .select('*')
         .maybeSingle();
 
@@ -952,6 +972,9 @@ export async function syncInvitationEvidence(
       } else if (sybilRow) {
         row =
           sybilRow as InvitationEvidenceRow;
+      } else {
+        row = await reloadConcurrentInvitationVerdict(row.invite_code);
+        impactCheckpointSaved = false;
       }
     }
   }
