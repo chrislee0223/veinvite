@@ -24,6 +24,7 @@ const PROMOTION_REFERRAL_PATH_PATTERN =
   /^\/s\/(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})\/?$/u;
 
 type PromotionState =
+  | 'PREPARING'
   | 'OPEN'
   | 'SUBMISSION_GRACE'
   | 'VERIFYING'
@@ -40,7 +41,7 @@ export type RewardXPromotionPreview = {
   amountWei: string;
   amountB3tr: string;
   openedAt: string | null;
-  postDeadlineAt: string;
+  postDeadlineAt: string | null;
   submissionGraceSeconds: number;
   shareToken: string | null;
   submittedAt: string | null;
@@ -66,6 +67,7 @@ function promotionCopy(locale: SupportedLocale) {
   if (locale === 'ko') {
     return {
       title: 'X Promotion',
+      preparing: 'X Promotion을 준비하고 있어요. 24시간은 준비가 끝난 뒤 시작됩니다.',
       open: '24시간 안에 X에 공유하면 받을 수 있어요.',
       grace: '이미 게시했다면 X 게시물 링크를 확인해 주세요.',
       verifying: 'X 게시물을 확인하고 있어요.',
@@ -85,6 +87,7 @@ function promotionCopy(locale: SupportedLocale) {
 
   return {
     title: 'X Promotion',
+    preparing: 'Preparing your X Promotion. The 24-hour window starts only after it is ready.',
     open: 'Share on X within 24 hours to qualify.',
     grace: 'If you already posted, verify the X Post URL now.',
     verifying: 'Checking your X Post.',
@@ -416,8 +419,10 @@ export function RewardReceiptXPromotionActions({
     );
 
   const statusText =
-    promotion?.state === 'OPEN'
-      ? copy.open
+    promotion?.state === 'PREPARING'
+      ? copy.preparing
+      : promotion?.state === 'OPEN'
+        ? copy.open
       : promotion?.state ===
           'SUBMISSION_GRACE'
         ? copy.grace
