@@ -280,6 +280,10 @@ function LocaleHydrationShieldRuntime() {
       handleStartupError,
     );
     window.addEventListener(
+      HOME_STARTUP_STATE_EVENT,
+      handleHomeStartupState,
+    );
+    window.addEventListener(
       PROVIDER_READY_EVENT,
       handleProviderReady,
     );
