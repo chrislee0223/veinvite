@@ -375,6 +375,9 @@ test('an actual Home load failure can be retried without losing the wallet sessi
   assert.match(shield, /homeWallet/);
   assert.match(shield, /new CustomEvent\('veinvite-home-data-refresh-requested'/);
   assert.match(shield, /new Event\(APP_LOADING_EVENT\)/);
+  assert.match(shield, /HOME_STARTUP_STATE_EVENT/);
+  assert.match(shield, /status === 'loading' && startupErrorTimer/);
+  assert.match(shield, /clearStartupErrorTimer\(\)/);
   assert.match(shield, /window\.location\.reload\(\)/);
   assert.match(loader, /if \(manualRetry\) \{/);
   assert.match(loader, /AbortSignal\.timeout\(10_000\)/);
