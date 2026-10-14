@@ -16,6 +16,20 @@ const runtime = await readFile(
   ),
   'utf8',
 );
+const payoutRuntime = await readFile(
+  new URL(
+    '../src/lib/rewards/rewardXPromotionPayoutRuntime.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+const signerReadinessMigration = await readFile(
+  new URL(
+    '../supabase/migrations/20261014214900_require_x_promotion_signer_runtime_readiness_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const cron = await readFile(
   new URL(
     '../src/app/api/cron/x-promotion-maintenance/route.ts',
@@ -131,5 +145,64 @@ test('external readiness bounds every Supabase wait', () => {
     timeoutCalls.length,
     3,
     'insert, runtime gate read, and pause RPC must all have bounded waits',
+  );
+});
+
+
+test('external runtime readiness requires the real payout signer runtime before X API lookup', () => {
+  const payoutReadiness =
+    runtime.indexOf(
+      'readRewardXPromotionPayoutRuntimeReadiness',
+    );
+  const xLookup =
+    runtime.indexOf(
+      'lookupXPromotionPost',
+      payoutReadiness,
+    );
+
+  assert.ok(payoutReadiness >= 0);
+  assert.ok(xLookup > payoutReadiness);
+  assert.match(
+    runtime,
+    /PAYOUT_SIGNER_NOT_READY/,
+  );
+  assert.match(
+    signerReadinessMigration,
+    /'PAYOUT_SIGNER_NOT_READY'/,
+  );
+});
+
+test('payout runtime readiness validates worker and signer without exposing secret material', () => {
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_AUTOMATIC_REWARDS_ENABLED/,
+  );
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_X_PROMOTION_PAYOUT_WORKER_ENABLED/,
+  );
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_REWARD_DISTRIBUTOR_ADDRESS/,
+  );
+  assert.match(
+    payoutRuntime,
+    /VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY/,
+  );
+  assert.match(
+    payoutRuntime,
+    /Address\.ofPrivateKey/,
+  );
+  assert.match(
+    payoutRuntime,
+    /PAYOUT_CREDENTIALS_INVALID/,
+  );
+  assert.doesNotMatch(
+    runtime,
+    /privateKeyHex|REWARD_DISTRIBUTOR_PRIVATE_KEY/,
+  );
+  assert.match(
+    runtime,
+    /payoutRuntimeReason/,
   );
 });
