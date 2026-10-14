@@ -3,6 +3,9 @@ import 'server-only';
 import {
   lookupXPromotionPost,
 } from '@/lib/rewards/rewardXPromotionXApi';
+import {
+  readRewardXPromotionPayoutRuntimeReadiness,
+} from '@/lib/rewards/rewardXPromotionPayoutRuntime';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterNetworkConfig,
@@ -20,6 +23,7 @@ const EXTERNAL_READINESS_DB_TIMEOUT_MS =
 type RuntimeCheckStatus =
   | 'READY'
   | 'POST_NOT_FOUND'
+  | 'PAYOUT_SIGNER_NOT_READY'
   | 'X_API_NOT_CONFIGURED'
   | 'X_API_AUTH_FAILED'
   | 'X_API_RATE_LIMITED'
@@ -39,17 +43,25 @@ Promise<RewardXPromotionExternalReadinessResult> {
   const { network } =
     getVeBetterNetworkConfig();
 
+  const payoutRuntime =
+    readRewardXPromotionPayoutRuntimeReadiness();
+
   const lookup =
-    await lookupXPromotionPost(
-      X_API_READINESS_POST_ID,
-    );
+    payoutRuntime.ready
+      ? await lookupXPromotionPost(
+          X_API_READINESS_POST_ID,
+        )
+      : null;
 
   const status: RuntimeCheckStatus =
-    lookup.status === 'FOUND'
-      ? 'READY'
-      : lookup.status === 'NOT_FOUND'
-        ? 'POST_NOT_FOUND'
-        : lookup.reason;
+    !payoutRuntime.ready
+      ? 'PAYOUT_SIGNER_NOT_READY'
+      : lookup?.status === 'FOUND'
+        ? 'READY'
+        : lookup?.status === 'NOT_FOUND'
+          ? 'POST_NOT_FOUND'
+          : lookup?.reason ??
+            'X_API_RESPONSE_INVALID';
 
   const checkedAt =
     new Date().toISOString();
@@ -66,8 +78,14 @@ Promise<RewardXPromotionExternalReadinessResult> {
           X_API_READINESS_POST_ID,
         checked_at: checkedAt,
         details: {
-          lookupStatus:
-            lookup.status,
+          payoutRuntimeReason:
+            payoutRuntime.reason,
+          ...(lookup
+            ? {
+                lookupStatus:
+                  lookup.status,
+              }
+            : {}),
         },
       })
       .abortSignal(
