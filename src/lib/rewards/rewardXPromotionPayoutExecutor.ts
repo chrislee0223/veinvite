@@ -55,6 +55,30 @@ type IntentState = {
   settlement: Record<string, unknown> | null;
 };
 
+function positiveId(value: unknown, name: string): string {
+  const normalized = String(value ?? '');
+  if (!/^\d+$/u.test(normalized) || BigInt(normalized) < 1n) {
+    throw new Error(`X promotion ${name} is invalid.`);
+  }
+  return BigInt(normalized).toString();
+}
+
+function result(
+  network: VeBetterNetwork,
+  status: RewardXPromotionPayoutStatus,
+  values: Partial<Omit<RewardXPromotionPayoutResult, 'network' | 'status'>> = {},
+): RewardXPromotionPayoutResult {
+  return {
+    status,
+    network,
+    intentId: values.intentId ?? null,
+    manifestId: values.manifestId ?? null,
+    txId: values.txId ?? null,
+    reason: values.reason,
+    transfersPerformed: values.transfersPerformed ?? false,
+  };
+}
+
 async function readRuntimeGate() {
   const query = await supabaseAdmin
     .from('reward_runtime_config')
