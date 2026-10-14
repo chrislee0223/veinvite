@@ -129,3 +129,26 @@ test('post URL input uses a per-instance id and session failures reuse wallet au
     /response\.status === 401[\s\S]*response\.status === 403[\s\S]*notifyRewardClaimSessionInvalid\(\)/,
   );
 });
+
+
+test('QA promotion preview bypasses live promotion network calls', () => {
+  assert.match(
+    actions,
+    /if \(previewPromotion !== undefined\)[\s\S]*setPromotion\(previewPromotion\)[\s\S]*return;/,
+  );
+  assert.match(
+    actions,
+    /previewPromotion !== undefined \|\|[\s\S]*submitting/,
+  );
+});
+
+test('production reward receipt accepts only an optional preview injection', () => {
+  assert.match(
+    receiptView,
+    /previewPromotion\?: RewardXPromotionPreview \| null/,
+  );
+  assert.match(
+    receiptView,
+    /previewPromotion=\{previewPromotion\}/,
+  );
+});
