@@ -251,7 +251,7 @@ export function rewardXPromotionShareUrl({
     if (
       url.protocol !== 'https:' ||
       url.hostname.toLowerCase() !== 'veinvite.vercel.app' ||
-      !/^\/s\/[^/?#]+\/?$/u.test(url.pathname)
+      !/^\/s\/(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})\/?$/u.test(url.pathname)
     ) {
       return '';
     }
