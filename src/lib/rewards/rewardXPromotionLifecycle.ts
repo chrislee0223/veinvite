@@ -333,6 +333,37 @@ function initialTerminalReason(
   return null;
 }
 
+function finalTerminalReason(
+  message: string,
+):
+  | 'POST_IDENTITY_MISMATCH'
+  | 'SHARE_TOKEN_MISSING'
+  | null {
+  if (
+    message.includes(
+      'REWARD_X_PROMOTION_MATCHED_URL_IDENTITY_INVALID',
+    ) ||
+    message.includes(
+      'REWARD_X_PROMOTION_MATCHED_URL_INVALID',
+    ) ||
+    message.includes(
+      'REWARD_X_PROMOTION_POST_IDENTITY_MISMATCH',
+    )
+  ) {
+    return 'POST_IDENTITY_MISMATCH';
+  }
+
+  if (
+    message.includes(
+      'REWARD_X_PROMOTION_POST_SHARE_TOKEN_MISSING',
+    )
+  ) {
+    return 'SHARE_TOKEN_MISSING';
+  }
+
+  return null;
+}
+
 async function processPendingCandidate(
   candidate: PendingCandidate,
 ): Promise<
@@ -639,6 +670,51 @@ async function processFinalCandidate(
     );
 
   if (error) {
+    const terminalReason =
+      finalTerminalReason(
+        error.message,
+      );
+
+    if (terminalReason) {
+      try {
+        await invalidateFinalVerification(
+          candidate,
+          terminalReason,
+        );
+        await recordAttempt({
+          inviteCode:
+            candidate.inviteCode,
+          submissionId:
+            candidate.submissionId,
+          verificationId:
+            candidate.verificationId,
+          phase: 'FINAL_CHECK',
+          xPostId:
+            candidate.xPostId,
+          outcome: 'INVALIDATED',
+          reason: terminalReason,
+          details: {
+            databaseError:
+              error.message.slice(0, 500),
+          },
+        });
+
+        return 'INVALIDATED';
+      } catch (invalidationError) {
+        console.error(
+          'X promotion final verification could not persist terminal invalidation:',
+          {
+            inviteCode:
+              candidate.inviteCode,
+            postId:
+              candidate.xPostId,
+            error:
+              invalidationError,
+          },
+        );
+      }
+    }
+
     const securityHold =
       error.message.includes(
         'REWARD_X_PROMOTION_POST_SECURITY_NOT_CLEAR',
@@ -649,7 +725,9 @@ async function processFinalCandidate(
         candidate.inviteCode,
         securityHold
           ? 'SECURITY_NOT_CLEAR'
-          : 'FINAL_VERIFICATION_RETRY_REQUIRED',
+          : terminalReason
+            ? 'INVALIDATION_RETRY_REQUIRED'
+            : 'FINAL_VERIFICATION_RETRY_REQUIRED',
       );
 
       await recordAttempt({
@@ -666,7 +744,9 @@ async function processFinalCandidate(
         reason:
           securityHold
             ? 'SECURITY_NOT_CLEAR'
-            : 'FINAL_VERIFICATION_RETRY_REQUIRED',
+            : terminalReason
+              ? 'INVALIDATION_RETRY_REQUIRED'
+              : 'FINAL_VERIFICATION_RETRY_REQUIRED',
         details: {
           databaseError:
             error.message.slice(0, 500),
