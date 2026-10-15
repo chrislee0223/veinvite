@@ -10,10 +10,14 @@ const route = await readFile(
   'utf8',
 );
 
-test('LIVE gate controls new availability without hiding existing obligations', () => {
+test('LIVE, payout and external gates control new availability without hiding existing obligations', () => {
   assert.match(
     route,
-    /reward_x_promotion_enabled,reward_x_promotion_live_started_at/,
+    /reward_x_promotion_enabled,reward_x_promotion_live_started_at,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready,reward_x_promotion_external_verification_started_at/,
+  );
+  assert.match(
+    route,
+    /reward_x_promotion_payout_enabled === true/,
   );
   assert.doesNotMatch(route, /if \(!live\)[\s\S]{0,300}promotion: null/);
   assert.match(
