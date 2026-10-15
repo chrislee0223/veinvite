@@ -108,141 +108,150 @@ export function useRewardPaidTransientFeedback({
     const shareUnavailable =
       referralLinkFailed && !shareReady;
 
-    // Keep the payout confirmation usable even when the permanent referral
-    // link is unavailable. X sharing is optional and must never block the
-    // actual paid-reward feedback.
+    // The core payout confirmation must never wait for optional sharing state.
+    // Wait only until permanent-link verification itself has resolved, then
+    // render the paid feedback immediately and enrich the X action afterward.
     if (!shareReady && !shareUnavailable) return;
 
-    let cancelled = false;
     const payload = pendingReward;
+    feedbackIdRef.current += 1;
+    const feedbackId = feedbackIdRef.current;
 
-    const prepareFeedback = async () => {
+    setFeedback({
+      id: feedbackId,
+      kind: 'reward',
+      title:
+        NOTIFICATION_COPY[locale].rewardTitle,
+      text:
+        REWARD_RECEIPT_COPY[locale].description,
+      amountB3tr:
+        payload.amountB3tr,
+      confirmLabel:
+        NOTIFICATION_COPY[locale].confirm,
+      onConfirm: () => {
+        if (wallet) {
+          clearRewardPaidToast(
+            wallet,
+            payload.receiptId,
+          );
+          setPendingReward(
+            readRewardPaidToast(wallet),
+          );
+        }
+        return acknowledgeReward(payload);
+      },
+    });
+    setPendingReward(null);
+
+    if (!shareReady || !referralLink) {
+      return;
+    }
+
+    const referralUrl =
+      buildProductionSharePageUrl(
+        's',
+        referralLink.key,
+      );
+
+    const enrichShareAction = async () => {
       let shareIntentUrl = '';
       let shareLabel = '';
 
-      if (shareReady && referralLink) {
-        const referralUrl =
-          buildProductionSharePageUrl(
-            's',
-            referralLink.key,
-          );
+      try {
+        const response = await fetch(
+          `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(payload.inviteCode)}`,
+          {
+            cache: 'no-store',
+            signal:
+              AbortSignal.timeout(4_000),
+          },
+        );
+        const body =
+          (await response.json()) as RewardXPromotionPopupState;
 
-        try {
-          const response = await fetch(
-            `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(payload.inviteCode)}`,
-            {
-              cache: 'no-store',
-            },
-          );
-          const body =
-            (await response.json()) as RewardXPromotionPopupState;
-
-          if (
-            response.status === 401 ||
-            response.status === 403
-          ) {
-            notifyRewardClaimSessionInvalid();
-          }
-
-          if (response.ok) {
-            const promotion =
-              body.promotion ?? null;
-
-            if (
-              promotion?.state === 'OPEN' &&
-              typeof promotion.shareToken === 'string' &&
-              typeof promotion.amountB3tr === 'string'
-            ) {
-              const promotionUrl =
-                rewardXPromotionShareUrl({
-                  referralUrl,
-                  shareToken:
-                    promotion.shareToken,
-                });
-
-              if (promotionUrl) {
-                shareIntentUrl =
-                  rewardReceiptXIntentUrl({
-                    locale,
-                    amountB3tr:
-                      payload.amountB3tr,
-                    referralUrl:
-                      promotionUrl,
-                  });
-                shareLabel =
-                  `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
-              }
-            } else if (
-              promotion === null &&
-              body.promotionPending !== true
-            ) {
-              // Legacy/general sharing is safe only when this specific reward
-              // has no active or pending promotion obligation.
-              shareIntentUrl =
-                rewardReceiptXIntentUrl({
-                  locale,
-                  amountB3tr:
-                    payload.amountB3tr,
-                  referralUrl,
-                });
-              shareLabel =
-                rewardReceiptShareLabel(locale);
-            }
-          }
-        } catch {
-          // Fail closed for optional sharing. The payout confirmation itself
-          // is still shown, but we never guess whether a promotion token is
-          // required.
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          notifyRewardClaimSessionInvalid();
         }
+
+        if (!response.ok) return;
+
+        const promotion =
+          body.promotion ?? null;
+
+        if (
+          promotion?.state === 'OPEN' &&
+          typeof promotion.shareToken === 'string' &&
+          typeof promotion.amountB3tr === 'string'
+        ) {
+          const promotionUrl =
+            rewardXPromotionShareUrl({
+              referralUrl,
+              shareToken:
+                promotion.shareToken,
+            });
+
+          if (promotionUrl) {
+            shareIntentUrl =
+              rewardReceiptXIntentUrl({
+                locale,
+                amountB3tr:
+                  payload.amountB3tr,
+                referralUrl:
+                  promotionUrl,
+              });
+            shareLabel =
+              `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
+          }
+        } else if (
+          promotion === null &&
+          body.promotionPending !== true
+        ) {
+          // Legacy/general sharing is safe only when this specific reward
+          // has no active or pending promotion obligation.
+          shareIntentUrl =
+            rewardReceiptXIntentUrl({
+              locale,
+              amountB3tr:
+                payload.amountB3tr,
+              referralUrl,
+            });
+          shareLabel =
+            rewardReceiptShareLabel(locale);
+        }
+      } catch {
+        // Fail closed for optional sharing. The already-visible payout
+        // confirmation remains usable even when promotion lookup is slow.
+        return;
       }
 
-      if (cancelled) return;
+      if (!shareIntentUrl) return;
 
-      feedbackIdRef.current += 1;
-      setFeedback({
-        id: feedbackIdRef.current,
-        kind: 'reward',
-        title:
-          NOTIFICATION_COPY[locale].rewardTitle,
-        text:
-          REWARD_RECEIPT_COPY[locale].description,
-        amountB3tr:
-          payload.amountB3tr,
-        ...(shareIntentUrl
-          ? {
-              shareLabel,
-              onShare: () => {
-                window.open(
-                  shareIntentUrl,
-                  '_blank',
-                  'noopener,noreferrer',
-                );
-              },
-            }
-          : {}),
-        confirmLabel:
-          NOTIFICATION_COPY[locale].confirm,
-        onConfirm: () => {
-          if (wallet) {
-            clearRewardPaidToast(
-              wallet,
-              payload.receiptId,
+      setFeedback((current) => {
+        if (
+          current?.kind !== 'reward' ||
+          current.id !== feedbackId
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          shareLabel,
+          onShare: () => {
+            window.open(
+              shareIntentUrl,
+              '_blank',
+              'noopener,noreferrer',
             );
-            setPendingReward(
-              readRewardPaidToast(wallet),
-            );
-          }
-          return acknowledgeReward(payload);
-        },
+          },
+        };
       });
-      setPendingReward(null);
     };
 
-    void prepareFeedback();
-
-    return () => {
-      cancelled = true;
-    };
+    void enrichShareAction();
   }, [
     acknowledgeReward,
     feedback,
