@@ -312,10 +312,14 @@ export function buildVeBetterRoundReportPosts(
 
   const statusEn = report.reportComplete
     ? ''
-    : `\n⏳ Reward processing is not final yet (${report.queuedCandidatesAwaitingReward} queued).`;
+    : report.queuedCandidatesAwaitingReward > 0
+      ? `\n⏳ Reward processing is not final yet (${report.queuedCandidatesAwaitingReward} referral rewards queued).`
+      : '\n⏳ Reward processing is not final yet.';
   const statusKo = report.reportComplete
     ? ''
-    : `\n⏳ 아직 보상 처리가 최종 완료되지 않았습니다 (대기 ${report.queuedCandidatesAwaitingReward}건).`;
+    : report.queuedCandidatesAwaitingReward > 0
+      ? `\n⏳ 아직 보상 처리가 최종 완료되지 않았습니다 (추천 보상 대기 ${report.queuedCandidatesAwaitingReward}건).`
+      : '\n⏳ 아직 보상 처리가 최종 완료되지 않았습니다.';
 
   return {
     en: [
