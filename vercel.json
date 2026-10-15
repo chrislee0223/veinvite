@@ -77,7 +77,7 @@
     },
     {
       "path": "/api/cron/reliability-health",
-      "schedule": "0 */6 * * *"
+      "schedule": "7,22,37,52 * * * *"
     }
   ]
 }
