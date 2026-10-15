@@ -227,3 +227,38 @@ export function rewardReceiptXIntentUrl({
   );
   return intent.toString();
 }
+
+
+const X_PROMOTION_TOKEN_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+export function rewardXPromotionShareUrl({
+  referralUrl,
+  shareToken,
+}: {
+  referralUrl: string;
+  shareToken: string;
+}): string {
+  const token = shareToken.trim().toLowerCase();
+
+  if (!X_PROMOTION_TOKEN_PATTERN.test(token)) {
+    return '';
+  }
+
+  try {
+    const url = new URL(referralUrl);
+
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname.toLowerCase() !== 'veinvite.vercel.app' ||
+      !/^\/s\/[^/?#]+\/?$/u.test(url.pathname)
+    ) {
+      return '';
+    }
+
+    url.searchParams.set('xp', token);
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
