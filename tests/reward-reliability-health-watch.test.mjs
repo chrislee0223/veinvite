@@ -171,6 +171,6 @@ test('watchdog fails closed on DB errors and does not expose data to unauthentic
 test('alert policy retains precise thresholds for frequent and daily jobs', () => {
   assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'vote-reconcile').maxAgeMinutes, 30);
   assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'daily-reconcile').maxAgeMinutes, 1800);
-  assert.deepEqual(policy.delayedRewardCode(0), []);
-  assert.deepEqual(policy.delayedRewardCode(5), ['REWARD_RESERVATION_DELAY:5+']);
+  assert.deepEqual(Array.from(policy.delayedRewardCode(0)), []);
+  assert.deepEqual(Array.from(policy.delayedRewardCode(5)), ['REWARD_RESERVATION_DELAY:5+']);
 });
