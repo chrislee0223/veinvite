@@ -70,13 +70,14 @@ test('reservation retries still fail closed and retain authoritative scheduled r
 });
 
 test('independent monitoring detects missing jobs without performing reward writes', () => {
-  assert.match(health, /CRON_HEALTH_STALE/);
+  assert.match(health, /staleCronCodes/);
+  assert.match(health, /read_stale_reward_reservation_liveness/);
   assert.match(health, /CRON_HEALTH_DB_UNAVAILABLE/);
-  assert.match(health, /MONITORED_JOBS/);
+  assert.match(health, /RELIABILITY_JOBS/);
   assert.match(health, /timingSafeEqual/);
   assert.doesNotMatch(health, /reserveEligibleReferralRewards|runAutomaticRewardPayout|runSybilV2AssessmentBatch/);
   assert.deepEqual(
     config.crons.find((job) => job.path === '/api/cron/reliability-health'),
-    { path: '/api/cron/reliability-health', schedule: '0 */6 * * *' },
+    { path: '/api/cron/reliability-health', schedule: '7,22,37,52 * * * *' },
   );
 });
