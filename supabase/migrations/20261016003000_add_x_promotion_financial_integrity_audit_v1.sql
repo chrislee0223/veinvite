@@ -39,19 +39,19 @@ begin
     )::integer,
     count(*) filter (
       where q.id is null
-         or q.id<>s.queue_entry_id
-         or q.invite_code<>s.invite_code
-         or q.network<>s.network
-         or lower(q.recipient_wallet)<>s.recipient_wallet
-         or q.reserved_amount_wei<>s.reservation_amount_wei
+         or q.id is distinct from s.queue_entry_id
+         or q.invite_code is distinct from s.invite_code
+         or q.network is distinct from s.network
+         or lower(q.recipient_wallet) is distinct from s.recipient_wallet
+         or q.reserved_amount_wei is distinct from s.reservation_amount_wei
          or q.reserved_at is null
     )::integer,
     count(*) filter (
       where i.invite_code is null
-         or i.activation_network<>s.network
-         or lower(i.inviter_wallet)<>s.recipient_wallet
-         or i.reward_cohort_round_id<>s.source_reward_cohort_round_id
-         or i.reward_funding_allocation_receipt_id<>s.source_allocation_receipt_id
+         or i.activation_network is distinct from s.network
+         or lower(i.inviter_wallet) is distinct from s.recipient_wallet
+         or i.reward_cohort_round_id is distinct from s.source_reward_cohort_round_id
+         or i.reward_funding_allocation_receipt_id is distinct from s.source_allocation_receipt_id
     )::integer
   into
     v_live_splits,
@@ -81,13 +81,13 @@ begin
         s.promotion_amount_wei>0
         and (
           o.id is null
-          or o.invite_code<>s.invite_code
-          or o.network<>s.network
-          or o.recipient_wallet<>s.recipient_wallet
-          or o.promotion_amount_wei<>s.promotion_amount_wei
-          or o.source_reward_cohort_round_id<>s.source_reward_cohort_round_id
-          or o.source_allocation_receipt_id<>s.source_allocation_receipt_id
-          or o.policy_version<>s.policy_version
+          or o.invite_code is distinct from s.invite_code
+          or o.network is distinct from s.network
+          or o.recipient_wallet is distinct from s.recipient_wallet
+          or o.promotion_amount_wei is distinct from s.promotion_amount_wei
+          or o.source_reward_cohort_round_id is distinct from s.source_reward_cohort_round_id
+          or o.source_allocation_receipt_id is distinct from s.source_allocation_receipt_id
+          or o.policy_version is distinct from s.policy_version
         )
       )
       or (
@@ -104,8 +104,8 @@ begin
   where s.network=v_network
     and s.mode='LIVE'
     and (
-      lower(p.recipient_wallet)<>s.recipient_wallet
-      or p.amount_wei<>s.base_amount_wei
+      lower(p.recipient_wallet) is distinct from s.recipient_wallet
+      or p.amount_wei is distinct from s.base_amount_wei
     );
 
   select count(*)::integer
