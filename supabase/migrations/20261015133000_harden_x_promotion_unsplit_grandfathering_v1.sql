@@ -147,6 +147,62 @@ grant execute on function public.record_reward_x_promotion_split_exemption_v1(
   bigint,text,text,jsonb
 ) to service_role;
 
+create or replace function public.validate_reward_x_promotion_split_exemption_v1()
+returns trigger
+language plpgsql
+set search_path to 'pg_catalog','public'
+as $function$
+declare
+  v_queue public.reward_queue_entries%rowtype;
+begin
+  select * into v_queue
+  from public.reward_queue_entries q
+  where q.id=new.queue_entry_id
+    and q.invite_code=new.invite_code;
+
+  if not found
+     or v_queue.network<>new.network
+     or lower(v_queue.recipient_wallet)<>new.recipient_wallet
+     or v_queue.reserved_amount_wei is null
+     or v_queue.reserved_amount_wei<>new.reservation_amount_wei
+     or v_queue.reserved_at is null
+     or v_queue.status<>'AWAITING_CLAIM'
+     or v_queue.assigned_round_id is not null
+     or v_queue.claim_requested_at is not null
+     or new.policy_version<>'x-promotion-split-v1' then
+    raise exception 'REWARD_X_PROMOTION_SPLIT_EXEMPTION_QUEUE_MISMATCH';
+  end if;
+
+  if exists (
+    select 1
+    from public.reward_x_promotion_splits s
+    where s.queue_entry_id=new.queue_entry_id
+       or s.invite_code=new.invite_code
+  ) then
+    raise exception 'REWARD_X_PROMOTION_EXEMPTION_SPLIT_EXISTS';
+  end if;
+
+  if exists (
+    select 1
+    from public.reward_payouts p
+    where p.invite_code=new.invite_code
+  ) then
+    raise exception 'REWARD_X_PROMOTION_EXEMPTION_TOO_LATE';
+  end if;
+
+  return new;
+end;
+$function$;
+
+create trigger validate_reward_x_promotion_split_exemption_insert_trigger
+before insert on public.reward_x_promotion_split_exemptions
+for each row execute function public.validate_reward_x_promotion_split_exemption_v1();
+
+revoke all on function public.validate_reward_x_promotion_split_exemption_v1()
+  from public,anon,authenticated;
+grant execute on function public.validate_reward_x_promotion_split_exemption_v1()
+  to service_role;
+
 create or replace function public.reject_reward_x_promotion_split_exemption_mutation_v1()
 returns trigger
 language plpgsql
