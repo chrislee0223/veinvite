@@ -16,7 +16,7 @@ const js = (content) => ts.transpileModule(content, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-const policyContext = { module: { exports: {} }, require, console };
+const policyContext = { module: { exports: {} }, console };
 policyContext.exports = policyContext.module.exports;
 runInNewContext(js(policySource), policyContext);
 const policy = policyContext.module.exports;
