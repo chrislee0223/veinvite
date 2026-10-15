@@ -2,6 +2,10 @@ import 'server-only';
 
 import { Address, Hex } from '@vechain/sdk-core';
 
+import {
+  prepareRewardDistributorSecret,
+} from './rewardDistributorSecret';
+
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/u;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
 
@@ -57,7 +61,7 @@ RewardXPromotionDistributorIdentity {
     normalizeAddress(
       process.env.VEINVITE_REWARD_DISTRIBUTOR_ADDRESS,
     );
-  const rawKey =
+  const rawSecret =
     process.env.VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY
       ?.trim() ?? null;
 
@@ -65,7 +69,7 @@ RewardXPromotionDistributorIdentity {
     !automaticRewardsEnabled ||
     !workerEnabled ||
     !address ||
-    !rawKey
+    !rawSecret
   ) {
     return {
       automaticRewardsEnabled,
@@ -75,7 +79,16 @@ RewardXPromotionDistributorIdentity {
     };
   }
 
-  if (!PRIVATE_KEY_PATTERN.test(rawKey)) {
+  prepareRewardDistributorSecret();
+
+  const rawKey =
+    process.env.VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY
+      ?.trim() ?? null;
+
+  if (
+    !rawKey ||
+    !PRIVATE_KEY_PATTERN.test(rawKey)
+  ) {
     throw new Error(
       'X promotion payout private key has an invalid format.',
     );
