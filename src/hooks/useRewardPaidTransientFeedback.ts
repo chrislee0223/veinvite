@@ -36,6 +36,7 @@ const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
 
 type RewardXPromotionPopupState = {
   newOffersEnabled?: boolean;
+  promotionPending?: boolean;
   promotion?: {
     state?: string;
     amountB3tr?: string;
@@ -172,11 +173,11 @@ export function useRewardPaidTransientFeedback({
                   `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
               }
             } else if (
-              body.newOffersEnabled === false &&
-              promotion === null
+              promotion === null &&
+              body.promotionPending !== true
             ) {
-              // Legacy/general sharing is safe only when the server confirms
-              // there is no active or pending promotion offer for this reward.
+              // Legacy/general sharing is safe only when this specific reward
+              // has no active or pending promotion obligation.
               shareIntentUrl =
                 rewardReceiptXIntentUrl({
                   locale,
