@@ -52,10 +52,11 @@ function harness() {
       };
       if (table === 'reward_runtime_config') return {
         select: () => ({ eq: () => ({
-          maybeSingle: () => wrap(() => ({
-            data: { emergency_rewards_paused: paused, mainnet_funded_rewards_enabled: true },
-            error: null,
-          })),
+          abortSignal: () => ({
+            maybeSingle: async () => dbError
+              ? { data: null, error: { message: 'database unavailable' } }
+              : { data: { emergency_rewards_paused: paused, mainnet_funded_rewards_enabled: true }, error: null },
+          }),
         }) }),
       };
       throw Error('Unexpected table ' + table);
