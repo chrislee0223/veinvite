@@ -53,6 +53,7 @@ test('audit binds LIVE split to queue, invitation and core base payout', () => {
   assert.match(migration, /reward_receipts/);
   assert.match(migration, /corePayoutAmount/);
   assert.match(migration, /corePaidWithoutReceipt/);
+  assert.match(migration, /is distinct from/);
 });
 
 test('audit detects irreversible release and journal contradictions', () => {
