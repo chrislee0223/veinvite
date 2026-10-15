@@ -196,9 +196,32 @@ export async function GET(
       opportunity.data as unknown as OpportunityRow | null;
 
     if (!opportunityRow) {
+      const obligation =
+        await supabaseAdmin
+          .from('reward_x_promotion_obligations')
+          .select('financial_state')
+          .eq('invite_code', inviteCode)
+          .eq('recipient_wallet', wallet)
+          .maybeSingle();
+
+      if (obligation.error) {
+        throw new Error(
+          `X promotion obligation state could not be loaded: ${obligation.error.message}`,
+        );
+      }
+
+      const financialState =
+        typeof obligation.data?.financial_state === 'string'
+          ? obligation.data.financial_state
+          : null;
+      const promotionPending =
+        financialState === 'RESERVED' ||
+        financialState === 'HELD';
+
       return NextResponse.json(
         {
           newOffersEnabled,
+          promotionPending,
           promotion: null,
         },
         {
