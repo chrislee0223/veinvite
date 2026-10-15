@@ -44,6 +44,7 @@ type Promotion = {
 
 type PromotionResponse = {
   newOffersEnabled?: boolean;
+  promotionPending?: boolean;
   promotion?: Promotion | null;
   error?: string;
 };
@@ -224,7 +225,7 @@ export function RewardXPromotionPanel({
   const poll =
     state?.newOffersEnabled === true &&
     (
-      promotion === null ||
+      state?.promotionPending === true ||
       [
         'VERIFYING',
         'RETENTION',
@@ -375,7 +376,10 @@ export function RewardXPromotionPanel({
   }
 
   if (!promotion) {
-    if (state?.newOffersEnabled === true) {
+    if (
+      state?.newOffersEnabled === true &&
+      state?.promotionPending === true
+    ) {
       return (
         <div className="promotionPreparing">
           {copy.preparingBody}
