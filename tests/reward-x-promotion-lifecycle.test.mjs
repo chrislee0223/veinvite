@@ -65,6 +65,33 @@ test('X API retry remains non-terminal and final uncertainty becomes review requ
   );
 });
 
+test('deterministic final identity failures release instead of looping in review', () => {
+  assert.match(
+    lifecycle,
+    /REWARD_X_PROMOTION_MATCHED_URL_IDENTITY_INVALID/,
+  );
+  assert.match(
+    lifecycle,
+    /REWARD_X_PROMOTION_POST_IDENTITY_MISMATCH/,
+  );
+  assert.match(
+    lifecycle,
+    /REWARD_X_PROMOTION_POST_SHARE_TOKEN_MISSING/,
+  );
+  assert.match(
+    lifecycle,
+    /invalidateFinalVerification\([\s\S]*terminalReason/,
+  );
+  assert.match(
+    lifecycle,
+    /outcome:\s*'INVALIDATED'/,
+  );
+  assert.match(
+    lifecycle,
+    /INVALIDATION_RETRY_REQUIRED/,
+  );
+});
+
 test('final verification checks the same author and promotion URL again', () => {
   assert.match(
     lifecycle,
