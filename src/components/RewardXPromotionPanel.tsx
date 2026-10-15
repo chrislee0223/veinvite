@@ -223,16 +223,13 @@ export function RewardXPromotionPanel({
 
   const promotion = state?.promotion ?? null;
   const poll =
-    state?.newOffersEnabled === true &&
-    (
-      state?.promotionPending === true ||
-      [
-        'VERIFYING',
-        'RETENTION',
-        'REVIEW_REQUIRED',
-        'PAYOUT_PENDING',
-      ].includes(promotion.state)
-    );
+    state?.promotionPending === true ||
+    [
+      'VERIFYING',
+      'RETENTION',
+      'REVIEW_REQUIRED',
+      'PAYOUT_PENDING',
+    ].includes(promotion?.state ?? '');
 
   useEffect(() => {
     if (!poll) return;
@@ -250,7 +247,7 @@ export function RewardXPromotionPanel({
       loading ||
       loadError ||
       promotion ||
-      state?.newOffersEnabled !== false ||
+      state?.promotionPending === true ||
       !rewardShareUrl
     ) {
       return '';
@@ -268,7 +265,7 @@ export function RewardXPromotionPanel({
     promotion,
     receiptAmountB3tr,
     rewardShareUrl,
-    state?.newOffersEnabled,
+    state?.promotionPending,
   ]);
 
   const promotionShareIntent = useMemo(() => {
@@ -376,10 +373,7 @@ export function RewardXPromotionPanel({
   }
 
   if (!promotion) {
-    if (
-      state?.newOffersEnabled === true &&
-      state?.promotionPending === true
-    ) {
+    if (state?.promotionPending === true) {
       return (
         <div className="promotionPreparing">
           {copy.preparingBody}
