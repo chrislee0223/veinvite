@@ -52,8 +52,7 @@ function normalizeAddress(value: unknown): string | null {
 function addressOfPrivateKey(
   privateKey: Uint8Array,
 ): string {
-  return Address
-    .ofPrivateKey(privateKey)
+  return Address.ofPrivateKey(privateKey)
     .toString()
     .toLowerCase();
 }
