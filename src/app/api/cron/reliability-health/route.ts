@@ -37,8 +37,8 @@ async function readRewardReservationDelay(): Promise<number> {
     .from('reward_runtime_config')
     .select('mainnet_funded_rewards_enabled,emergency_rewards_paused')
     .eq('id', 1)
-    .maybeSingle()
-    .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+    .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS))
+    .maybeSingle();
   if (runtimeError || !runtime) {
     throw new Error('Reward runtime state could not be read.');
   }
