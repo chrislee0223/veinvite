@@ -98,6 +98,24 @@ test('promotion share link carries one opaque xp token on the production referra
   );
 });
 
+test('core paid feedback is rendered before optional X enrichment', () => {
+  const paidFeedbackIndex =
+    popupHook.indexOf("kind: 'reward'");
+  const xLookupIndex =
+    popupHook.indexOf('/api/rewards/x-promotion?inviteCode=');
+
+  assert.ok(paidFeedbackIndex >= 0);
+  assert.ok(xLookupIndex > paidFeedbackIndex);
+  assert.match(
+    popupHook,
+    /AbortSignal\.timeout\(4_000\)/,
+  );
+  assert.match(
+    popupHook,
+    /already-visible payout[\s\S]*promotion lookup is slow/,
+  );
+});
+
 test('reward popup resolves promotion state before exposing X sharing and fails closed on errors', () => {
   assert.match(
     popupHook,
