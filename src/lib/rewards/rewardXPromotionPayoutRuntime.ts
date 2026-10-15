@@ -1,9 +1,22 @@
 import 'server-only';
 
-import { Address, Hex } from '@vechain/sdk-core';
+import {
+  Address,
+  HDKey,
+  Hex,
+  Mnemonic,
+} from '@vechain/sdk-core';
 
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/u;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/u;
+const VALID_MNEMONIC_WORD_COUNTS = new Set([
+  12,
+  15,
+  18,
+  21,
+  24,
+]);
+const MAX_VEWORLD_ACCOUNT_INDEX = 50;
 
 export type RewardXPromotionDistributorIdentity = {
   automaticRewardsEnabled: boolean;
@@ -36,12 +49,142 @@ function normalizeAddress(value: unknown): string | null {
     : null;
 }
 
+function addressOfPrivateKey(
+  privateKey: Uint8Array,
+): string {
+  return Address.ofPrivateKey(privateKey)
+    .toString()
+    .toLowerCase();
+}
+
+function deriveMatchingPrivateKey(
+  words: string[],
+  expectedAddress: string,
+): Uint8Array {
+  const basePrivateKey =
+    Mnemonic.toPrivateKey(words);
+
+  if (
+    addressOfPrivateKey(basePrivateKey) ===
+      expectedAddress
+  ) {
+    return basePrivateKey;
+  }
+
+  basePrivateKey.fill(0);
+
+  const hdKey = HDKey.fromMnemonic(words);
+
+  try {
+    for (
+      let index = 0;
+      index < MAX_VEWORLD_ACCOUNT_INDEX;
+      index += 1
+    ) {
+      const child =
+        hdKey.deriveChild(index);
+      const childPrivateKey =
+        child.privateKey;
+
+      if (!childPrivateKey) {
+        continue;
+      }
+
+      const candidate =
+        Uint8Array.from(
+          childPrivateKey,
+        );
+
+      if (
+        addressOfPrivateKey(candidate) ===
+          expectedAddress
+      ) {
+        return candidate;
+      }
+
+      candidate.fill(0);
+    }
+  } finally {
+    hdKey.wipePrivateData();
+  }
+
+  throw new Error(
+    'X promotion payout mnemonic does not derive the configured reward distributor in the supported VeWorld account range.',
+  );
+}
+
+function normalizeDistributorSecret(
+  rawSecret: string,
+  expectedAddress: string,
+): string {
+  if (PRIVATE_KEY_PATTERN.test(rawSecret)) {
+    const privateKeyHex =
+      rawSecret.startsWith('0x')
+        ? rawSecret.toLowerCase()
+        : `0x${rawSecret.toLowerCase()}`;
+    const bytes =
+      Hex.of(privateKeyHex).bytes;
+
+    try {
+      if (
+        addressOfPrivateKey(bytes) !==
+          expectedAddress
+      ) {
+        throw new Error(
+          'X promotion payout private key does not match the configured reward distributor.',
+        );
+      }
+
+      return privateKeyHex;
+    } finally {
+      bytes.fill(0);
+    }
+  }
+
+  const words = rawSecret
+    .split(/\s+/u)
+    .map((word) =>
+      word.trim().toLowerCase(),
+    )
+    .filter(Boolean);
+
+  try {
+    if (
+      !VALID_MNEMONIC_WORD_COUNTS.has(
+        words.length,
+      )
+    ) {
+      throw new Error(
+        'X promotion payout signing secret has an invalid format.',
+      );
+    }
+
+    const privateKeyBytes =
+      deriveMatchingPrivateKey(
+        words,
+        expectedAddress,
+      );
+
+    try {
+      return Hex
+        .of(privateKeyBytes)
+        .toString()
+        .toLowerCase();
+    } finally {
+      privateKeyBytes.fill(0);
+    }
+  } finally {
+    words.fill('');
+  }
+}
+
 /**
  * Authoritative environment identity for NEW X promotion signing.
  *
- * Keep this shared by the payout executor and the external-offer readiness
- * probe so they cannot disagree about whether the Vercel signing runtime is
- * actually usable. No caller should persist privateKeyHex.
+ * The core referral payout runtime accepts the existing distributor secret as
+ * either a raw 32-byte private key or a VeWorld mnemonic. Keep X promotion
+ * signing compatible with that same operator credential without mutating the
+ * process environment. No caller should persist privateKeyHex.
  */
 export function readRewardXPromotionDistributorIdentity():
 RewardXPromotionDistributorIdentity {
@@ -57,7 +200,7 @@ RewardXPromotionDistributorIdentity {
     normalizeAddress(
       process.env.VEINVITE_REWARD_DISTRIBUTOR_ADDRESS,
     );
-  const rawKey =
+  const rawSecret =
     process.env.VEINVITE_REWARD_DISTRIBUTOR_PRIVATE_KEY
       ?.trim() ?? null;
 
@@ -65,7 +208,7 @@ RewardXPromotionDistributorIdentity {
     !automaticRewardsEnabled ||
     !workerEnabled ||
     !address ||
-    !rawKey
+    !rawSecret
   ) {
     return {
       automaticRewardsEnabled,
@@ -75,32 +218,11 @@ RewardXPromotionDistributorIdentity {
     };
   }
 
-  if (!PRIVATE_KEY_PATTERN.test(rawKey)) {
-    throw new Error(
-      'X promotion payout private key has an invalid format.',
-    );
-  }
-
   const privateKeyHex =
-    rawKey.startsWith('0x')
-      ? rawKey.toLowerCase()
-      : `0x${rawKey.toLowerCase()}`;
-
-  const bytes = Hex.of(privateKeyHex).bytes;
-
-  try {
-    if (
-      Address.ofPrivateKey(bytes)
-        .toString()
-        .toLowerCase() !== address
-    ) {
-      throw new Error(
-        'X promotion payout private key does not match the configured reward distributor.',
-      );
-    }
-  } finally {
-    bytes.fill(0);
-  }
+    normalizeDistributorSecret(
+      rawSecret,
+      address,
+    );
 
   return {
     automaticRewardsEnabled,
