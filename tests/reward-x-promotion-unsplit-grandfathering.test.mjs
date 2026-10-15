@@ -37,6 +37,33 @@ test('split exemptions are immutable, queue-bound, and server-only', () => {
   );
 });
 
+test('direct exemption inserts must exactly match an untouched queue reservation', () => {
+  assert.match(
+    migration,
+    /validate_reward_x_promotion_split_exemption_v1/,
+  );
+  assert.match(
+    migration,
+    /v_queue\.reserved_amount_wei<>new\.reservation_amount_wei/,
+  );
+  assert.match(
+    migration,
+    /v_queue\.status<>'AWAITING_CLAIM'/,
+  );
+  assert.match(
+    migration,
+    /v_queue\.assigned_round_id is not null/,
+  );
+  assert.match(
+    migration,
+    /v_queue\.claim_requested_at is not null/,
+  );
+  assert.match(
+    migration,
+    /REWARD_X_PROMOTION_EXEMPTION_TOO_LATE/,
+  );
+});
+
 test('runtime staleness is durably grandfathered instead of leaving an unexplained missing split', () => {
   assert.match(
     migration,
