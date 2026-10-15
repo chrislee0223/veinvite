@@ -145,7 +145,7 @@ export async function GET(
       await supabaseAdmin
         .from('reward_runtime_config')
         .select(
-          'reward_x_promotion_enabled,reward_x_promotion_live_started_at,reward_x_promotion_external_verification_ready,reward_x_promotion_external_verification_started_at',
+          'reward_x_promotion_enabled,reward_x_promotion_live_started_at,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready,reward_x_promotion_external_verification_started_at',
         )
         .eq('id', 1)
         .single();
@@ -158,6 +158,7 @@ export async function GET(
 
     const newOffersEnabled =
       runtime.data.reward_x_promotion_enabled === true &&
+      runtime.data.reward_x_promotion_payout_enabled === true &&
       safeIso(
         runtime.data.reward_x_promotion_live_started_at,
       ) !== null &&
