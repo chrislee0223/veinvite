@@ -24,11 +24,26 @@ import type { ReferralLinkRecord } from '@/lib/referralLinks';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
+  rewardXPromotionShareUrl,
 } from '@/lib/rewards/rewardReceiptShare';
+import {
+  notifyRewardClaimSessionInvalid,
+} from '@/lib/rewards/rewardClaimClient';
 import { buildProductionSharePageUrl } from '@/lib/socialShareCard';
 
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
+
+type RewardXPromotionPopupState = {
+  newOffersEnabled?: boolean;
+  promotionPending?: boolean;
+  promotion?: {
+    state?: string;
+    amountB3tr?: string;
+    shareToken?: string | null;
+  } | null;
+  error?: string;
+};
 
 export function useRewardPaidTransientFeedback({
   wallet,
@@ -93,53 +108,150 @@ export function useRewardPaidTransientFeedback({
     const shareUnavailable =
       referralLinkFailed && !shareReady;
 
-    // Prefer the verified permanent referral link so the paid popup can
-    // include X sharing. If link verification failed, do not suppress the
-    // actual payout confirmation; show it without the share action.
+    // The core payout confirmation must never wait for optional sharing state.
+    // Wait only until permanent-link verification itself has resolved, then
+    // render the paid feedback immediately and enrich the X action afterward.
     if (!shareReady && !shareUnavailable) return;
 
     const payload = pendingReward;
-    const shareIntentUrl = shareReady
-      ? rewardReceiptXIntentUrl({
-          locale,
-          amountB3tr: payload.amountB3tr,
-          referralUrl: buildProductionSharePageUrl(
-            's',
-            referralLink.key,
-          ),
-        })
-      : '';
-
     feedbackIdRef.current += 1;
+    const feedbackId = feedbackIdRef.current;
+
     setFeedback({
-      id: feedbackIdRef.current,
+      id: feedbackId,
       kind: 'reward',
-      title: NOTIFICATION_COPY[locale].rewardTitle,
-      text: REWARD_RECEIPT_COPY[locale].description,
-      amountB3tr: payload.amountB3tr,
-      ...(shareIntentUrl
-        ? {
-            shareLabel: rewardReceiptShareLabel(locale),
-            onShare: () => {
-              window.open(
-                shareIntentUrl,
-                '_blank',
-                'noopener,noreferrer',
-              );
-              void acknowledgeReward(payload);
-            },
-          }
-        : {}),
-      confirmLabel: NOTIFICATION_COPY[locale].confirm,
+      title:
+        NOTIFICATION_COPY[locale].rewardTitle,
+      text:
+        REWARD_RECEIPT_COPY[locale].description,
+      amountB3tr:
+        payload.amountB3tr,
+      confirmLabel:
+        NOTIFICATION_COPY[locale].confirm,
       onConfirm: () => {
         if (wallet) {
-          clearRewardPaidToast(wallet, payload.receiptId);
-          setPendingReward(readRewardPaidToast(wallet));
+          clearRewardPaidToast(
+            wallet,
+            payload.receiptId,
+          );
+          setPendingReward(
+            readRewardPaidToast(wallet),
+          );
         }
         return acknowledgeReward(payload);
       },
     });
     setPendingReward(null);
+
+    if (!shareReady || !referralLink) {
+      return;
+    }
+
+    const referralUrl =
+      buildProductionSharePageUrl(
+        's',
+        referralLink.key,
+      );
+
+    const enrichShareAction = async () => {
+      let shareIntentUrl = '';
+      let shareLabel = '';
+
+      try {
+        const response = await fetch(
+          `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(payload.inviteCode)}`,
+          {
+            cache: 'no-store',
+            signal:
+              AbortSignal.timeout(4_000),
+          },
+        );
+        const body =
+          (await response.json()) as RewardXPromotionPopupState;
+
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          notifyRewardClaimSessionInvalid();
+        }
+
+        if (!response.ok) return;
+
+        const promotion =
+          body.promotion ?? null;
+
+        if (
+          promotion?.state === 'OPEN' &&
+          typeof promotion.shareToken === 'string' &&
+          typeof promotion.amountB3tr === 'string'
+        ) {
+          const promotionUrl =
+            rewardXPromotionShareUrl({
+              referralUrl,
+              shareToken:
+                promotion.shareToken,
+            });
+
+          if (promotionUrl) {
+            shareIntentUrl =
+              rewardReceiptXIntentUrl({
+                locale,
+                amountB3tr:
+                  payload.amountB3tr,
+                referralUrl:
+                  promotionUrl,
+              });
+            shareLabel =
+              `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
+          }
+        } else if (
+          promotion === null &&
+          body.promotionPending !== true
+        ) {
+          // Legacy/general sharing is safe only when this specific reward
+          // has no active or pending promotion obligation.
+          shareIntentUrl =
+            rewardReceiptXIntentUrl({
+              locale,
+              amountB3tr:
+                payload.amountB3tr,
+              referralUrl,
+            });
+          shareLabel =
+            rewardReceiptShareLabel(locale);
+        }
+      } catch {
+        // Fail closed for optional sharing. The already-visible payout
+        // confirmation remains usable even when promotion lookup is slow.
+        return;
+      }
+
+      if (!shareIntentUrl) return;
+
+      setFeedback((current) => {
+        if (
+          current?.kind !== 'reward' ||
+          current.id !== feedbackId
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          shareLabel,
+          onShare: () => {
+            window.open(
+              shareIntentUrl,
+              '_blank',
+              'noopener,noreferrer',
+            );
+          },
+        };
+      });
+    };
+
+    void enrichShareAction();
   }, [
     acknowledgeReward,
     feedback,
