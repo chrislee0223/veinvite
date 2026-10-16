@@ -212,9 +212,19 @@ function safeRevision(value: unknown): number | null {
 }
 
 
+const MANDATORY_CORE_DECISION_CHECKS = [
+  'HISTORICAL_CHAIN',
+  'FUNDING_CHAIN',
+  'MISSION_BEHAVIOR',
+  'SECURITY_IDENTITY',
+  'VEPASSPORT',
+] as const;
+
 function hasCompletedDecisionChecks(
   assessment: V2AssessmentRow,
 ): boolean {
+  // A damaged or legacy empty required_checks array is NOT a valid license
+  // to CLEAR an early HOLD. First verify the complete mandatory vocabulary.
   const required = Array.isArray(assessment.required_checks)
     ? assessment.required_checks.filter(
         (value): value is string =>
@@ -222,6 +232,13 @@ function hasCompletedDecisionChecks(
           value !== 'CHAIN_FINALITY',
       )
     : [];
+  if (
+    !MANDATORY_CORE_DECISION_CHECKS.every(
+      (check) => required.includes(check),
+    )
+  ) {
+    return false;
+  }
   const completed = new Set(
     Array.isArray(assessment.completed_checks)
       ? assessment.completed_checks.filter(
