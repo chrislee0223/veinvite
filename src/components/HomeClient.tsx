@@ -993,11 +993,12 @@ export function HomeClient() {
 
               <div className="rewardList">
                 {outstandingRewards.map((invite) => {
-                  const claimAmount = formatB3trWei(
-                    invite.rewardClaimAmountWei ??
-                      invite.rewardReservedAmountWei ??
-                      '0',
-                  );
+                  const claimAmount =
+                    invite.rewardClaimAmountWei
+                      ? formatB3trWei(
+                          invite.rewardClaimAmountWei,
+                        )
+                      : '—';
                   const promotionAmount = formatPositiveB3trWei(invite.rewardPromotionAmountWei);
                   const recoveryOffset = invite.rewardRecoveryOffsetWei
                     ? formatB3trWei(invite.rewardRecoveryOffsetWei)

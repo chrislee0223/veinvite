@@ -71,6 +71,10 @@ test('optional X promotion lookup failure cannot remove the core reward action l
 test('home displays the actual claim amount while keeping promotion separate', () => {
   assert.match(
     home,
+    /invite\.rewardClaimAmountWei[\s\S]*\? formatB3trWei\([\s\S]*invite\.rewardClaimAmountWei[\s\S]*: '—'/,
+  );
+  assert.doesNotMatch(
+    home,
     /invite\.rewardClaimAmountWei \?\?[\s\S]*invite\.rewardReservedAmountWei/,
   );
   assert.match(
@@ -90,11 +94,26 @@ test('home displays the actual claim amount while keeping promotion separate', (
 test('restricted reward claims also display base and promotion separately', () => {
   assert.match(
     restricted,
+    /action\.claimAmountWei[\s\S]*\? formatB3trWei\([\s\S]*action\.claimAmountWei[\s\S]*: '—'/,
+  );
+  assert.doesNotMatch(
+    restricted,
     /action\.claimAmountWei \?\?[\s\S]*action\.reservedAmountWei/,
   );
   assert.match(
     restricted,
     /action\.promotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
+  );
+});
+
+test('unresolved promotion enrichment never guesses the immediate claim amount from the total reservation', () => {
+  assert.doesNotMatch(
+    home,
+    /rewardClaimAmountWei \?\?[\s\S]*rewardReservedAmountWei/,
+  );
+  assert.doesNotMatch(
+    restricted,
+    /claimAmountWei \?\?[\s\S]*reservedAmountWei/,
   );
 });
 
