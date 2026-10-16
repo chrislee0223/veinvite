@@ -1,0 +1,429 @@
+'use client';
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
+import type { SupportedLocale } from '@/lib/i18n/locales';\nimport { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import {
+  rewardReceiptShareLabel,
+  rewardReceiptXIntentUrl,
+  rewardXPromotionShareUrl,
+} from '@/lib/rewards/rewardReceiptShare';
+import {
+  notifyRewardClaimSessionInvalid,
+} from '@/lib/rewards/rewardClaimClient';
+
+type PromotionState =
+  | 'OPEN'
+  | 'SUBMISSION_GRACE'
+  | 'VERIFYING'
+  | 'RETENTION'
+  | 'REVIEW_REQUIRED'
+  | 'PAYOUT_PENDING'
+  | 'PAID'
+  | 'EXPIRED'
+  | 'RELEASED';
+
+type Promotion = {
+  inviteCode: string;
+  state: PromotionState;
+  amountWei: string;
+  amountB3tr: string;
+  openedAt: string | null;
+  postDeadlineAt: string;
+  submissionGraceSeconds: number;
+  shareToken: string | null;
+  submittedAt: string | null;
+  verifyAfter: string | null;
+  paidAt: string | null;
+};
+
+type PromotionResponse = {
+  newOffersEnabled?: boolean;
+  promotionPending?: boolean;
+  promotion?: Promotion | null;
+  error?: string;
+};
+
+type PromotionSubmitResponse = {
+  verification?: {
+    state?: string;
+    retryable?: boolean;
+    reason?: string;
+  };
+  error?: string;
+};
+
+function openIntent(
+  intentUrl: string,
+  onRewardShare?: (intentUrl: string) => void,
+) {
+  if (!intentUrl) return;
+
+  if (onRewardShare) {
+    onRewardShare(intentUrl);
+    return;
+  }
+
+  window.open(
+    intentUrl,
+    '_blank',
+    'noopener,noreferrer',
+  );
+}
+
+export function RewardXPromotionPanel({
+  locale,
+  inviteCode,
+  receiptAmountB3tr,
+  rewardShareUrl,
+  onRewardShare,
+}: {
+  locale: SupportedLocale;
+  inviteCode: string;
+  receiptAmountB3tr: string;
+  rewardShareUrl: string;
+  onRewardShare?: (intentUrl: string) => void;
+}) {
+  const copy = REWARD_X_PROMOTION_COPY[locale];
+  const [state, setState] =
+    useState<PromotionResponse | null>(null);
+  const [loading, setLoading] =
+    useState(true);
+  const [loadError, setLoadError] =
+    useState(false);
+  const [postUrl, setPostUrl] =
+    useState('');
+  const [submitting, setSubmitting] =
+    useState(false);
+  const [submitError, setSubmitError] =
+    useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
+        {
+          cache: 'no-store',
+        },
+      );
+      const body =
+        (await response.json()) as PromotionResponse;
+
+      if (response.status === 401 || response.status === 403) {
+        notifyRewardClaimSessionInvalid();
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          body.error ||
+          'X promotion state unavailable.',
+        );
+      }
+
+      setState(body);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [inviteCode]);
+
+  useEffect(() => {
+    setState(null);
+    setLoading(true);
+    setLoadError(false);
+    setPostUrl('');
+    setSubmitError('');
+    void load();
+  }, [load]);
+
+  const promotion = state?.promotion ?? null;
+  const poll =
+    state?.promotionPending === true ||
+    [
+      'VERIFYING',
+      'RETENTION',
+      'REVIEW_REQUIRED',
+      'PAYOUT_PENDING',
+    ].includes(promotion?.state ?? '');
+
+  useEffect(() => {
+    if (!poll) return;
+
+    const timer = window.setInterval(
+      () => void load(),
+      30_000,
+    );
+
+    return () => window.clearInterval(timer);
+  }, [load, poll]);
+
+  const genericShareIntent = useMemo(() => {
+    if (
+      loading ||
+      loadError ||
+      promotion ||
+      state?.promotionPending === true ||
+      !rewardShareUrl
+    ) {
+      return '';
+    }
+
+    return rewardReceiptXIntentUrl({
+      locale,
+      amountB3tr: receiptAmountB3tr,
+      referralUrl: rewardShareUrl,
+    });
+  }, [
+    loadError,
+    loading,
+    locale,
+    promotion,
+    receiptAmountB3tr,
+    rewardShareUrl,
+    state?.promotionPending,
+  ]);
+
+  const promotionShareIntent = useMemo(() => {
+    if (
+      promotion?.state !== 'OPEN' ||
+      !promotion.shareToken ||
+      !rewardShareUrl
+    ) {
+      return '';
+    }
+
+    const promotionUrl =
+      rewardXPromotionShareUrl({
+        referralUrl: rewardShareUrl,
+        shareToken: promotion.shareToken,
+      });
+
+    if (!promotionUrl) return '';
+
+    return rewardReceiptXIntentUrl({
+      locale,
+      amountB3tr: receiptAmountB3tr,
+      referralUrl: promotionUrl,
+    });
+  }, [
+    locale,
+    promotion,
+    receiptAmountB3tr,
+    rewardShareUrl,
+  ]);
+
+  const submitPost = useCallback(async () => {
+    const normalized = postUrl.trim();
+
+    if (!normalized || submitting) return;
+
+    setSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const response = await fetch(
+        '/api/rewards/x-promotion/submit',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inviteCode,
+            postUrl: normalized,
+          }),
+        },
+      );
+      const body =
+        (await response.json()) as PromotionSubmitResponse;
+
+      if (response.status === 401 || response.status === 403) {
+        notifyRewardClaimSessionInvalid();
+      }
+
+      if (!response.ok && response.status !== 202) {
+        throw new Error(
+          body.error ||
+          'The X Post could not be verified.',
+        );
+      }
+
+      setPostUrl('');
+      await load();
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'The X Post could not be verified.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }, [inviteCode, load, postUrl, submitting]);
+
+  if (loading) {
+    return null;
+  }
+
+  if (loadError) {
+    return (
+      <div className="promotionStatus">
+        <span>{copy.title}</span>
+        <button
+          type="button"
+          className="promotionRetry"
+          onClick={() => {
+            setLoading(true);
+            void load();
+          }}
+        >
+          {copy.retry}
+        </button>
+        <style jsx>{`
+          .promotionStatus{margin-top:14px;padding:12px;border:1px solid rgba(255,205,80,.12);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:#9f998f;font-size:.62rem}
+          .promotionRetry{min-height:34px;padding:7px 10px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.04);color:#ddd5c7;font:inherit;font-size:.61rem;font-weight:850;cursor:pointer}
+        `}</style>
+      </div>
+    );
+  }
+
+  if (!promotion) {
+    if (state?.promotionPending === true) {
+      return (
+        <div className="promotionPreparing">
+          {copy.preparingBody}
+          <style jsx>{`
+            .promotionPreparing{margin-top:14px;padding:11px 12px;border:1px solid rgba(255,205,80,.12);border-radius:12px;background:rgba(255,205,80,.03);color:#a9a196;font-size:.62rem;line-height:1.5}
+          `}</style>
+        </div>
+      );
+    }
+
+    if (!genericShareIntent) return null;
+
+    return (
+      <button
+        type="button"
+        className="genericShare"
+        aria-label={rewardReceiptShareLabel(locale)}
+        onClick={() =>
+          openIntent(
+            genericShareIntent,
+            onRewardShare,
+          )
+        }
+      >
+        {rewardReceiptShareLabel(locale)}
+        <style jsx>{`
+          .genericShare{width:100%;min-height:44px;margin-top:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.75rem;font-weight:950;cursor:pointer}
+          .genericShare:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        `}</style>
+      </button>
+    );
+  }
+
+  const canSubmit =
+    promotion.state === 'OPEN' ||
+    promotion.state === 'SUBMISSION_GRACE';
+
+  const body =
+    promotion.state === 'OPEN'
+      ? copy.openBody
+      : promotion.state === 'SUBMISSION_GRACE'
+        ? copy.graceBody
+        : promotion.state === 'VERIFYING'
+          ? copy.verifyingBody
+          : promotion.state === 'RETENTION'
+            ? copy.retentionBody
+            : promotion.state === 'REVIEW_REQUIRED'
+              ? copy.reviewBody
+              : promotion.state === 'PAYOUT_PENDING'
+                ? copy.payoutBody
+                : promotion.state === 'PAID'
+                  ? copy.paidBody
+                  : promotion.state === 'RELEASED'
+                    ? copy.releasedBody
+                    : copy.expiredBody;
+
+  return (
+    <section className="promotionPanel">
+      <div className="promotionHeading">
+        <strong>{copy.title}</strong>
+        <span>+{promotion.amountB3tr} B3TR</span>
+      </div>
+      <p>{body}</p>
+
+      {promotionShareIntent ? (
+        <button
+          type="button"
+          className="promotionShare"
+          onClick={() =>
+            openIntent(
+              promotionShareIntent,
+              onRewardShare,
+            )
+          }
+        >
+          {rewardReceiptShareLabel(locale)} · +{promotion.amountB3tr} B3TR
+        </button>
+      ) : null}
+
+      {canSubmit ? (
+        <div className="promotionSubmit">
+          <input
+            type="url"
+            value={postUrl}
+            placeholder={copy.postUrlPlaceholder}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            onChange={(event) =>
+              setPostUrl(event.target.value)
+            }
+          />
+          <button
+            type="button"
+            disabled={
+              submitting ||
+              postUrl.trim().length === 0
+            }
+            onClick={() => void submitPost()}
+          >
+            {submitting
+              ? copy.verifying
+              : copy.verify}
+          </button>
+        </div>
+      ) : null}
+
+      {submitError ? (
+        <p className="promotionError" role="alert">
+          {submitError}
+        </p>
+      ) : null}
+
+      <style jsx>{`
+        .promotionPanel{margin-top:14px;padding:13px;border:1px solid rgba(255,205,80,.18);border-radius:14px;background:rgba(255,205,80,.035)}
+        .promotionHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .promotionHeading strong{color:#f3e6bd;font-size:.7rem}
+        .promotionHeading span{flex:0 0 auto;color:#ffd04a;font-size:.68rem;font-weight:950;font-variant-numeric:tabular-nums}
+        .promotionPanel p{margin:8px 0 0;color:#9f998f;font-size:.62rem;line-height:1.5}
+        .promotionShare{width:100%;min-height:44px;margin-top:12px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.72rem;font-weight:950;cursor:pointer}
+        .promotionSubmit{margin-top:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+        .promotionSubmit input{min-width:0;height:42px;box-sizing:border-box;padding:9px 10px;border:1px solid rgba(255,255,255,.1);border-radius:11px;background:rgba(0,0,0,.25);color:#eee8dd;font:inherit;font-size:.64rem;direction:ltr;text-align:left}
+        .promotionSubmit button{min-height:42px;padding:8px 11px;border:1px solid rgba(255,205,80,.18);border-radius:11px;background:rgba(244,183,40,.08);color:#f1cf65;font:inherit;font-size:.64rem;font-weight:900;cursor:pointer}
+        .promotionSubmit button:disabled{opacity:.45;cursor:not-allowed}
+        .promotionError{color:#d48b93!important}
+        .promotionShare:focus-visible,.promotionSubmit input:focus-visible,.promotionSubmit button:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        @media(max-width:380px){.promotionSubmit{grid-template-columns:1fr}.promotionSubmit button{width:100%}}
+      `}</style>
+    </section>
+  );
+}
