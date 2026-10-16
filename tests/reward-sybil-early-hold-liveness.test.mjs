@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   staleSybilHoldCodes,
+  isReliabilityDegraded,
 } from '../src/lib/monitoring/reliabilityWatchPolicy.ts';
 
 const migration = await readFile(
@@ -40,6 +41,15 @@ test('15-minute watcher escalates 1-hour and 24-hour operator reviews', () => {
   assert.match(config, /"path": "\/api\/cron\/reliability-health"[\s\S]*"schedule": "7,22,37,52 \* \* \* \*"/u);
   assert.match(watcher, /\.rpc\(\s*'read_sybil_v2_early_hold_liveness'/u);
   assert.match(watcher, /staleSybilHoldCodes\(sybilHolds\)/u);
+});
+
+test('one-hour pending operator review does not misreport application outage', () => {
+  assert.equal(isReliabilityDegraded([]), false);
+  assert.equal(isReliabilityDegraded(['SYBIL_EARLY_HOLD_STALLED:1H']), false);
+  assert.equal(isReliabilityDegraded(['SYBIL_EARLY_HOLD_STALLED:24H']), true);
+  assert.equal(isReliabilityDegraded(['SYBIL_EARLY_HOLD_STALLED:1H', 'CRON_STALE:vote-reconcile']), true);
+  assert.match(watcher, /const degraded = isReliabilityDegraded\(current\)/u);
+  assert.match(watcher, /status: degraded \? 503 : 200/u);
 });
 
 test('invalid and inconsistent HOLD counts fail closed instead of suppressing alerts', () => {
