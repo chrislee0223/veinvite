@@ -141,8 +141,13 @@ export async function GET(request: NextRequest) {
         updated_at: now,
         last_started_at: now,
         last_error: encodeAlarmState(current),
-        ...(current.length ? {} : { last_succeeded_at: now }),
-        ...(changes.newlyActive.length ? { last_failed_at: now } : {}),
+        // A successful *check* updates its heartbeat even when it discovered
+        // an actionable issue. Keep alert state independently in last_error.
+        last_succeeded_at: now,
+        // A one-hour HOLD is a pending operator task, not a failed monitor.
+        ...(changes.newlyActive.some((code) =>
+          isReliabilityDegraded([code]),
+        ) ? { last_failed_at: now } : {}),
       }, { onConflict: 'job_name' })
       .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
     if (saveError) throw new Error('Reliability alert checkpoint could not be persisted.');
