@@ -7,7 +7,8 @@ import {
   useState,
 } from 'react';
 
-import type { SupportedLocale } from '@/lib/i18n/locales';\nimport { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import type { SupportedLocale } from '@/lib/i18n/locales';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
