@@ -49,12 +49,10 @@ as $function$
     count(*)::bigint,
     count(*) filter (where incomplete_core)::bigint,
     count(*) filter (
-      where incomplete_core
-        and first_held_at <= now() - interval '1 hour'
+      where first_held_at <= now() - interval '1 hour'
     )::bigint,
     count(*) filter (
-      where incomplete_core
-        and first_held_at <= now() - interval '24 hours'
+      where first_held_at <= now() - interval '24 hours'
     )::bigint
   from active_episodes;
 $function$;
