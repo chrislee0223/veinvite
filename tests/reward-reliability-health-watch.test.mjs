@@ -143,6 +143,8 @@ test('one failed minute is not an alert, thirty-minute outage is, repeated alert
   const first = await h.GET(h.request);
   assert.equal(first.status, 503);
   assert.equal(first.body.newAlerts, 1);
+  assert.equal(typeof h.getState().last_succeeded_at, 'string');
+  assert.equal(typeof h.getState().last_failed_at, 'string');
   assert.equal(h.errors.length, 1);
   assert.equal((await h.GET(h.request)).body.newAlerts, 0);
   assert.equal(h.errors.length, 1);
@@ -178,12 +180,18 @@ test('Sybil HOLD alarms are transition-suppressed and only 24-hour stall is an o
   assert.equal(warning.body.ok, true);
   assert.equal(warning.body.newAlerts, 1);
   assert.equal(warning.body.activeAlerts.includes('SYBIL_EARLY_HOLD_STALLED:1H'), true);
+  assert.equal(typeof h.getState().last_succeeded_at, 'string');
+  assert.equal(h.getState().last_failed_at, undefined);
+  assert.equal(h.getState().last_error, 'WATCH_V1:SYBIL_EARLY_HOLD_STALLED:1H');
   assert.equal((await h.GET(h.request)).body.newAlerts, 0);
+  assert.equal(typeof h.getState().last_succeeded_at, 'string');
   h.setHolds({ openHolds: 1, incompleteCoreHolds: 1, stalledOver1h: 1, stalledOver24h: 1 });
   const overdue = await h.GET(h.request);
   assert.equal(overdue.status, 503);
   assert.equal(overdue.body.newAlerts, 1);
   assert.equal(overdue.body.recoveredAlerts, 1);
+  assert.equal(typeof h.getState().last_succeeded_at, 'string');
+  assert.equal(typeof h.getState().last_failed_at, 'string');
   h.setHolds({ openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 });
   assert.equal((await h.GET(h.request)).body.recoveredAlerts, 1);
 });
