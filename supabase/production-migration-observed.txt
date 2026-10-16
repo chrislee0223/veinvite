@@ -235,3 +235,4 @@
 20261016120721 index_x_promotion_foreign_keys_v1
 20261016192840 surface_stalled_early_sybil_holds
 20261016194948 read_sybil_early_hold_liveness_for_reliability
+20261016204505 require_core_decision_check_vocabulary
