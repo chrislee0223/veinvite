@@ -9,6 +9,7 @@ import {
   encodeAlarmState,
   RELIABILITY_JOBS,
   stableAlarmCodes,
+  isReliabilityDegraded,
   staleCronCodes,
   staleSybilHoldCodes,
   type JobHeartbeat,
@@ -128,9 +129,7 @@ export async function GET(request: NextRequest) {
     const changes = alarmChanges(previous, current);
     // A one-hour operator review backlog needs attention, not an artificial
     // app-outage status. A 24-hour stalled HOLD is a critical failure.
-    const degraded = current.some(
-      (code) => code !== 'SYBIL_EARLY_HOLD_STALLED:1H',
-    );
+    const degraded = isReliabilityDegraded(current);
     const now = new Date().toISOString();
 
     // Only the existing cron status table is written, never invitation,
