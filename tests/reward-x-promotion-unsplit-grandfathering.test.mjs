@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const migration = await readFile(
   new URL(
-    '../supabase/migrations/20261015133000_harden_x_promotion_unsplit_grandfathering_v1.sql',
+    '../supabase/migrations/20261016184000_harden_x_promotion_unsplit_exemptions_v1.sql',
     import.meta.url,
   ),
   'utf8',
@@ -160,5 +160,21 @@ test('migration never enables X promotion or payout gates', () => {
   assert.doesNotMatch(
     migration,
     /set\s+reward_x_promotion_(?:enabled|payout_enabled|external_verification_ready)\s*=\s*true/i,
+  );
+});
+
+
+test('migration can safely replace prior preview trigger definitions', () => {
+  assert.match(
+    migration,
+    /drop trigger if exists validate_reward_x_promotion_split_exemption_insert_trigger/,
+  );
+  assert.match(
+    migration,
+    /drop trigger if exists reject_reward_x_promotion_split_exemption_mutation_trigger/,
+  );
+  assert.match(
+    migration,
+    /drop trigger if exists guard_reward_x_promotion_split_exemption_trigger/,
   );
 });
