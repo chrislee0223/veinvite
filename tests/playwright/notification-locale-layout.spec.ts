@@ -18,6 +18,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-X-PROMO-OPEN',          // tokenized share CTA + Post URL input
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -28,7 +29,26 @@ const EXTRA_STATES = [
   'NOTI-REFERRAL-INVALIDATED',
   'NOTI-REWARD-ADJUSTED',
   'NOTI-SECURITY-CLEARED',
+  'NOTI-X-PROMO-RETENTION',
+  'NOTI-X-PROMO-PAID',
 ] as const;
+
+function isPromotionState(state: string): boolean {
+  return state.startsWith('NOTI-X-PROMO-');
+}
+
+async function openPromotionReceiptIfNeeded(
+  page: Page,
+  state: string,
+) {
+  if (!isPromotionState(state)) return;
+
+  const action = page.locator('.notificationReceiptAction').first();
+  await expect(action).toBeVisible();
+  await action.click();
+  await expect(page.locator('.promotionCard')).toBeVisible();
+}
+
 
 async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
   const panel = page.locator('.notificationHistoryPanel');
@@ -72,6 +92,14 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
       '.notificationReceiptView > p',
+      '.promotionHeading strong',
+      '.promotionHeading span',
+      '.promotionCard > p',
+      '.promotionShare',
+      '.promotionSubmit label',
+      '.promotionSubmit input',
+      '.promotionSubmit button',
+      '.genericShare',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
       const value = el.textContent?.trim() ?? '';
@@ -131,6 +159,7 @@ for (const locale of SUPPORTED_LOCALES) {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
+      await openPromotionReceiptIfNeeded(page, state);
       await verifyNotificationLayout(page, locale);
       // Verify resizing the same real component to a typical phone width.
       await page.setViewportSize(MOBILE);
@@ -147,6 +176,7 @@ for (const locale of HIGH_RISK_LOCALES) {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
+      await openPromotionReceiptIfNeeded(page, state);
       await verifyNotificationLayout(page, locale);
       await page.setViewportSize(DESKTOP);
       await verifyNotificationLayout(page, locale);

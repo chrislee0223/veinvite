@@ -20,6 +20,7 @@ import type {
   InviteNotificationKindV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
+import type { RewardXPromotionPreview } from '@/components/RewardReceiptXPromotionActions';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
@@ -43,6 +44,9 @@ export type QaNotificationStateId =
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
+  | 'NOTI-X-PROMO-OPEN'
+  | 'NOTI-X-PROMO-RETENTION'
+  | 'NOTI-X-PROMO-PAID'
   | 'NOTI-REWARD-ADJUSTED'
   | 'NOTI-INELIGIBLE'
   | 'NOTI-SECURITY-REVIEW'
@@ -66,6 +70,7 @@ type HistoryFixture = {
   errorMessage?: string;
   hasMore?: boolean;
   previewRewardReceipt?: RewardReceipt;
+  previewRewardPromotion?: RewardXPromotionPreview | null;
   rewardShareUrl?: string;
   onRewardShare?: (intentUrl: string) => void;
 };
@@ -94,6 +99,37 @@ const QA_REWARD_RECEIPT: RewardReceipt = {
   seenAt: null,
   createdAt: '2026-10-04T00:00:00.000Z',
 };
+
+const QA_PROMOTION_BASE: Omit<RewardXPromotionPreview, 'state' | 'shareToken' | 'verifyAfter' | 'paidAt'> = {
+  inviteCode: QA_REWARD_INVITE_CODE,
+  amountWei: '10000000000000000000',
+  amountB3tr: '10',
+  openedAt: '2026-10-15T00:00:00.000Z',
+  postDeadlineAt: '2026-10-16T00:00:00.000Z',
+  submissionGraceSeconds: 900,
+  submittedAt: null,
+};
+
+function qaPromotion(
+  state: 'OPEN' | 'RETENTION' | 'PAID',
+): RewardXPromotionPreview {
+  return {
+    ...QA_PROMOTION_BASE,
+    state,
+    shareToken:
+      state === 'OPEN'
+        ? '123e4567-e89b-42d3-a456-426614174000'
+        : null,
+    verifyAfter:
+      state === 'RETENTION'
+        ? '2026-10-16T00:30:00.000Z'
+        : null,
+    paidAt:
+      state === 'PAID'
+        ? '2026-10-16T00:45:00.000Z'
+        : null,
+  };
+}
 
 function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
@@ -305,6 +341,70 @@ function fixtureForState(
         unreadCount: 1,
         open: true,
         previewRewardReceipt: QA_REWARD_RECEIPT,
+        previewRewardPromotion: null,
+        rewardShareUrl:
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
+    case 'NOTI-X-PROMO-OPEN':
+      return {
+        mode: 'history',
+        items: [
+          {
+            ...historyItem({
+              id: '42',
+              kind: 'REWARD_PAID',
+              minutes: 2,
+              rewardAmountWei: QA_REWARD_WEI,
+            }),
+            inviteCode: QA_REWARD_INVITE_CODE,
+          },
+        ],
+        unreadCount: 1,
+        open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        previewRewardPromotion: qaPromotion('OPEN'),
+        rewardShareUrl:
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
+    case 'NOTI-X-PROMO-RETENTION':
+      return {
+        mode: 'history',
+        items: [
+          {
+            ...historyItem({
+              id: '43',
+              kind: 'REWARD_PAID',
+              minutes: 2,
+              rewardAmountWei: QA_REWARD_WEI,
+            }),
+            inviteCode: QA_REWARD_INVITE_CODE,
+          },
+        ],
+        unreadCount: 1,
+        open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        previewRewardPromotion: qaPromotion('RETENTION'),
+        rewardShareUrl:
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
+    case 'NOTI-X-PROMO-PAID':
+      return {
+        mode: 'history',
+        items: [
+          {
+            ...historyItem({
+              id: '44',
+              kind: 'REWARD_PAID',
+              minutes: 2,
+              rewardAmountWei: QA_REWARD_WEI,
+            }),
+            inviteCode: QA_REWARD_INVITE_CODE,
+          },
+        ],
+        unreadCount: 1,
+        open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        previewRewardPromotion: qaPromotion('PAID'),
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
       };
@@ -638,6 +738,7 @@ export function QaNotificationStateHarness({
           setHasMore(false);
         }}
         previewRewardReceipt={seed.previewRewardReceipt ?? null}
+        previewRewardPromotion={seed.previewRewardPromotion}
         rewardShareUrl={seed.rewardShareUrl ?? ''}
         onRewardShare={seed.onRewardShare}
         allowProgrammaticOpen
