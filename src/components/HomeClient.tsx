@@ -993,11 +993,12 @@ export function HomeClient() {
 
               <div className="rewardList">
                 {outstandingRewards.map((invite) => {
-                  const claimAmount = formatB3trWei(
-                    invite.rewardClaimAmountWei ??
-                      invite.rewardReservedAmountWei ??
-                      '0',
-                  );
+                  const claimAmount =
+                    invite.rewardClaimAmountWei
+                      ? formatB3trWei(
+                          invite.rewardClaimAmountWei,
+                        )
+                      : null;
                   const promotionAmount = formatPositiveB3trWei(invite.rewardPromotionAmountWei);
                   const recoveryOffset = invite.rewardRecoveryOffsetWei
                     ? formatB3trWei(invite.rewardRecoveryOffsetWei)
@@ -1016,7 +1017,13 @@ export function HomeClient() {
                             ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
                             : invite.code}
                         </small>
-                        <strong>{progressCopy.fixedReward} · {claimAmount} B3TR</strong>
+                        <strong>
+                          {progressCopy.fixedReward} ·{' '}
+                          {claimAmount
+                            ? `${claimAmount} B3TR`
+                            : progressCopy.finalCheck
+                          }
+                        </strong>
                         {promotionAmount ? (
                           <span className="rewardAdjustmentMeta">X +{promotionAmount} B3TR</span>
                         ) : null}
