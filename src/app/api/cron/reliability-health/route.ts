@@ -9,8 +9,11 @@ import {
   encodeAlarmState,
   RELIABILITY_JOBS,
   stableAlarmCodes,
+  isReliabilityDegraded,
   staleCronCodes,
+  staleSybilHoldCodes,
   type JobHeartbeat,
+  type SybilHoldLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -62,6 +65,39 @@ async function readRewardReservationDelay(): Promise<number> {
   return missingCount;
 }
 
+function checkedCount(value: unknown, name: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0 ||
+      value === null || value === undefined) {
+    throw new Error(`Invalid Sybil HOLD liveness count: ${name}.`);
+  }
+  return parsed;
+}
+
+async function readSybilHoldLiveness(): Promise<SybilHoldLiveness> {
+  // Read-only and aggregate-only. No wallet identifiers are returned or
+  // logged; this cannot clear a HOLD, blacklist a user or release rewards.
+  const { network } = getVeBetterNetworkConfig();
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_sybil_v2_early_hold_liveness',
+    { p_network: network },
+  ).abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+  if (error) {
+    throw new Error('Sybil HOLD liveness could not be read.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object') {
+    throw new Error('Sybil HOLD liveness response is missing.');
+  }
+
+  return {
+    openHolds: checkedCount(row.open_holds, 'open_holds'),
+    incompleteCoreHolds: checkedCount(row.incomplete_core_holds, 'incomplete_core_holds'),
+    stalledOver1h: checkedCount(row.stalled_over_1h, 'stalled_over_1h'),
+    stalledOver24h: checkedCount(row.stalled_over_24h, 'stalled_over_24h'),
+  };
+}
+
 export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'CRON_SECRET_UNCONFIGURED' }, { status: 503, headers: HEADERS });
@@ -81,12 +117,19 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const delayedRewards = await readRewardReservationDelay();
+    const [delayedRewards, sybilHolds] = await Promise.all([
+      readRewardReservationDelay(),
+      readSybilHoldLiveness(),
+    ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
       ...delayedRewardCode(delayedRewards),
+      ...staleSybilHoldCodes(sybilHolds),
     ]);
     const changes = alarmChanges(previous, current);
+    // A one-hour operator review backlog needs attention, not an artificial
+    // app-outage status. A 24-hour stalled HOLD is a critical failure.
+    const degraded = isReliabilityDegraded(current);
     const now = new Date().toISOString();
 
     // Only the existing cron status table is written, never invitation,
@@ -109,6 +152,7 @@ export async function GET(request: NextRequest) {
         newlyActive: changes.newlyActive,
         active: current,
         delayedRewards,
+        sybilHolds,
       });
     }
     if (changes.resolved.length) {
@@ -119,15 +163,16 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ok: current.length === 0,
+      ok: !degraded,
       checkedJobs: RELIABILITY_JOBS.length,
       activeAlerts: current,
       delayedRewards,
-      // The same active fault returns 503 for accurate health status,
-      // while log notifications are emitted only on transitions.
+      sybilHolds,
+      // Only critical HOLD delays or reliability faults return 503; a 1-hour
+      // manual-review warning never mislabels the application as unavailable.
       newAlerts: changes.newlyActive.length,
       recoveredAlerts: changes.resolved.length,
-    }, { status: current.length ? 503 : 200, headers: HEADERS });
+    }, { status: degraded ? 503 : 200, headers: HEADERS });
   } catch (error) {
     console.error('VeInvite reliability monitor unavailable:', error);
     return NextResponse.json(

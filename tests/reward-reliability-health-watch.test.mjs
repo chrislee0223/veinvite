@@ -28,6 +28,7 @@ function harness() {
   }));
   let savedState = null;
   let delayed = 0;
+  let held = { openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 };
   let paused = false;
   let dbError = false;
   const errors = [];
@@ -62,6 +63,15 @@ function harness() {
       throw Error('Unexpected table ' + table);
     },
     rpc(name, args) {
+      if (name === 'read_sybil_v2_early_hold_liveness') {
+        assert.equal(args.p_network, 'mainnet');
+        return wrap(() => ({ data: [{
+          open_holds: held.openHolds,
+          incomplete_core_holds: held.incompleteCoreHolds,
+          stalled_over_1h: held.stalledOver1h,
+          stalled_over_24h: held.stalledOver24h,
+        }], error: null }));
+      }
       assert.equal(name, 'read_stale_reward_reservation_liveness');
       assert.equal(args.p_stale_minutes, 15);
       return wrap(() => ({ data: [{ missing_count: delayed }], error: null }));
@@ -106,6 +116,7 @@ function harness() {
         : row);
     },
     setDelayed: (count) => { delayed = count; },
+    setHolds: (counts) => { held = counts; },
     setPaused: (value) => { paused = value; },
     setDbError: (value) => { dbError = value; },
     errors, infos,
@@ -157,6 +168,24 @@ test('reward reservation backlog is observed but not executed; severity bands si
   assert.equal(paused.status, 200);
   assert.equal(paused.body.delayedRewards, 0);
   assert.equal(h.errors.length, 2);
+});
+
+test('Sybil HOLD alarms are transition-suppressed and only 24-hour stall is an outage', async () => {
+  const h = harness();
+  h.setHolds({ openHolds: 1, incompleteCoreHolds: 1, stalledOver1h: 1, stalledOver24h: 0 });
+  const warning = await h.GET(h.request);
+  assert.equal(warning.status, 200);
+  assert.equal(warning.body.ok, true);
+  assert.equal(warning.body.newAlerts, 1);
+  assert.equal(warning.body.activeAlerts.includes('SYBIL_EARLY_HOLD_STALLED:1H'), true);
+  assert.equal((await h.GET(h.request)).body.newAlerts, 0);
+  h.setHolds({ openHolds: 1, incompleteCoreHolds: 1, stalledOver1h: 1, stalledOver24h: 1 });
+  const overdue = await h.GET(h.request);
+  assert.equal(overdue.status, 503);
+  assert.equal(overdue.body.newAlerts, 1);
+  assert.equal(overdue.body.recoveredAlerts, 1);
+  h.setHolds({ openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 });
+  assert.equal((await h.GET(h.request)).body.recoveredAlerts, 1);
 });
 
 test('watchdog fails closed on DB errors and does not expose data to unauthenticated callers', async () => {
