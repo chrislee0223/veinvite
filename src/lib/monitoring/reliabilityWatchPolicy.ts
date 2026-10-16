@@ -67,6 +67,12 @@ export function staleSybilHoldCodes(held: SybilHoldLiveness): string[] {
   return [];
 }
 
+export function isReliabilityDegraded(codes: readonly string[]): boolean {
+  // An aged, still-open 1-hour operator review is a warning, not a platform
+  // outage. A review still open past 24 hours becomes a critical fault.
+  return codes.some((code) => code !== 'SYBIL_EARLY_HOLD_STALLED:1H');
+}
+
 export function stableAlarmCodes(codes: readonly string[]): string[] {
   return [...new Set(codes)].sort();
 }
