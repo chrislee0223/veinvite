@@ -38,6 +38,35 @@ export function delayedRewardCode(missingCount: number): string[] {
   return [`REWARD_RESERVATION_DELAY:${band}`];
 }
 
+export type SybilHoldLiveness = {
+  openHolds: number;
+  incompleteCoreHolds: number;
+  stalledOver1h: number;
+  stalledOver24h: number;
+};
+
+// Review delays are actionable even when a wallet has completed all core
+// checks: an operator still has to decide CLEAR/BLOCKED. Do not use any HOLD
+// liveness signal to change wallet/reward authority automatically.
+export function staleSybilHoldCodes(held: SybilHoldLiveness): string[] {
+  const counts = [
+    held.openHolds,
+    held.incompleteCoreHolds,
+    held.stalledOver1h,
+    held.stalledOver24h,
+  ];
+  if (counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+      held.stalledOver24h > held.stalledOver1h ||
+      held.stalledOver1h > held.openHolds ||
+      held.incompleteCoreHolds > held.openHolds) {
+    throw new Error('Invalid Sybil HOLD liveness counts.');
+  }
+
+  if (held.stalledOver24h > 0) return ['SYBIL_EARLY_HOLD_STALLED:24H'];
+  if (held.stalledOver1h > 0) return ['SYBIL_EARLY_HOLD_STALLED:1H'];
+  return [];
+}
+
 export function stableAlarmCodes(codes: readonly string[]): string[] {
   return [...new Set(codes)].sort();
 }
