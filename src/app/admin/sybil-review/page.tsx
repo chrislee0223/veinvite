@@ -78,6 +78,8 @@ type V2Assessment = {
   revision: number | string;
   reason_codes: unknown;
   evidence_summary: unknown;
+  required_checks: unknown;
+  completed_checks: unknown;
   source: string;
   updated_at: string;
 };
@@ -679,6 +681,30 @@ export default function SybilReviewPage() {
   const blockedAllowed =
     detail?.allowedDecisions?.includes('BLOCKED') ?? true;
 
+  // An early HOLD remains reviewable for BLACKLIST but may be impossible to
+  // CLEAR while the wallet is blocked from the very tasks needed for checks.
+  const requiredCoreChecks = Array.isArray(detail?.v2Assessment?.required_checks)
+    ? detail.v2Assessment.required_checks.filter(
+        (check): check is string => typeof check === 'string' && check !== 'CHAIN_FINALITY',
+      )
+    : [];
+  const completedCoreChecks = new Set(
+    Array.isArray(detail?.v2Assessment?.completed_checks)
+      ? detail.v2Assessment.completed_checks.filter(
+          (check): check is string => typeof check === 'string',
+        )
+      : [],
+  );
+  const missingCoreChecks = requiredCoreChecks.filter(
+    (check) => !completedCoreChecks.has(check),
+  );
+  const stalledHoldReviews = overview?.reviews.filter((review) => {
+    if (review.v2_state !== 'HOLD' || !review.v2_updated_at) return false;
+    const assessedAt = Date.parse(review.v2_updated_at);
+    return Number.isFinite(assessedAt) &&
+      Date.now() - assessedAt >= 60 * 60 * 1000;
+  }).length ?? 0;
+
   return (
     <main className="adminScreen">
       <div className="shell">
@@ -715,6 +741,13 @@ export default function SybilReviewPage() {
 
             {error ? <div className="notice error" role="alert">{error}</div> : null}
             {message ? <div className="notice success" role="status">{message}</div> : null}
+            {stalledHoldReviews > 0 ? (
+              <div className="notice error" role="alert">
+                {stalledHoldReviews}건의 Sybil HOLD가 최근 1시간 이상 최종 판정 없이 유지되고 있습니다.
+                HOLD 대상은 아래 수동 검토 목록에서 바로 확인할 수 있습니다.
+                추가 증거 없이 자동 BLACK/CLEAR하지 마세요.
+              </div>
+            ) : null}
 
             <div className="grid">
               <section className="panel">
@@ -1122,6 +1155,23 @@ export default function SybilReviewPage() {
 
                     <div className="decision">
                       <h3>최종 판정 / Final decision</h3>
+                      {detail?.reviewMode === 'V2' && !clearAllowed ? (
+                        <div className="analyticsWarning" role="status">
+                          <strong>조기 HOLD · 핵심 검사 미완료 / Early HOLD</strong>
+                          <span>
+                            미완료 검사: {missingCoreChecks.length > 0
+                              ? missingCoreChecks.join(', ')
+                              : '정보를 다시 확인해야 합니다.'}
+                          </span>
+                          <small>
+                            이 지갑은 HOLD 화면으로 VeInvite 사용이 제한됩니다.
+                            MISSION_BEHAVIOR가 미완료라면 사용자가 활동을 이어갈 수 없어
+                            검사가 영구 대기할 수 있습니다. 독립적인 검증 자료를 확인하고
+                            수동 조치하세요. CLEAR는 안전 검사가 충족될 때까지 금지되며,
+                            BLOCK도 실제 증거를 검토한 후에만 확정해야 합니다.
+                          </small>
+                        </div>
+                      ) : null}
                       <label>
                         <span>운영자 판정 사유 (12자 이상)</span>
                         <textarea
