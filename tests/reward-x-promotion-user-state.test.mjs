@@ -65,6 +65,7 @@ test('share token is validated and exposed only while the offer is open', () => 
 
 test('promotion state preserves verification and terminal outcomes', () => {
   for (const state of [
+    'PREPARING',
     'OPEN',
     'SUBMISSION_GRACE',
     'VERIFYING',
@@ -77,4 +78,14 @@ test('promotion state preserves verification and terminal outcomes', () => {
   ]) {
     assert.match(route, new RegExp(`'${state}'`));
   }
+});
+
+
+test('LIVE split is surfaced as PREPARING before isolated opportunity maintenance catches up', () => {
+  assert.match(
+    route,
+    /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/,
+  );
+  assert.match(route, /state:[\s\S]*'PREPARING'/);
+  assert.match(route, /postDeadlineAt: null/);
 });

@@ -75,7 +75,7 @@ type NotificationFixture = HistoryFixture;
 const QA_FRIEND =
   '0x0000000000000000000000000000000000000b01';
 const QA_REWARD_WEI = '262970000000000000000';
-const QA_REWARD_INVITE_CODE = 'QA-NOTI-22';
+const QA_REWARD_INVITE_CODE = 'Q7N7T22';
 const QA_REWARD_RECEIPT: RewardReceipt = {
   id: 'qa-receipt-1',
   receiptVersion: 'v1',
