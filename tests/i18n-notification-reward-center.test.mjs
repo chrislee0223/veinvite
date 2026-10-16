@@ -20,6 +20,7 @@ const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
 const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
 const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
+const rewardXPromotionPanel = read('src/components/RewardXPromotionPanel.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const rootLayout = read('src/app/layout.tsx');
 const legacyInvitePage = read('src/app/i/[code]/page.tsx');
@@ -119,8 +120,14 @@ test('actual payout uses the common bottom snackbar without colliding with other
     /const next = deferredFeedbackRef\.current;[\s\S]*return next/,
   );
   assert.match(rewardPaidTransient, /readRewardPaidToast\(wallet\)/);
-  assert.match(rewardPaidTransient, /clearRewardPaidToast\(wallet, payload\.receiptId\)/);
-  assert.match(rewardPaidTransient, /setPendingReward\(readRewardPaidToast\(wallet\)\)/);
+  assert.match(
+    rewardPaidTransient,
+    /clearRewardPaidToast\(\s*wallet,\s*payload\.receiptId,?\s*\)/,
+  );
+  assert.match(
+    rewardPaidTransient,
+    /setPendingReward\(\s*readRewardPaidToast\(wallet\),?\s*\)/,
+  );
   assert.match(rewardPaidTransient, /if \(!pendingReward \|\| feedback\) return/);
   assert.match(rewardPaidTransient, /shareUnavailable/);
   assert.match(rewardPaidTransient, /kind: 'reward'/);
@@ -162,32 +169,38 @@ test('reward adjustment and paid copy cover every supported locale', () => {
   }
 });
 
-test('paid reward receipt shares the verified permanent invite link on X', () => {
+test('paid reward receipt shares through the promotion-aware verified link flow', () => {
   assert.match(center, /rewardShareUrl/);
   assert.match(center, /<RewardReceiptView/);
-  assert.match(rewardReceiptView, /rewardReceiptXIntentUrl/);
-  assert.match(rewardReceiptView, /className="notificationXShare"/);
-  assert.match(rewardReceiptView, /window\.open\(\s*rewardShareIntentUrl/);
+  assert.match(rewardReceiptView, /<RewardXPromotionPanel/);
+  assert.match(
+    rewardReceiptView,
+    /receiptAmountB3tr=\{receipt\.amountB3tr\}/,
+  );
+  assert.match(rewardXPromotionPanel, /rewardReceiptXIntentUrl/);
+  assert.match(rewardXPromotionPanel, /rewardXPromotionShareUrl/);
+  assert.match(rewardXPromotionPanel, /rewardShareUrl/);
+  assert.match(
+    rewardXPromotionPanel,
+    /\/api\/rewards\/x-promotion\?inviteCode=/,
+  );
   assert.match(rewardPaidTransient, /buildProductionSharePageUrl/);
   assert.match(
     rewardPaidTransient,
-    /amountB3tr: payload\.amountB3tr/,
-  );
-  assert.match(
-    rewardReceiptView,
-    /amountB3tr: receipt\.amountB3tr/,
+    /amountB3tr:\s*payload\.amountB3tr/,
   );
   assert.doesNotMatch(rewardPaidTransient, /262\.97/);
   assert.doesNotMatch(home, /262\.97/);
   assert.match(rewardShare, /https:\/\/x\.com\/intent\/post/);
   assert.match(rewardShare, /Record<\s*SupportedLocale/);
-  assert.match(rewardShare, /I just earned \${amount} #B3TR/);
+  assert.match(rewardShare, /I just earned \$\{amount\} #B3TR/);
   assert.match(rewardShare, /@Veinvite/);
   assert.match(rewardShare, /on #VeBetterDAO/);
   assert.match(rewardShare, /Invite friends\. Earn B3TR\. 👇/);
   assert.match(rewardShare, /'#VeChain #Web3 #Crypto'/);
   assert.match(rewardShare, /formatRewardShareAmount/);
   assert.match(rewardShare, /referralUrl/);
+  assert.match(rewardShare, /searchParams\.set\('xp', token\)/);
   assert.doesNotMatch(rewardShare, /'#VeBetterDAO #B3TR #VeInvite'/);
 });
 
