@@ -233,3 +233,4 @@
 20261015152354 add_x_promotion_financial_integrity_audit_v1
 20261016092443 harden_x_promotion_unsplit_exemptions_v1
 20261016120721 index_x_promotion_foreign_keys_v1
+20261016192840 surface_stalled_early_sybil_holds
