@@ -327,8 +327,8 @@ export async function GET(request: NextRequest) {
   if (promotionResult.error) {
     // X promotion display enrichment is intentionally fail-soft. Core invite
     // and Claim availability must not disappear because this optional read
-    // failed. The UI receives no claim/promotion split fields and can fall
-    // back to the immutable reservation as a maximum total only.
+    // failed. The UI receives no resolved immediate-claim amount and must not
+    // guess one from the immutable maximum-total reservation.
     console.warn(
       'Invitation X promotion display enrichment unavailable:',
       promotionResult.error,
