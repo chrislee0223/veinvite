@@ -126,6 +126,11 @@ export async function GET(request: NextRequest) {
       ...staleSybilHoldCodes(sybilHolds),
     ]);
     const changes = alarmChanges(previous, current);
+    // A one-hour operator review backlog needs attention, not an artificial
+    // app-outage status. A 24-hour stalled HOLD is a critical failure.
+    const degraded = current.some(
+      (code) => code !== 'SYBIL_EARLY_HOLD_STALLED:1H',
+    );
     const now = new Date().toISOString();
 
     // Only the existing cron status table is written, never invitation,
@@ -159,16 +164,16 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ok: current.length === 0,
+      ok: !degraded,
       checkedJobs: RELIABILITY_JOBS.length,
       activeAlerts: current,
       delayedRewards,
       sybilHolds,
-      // The same active fault returns 503 for accurate health status,
-      // while log notifications are emitted only on transitions.
+      // Only critical HOLD delays or reliability faults return 503; a 1-hour
+      // manual-review warning never mislabels the application as unavailable.
       newAlerts: changes.newlyActive.length,
       recoveredAlerts: changes.resolved.length,
-    }, { status: current.length ? 503 : 200, headers: HEADERS });
+    }, { status: degraded ? 503 : 200, headers: HEADERS });
   } catch (error) {
     console.error('VeInvite reliability monitor unavailable:', error);
     return NextResponse.json(
