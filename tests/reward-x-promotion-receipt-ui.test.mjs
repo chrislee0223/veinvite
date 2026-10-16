@@ -165,7 +165,7 @@ test('opening X no longer acknowledges the reward receipt', () => {
 
 test('X promotion copy explicitly covers every locale registered by VeInvite', () => {
   const localeMatches = Array.from(
-    locales.matchAll(/\\{ locale: '([^']+)'/g),
+    locales.matchAll(/\{ locale: '([^']+)'/g),
     (match) => match[1],
   );
 
