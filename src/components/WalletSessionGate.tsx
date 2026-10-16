@@ -45,6 +45,7 @@ import {
 import {
   WALLET_SESSION_COPY,
 } from '@/lib/i18n/walletSessionCopy';
+import { WalletRestorePrompt } from '@/components/WalletRestorePrompt';
 import {
   WALLET_SWITCH_COPY,
 } from '@/lib/i18n/walletSwitchCopy';
@@ -618,6 +619,7 @@ export function WalletSessionGate({
     useState<Locale>('en');
   const [isDisconnecting, setIsDisconnecting] =
     useState(false);
+  const [restoreTimedOut, setRestoreTimedOut] = useState(false);
   const attemptRef = useRef(0);
   const autoAttemptedWalletRef =
     useRef<string | null>(initialWallet);
@@ -633,6 +635,23 @@ export function WalletSessionGate({
   const bootReadyDispatchedRef = useRef(false);
   const sessionWalletRef =
     useRef<string | null>(initialWallet);
+
+  useEffect(() => {
+    if (previewMode || walletAddress) {
+      setRestoreTimedOut(false);
+      return;
+    }
+
+    // An existing verified browser session or persisted provider wallet must
+    // not leave desktop refresh on a permanent brand-only surface. Allow cold
+    // SDK reinitialization first; then show an explicit reconnect action.
+    // Never expose Home or revoke the HttpOnly session from this timeout.
+    if (!sessionWalletRef.current && !readPersistedDappKitAccount()) return;
+    const timer = window.setTimeout(() => {
+      if (!walletAddressRef.current) setRestoreTimedOut(true);
+    }, 9_000);
+    return () => window.clearTimeout(timer);
+  }, [previewMode, walletAddress, initialWallet]);
 
   useEffect(() => {
     if (previewMode) return;
@@ -1174,6 +1193,20 @@ export function WalletSessionGate({
   }
 
   if (!walletAddress) {
+    if (
+      restoreTimedOut &&
+      (sessionWalletRef.current || readPersistedDappKitAccount())
+    ) {
+      return (
+        <WalletRestorePrompt
+          locale={locale}
+          onReconnect={() => {
+            markWalletConnectIntent();
+            openConnectModal();
+          }}
+        />
+      );
+    }
     // VeWorld can briefly clear the provider account while returning from a
     // signing surface even though the verified browser session is still valid.
     // Never expose the logged-out Home/connect screen during that provider
