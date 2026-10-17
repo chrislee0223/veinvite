@@ -134,3 +134,41 @@ test('reading X promotion paid does not advance the legacy referral stage', () =
     /acknowledge_invite_notification_v2/,
   );
 });
+
+test('new paid promotion history refreshes Home immediately without invalidating network caches', () => {
+  const notifications = readFileSync(
+    'src/components/InAppInviteNotifications.tsx',
+    'utf8',
+  );
+  assert.match(
+    notifications,
+    /history\.items\.filter\(notificationRequiresHomeRefresh\)/,
+  );
+  assert.match(
+    notifications,
+    /history\.items\.filter\(notificationRequiresNetworkRefresh\)/,
+  );
+  assert.match(
+    notifications,
+    /lastHomeRefreshNotificationIdRef/,
+  );
+  assert.match(
+    notifications,
+    /lastNetworkRefreshNotificationIdRef/,
+  );
+
+  const homeBlock = notifications.slice(
+    notifications.indexOf('const latestHomeRefreshId'),
+    notifications.indexOf('const latestNetworkRefreshId'),
+  );
+  assert.match(homeBlock, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(homeBlock, /NETWORK_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(homeBlock, /invalidateNetwork(?:Root|Summary)Cache/);
+
+  const networkBlock = notifications.slice(
+    notifications.indexOf('const latestNetworkRefreshId'),
+    notifications.indexOf('    },\n    [],', notifications.indexOf('const latestNetworkRefreshId')),
+  );
+  assert.match(networkBlock, /NETWORK_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(networkBlock, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
+});
