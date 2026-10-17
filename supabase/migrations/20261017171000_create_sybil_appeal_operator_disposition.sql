@@ -90,7 +90,8 @@ begin
 
   select a.state,a.revision into v_assessment
   from public.sybil_v2_referral_assessments a
-  where a.invite_code=v_appeal.invite_code and a.network=p_network;
+  where a.invite_code=v_appeal.invite_code and a.network=p_network
+  for share;
 
   if v_assessment.revision is null then
     raise exception 'SYBIL_APPEAL_CASE_CHANGED';
@@ -102,7 +103,6 @@ begin
     raise exception 'SYBIL_APPEAL_CASE_CHANGED';
   end if;
   if p_outcome='CASE_VERDICT_CHANGED' and
-     v_assessment.revision<=v_appeal.assessment_revision and
      ((v_appeal.restriction_kind='BLACKLIST' and v_assessment.state='RESTRICTED') or
       (v_appeal.restriction_kind='PRE_CLAIM_HOLD' and v_assessment.state='HOLD')) then
     raise exception 'SYBIL_APPEAL_VERDICT_NOT_CHANGED';
