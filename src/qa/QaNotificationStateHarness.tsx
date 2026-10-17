@@ -42,6 +42,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-X-PROMOTION-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
   | 'NOTI-INELIGIBLE'
@@ -307,6 +308,20 @@ function fixtureForState(
         previewRewardReceipt: QA_REWARD_RECEIPT,
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
+    case 'NOTI-X-PROMOTION-PAID':
+      return {
+        mode: 'history',
+        items: [
+          historyItem({
+            id: '32',
+            kind: 'X_PROMOTION_PAID',
+            minutes: 1,
+            rewardAmountWei: '10000000000000000000',
+          }),
+        ],
+        unreadCount: 1,
+        open: true,
       };
     case 'NOTI-REWARD-PAID-POPUP':
       return {
