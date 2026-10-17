@@ -115,3 +115,22 @@ test('X promotion paid survives warm history caching and refreshes home data onl
   );
   assert.doesNotMatch(networkBlock, /X_PROMOTION_PAID/);
 });
+
+test('reading X promotion paid does not advance the legacy referral stage', () => {
+  const ackSql = readFileSync(
+    'supabase/migrations/20261017183500_isolate_x_promotion_paid_notification_ack.sql',
+    'utf8',
+  );
+  assert.match(
+    ackSql,
+    /v_row\.kind not like 'SECURITY_%'[\s\S]*v_row\.kind <> 'X_PROMOTION_PAID'/,
+  );
+  assert.match(
+    ackSql,
+    /insert into public\.invite_notification_history_reads/,
+  );
+  assert.match(
+    ackSql,
+    /acknowledge_invite_notification_v2/,
+  );
+});
