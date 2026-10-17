@@ -61,6 +61,9 @@ test('invalid, missing and non-final mission evidence fails closed', () => {
 
 test('authenticated read-only endpoint always retains backend restrictions', () => {
   assert.match(route, /getWalletSession\(request\)/u);
+  assert.match(route, /enforceRateLimits/u);
+  assert.match(route, /sybil_hold_progress_ip/u);
+  assert.match(route, /sybil_hold_progress_wallet/u);
   assert.match(route, /loadActiveSybilV2Restriction/u);
   assert.match(route, /restriction_kind !== 'PRE_CLAIM_HOLD'/u);
   assert.match(route, /\.eq\('invitee_wallet', session\.walletAddress\)/u);
