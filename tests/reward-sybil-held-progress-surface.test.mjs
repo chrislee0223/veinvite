@@ -27,6 +27,9 @@ test('progress fetch discards stale data and aborts during wallet switches', () 
   assert.match(panel, /\[walletAddress, requestVersion\]/u);
   assert.match(panel, /cache: 'no-store'/u);
   assert.match(panel, /credentials: 'same-origin'/u);
+  assert.match(panel, /'x-veinvite-session-wallet': walletAddress/u);
+  assert.match(endpoint, /expectedWallet !== session\.walletAddress/u);
+  assert.match(endpoint, /get\('x-veinvite-session-wallet'\)/u);
 });
 
 test('restrict UI to status values, without transaction and invite buttons', () => {
