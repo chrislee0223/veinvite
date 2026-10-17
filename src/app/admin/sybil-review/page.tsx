@@ -1329,6 +1329,55 @@ export default function SybilReviewPage() {
                                 {appeal.explanation}
                               </p>
                               <small>{formatDate(appeal.created_at)} · {appeal.restriction_kind}</small>
+                              {appeal.status === 'RESOLVED' ? (
+                                <div>
+                                  <small>
+                                    {appeal.resolution_outcome} · {formatDate(appeal.resolved_at)}
+                                    · {shortAddress(appeal.resolved_by_wallet)}
+                                  </small>
+                                  <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                                    {appeal.resolution_reason}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                                  <label>
+                                    <span>검토 처리 결과 / Review disposition</span>
+                                    <select
+                                      value={appealOutcome}
+                                      onChange={(event) => setAppealOutcome(
+                                        event.target.value as 'UPHELD_RESTRICTION' | 'CASE_VERDICT_CHANGED',
+                                      )}
+                                      disabled={appealClosing}
+                                    >
+                                      <option value="UPHELD_RESTRICTION">
+                                        기존 제한 유지 / Restriction upheld
+                                      </option>
+                                      <option value="CASE_VERDICT_CHANGED">
+                                        별도 판정 변경 확인 / Verdict already changed
+                                      </option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <span>종결 사유 (25~600자) / Resolution basis</span>
+                                    <textarea
+                                      rows={3}
+                                      maxLength={600}
+                                      value={appealResolutionReason}
+                                      onChange={(event) => setAppealResolutionReason(event.target.value)}
+                                      disabled={appealClosing}
+                                      placeholder="검증한 증거와 별도 Sybil 판정 결과를 명시하세요. 이 버튼으로 판정이 바뀌지는 않습니다."
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={appealClosing || appealResolutionReason.trim().length < 25}
+                                    onClick={() => void closeOwnerAppeal(appeal.id, appeal.assessment_revision)}
+                                  >
+                                    재검토 기록 종결 / Close request only
+                                  </button>
+                                </div>
+                              )
                             </div>
                           ))}
                         </div>
