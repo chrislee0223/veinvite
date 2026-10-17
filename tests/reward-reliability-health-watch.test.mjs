@@ -341,7 +341,8 @@ test('scan failures alert separately from HOLD: fresh retries do not reset 24h o
   const recovered = await h.GET(h.request);
   assert.equal(recovered.status, 200);
   assert.equal(recovered.body.recoveredAlerts, 1);
-  assert.equal(h.infos.length, 1);
+  // Both the 1h->24h transition and final recovery publish a resolution.
+  assert.equal(h.infos.length, 2);
 });
 
 test('failed scan liveness query refuses malformed aggregate and fails closed', async () => {
