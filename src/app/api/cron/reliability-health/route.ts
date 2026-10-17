@@ -12,8 +12,10 @@ import {
   isReliabilityDegraded,
   staleCronCodes,
   staleSybilHoldCodes,
+  xPromotionGateCodes,
   type JobHeartbeat,
   type SybilHoldLiveness,
+  type XPromotionLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -98,6 +100,47 @@ async function readSybilHoldLiveness(): Promise<SybilHoldLiveness> {
   };
 }
 
+async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
+  // Read-only operational coherence check. This never opens/closes the gate,
+  // creates an offer, verifies a Post, or signs a payout.
+  const { network } = getVeBetterNetworkConfig();
+  const { data: config, error: configError } = await supabaseAdmin
+    .from('reward_runtime_config')
+    .select(
+      'reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready',
+    )
+    .eq('id', 1)
+    .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS))
+    .maybeSingle();
+  if (configError || !config) {
+    throw new Error('X promotion runtime config could not be read.');
+  }
+
+  const { data: runtime, error: runtimeError } = await supabaseAdmin.rpc(
+    'read_reward_x_promotion_external_runtime_readiness_v1',
+    {
+      p_network: network,
+      p_max_age_seconds: 1200,
+    },
+  ).abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+  if (runtimeError || !runtime || typeof runtime !== 'object' || Array.isArray(runtime)) {
+    throw new Error('X promotion external runtime readiness could not be read.');
+  }
+
+  const runtimeReady = (runtime as Record<string, unknown>).ready;
+  if (typeof runtimeReady !== 'boolean') {
+    throw new Error('X promotion external runtime readiness is malformed.');
+  }
+
+  return {
+    liveEnabled: config.reward_x_promotion_enabled === true,
+    payoutEnabled: config.reward_x_promotion_payout_enabled === true,
+    externalVerificationReady:
+      config.reward_x_promotion_external_verification_ready === true,
+    runtimeReady,
+  };
+}
+
 export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'CRON_SECRET_UNCONFIGURED' }, { status: 503, headers: HEADERS });
@@ -117,18 +160,20 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const [delayedRewards, sybilHolds] = await Promise.all([
+    const [delayedRewards, sybilHolds, xPromotion] = await Promise.all([
       readRewardReservationDelay(),
       readSybilHoldLiveness(),
+      readXPromotionLiveness(),
     ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
       ...delayedRewardCode(delayedRewards),
       ...staleSybilHoldCodes(sybilHolds),
+      ...xPromotionGateCodes(xPromotion),
     ]);
     const changes = alarmChanges(previous, current);
-    // A one-hour operator review backlog needs attention, not an artificial
-    // app-outage status. A 24-hour stalled HOLD is a critical failure.
+    // Operator-only warnings (a one-hour HOLD or a safely closed X gate)
+    // need attention without mislabeling the whole app as unavailable.
     const degraded = isReliabilityDegraded(current);
     const now = new Date().toISOString();
 
@@ -144,7 +189,7 @@ export async function GET(request: NextRequest) {
         // A successful *check* updates its heartbeat even when it discovered
         // an actionable issue. Keep alert state independently in last_error.
         last_succeeded_at: now,
-        // A one-hour HOLD is a pending operator task, not a failed monitor.
+        // Warning-only states are pending operator tasks, not failed monitors.
         ...(changes.newlyActive.some((code) =>
           isReliabilityDegraded([code]),
         ) ? { last_failed_at: now } : {}),
@@ -158,6 +203,7 @@ export async function GET(request: NextRequest) {
         active: current,
         delayedRewards,
         sybilHolds,
+        xPromotion,
       });
     }
     if (changes.resolved.length) {
@@ -173,8 +219,9 @@ export async function GET(request: NextRequest) {
       activeAlerts: current,
       delayedRewards,
       sybilHolds,
-      // Only critical HOLD delays or reliability faults return 503; a 1-hour
-      // manual-review warning never mislabels the application as unavailable.
+      xPromotion,
+      // Warning-only HOLD/X-gate states stay HTTP 200; critical reliability
+      // faults still return 503.
       newAlerts: changes.newlyActive.length,
       recoveredAlerts: changes.resolved.length,
     }, { status: degraded ? 503 : 200, headers: HEADERS });
