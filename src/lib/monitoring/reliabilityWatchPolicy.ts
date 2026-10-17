@@ -9,6 +9,10 @@ export const RELIABILITY_JOBS = [
   { name: 'vote-reconcile:sybil-reward-recovery', maxAgeMinutes: 30 },
   { name: 'vote-reconcile:full-fallback', maxAgeMinutes: 90 },
   { name: 'vote-reconcile:reward-boost-reserve', maxAgeMinutes: 120 },
+  // X promotion maintenance runs every 15 minutes. Allow two missed runs plus
+  // scheduling jitter before treating the worker as stale.
+  { name: 'x-promotion-lifecycle', maxAgeMinutes: 45 },
+  { name: 'x-promotion-payout', maxAgeMinutes: 45 },
   { name: 'daily-reconcile', maxAgeMinutes: 30 * 60 },
   { name: 'analytics-maintenance', maxAgeMinutes: 30 * 60 },
 ] as const;
@@ -64,6 +68,42 @@ export function staleSybilHoldCodes(held: SybilHoldLiveness): string[] {
 
   if (held.stalledOver24h > 0) return ['SYBIL_EARLY_HOLD_STALLED:24H'];
   if (held.stalledOver1h > 0) return ['SYBIL_EARLY_HOLD_STALLED:1H'];
+  return [];
+}
+
+
+export type XPromotionLiveness = {
+  liveEnabled: boolean;
+  payoutEnabled: boolean;
+  externalVerificationReady: boolean;
+  externalRuntimeReady: boolean;
+};
+
+// X promotion is optional to the core referral flow, but once LIVE + payout
+// are enabled, sustained dependency/gate mismatches need operator attention.
+export function xPromotionLivenessCodes(
+  state: XPromotionLiveness,
+): string[] {
+  if (!state.liveEnabled || !state.payoutEnabled) return [];
+
+  if (
+    state.externalVerificationReady &&
+    !state.externalRuntimeReady
+  ) {
+    return ['X_PROMOTION_GATE_OPEN_WITH_RUNTIME_NOT_READY'];
+  }
+
+  if (
+    !state.externalVerificationReady &&
+    state.externalRuntimeReady
+  ) {
+    return ['X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY'];
+  }
+
+  if (!state.externalRuntimeReady) {
+    return ['X_PROMOTION_EXTERNAL_RUNTIME_NOT_READY'];
+  }
+
   return [];
 }
 

@@ -30,6 +30,12 @@ function harness() {
   let delayed = 0;
   let held = { openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 };
   let paused = false;
+  let xPromotion = {
+    liveEnabled: true,
+    payoutEnabled: true,
+    externalVerificationReady: true,
+    externalRuntimeReady: true,
+  };
   let dbError = false;
   const errors = [];
   const infos = [];
@@ -56,13 +62,28 @@ function harness() {
           abortSignal: () => ({
             maybeSingle: async () => dbError
               ? { data: null, error: { message: 'database unavailable' } }
-              : { data: { emergency_rewards_paused: paused, mainnet_funded_rewards_enabled: true }, error: null },
+              : { data: {
+                  emergency_rewards_paused: paused,
+                  mainnet_funded_rewards_enabled: true,
+                  reward_x_promotion_enabled: xPromotion.liveEnabled,
+                  reward_x_promotion_payout_enabled: xPromotion.payoutEnabled,
+                  reward_x_promotion_external_verification_ready:
+                    xPromotion.externalVerificationReady,
+                }, error: null },
           }),
         }) }),
       };
       throw Error('Unexpected table ' + table);
     },
     rpc(name, args) {
+      if (name === 'read_reward_x_promotion_external_runtime_readiness_v1') {
+        assert.equal(args.p_network, 'mainnet');
+        assert.equal(args.p_max_age_seconds, 1200);
+        return wrap(() => ({
+          data: { ready: xPromotion.externalRuntimeReady },
+          error: null,
+        }));
+      }
       if (name === 'read_sybil_v2_early_hold_liveness') {
         assert.equal(args.p_network, 'mainnet');
         return wrap(() => ({ data: [{
@@ -118,6 +139,9 @@ function harness() {
     setDelayed: (count) => { delayed = count; },
     setHolds: (counts) => { held = counts; },
     setPaused: (value) => { paused = value; },
+    setXPromotion: (value) => {
+      xPromotion = { ...xPromotion, ...value };
+    },
     setDbError: (value) => { dbError = value; },
     errors, infos,
     getState: () => savedState,
@@ -130,6 +154,7 @@ test('independent read-only watchdog runs every 15 minutes with no payout or ver
   { path: '/api/cron/reliability-health', schedule: '7,22,37,52 * * * *' });
   assert.doesNotMatch(routeSource, /runAutomaticRewardPayout|reserveEligibleReferralRewards|syncInvitationEvidence/);
   assert.match(routeSource, /read_stale_reward_reservation_liveness/);
+  assert.match(routeSource, /read_reward_x_promotion_external_runtime_readiness_v1/);
   assert.match(routeSource, /cron_job_states/);
   assert.match(routeSource, /AbortSignal\.timeout\(HEALTH_READ_TIMEOUT_MS\)/);
 });
@@ -194,6 +219,66 @@ test('Sybil HOLD alarms are transition-suppressed and only 24-hour stall is an o
   assert.equal(typeof h.getState().last_failed_at, 'string');
   h.setHolds({ openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 });
   assert.equal((await h.GET(h.request)).body.recoveredAlerts, 1);
+});
+
+
+test('X promotion maintenance heartbeats are watched with bounded staleness', () => {
+  assert.equal(
+    policy.RELIABILITY_JOBS.find((j) => j.name === 'x-promotion-lifecycle').maxAgeMinutes,
+    45,
+  );
+  assert.equal(
+    policy.RELIABILITY_JOBS.find((j) => j.name === 'x-promotion-payout').maxAgeMinutes,
+    45,
+  );
+});
+
+test('X runtime and external gate mismatches are surfaced as reliability faults', async () => {
+  const h = harness();
+
+  h.setXPromotion({
+    externalVerificationReady: false,
+    externalRuntimeReady: true,
+  });
+  const gateOff = await h.GET(h.request);
+  assert.equal(gateOff.status, 503);
+  assert.equal(
+    gateOff.body.activeAlerts.includes('X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY'),
+    true,
+  );
+
+  h.setXPromotion({
+    externalVerificationReady: true,
+    externalRuntimeReady: false,
+  });
+  const unsafeOpen = await h.GET(h.request);
+  assert.equal(unsafeOpen.status, 503);
+  assert.equal(
+    unsafeOpen.body.activeAlerts.includes('X_PROMOTION_GATE_OPEN_WITH_RUNTIME_NOT_READY'),
+    true,
+  );
+
+  h.setXPromotion({
+    externalVerificationReady: false,
+    externalRuntimeReady: false,
+  });
+  const dependencyDown = await h.GET(h.request);
+  assert.equal(dependencyDown.status, 503);
+  assert.equal(
+    dependencyDown.body.activeAlerts.includes('X_PROMOTION_EXTERNAL_RUNTIME_NOT_READY'),
+    true,
+  );
+
+  h.setXPromotion({
+    liveEnabled: false,
+    externalVerificationReady: false,
+    externalRuntimeReady: false,
+  });
+  const disabled = await h.GET(h.request);
+  assert.equal(
+    disabled.body.activeAlerts.some((code) => code.startsWith('X_PROMOTION_')),
+    false,
+  );
 });
 
 test('watchdog fails closed on DB errors and does not expose data to unauthenticated callers', async () => {
