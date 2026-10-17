@@ -31,6 +31,7 @@ export type QaNotificationStateId =
   | 'NOTI-HISTORY-OPEN'
   | 'NOTI-HISTORY-LOADING'
   | 'NOTI-HISTORY-ERROR'
+  | 'NOTI-HISTORY-INLINE-ERROR'
   | 'NOTI-HISTORY-READ'
   | 'NOTI-HISTORY-UNREAD'
   | 'NOTI-HISTORY-MORE'
@@ -202,6 +203,14 @@ function fixtureForState(
         unreadCount: 0,
         open: true,
         errorMessage: 'QA notification history request failed.',
+      };
+    case 'NOTI-HISTORY-INLINE-ERROR':
+      return {
+        mode: 'history',
+        items: mixedHistory(),
+        unreadCount: 2,
+        open: true,
+        errorMessage: 'QA inline notification history request failed.',
       };
     case 'NOTI-HISTORY-READ':
       return {
@@ -555,6 +564,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -568,6 +582,10 @@ export function QaNotificationStateHarness({
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
       <QaNotificationStage embedded={embedded}>
+        <span
+          hidden
+          data-qa-notification-ready={hydrated ? 'true' : 'false'}
+        />
         <TransientSnackbar
           locale={locale}
           feedback={{
@@ -602,6 +620,10 @@ export function QaNotificationStateHarness({
 
   return (
     <QaNotificationStage embedded={embedded}>
+      <span
+        hidden
+        data-qa-notification-ready={hydrated ? 'true' : 'false'}
+      />
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
