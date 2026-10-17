@@ -296,18 +296,31 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams.get('limit'));
 
   try {
-    // A verified payout receipt is the source of truth for paid alerts.
+    // Immutable payout receipts are the source of truth for paid alerts.
     // Reconcile only on first-page history reads; failures must not hide
     // previously recorded notifications or affect reward accounting.
     if (beforeId === null) {
-      const { error: reconciliationError } = await supabaseAdmin.rpc(
-        'reconcile_verified_paid_reward_history',
-        { p_inviter_wallet: wallet },
-      );
-      if (reconciliationError) {
+      const [corePaid, xPromotionPaid] = await Promise.all([
+        supabaseAdmin.rpc(
+          'reconcile_verified_paid_reward_history',
+          { p_inviter_wallet: wallet },
+        ),
+        supabaseAdmin.rpc(
+          'reconcile_verified_x_promotion_paid_history',
+          { p_inviter_wallet: wallet },
+        ),
+      ]);
+
+      if (corePaid.error) {
         console.error(
           'Receipt-verified paid notification reconciliation failed:',
-          reconciliationError.message,
+          corePaid.error.message,
+        );
+      }
+      if (xPromotionPaid.error) {
+        console.error(
+          'X promotion paid notification reconciliation failed:',
+          xPromotionPaid.error.message,
         );
       }
     }
