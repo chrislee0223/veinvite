@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed auth incident diagnostic change: WalletSessionGate.tsx crossed 30KB to distinguish proof errors from participation checks and show privacy-safe support codes. Extract the gate UI in a separate follow-up refactor; no increase to guarded hotspot ceilings.",
+  "note": "Reviewed Sybil HOLD recovery change (2026-10-17): +1.4% to pipeline.ts for bounded, non-starving fresh-evidence reassessment and independently corroborated same-client classification. Existing reward/blacklist fail-closed gates unchanged. Other hotspot growth ceilings remain fixed.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -37,7 +37,7 @@
   ],
   "growthCeilingsBytes": {
     "src/components/AppNetwork.tsx": 149032,
-    "src/lib/sybil/v2/pipeline.ts": 136533,
+    "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
     "src/components/HomeClient.tsx": 51397,
