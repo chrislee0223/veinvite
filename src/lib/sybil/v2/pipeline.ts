@@ -3652,6 +3652,20 @@ export async function assessSybilV2Referral(
       'HISTORICAL_SYNCHRONIZED_REWARD_CLUSTER',
     );
 
+  const clientInviterIndependentHighEvidence = signals.some(
+    (signal) =>
+      signal.strength === 'HIGH' &&
+      signal.score > 0 &&
+      [
+        'HISTORICAL_REWARD',
+        'HISTORICAL_CONSOLIDATION',
+        'FUNDING',
+        'MISSION_BEHAVIOR',
+        'POST_PAYOUT',
+        'ECOSYSTEM_REPUTATION',
+      ].includes(signal.family),
+  );
+
   const evidenceSummary = {
     behaviorPatternEnforcementVersion:
       SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION,
@@ -3692,8 +3706,15 @@ export async function assessSybilV2Referral(
       funderReturnLoopHub !== null,
     restrictedSiblingReentryAutomaticRestrictionCandidate:
       restrictedSiblingReentry,
-    securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
+    // A shared security client opens the verifier, but only independent HIGH
+    // evidence can make the automatic restriction eligible.
+    securityClientInviterImmediateSwitchProbeCandidate:
       securityClientInviterImmediateSwitch,
+    securityClientInviterImmediateSwitchAutomaticRestrictionCandidate:
+      securityClientInviterImmediateSwitch &&
+      clientInviterIndependentHighEvidence,
+    securityClientInviterIndependentHighEvidence:
+      clientInviterIndependentHighEvidence,
     securityClientSiblingSyncRewardProbeCandidate:
       securityClientSiblingSyncRewardCandidate,
     vePassport: vePassport.snapshot
@@ -3756,7 +3777,8 @@ export async function assessSybilV2Referral(
       behaviorPatternHub !== null ||
       funderReturnLoopHub !== null ||
       restrictedSiblingReentry ||
-      securityClientInviterImmediateSwitch ||
+      (securityClientInviterImmediateSwitch &&
+        clientInviterIndependentHighEvidence) ||
       vePassport.automaticRestrictionCandidate,
   };
 
@@ -4382,6 +4404,35 @@ export async function runSybilV2AssessmentBatch(
   const seen = new Set(
     candidates.map((candidate) => String(candidate.invite_code)),
   );
+
+  // A permanently busy completed-referral batch must never starve new
+  // independent evidence for an early SYSTEM HOLD. Reserve at most 2 slots,
+  // displacing the last ordinary candidates only when fresh evidence exists.
+  // Those displaced candidates remain eligible on the next recovery pass.
+  const { data: newEvidenceHolds, error: newEvidenceError } =
+    await supabaseAdmin
+      .from('operator_sybil_v2_hold_new_evidence_candidates')
+      .select('invite_code')
+      .eq('network', getVeBetterNetworkConfig().network)
+      .order('priority_at', { ascending: true })
+      .limit(Math.min(2, bounded));
+
+  if (newEvidenceError) {
+    throw new Error(
+      `Sybil v2 new-evidence HOLD recheck candidates could not be loaded: ${newEvidenceError.message}`,
+    );
+  }
+
+  for (const row of [...(newEvidenceHolds ?? [])].reverse()) {
+    const inviteCode = String(row.invite_code);
+    if (seen.has(inviteCode)) continue;
+    if (candidates.length >= bounded) {
+      const displaced = candidates.pop();
+      if (displaced) seen.delete(String(displaced.invite_code));
+    }
+    candidates.unshift({ invite_code: inviteCode });
+    seen.add(inviteCode);
+  }
 
   // Recovery/pre-vote path: raw chain evidence is collected at activation, so
   // scan completed unpaid referrals even before reward eligibility. A new
