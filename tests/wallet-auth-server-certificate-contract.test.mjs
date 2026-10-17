@@ -222,7 +222,7 @@ test('production route and client use the directly tested contract without bypas
     readFile('src/app/api/auth/verify/route.ts', 'utf8'),
     readFile('src/hooks/useWalletAuthentication.ts', 'utf8'),
   ]);
-  assert.match(route, /import \{ verifyVeWorldCertificate, type WalletCertificate \} from '@\/lib\/walletCertificateVerification'/);
+  assert.match(route, /import \{ diagnoseVeWorldCertificateSignature, verifyVeWorldCertificate, type WalletCertificate \} from '@\/lib\/walletCertificateVerification'/);
   assert.match(route, /verifyVeWorldCertificate\(\{/);
   assert.match(route, /if \(certificateError\) \{/);
   assert.match(hook, /await requestCertificate\(/);
