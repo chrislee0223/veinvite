@@ -13,6 +13,7 @@ import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSecurityNotificationCopy';
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import {
   isRtlLocale,
   type Locale,
@@ -31,6 +32,7 @@ function stageIconTone(kind: InviteNotificationKindV2): StageIconTone {
   switch (kind) {
     case 'REWARD_READY':
     case 'REWARD_PAID':
+    case 'X_PROMOTION_PAID':
     case 'REWARD_ADJUSTED':
     case 'SECURITY_REVIEW_CLEARED':
     case 'SECURITY_POST_PAYOUT_REVIEW_CLEARED':
@@ -241,6 +243,7 @@ function statusText(
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
   const adjusted = rewardAdjustedCopy(locale);
+  const xPromotion = REWARD_X_PROMOTION_COPY[locale];
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
@@ -285,6 +288,14 @@ function statusText(
             body: copy.rewardBody,
             hint: null,
           };
+    case 'X_PROMOTION_PAID':
+      return {
+        title: xPromotion.title,
+        body: xPromotion.paidBody,
+        hint: notification.rewardAmountWei
+          ? `+${formatB3trWei(notification.rewardAmountWei)} B3TR`
+          : null,
+      };
     case 'REWARD_ADJUSTED':
       return {
         title: adjusted.title,
