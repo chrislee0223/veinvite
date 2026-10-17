@@ -98,6 +98,7 @@ async function readSybilHoldLiveness(): Promise<SybilHoldLiveness> {
     stalledOver1h: checkedCount(row.stalled_over_1h, 'stalled_over_1h'),
     stalledOver24h: checkedCount(row.stalled_over_24h, 'stalled_over_24h'),
   };
+}
 
 async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
   // Read-only operational coherence check. This never opens/closes the gate,
@@ -138,8 +139,6 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
       config.reward_x_promotion_external_verification_ready === true,
     runtimeReady,
   };
-}
-
 }
 
 export async function GET(request: NextRequest) {
