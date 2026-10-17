@@ -714,6 +714,24 @@ async function loadV2Evidence(
   return data ?? [];
 }
 
+async function loadOwnerAppeals(
+  inviteCode: string,
+  network: string,
+) {
+  const { data, error } = await supabaseAdmin
+    .from('sybil_v2_appeal_requests')
+    .select('id,assessment_revision,restriction_kind,category,explanation,status,created_at')
+    .eq('invite_code', inviteCode)
+    .eq('network', network)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw new Error('Sybil owner review requests could not be loaded.');
+  }
+  return data ?? [];
+}
+
 async function enqueueClearedReward(
   inviteCode: string,
 ) {
@@ -826,11 +844,13 @@ export async function GET(request: NextRequest) {
       v2AssessmentEvents,
       v2Evidence,
       postPayoutReviewEvents,
+      ownerAppeals,
     ] = await Promise.all([
       loadLegacyReviewEvents(inviteCode),
       loadV2AssessmentEvents(inviteCode),
       loadV2Evidence(inviteCode),
       loadPostPayoutReviewEvents(inviteCode),
+      loadOwnerAppeals(inviteCode, operator.pool!.network),
     ]);
 
     const legacyCanResolve =
@@ -873,6 +893,7 @@ export async function GET(request: NextRequest) {
         v2AssessmentEvents,
         postPayoutReviewEvents,
         v2Evidence,
+        ownerAppeals,
         reviewMode: inviteeRestrictionCanResolve
           ? 'INVITEE_RESTRICTION'
           : inviterRestrictionCanResolve

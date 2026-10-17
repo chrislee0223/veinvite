@@ -120,6 +120,15 @@ type ReviewDetailResponse = {
   postPayoutReview?: PostPayoutReview | null;
   postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
+  ownerAppeals?: Array<{
+    id: string;
+    assessment_revision: number | string;
+    restriction_kind: string;
+    category: string;
+    explanation: string;
+    status: string;
+    created_at: string;
+  }>;
   activeInviterRestriction?: {
     restriction_id: string;
     network: string;
@@ -1163,6 +1172,36 @@ export default function SybilReviewPage() {
                         <p className="muted">기록된 판정 이력이 없습니다.</p>
                       )}
                     </div>
+
+                    {detail?.ownerAppeals && detail.ownerAppeals.length > 0 ? (
+                      <section className="onchainSection">
+                        <div className="sectionHeaderRow">
+                          <div>
+                            <span className="sectionLabel">OWNER APPEALS</span>
+                            <h3>지갑 본인 재검토 요청 / Owner review requests</h3>
+                          </div>
+                          <span className="badge">{detail.ownerAppeals.length} requests</span>
+                        </div>
+                        <p className="observationNote">
+                          지갑에서 보낸 요청은 참고자료이며 승인이나 제한 해제를 의미하지 않습니다.
+                          증거와 초대 기록을 직접 검토한 후 기존 판정 권한으로 처리하세요.
+                        </p>
+                        <div className="history">
+                          {detail.ownerAppeals.map((appeal) => (
+                            <div className="historyItem" key={appeal.id}>
+                              <div>
+                                <strong>{appeal.category}</strong>
+                                <span>{appeal.status} · revision {String(appeal.assessment_revision)}</span>
+                              </div>
+                              <p style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                                {appeal.explanation}
+                              </p>
+                              <small>{formatDate(appeal.created_at)} · {appeal.restriction_kind}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
 
                     <div className="decision">
                       <h3>최종 판정 / Final decision</h3>
