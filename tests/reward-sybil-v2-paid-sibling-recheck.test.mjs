@@ -61,3 +61,19 @@ test('authenticated operator UI requires deliberate evidence, reason and confirm
   assert.match(screen, /정상적인 최초 참여 후 부정 중복 참여했을 가능성/u);
   assert.match(page, /<PaidSiblingRechecks \/>/u);
 });
+
+test('operator CLEAR shortcut is explicit and cannot trigger unattended rewards or Sybil changes', () => {
+  assert.match(screen, /const DEFAULT_CLEAR_REASON =/u);
+  assert.match(screen, /const isClear = decision === 'CLEAR'/u);
+  assert.match(screen, /effectiveReason = reason\.trim\(\) \|\|/u);
+  assert.match(screen, /effectiveConfirmation = isClear/u);
+  assert.match(screen, /window\.confirm\(explanation\)/u);
+  assert.match(screen, /reason: effectiveReason/u);
+  assert.match(screen, /confirmation: effectiveConfirmation/u);
+  assert.match(screen, /disabled=\{busy\}[\s\S]*?resolve\(item, 'CLEAR'\)/u);
+  assert.match(screen, /reason\.trim\(\)\.length < MIN_REASON \|\| confirmation !== item\.paid_invite_code/u);
+  assert.match(route, /confirmation !== paidInviteCode/u);
+  assert.match(route, /reason\.length < 25/u);
+  assert.match(route, /requireWalletSession/u);
+  assert.match(view, /v_decision = 'BLACKLIST'/u);
+});
