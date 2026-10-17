@@ -47,6 +47,9 @@ export type XPromotionPostLookup =
         | 'X_API_RATE_LIMITED'
         | 'X_API_UNAVAILABLE'
         | 'X_API_RESPONSE_INVALID';
+      // Safe diagnostic only. Never includes credentials, response bodies,
+      // headers, or Post content.
+      httpStatus?: number;
     };
 
 export function parseXPostUrl(value: string): {
@@ -223,6 +226,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_AUTH_FAILED',
+      httpStatus: response.status,
     };
   }
 
@@ -230,6 +234,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_RATE_LIMITED',
+      httpStatus: response.status,
     };
   }
 
@@ -237,6 +242,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_UNAVAILABLE',
+      httpStatus: response.status,
     };
   }
 
@@ -248,6 +254,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_RESPONSE_INVALID',
+      httpStatus: response.status,
     };
   }
 
@@ -259,6 +266,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_RESPONSE_INVALID',
+      httpStatus: response.status,
     };
   }
 
@@ -276,6 +284,7 @@ export async function lookupXPromotionPost(
     return {
       status: 'RETRY',
       reason: 'X_API_RESPONSE_INVALID',
+      httpStatus: response.status,
     };
   }
 
