@@ -64,3 +64,14 @@ test('operator UI shows appeals separately from evidence and verdict controls', 
   assert.match(page, /detail\.ownerAppeals\.map/u);
   assert.match(page, /승인이나 제한 해제를 의미하지 않습니다/u);
 });
+
+test('pending appeals surface in operator queue even after manual BLACKLIST', () => {
+  assert.match(admin, /\.from\('sybil_v2_appeal_requests'\)/u);
+  assert.match(admin, /\.eq\('status', 'PENDING'\)/u);
+  assert.match(admin, /\.order\('created_at', \{ ascending: true \}\)/u);
+  assert.match(admin, /ownerAppealsByCode\.get\(invitation\.invite_code\)/u);
+  assert.match(admin, /left\.owner_appeal_pending \? -1 : 1/u);
+  assert.match(page, /APPEAL PENDING/u);
+  assert.match(page, /OWNER APPEAL/u);
+  assert.match(page, /owner_appeal_created_at/u);
+});
