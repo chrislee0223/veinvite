@@ -684,6 +684,63 @@ export default function SybilReviewPage() {
     }
   };
 
+  async function closeOwnerAppeal(
+    appealId: string,
+    assessmentRevision: number | string,
+  ) {
+    const revision = Number(assessmentRevision);
+    if (
+      !walletAddress ||
+      !Number.isSafeInteger(revision) ||
+      revision < 1 ||
+      appealClosing ||
+      appealResolutionReason.trim().length < 25 ||
+      appealResolutionReason.trim().length > 600
+    ) return;
+
+    const explanation = appealOutcome === 'UPHELD_RESTRICTION'
+      ? '재검토 기록을 종결하되 기존 제한 및 보상을 유지합니다.'
+      : '기존 판정을 별도 절차로 실제 변경한 뒤 재검토 기록을 종결합니다.';
+    if (!window.confirm(explanation)) return;
+
+    setAppealClosing(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/sybil/appeals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intent: 'CLOSE_SYBIL_APPEAL',
+          appealId,
+          expectedRevision: revision,
+          outcome: appealOutcome,
+          reason: appealResolutionReason.trim(),
+        }),
+      });
+      const result = await readJson<{
+        closed: boolean;
+        status: string;
+        verdictUnchanged: boolean;
+        rewardUnchanged: boolean;
+        restrictionUnchanged: boolean;
+      }>(response);
+      if (
+        !result.closed || result.status !== 'RESOLVED' ||
+        !result.verdictUnchanged || !result.rewardUnchanged ||
+        !result.restrictionUnchanged
+      ) throw new Error('Unexpected appeal result.');
+      setAppealResolutionReason('');
+      await loadReviews();
+      if (selectedCode) await loadDetail(selectedCode);
+      setMessage('재검토 요청 처리 이력이 저장됐습니다. 시빌 판정 및 보상은 이 작업으로 변경되지 않았습니다.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Appeal closure failed.');
+    } finally {
+      setAppealClosing(false);
+    }
+  }
+
   const selected = detail?.invitation ?? null;
   const reviewEvents = detail?.reviewEvents ?? [];
   const v2Evidence = detail?.v2Evidence ?? [];
