@@ -62,5 +62,5 @@ test('operator UI shows appeals separately from evidence and verdict controls', 
   assert.match(admin, /loadVerifiedOperator\(request\)/u);
   assert.match(page, /OWNER APPEALS/u);
   assert.match(page, /detail\.ownerAppeals\.map/u);
-  assert.match(page, /판정을 의미하지 않습니다/u);
+  assert.match(page, /승인이나 제한 해제를 의미하지 않습니다/u);
 });
