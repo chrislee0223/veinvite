@@ -15,6 +15,7 @@ import { useWallet as useDappKitWallet } from '@vechain/dapp-kit-react';
 
 import { Brand } from '@/components/Brand';
 import { HeldMissionProgressPanel } from '@/components/HeldMissionProgressPanel';
+import { SybilAppealForm } from '@/components/SybilAppealForm';
 import { RestrictedApprovedRewardClaims } from '@/components/RestrictedApprovedRewardClaims';
 import {
   LegalConsentGate,
@@ -519,6 +520,13 @@ function WalletRestrictionSurface({
         {restrictionKind === 'PRE_CLAIM_HOLD' ? (
           <HeldMissionProgressPanel
             key={walletAddress}
+            walletAddress={walletAddress}
+            locale={supportedLocale}
+          />
+        ) : null}
+        {(restrictionKind === 'PRE_CLAIM_HOLD' || permanent) ? (
+          <SybilAppealForm
+            key={walletAddress + restrictionKind}
             walletAddress={walletAddress}
             locale={supportedLocale}
           />
