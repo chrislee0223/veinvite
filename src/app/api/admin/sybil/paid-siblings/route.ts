@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     if (!actor.authorized) return fail('Verified operator wallet required.', 403);
     const { data, error } = await supabaseAdmin
       .from('operator_sybil_v2_paid_sibling_recheck_candidates')
-      .select('network,paid_invite_code,blocked_invite_code,inviter_wallet,paid_invitee_wallet,blocked_invitee_wallet,restriction_id,shared_client_id,reward_paid_at,blocked_at')
+      .select('network,paid_invite_code,blocked_invite_code,inviter_wallet,paid_invitee_wallet,blocked_invitee_wallet,restriction_id,shared_client_id,reward_paid_at,blocked_at,corroborating_signal_code,corroborating_evidence_at')
       .eq('network', actor.network)
       .order('blocked_at', { ascending: true })
       .limit(MAX_RESULTS);

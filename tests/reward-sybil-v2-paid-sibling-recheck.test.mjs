@@ -62,18 +62,46 @@ test('authenticated operator UI requires deliberate evidence, reason and confirm
   assert.match(page, /<PaidSiblingRechecks \/>/u);
 });
 
-test('operator CLEAR shortcut is explicit and cannot trigger unattended rewards or Sybil changes', () => {
-  assert.match(screen, /const DEFAULT_CLEAR_REASON =/u);
+test('operator decision requires case-specific reasoning and authenticated manual confirmation', () => {
+  assert.doesNotMatch(screen, /DEFAULT_CLEAR_REASON/u);
   assert.match(screen, /const isClear = decision === 'CLEAR'/u);
-  assert.match(screen, /effectiveReason = reason\.trim\(\) \|\|/u);
+  assert.match(screen, /effectiveReason = reason\.trim\(\)/u);
   assert.match(screen, /effectiveConfirmation = isClear/u);
   assert.match(screen, /window\.confirm\(explanation\)/u);
   assert.match(screen, /reason: effectiveReason/u);
   assert.match(screen, /confirmation: effectiveConfirmation/u);
-  assert.match(screen, /disabled=\{busy\}[\s\S]*?resolve\(item, 'CLEAR'\)/u);
+  assert.match(screen, /disabled=\{busy \|\| reason\.trim\(\)\.length < MIN_REASON\}[\s\S]*?resolve\(item, 'CLEAR'\)/u);
   assert.match(screen, /reason\.trim\(\)\.length < MIN_REASON \|\| confirmation !== item\.paid_invite_code/u);
   assert.match(route, /confirmation !== paidInviteCode/u);
   assert.match(route, /reason\.length < 25/u);
   assert.match(route, /requireWalletSession/u);
   assert.match(view, /v_decision = 'BLACKLIST'/u);
+});
+
+const strictView = await readFile(
+  'supabase/migrations/20261018011500_gate_paid_sibling_rechecks_on_independent_evidence.sql',
+  'utf8',
+);
+
+test('a same-client or later-wallet BLACK alone is observation, not paid CLEAR re-review', () => {
+  assert.match(strictView, /e\.invite_code = p\.invite_code/u);
+  assert.match(strictView, /lower\(e\.subject_wallet\) = lower\(p\.invitee_wallet\)/u);
+  assert.match(strictView, /e\.strength = 'HIGH'/u);
+  assert.match(strictView, /'HISTORICAL_CONSOLIDATION'/u);
+  assert.match(strictView, /'HISTORICAL_REWARD'/u);
+  assert.match(strictView, /'CLUSTER_LINK'/u);
+  assert.match(strictView, /'MISSION_BEHAVIOR'/u);
+  assert.doesNotMatch(strictView, /'SECURITY_IDENTITY'\s*,?/u);
+  assert.match(strictView, /e\.created_at > greatest\(/u);
+  assert.match(strictView, /d\.decision = 'CLEAR'/u);
+  assert.match(strictView, /r\.imposed_at > p\.reward_paid_at/u);
+  assert.doesNotMatch(strictView, /(?:insert|update|delete)\s+(?:into\s+|from\s+)?public\.(?:invitations|reward_receipts|reward_recovery_obligations|sybil_v2_paid_sibling_review_decisions)/iu);
+});
+
+test('specialist review panel hides empty queue but displays independently verified evidence', () => {
+  assert.match(screen, /loaded && cases\.length === 0 && !error && !message/u);
+  assert.match(route, /corroborating_signal_code,corroborating_evidence_at/u);
+  assert.match(screen, /item\.corroborating_signal_code/u);
+  assert.match(screen, /item\.corroborating_evidence_at/u);
+  assert.match(screen, /기존 보상과 CLEAR 판정은 자동 변경되지 않습니다/u);
 });
