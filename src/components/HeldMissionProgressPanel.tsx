@@ -68,7 +68,10 @@ export function HeldMissionProgressPanel({
           credentials: 'same-origin',
           cache: 'no-store',
           signal: controller.signal,
-          headers: { Accept: 'application/json' },
+          headers: {
+            Accept: 'application/json',
+            'x-veinvite-session-wallet': walletAddress,
+          },
         });
         if (cancelled) return;
 
