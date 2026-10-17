@@ -84,6 +84,21 @@ Promise<RewardXPromotionExternalReadinessResult> {
             ? {
                 lookupStatus:
                   lookup.status,
+                ...('reason' in lookup
+                  ? {
+                      lookupReason:
+                        lookup.reason,
+                    }
+                  : {}),
+                ...(
+                  'httpStatus' in lookup &&
+                  typeof lookup.httpStatus === 'number'
+                    ? {
+                        httpStatus:
+                          lookup.httpStatus,
+                      }
+                    : {}
+                ),
               }
             : {}),
         },
