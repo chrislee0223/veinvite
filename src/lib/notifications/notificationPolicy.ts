@@ -62,6 +62,10 @@ export const NOTIFICATION_POLICY: Record<
     transientSurface: 'reward-paid',
     readBehavior: 'receipt',
   },
+  // X promotion receipts are separate from core reward receipts, so the
+  // durable bell item is acknowledged directly instead of opening the core
+  // receipt viewer.
+  X_PROMOTION_PAID: HISTORY_TAP,
   REWARD_ADJUSTED: HISTORY_TAP,
   INVITE_INELIGIBLE: HISTORY_TAP,
   SECURITY_REVIEW_STARTED: HISTORY_SECURITY,
