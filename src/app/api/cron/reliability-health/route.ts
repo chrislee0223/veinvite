@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
       ...xPromotionGateCodes(xPromotion),
     ]);
     const changes = alarmChanges(previous, current);
-    // A one-hour operator review backlog needs attention, not an artificial
-    // app-outage status. A 24-hour stalled HOLD is a critical failure.
+    // Operator-only warnings (a one-hour HOLD or a safely closed X gate)
+    // need attention without mislabeling the whole app as unavailable.
     const degraded = isReliabilityDegraded(current);
     const now = new Date().toISOString();
 
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
         // A successful *check* updates its heartbeat even when it discovered
         // an actionable issue. Keep alert state independently in last_error.
         last_succeeded_at: now,
-        // A one-hour HOLD is a pending operator task, not a failed monitor.
+        // Warning-only states are pending operator tasks, not failed monitors.
         ...(changes.newlyActive.some((code) =>
           isReliabilityDegraded([code]),
         ) ? { last_failed_at: now } : {}),
@@ -220,8 +220,8 @@ export async function GET(request: NextRequest) {
       delayedRewards,
       sybilHolds,
       xPromotion,
-      // Only critical HOLD delays or reliability faults return 503; a 1-hour
-      // manual-review warning never mislabels the application as unavailable.
+      // Warning-only HOLD/X-gate states stay HTTP 200; critical reliability
+      // faults still return 503.
       newAlerts: changes.newlyActive.length,
       recoveredAlerts: changes.resolved.length,
     }, { status: degraded ? 503 : 200, headers: HEADERS });
