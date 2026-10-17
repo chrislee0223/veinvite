@@ -30,7 +30,7 @@ import {
 } from '@/lib/walletAuthTypedData';
 import { walletVerifyFailureCodeForMessage } from '@/lib/walletAuthFailureCodes';
 import { walletChallengeTraceId } from '@/lib/walletChallengeTrace';
-import { verifyVeWorldCertificate, type WalletCertificate } from '@/lib/walletCertificateVerification';
+import { diagnoseVeWorldCertificateSignature, verifyVeWorldCertificate, type WalletCertificate } from '@/lib/walletCertificateVerification';
 import {
   LEGACY_WALLET_SESSION_COOKIE_NAME,
   WALLET_SESSION_COOKIE_NAME,
@@ -98,6 +98,8 @@ type WalletVerificationDiagnostic = {
   timestampSafeInteger: boolean;
   domainPresent: boolean;
   signerPresent: boolean;
+  recoveryByteFormat: 'vechain' | 'evm_legacy' | 'unsupported' | 'malformed';
+  recoveredSignerMatchesClaimed: boolean | null;
 };
 
 function certificateVerificationDiagnostic(
@@ -131,6 +133,9 @@ function certificateVerificationDiagnostic(
       Boolean(
         certificate.signer?.trim(),
       ),
+    // Boolean-only, privacy-safe classification; never log the signer,
+    // recovered address, challenge or raw certificate material.
+    ...diagnoseVeWorldCertificateSignature(certificate),
   };
 }
 
