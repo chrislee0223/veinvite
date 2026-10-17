@@ -29,6 +29,12 @@ function harness() {
   let savedState = null;
   let delayed = 0;
   let held = { openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 };
+  let xPromotion = {
+    liveEnabled: true,
+    payoutEnabled: true,
+    externalVerificationReady: true,
+    runtimeReady: true,
+  };
   let paused = false;
   let dbError = false;
   const errors = [];
@@ -56,13 +62,31 @@ function harness() {
           abortSignal: () => ({
             maybeSingle: async () => dbError
               ? { data: null, error: { message: 'database unavailable' } }
-              : { data: { emergency_rewards_paused: paused, mainnet_funded_rewards_enabled: true }, error: null },
+              : {
+                  data: {
+                    emergency_rewards_paused: paused,
+                    mainnet_funded_rewards_enabled: true,
+                    reward_x_promotion_enabled: xPromotion.liveEnabled,
+                    reward_x_promotion_payout_enabled: xPromotion.payoutEnabled,
+                    reward_x_promotion_external_verification_ready:
+                      xPromotion.externalVerificationReady,
+                  },
+                  error: null,
+                },
           }),
         }) }),
       };
       throw Error('Unexpected table ' + table);
     },
     rpc(name, args) {
+      if (name === 'read_reward_x_promotion_external_runtime_readiness_v1') {
+        assert.equal(args.p_network, 'mainnet');
+        assert.equal(args.p_max_age_seconds, 1200);
+        return wrap(() => ({
+          data: { ready: xPromotion.runtimeReady },
+          error: null,
+        }));
+      }
       if (name === 'read_sybil_v2_early_hold_liveness') {
         assert.equal(args.p_network, 'mainnet');
         return wrap(() => ({ data: [{
@@ -117,6 +141,7 @@ function harness() {
     },
     setDelayed: (count) => { delayed = count; },
     setHolds: (counts) => { held = counts; },
+    setXPromotion: (state) => { xPromotion = { ...xPromotion, ...state }; },
     setPaused: (value) => { paused = value; },
     setDbError: (value) => { dbError = value; },
     errors, infos,
@@ -196,6 +221,63 @@ test('Sybil HOLD alarms are transition-suppressed and only 24-hour stall is an o
   assert.equal((await h.GET(h.request)).body.recoveredAlerts, 1);
 });
 
+test('X promotion cron stalls and gate/runtime divergence are observed with safe severity', async () => {
+  const stale = harness();
+  stale.setStale('x-promotion-lifecycle', 46);
+  const staleLifecycle = await stale.GET(stale.request);
+  assert.equal(staleLifecycle.status, 503);
+  assert.equal(
+    staleLifecycle.body.activeAlerts.includes(
+      'CRON_STALE:x-promotion-lifecycle',
+    ),
+    true,
+  );
+
+  const warning = harness();
+  warning.setXPromotion({
+    externalVerificationReady: false,
+    runtimeReady: true,
+  });
+  const closedGate = await warning.GET(warning.request);
+  assert.equal(closedGate.status, 200);
+  assert.equal(closedGate.body.ok, true);
+  assert.equal(
+    closedGate.body.activeAlerts.includes(
+      'X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY',
+    ),
+    true,
+  );
+  assert.equal(warning.getState().last_failed_at, undefined);
+
+  const critical = harness();
+  critical.setXPromotion({
+    externalVerificationReady: true,
+    runtimeReady: false,
+  });
+  const unsafeGate = await critical.GET(critical.request);
+  assert.equal(unsafeGate.status, 503);
+  assert.equal(
+    unsafeGate.body.activeAlerts.includes(
+      'X_PROMOTION_GATE_ON_WHILE_RUNTIME_NOT_READY',
+    ),
+    true,
+  );
+  assert.equal(typeof critical.getState().last_failed_at, 'string');
+
+  const inactive = harness();
+  inactive.setXPromotion({
+    payoutEnabled: false,
+    externalVerificationReady: false,
+    runtimeReady: true,
+  });
+  const intentionallyInactive = await inactive.GET(inactive.request);
+  assert.equal(intentionallyInactive.status, 200);
+  assert.deepEqual(
+    Array.from(intentionallyInactive.body.activeAlerts),
+    [],
+  );
+});
+
 test('watchdog fails closed on DB errors and does not expose data to unauthenticated callers', async () => {
   const h = harness();
   assert.equal((await h.GET({ headers: { get: () => 'Bearer wrong' } })).status, 401);
@@ -208,6 +290,17 @@ test('watchdog fails closed on DB errors and does not expose data to unauthentic
 test('alert policy retains precise thresholds for frequent and daily jobs', () => {
   assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'vote-reconcile').maxAgeMinutes, 30);
   assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'daily-reconcile').maxAgeMinutes, 1800);
+  assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'x-promotion-lifecycle').maxAgeMinutes, 45);
+  assert.equal(policy.RELIABILITY_JOBS.find((j) => j.name === 'x-promotion-payout').maxAgeMinutes, 45);
+  assert.deepEqual(
+    Array.from(policy.xPromotionGateCodes({
+      liveEnabled: true,
+      payoutEnabled: true,
+      externalVerificationReady: false,
+      runtimeReady: true,
+    })),
+    ['X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY'],
+  );
   assert.deepEqual(Array.from(policy.delayedRewardCode(0)), []);
   assert.deepEqual(Array.from(policy.delayedRewardCode(5)), ['REWARD_RESERVATION_DELAY:5+']);
 });
