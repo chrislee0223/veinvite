@@ -1377,7 +1377,7 @@ export default function SybilReviewPage() {
                                     재검토 기록 종결 / Close request only
                                   </button>
                                 </div>
-                              )
+                              )}
                             </div>
                           ))}
                         </div>
