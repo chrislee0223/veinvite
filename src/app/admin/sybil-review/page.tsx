@@ -51,6 +51,8 @@ type ReviewRow = {
   invitee_active_restriction_source: string | null;
   invitee_active_restriction_reason_codes: unknown;
   invitee_active_restriction_imposed_at: string | null;
+  owner_appeal_pending: boolean;
+  owner_appeal_created_at: string | null;
 };
 
 type ReviewEvent = {
@@ -120,6 +122,15 @@ type ReviewDetailResponse = {
   postPayoutReview?: PostPayoutReview | null;
   postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
+  ownerAppeals?: Array<{
+    id: string;
+    assessment_revision: number | string;
+    restriction_kind: string;
+    category: string;
+    explanation: string;
+    status: string;
+    created_at: string;
+  }>;
   evidenceAudit?: {
     storedSignals: number;
     highSignals: number;
@@ -835,7 +846,9 @@ export default function SybilReviewPage() {
                       <div className="reviewTop">
                         <strong>{review.invite_code}</strong>
                         <span className="badge">
-                          {review.inviter_active_restriction_id
+                          {review.owner_appeal_pending
+                            ? 'APPEAL PENDING'
+                            : review.inviter_active_restriction_id
                             ? 'INVITER RESTRICTED'
                             : review.inviter_escalation_posture === 'HOLD'
                               ? `INVITER · ${formatInteger(review.inviter_escalation_incident_count_90d)}건`
@@ -856,7 +869,9 @@ export default function SybilReviewPage() {
                             : `Invitee ${shortAddress(review.invitee_wallet)}`}
                       </span>
                       <span>
-                        {review.inviter_active_restriction_id
+                        {review.owner_appeal_pending
+                          ? `OWNER APPEAL · ${formatDate(review.owner_appeal_created_at)}`
+                          : review.inviter_active_restriction_id
                           ? `INVITER_RESTRICTION · ${formatDate(review.inviter_active_restriction_imposed_at)}`
                           : review.inviter_escalation_posture === 'HOLD'
                             ? `INVITER_ESCALATION · ${formatDate(review.inviter_escalation_latest_incident_at)}`
@@ -867,7 +882,9 @@ export default function SybilReviewPage() {
                               : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
-                        {review.inviter_active_restriction_id
+                        {review.owner_appeal_pending
+                          ? 'The verified wallet requested another review. No restrictions or rewards have changed.'
+                          : review.inviter_active_restriction_id
                           ? (Array.isArray(review.inviter_active_restriction_reason_codes)
                               ? review.inviter_active_restriction_reason_codes.join(', ')
                               : 'Active inviter restriction.')
@@ -1217,6 +1234,36 @@ export default function SybilReviewPage() {
                         <p className="muted">기록된 판정 이력이 없습니다.</p>
                       )}
                     </div>
+
+                    {detail?.ownerAppeals && detail.ownerAppeals.length > 0 ? (
+                      <section className="onchainSection">
+                        <div className="sectionHeaderRow">
+                          <div>
+                            <span className="sectionLabel">OWNER APPEALS</span>
+                            <h3>지갑 본인 재검토 요청 / Owner review requests</h3>
+                          </div>
+                          <span className="badge">{detail.ownerAppeals.length} requests</span>
+                        </div>
+                        <p className="observationNote">
+                          지갑에서 보낸 요청은 참고자료이며 승인이나 제한 해제를 의미하지 않습니다.
+                          증거와 초대 기록을 직접 검토한 후 기존 판정 권한으로 처리하세요.
+                        </p>
+                        <div className="history">
+                          {detail.ownerAppeals.map((appeal) => (
+                            <div className="historyItem" key={appeal.id}>
+                              <div>
+                                <strong>{appeal.category}</strong>
+                                <span>{appeal.status} · revision {String(appeal.assessment_revision)}</span>
+                              </div>
+                              <p style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                                {appeal.explanation}
+                              </p>
+                              <small>{formatDate(appeal.created_at)} · {appeal.restriction_kind}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
 
                     <div className="decision">
                       <h3>최종 판정 / Final decision</h3>
