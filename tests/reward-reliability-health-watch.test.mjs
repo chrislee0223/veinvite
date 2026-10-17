@@ -29,6 +29,7 @@ function harness() {
   let savedState = null;
   let delayed = 0;
   let held = { openHolds: 0, incompleteCoreHolds: 0, stalledOver1h: 0, stalledOver24h: 0 };
+  let scanFailures = { failedScans: 0, failedOver1h: 0, failedOver24h: 0 };
   let xPromotion = {
     liveEnabled: true,
     payoutEnabled: true,
@@ -87,6 +88,14 @@ function harness() {
           error: null,
         }));
       }
+      if (name === 'read_sybil_v2_failed_scan_liveness') {
+        assert.equal(args.p_network, 'mainnet');
+        return wrap(() => ({ data: [{
+          failed_scans: scanFailures.failedScans,
+          failed_over_1h: scanFailures.failedOver1h,
+          failed_over_24h: scanFailures.failedOver24h,
+        }], error: null }));
+      }
       if (name === 'read_sybil_v2_early_hold_liveness') {
         assert.equal(args.p_network, 'mainnet');
         return wrap(() => ({ data: [{
@@ -141,6 +150,7 @@ function harness() {
     },
     setDelayed: (count) => { delayed = count; },
     setHolds: (counts) => { held = counts; },
+    setScanFailures: (counts) => { scanFailures = counts; },
     setXPromotion: (state) => { xPromotion = { ...xPromotion, ...state }; },
     setPaused: (value) => { paused = value; },
     setDbError: (value) => { dbError = value; },
@@ -303,4 +313,43 @@ test('alert policy retains precise thresholds for frequent and daily jobs', () =
   );
   assert.deepEqual(Array.from(policy.delayedRewardCode(0)), []);
   assert.deepEqual(Array.from(policy.delayedRewardCode(5)), ['REWARD_RESERVATION_DELAY:5+']);
+});
+
+test('scan failures alert separately from HOLD: fresh retries do not reset 24h outage', async () => {
+  const h = harness();
+  h.setScanFailures({ failedScans: 1, failedOver1h: 0, failedOver24h: 0 });
+  const fresh = await h.GET(h.request);
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.body.activeAlerts.length, 0);
+
+  h.setScanFailures({ failedScans: 1, failedOver1h: 1, failedOver24h: 0 });
+  const warning = await h.GET(h.request);
+  assert.equal(warning.status, 200);
+  assert.equal(warning.body.newAlerts, 1);
+  assert.equal(warning.body.activeAlerts.includes('SYBIL_SCAN_FAILED:1H'), true);
+  assert.equal(warning.body.sybilScanFailures.failedScans, 1);
+  assert.equal(h.getState().last_failed_at, undefined);
+
+  h.setScanFailures({ failedScans: 1, failedOver1h: 1, failedOver24h: 1 });
+  const critical = await h.GET(h.request);
+  assert.equal(critical.status, 503);
+  assert.equal(critical.body.activeAlerts.includes('SYBIL_SCAN_FAILED:24H'), true);
+  assert.equal(critical.body.recoveredAlerts, 1);
+  assert.equal(typeof h.getState().last_failed_at, 'string');
+
+  h.setScanFailures({ failedScans: 0, failedOver1h: 0, failedOver24h: 0 });
+  const recovered = await h.GET(h.request);
+  assert.equal(recovered.status, 200);
+  assert.equal(recovered.body.recoveredAlerts, 1);
+  // Both the 1h->24h transition and final recovery publish a resolution.
+  assert.equal(h.infos.length, 2);
+});
+
+test('failed scan liveness query refuses malformed aggregate and fails closed', async () => {
+  const h = harness();
+  h.setScanFailures({ failedScans: 1, failedOver1h: 2, failedOver24h: 0 });
+  const invalid = await h.GET(h.request);
+  assert.equal(invalid.status, 503);
+  assert.equal(invalid.body.error, 'CRON_HEALTH_DB_UNAVAILABLE');
+  assert.equal(h.getState(), null);
 });

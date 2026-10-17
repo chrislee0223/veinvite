@@ -50,6 +50,31 @@ export type SybilHoldLiveness = {
   stalledOver24h: number;
 };
 
+export type SybilScanFailureLiveness = {
+  failedScans: number;
+  failedOver1h: number;
+  failedOver24h: number;
+};
+
+export function staleSybilScanFailureCodes(failures: SybilScanFailureLiveness): string[] {
+  const counts = [
+    failures.failedScans,
+    failures.failedOver1h,
+    failures.failedOver24h,
+  ];
+  if (
+    counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+    failures.failedOver24h > failures.failedOver1h ||
+    failures.failedOver1h > failures.failedScans
+  ) {
+    throw new Error('Invalid Sybil scan failure liveness counts.');
+  }
+
+  if (failures.failedOver24h > 0) return ['SYBIL_SCAN_FAILED:24H'];
+  if (failures.failedOver1h > 0) return ['SYBIL_SCAN_FAILED:1H'];
+  return [];
+}
+
 export type XPromotionLiveness = {
   liveEnabled: boolean;
   payoutEnabled: boolean;
@@ -111,6 +136,7 @@ export function isReliabilityDegraded(codes: readonly string[]): boolean {
   // ready, stale critical jobs, or a 24-hour HOLD remain degraded.
   const warnings = new Set([
     'SYBIL_EARLY_HOLD_STALLED:1H',
+    'SYBIL_SCAN_FAILED:1H',
     'X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY',
   ]);
   return codes.some((code) => !warnings.has(code));
