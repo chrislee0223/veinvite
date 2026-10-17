@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   isWalletChallengeRequestBody,
   isWalletVerifyRequestBody,
+  isWalletSessionRenewalRequestBody,
 } from '../src/lib/walletAuthRequestValidation.ts';
 
 const WALLET = '0x' + 'ab'.repeat(20);
@@ -86,6 +87,44 @@ test('verify route deeply rejects malformed certificate fields before diagnostic
   ]) {
     assert.equal(isWalletVerifyRequestBody({ ...VERIFY, certificate: badCertificate }), false, JSON.stringify(badCertificate));
   }
+});
+
+
+test('wallet session renewal accepts a valid address but rejects unsafe JSON shapes', () => {
+  assert.equal(isWalletSessionRenewalRequestBody({ walletAddress: WALLET }), true);
+  assert.equal(isWalletSessionRenewalRequestBody({ walletAddress: '' }), true); // Address regexp still rejects this.
+  for (const value of [
+    null, undefined, false, '', WALLET, 5, [], [WALLET],
+    {}, { walletAddress: null }, { walletAddress: 15 },
+    { walletAddress: [WALLET] }, { walletAddress: { address: WALLET } },
+  ]) {
+    assert.equal(isWalletSessionRenewalRequestBody(value), false, JSON.stringify(value));
+  }
+});
+
+test('session renewal rejects malformed input before ownership lookup and preserves CSRF/session checks', async () => {
+  const [route, validators, runtime] = await Promise.all([
+    readFile('src/app/api/auth/session/route.ts', 'utf8'),
+    readFile('src/lib/walletAuthRequestValidation.ts', 'utf8'),
+    readFile('src/components/WalletRuntimeLifecycle.tsx', 'utf8'),
+  ]);
+  assert.match(route, /if \(!renewalRequestIsAllowed\(request\)\)/);
+  assert.match(route, /let rawBody: unknown;/);
+  assert.match(route, /isWalletSessionRenewalRequestBody\(rawBody\)/);
+  const guardIndex = route.indexOf('isWalletSessionRenewalRequestBody(rawBody)');
+  assert.ok(guardIndex > 0);
+  assert.ok(guardIndex < route.indexOf('const expectedWallet =', guardIndex));
+  assert.ok(guardIndex < route.indexOf('await getWalletSession(request)', guardIndex));
+  assert.match(route, /session\.walletAddress !== expectedWallet/);
+  assert.match(route, /SESSION_RENEWAL_INTENT = 'renew'/);
+  assert.match(route, /renewalRequestIsAllowed\(request\)/);
+  assert.match(route, /readWalletSessionTokens\(request\)/);
+  assert.match(route, /\.eq\('id', session\.id\)/);
+  assert.match(route, /\.is\('revoked_at', null\)/);
+  assert.match(route, /setSessionCookie\(\{/);
+  assert.doesNotMatch(route, /issue_wallet_session_after_verified_challenge/);
+  assert.match(validators, /isRecord\(value\) && typeof value\.walletAddress === 'string'/);
+  assert.match(runtime, /X-VeInvite-Session-Intent/);
 });
 
 test('shape hardening never admits cryptographically unauthenticated certificates', async () => {
