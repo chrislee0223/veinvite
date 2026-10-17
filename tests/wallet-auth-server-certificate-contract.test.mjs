@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { Certificate } from '@vechain/sdk-core';
 import { getBytes, Wallet } from 'ethers';
-import { verifyVeWorldCertificate } from '../src/lib/walletCertificateVerification.ts';
+import { diagnoseVeWorldCertificateSignature, normalizeVeWorldCertificateRecoverySignature, verifyVeWorldCertificate } from '../src/lib/walletCertificateVerification.ts';
 
 const NOW = new Date('2026-10-10T00:00:00.000Z');
 const ORIGIN = 'https://veinvite.vercel.app';
@@ -149,6 +149,71 @@ test('malformed proof, wrong purpose, future time and stale signing time all fai
     verify(walletResponse({ timestamp: Math.floor(NOW.getTime()/1000)-900 })),
     'The VeWorld certificate timestamp is outside the verification window.',
   );
+});
+
+
+test('strict native certificates and legacy Ethereum recovery byte aliases verify the same VeWorld challenge', () => {
+  const valid = walletResponse();
+  const canonicalV = Number.parseInt(valid.signature.slice(-2), 16);
+  assert.ok(canonicalV === 0 || canonicalV === 1);
+  assert.equal(verify(valid), null);
+
+  const legacyV = (canonicalV + 27).toString(16).padStart(2, '0');
+  const legacy = {
+    ...valid,
+    signature: `${valid.signature.slice(0, -2)}${legacyV}`,
+  };
+  assert.equal(
+    normalizeVeWorldCertificateRecoverySignature(legacy.signature),
+    valid.signature,
+  );
+  assert.equal(verify(legacy), null, 'same recovered key and certificate must verify');
+  assert.equal(diagnoseVeWorldCertificateSignature(legacy).recoveryByteFormat, 'evm_legacy');
+
+  // The recovery encoding exception must never authorize a different
+  // challenge, address or origin.
+  assert.equal(
+    verify(legacy, { ...CHALLENGE, message: MESSAGE + '\\nattacker' }),
+    'Invalid VeWorld certificate payload.',
+  );
+  assert.equal(
+    verify(legacy, CHALLENGE, '0x' + 'aa'.repeat(20)),
+    'The certificate does not match the connected wallet.',
+  );
+  assert.equal(
+    verify(legacy, { ...CHALLENGE, origin: 'https://attacker.example' }),
+    'The VeWorld certificate was signed for a different site.',
+  );
+});
+
+test('unrecognized signature recovery values never bypass cryptographic ownership', () => {
+  const valid = walletResponse();
+  const invalid = {
+    ...valid,
+    signature: `${valid.signature.slice(0, -2)}02`,
+  };
+  assert.equal(normalizeVeWorldCertificateRecoverySignature(invalid.signature), invalid.signature);
+  assert.equal(verify(invalid), 'Invalid VeWorld certificate signature.');
+  assert.deepEqual(diagnoseVeWorldCertificateSignature(invalid), {
+    recoveryByteFormat: 'unsupported',
+    recoveredSignerMatchesClaimed: null,
+  });
+});
+
+test('cryptographically signed but mismatched claimed account is identified without exposing the address', () => {
+  const valid = walletResponse();
+  const another = walletResponse({ privateKey: '0x' + '34'.repeat(32) });
+  const wrongAccountKey = { ...valid, signature: another.signature };
+  assert.equal(verify(wrongAccountKey), 'Invalid VeWorld certificate signature.');
+  const diagnostic = diagnoseVeWorldCertificateSignature(wrongAccountKey);
+  assert.deepEqual(diagnostic, {
+    recoveryByteFormat: 'vechain',
+    recoveredSignerMatchesClaimed: false,
+  });
+  assert.equal('signer' in diagnostic, false);
+  assert.equal('signature' in diagnostic, false);
+  assert.equal('recoveredAddress' in diagnostic, false);
+  assert.equal(diagnoseVeWorldCertificateSignature(valid).recoveredSignerMatchesClaimed, true);
 });
 
 test('production route and client use the directly tested contract without bypassing proof checks', async () => {
