@@ -12,9 +12,11 @@ import {
   isReliabilityDegraded,
   staleCronCodes,
   staleSybilHoldCodes,
+  staleSybilScanFailureCodes,
   xPromotionGateCodes,
   type JobHeartbeat,
   type SybilHoldLiveness,
+  type SybilScanFailureLiveness,
   type XPromotionLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -100,6 +102,27 @@ async function readSybilHoldLiveness(): Promise<SybilHoldLiveness> {
   };
 }
 
+async function readSybilScanFailureLiveness(): Promise<SybilScanFailureLiveness> {
+  // Server-only aggregate. This does not change any Sybil verdict or reward.
+  const { network } = getVeBetterNetworkConfig();
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_sybil_v2_failed_scan_liveness',
+    { p_network: network },
+  ).abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+  if (error) {
+    throw new Error('Sybil scan failure liveness could not be read.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object') {
+    throw new Error('Sybil scan failure liveness response is missing.');
+  }
+  return {
+    failedScans: checkedCount(row.failed_scans, 'failed_scans'),
+    failedOver1h: checkedCount(row.failed_over_1h, 'failed_over_1h'),
+    failedOver24h: checkedCount(row.failed_over_24h, 'failed_over_24h'),
+  };
+}
+
 async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
   // Read-only operational coherence check. This never opens/closes the gate,
   // creates an offer, verifies a Post, or signs a payout.
@@ -160,15 +183,17 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const [delayedRewards, sybilHolds, xPromotion] = await Promise.all([
+    const [delayedRewards, sybilHolds, sybilScanFailures, xPromotion] = await Promise.all([
       readRewardReservationDelay(),
       readSybilHoldLiveness(),
+      readSybilScanFailureLiveness(),
       readXPromotionLiveness(),
     ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
       ...delayedRewardCode(delayedRewards),
       ...staleSybilHoldCodes(sybilHolds),
+      ...staleSybilScanFailureCodes(sybilScanFailures),
       ...xPromotionGateCodes(xPromotion),
     ]);
     const changes = alarmChanges(previous, current);
@@ -203,6 +228,7 @@ export async function GET(request: NextRequest) {
         active: current,
         delayedRewards,
         sybilHolds,
+        sybilScanFailures,
         xPromotion,
       });
     }
@@ -219,6 +245,7 @@ export async function GET(request: NextRequest) {
       activeAlerts: current,
       delayedRewards,
       sybilHolds,
+      sybilScanFailures,
       xPromotion,
       // Warning-only HOLD/X-gate states stay HTTP 200; critical reliability
       // faults still return 503.
