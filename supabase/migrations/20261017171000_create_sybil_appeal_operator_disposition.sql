@@ -60,6 +60,7 @@ declare
   v_appeal record;
   v_assessment record;
   v_wallet text;
+  v_active_blacklist_id uuid;
   v_note text;
   v_now timestamptz := now();
 begin
@@ -86,6 +87,26 @@ begin
   if v_appeal.status not in ('PENDING','UNDER_REVIEW')
      or v_appeal.assessment_revision<>p_expected_revision then
     raise exception 'SYBIL_APPEAL_STATE_CHANGED';
+  end if;
+
+  -- Operator reinstatement locks restriction -> invitation -> assessment.
+  -- When *upholding* a BLACKLIST, lock the current active restriction first
+  -- to avoid a stale-restriction false resolution or a lock-order deadlock.
+  -- Only the original invitee's restriction for this exact referral qualifies.
+  if p_outcome='UPHELD_RESTRICTION'
+     and v_appeal.restriction_kind='BLACKLIST' then
+    select r.id into v_active_blacklist_id
+    from public.sybil_v2_wallet_restrictions r
+    where r.wallet_address=v_appeal.wallet_address
+      and r.related_invite_code=v_appeal.invite_code
+      and r.network=p_network
+      and r.status='ACTIVE'
+    order by r.imposed_at desc
+    limit 1
+    for share;
+    if v_active_blacklist_id is null then
+      raise exception 'SYBIL_APPEAL_CASE_CHANGED';
+    end if;
   end if;
 
   select a.state,a.revision into v_assessment
