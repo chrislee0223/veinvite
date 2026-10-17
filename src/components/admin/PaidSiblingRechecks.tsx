@@ -19,6 +19,12 @@ type ResponseData = { cases: Case[]; error?: string };
 
 const API = '/api/admin/sybil/paid-siblings';
 const MIN_REASON = 25;
+// An operator may accept the existing paid CLEAR after personally confirming
+// that later shared-client evidence does not invalidate the original reward.
+// This shortcut does not auto-classify, blacklist, recover or change payouts.
+const DEFAULT_CLEAR_REASON =
+  '후발 중복 지갑의 동일 브라우저 사용은 확인되지만 최초 보상이 부정 수령이었다는 독립적 증거가 없어 기존 CLEAR 판정과 지급을 유지합니다.';
+
 
 export function PaidSiblingRechecks() {
   const [cases, setCases] = useState<Case[]>([]);
@@ -44,12 +50,18 @@ export function PaidSiblingRechecks() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   async function resolve(item: Case, decision: 'CLEAR' | 'BLACKLIST') {
+    const isClear = decision === 'CLEAR';
+    const effectiveReason = reason.trim() ||
+      (isClear ? DEFAULT_CLEAR_REASON : '');
+    const effectiveConfirmation = isClear
+      ? item.paid_invite_code
+      : confirmation.trim().toUpperCase();
     if (busy ||
-        reason.trim().length < MIN_REASON ||
-        confirmation.trim().toUpperCase() !== item.paid_invite_code) return;
+        effectiveReason.length < MIN_REASON ||
+        effectiveConfirmation !== item.paid_invite_code) return;
     const explanation = decision === 'BLACKLIST'
       ? '과거 지급 추천을 무효화하면 리더보드에서 제외되고, 이미 지급된 금액은 기존 상계 시스템에 등록됩니다. 전액 지급 내역은 수정되지 않습니다.'
-      : '이 연결 사건을 검토 완료(CLEAR) 처리합니다. 현재 지급과 기존 CLEAR는 유지되며, 새로운 사건은 별도로 다시 검토됩니다.';
+      : `기존 지급 CLEAR를 유지하고 이 사건의 재심사를 완료합니까?\n\n사유: ${effectiveReason}\n\n최초 지급과 미션 증거를 실제 확인한 경우에만 확정하세요. 후발 지갑의 중복 참여만으로 과거 지급을 무효화하지 않습니다.`;
     if (!window.confirm(explanation)) return;
     setBusy(true);
     setError('');
@@ -63,8 +75,8 @@ export function PaidSiblingRechecks() {
           paidInviteCode: item.paid_invite_code,
           restrictionId: item.restriction_id,
           decision,
-          reason: reason.trim(),
-          confirmation: confirmation.trim().toUpperCase(),
+          reason: effectiveReason,
+          confirmation: effectiveConfirmation,
         }),
       });
       const payload = (await response.json()) as { error?: string; changed?: boolean };
@@ -119,23 +131,26 @@ export function PaidSiblingRechecks() {
               <p>기존 보상 지급: {new Date(item.reward_paid_at).toLocaleString('ko-KR')}</p>
               <p>후발 지갑 차단: {new Date(item.blocked_at).toLocaleString('ko-KR')}</p>
               <p>정상적인 최초 참여 후 부정 중복 참여했을 가능성도 있습니다.
-                최초 지급을 무효화하려면 독립적인 추가 증거와 판단 근거가 필요합니다.</p>
+                최초 지급을 무효화하려면 독립적인 추가 증거와 판단 근거가 필요합니다.
+                기존 CLEAR 유지 시에는 아래 사유가 비어 있으면 기본 검토 사유를 제시하고,
+                운영자 확인창을 한 번 더 거쳐 완료 기록을 남깁니다.</p>
               <label>
                 심사 사유 (25–500자)
                 <textarea aria-label="과거 지급 재심사 사유" rows={3}
                   maxLength={500} value={reason} disabled={busy}
+                  placeholder={DEFAULT_CLEAR_REASON}
                   onChange={(event) => setReason(event.target.value)} />
               </label>
               <label>
-                확인을 위해 과거 초대 코드 {item.paid_invite_code} 입력
+                BLACKLIST 무효화 시에만 과거 초대 코드 {item.paid_invite_code} 입력
                 <input aria-label="과거 초대 코드 확인" autoComplete="off"
                   value={confirmation} disabled={busy} maxLength={7}
                   onChange={(event) => setConfirmation(event.target.value.toUpperCase())} />
               </label>
               <div className="headerActions">
                 <button type="button" className="ghost"
-                  disabled={busy || reason.trim().length < MIN_REASON || confirmation !== item.paid_invite_code}
-                  onClick={() => void resolve(item, 'CLEAR')}>정상 유지 · CLEAR</button>
+                  disabled={busy}
+                  onClick={() => void resolve(item, 'CLEAR')}>재심사 완료 · CLEAR 유지</button>
                 <button type="button" className="ghost"
                   disabled={busy || reason.trim().length < MIN_REASON || confirmation !== item.paid_invite_code}
                   onClick={() => void resolve(item, 'BLACKLIST')}>증거 확인 후 과거 보상 무효화</button>
