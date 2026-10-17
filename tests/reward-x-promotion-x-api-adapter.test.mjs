@@ -18,6 +18,14 @@ const route = await readFile(
   'utf8',
 );
 
+const externalReadiness = await readFile(
+  new URL(
+    '../src/lib/rewards/rewardXPromotionExternalReadiness.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const lifecycle = await readFile(
   new URL(
     '../src/lib/rewards/rewardXPromotionLifecycle.ts',
@@ -62,6 +70,15 @@ test('missing credentials and transient X failures never become terminal invalid
   assert.match(adapter, /X_API_UNAVAILABLE/);
   assert.match(route, /lookup\.status === 'RETRY'/);
   assert.match(route, /status: 202/);
+});
+
+test('X lookup records only safe HTTP diagnostics for transient failures', () => {
+  assert.match(adapter, /httpStatus\?: number/);
+  assert.match(adapter, /httpStatus: response\.status/);
+  assert.match(externalReadiness, /lookupReason/);
+  assert.match(externalReadiness, /httpStatus/);
+  assert.doesNotMatch(externalReadiness, /Authorization/);
+  assert.doesNotMatch(externalReadiness, /X_API_BEARER_TOKEN/);
 });
 
 test('author and referenced Post identity use canonical Tweet fields', () => {
