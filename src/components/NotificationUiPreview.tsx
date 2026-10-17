@@ -28,6 +28,7 @@ const SCENARIOS: Scenario[] = [
   { id: 'NOTI-HISTORY-OPEN', label: '알림센터 열림' },
   { id: 'NOTI-HISTORY-LOADING', label: '알림 로딩' },
   { id: 'NOTI-HISTORY-ERROR', label: '알림 오류' },
+  { id: 'NOTI-HISTORY-INLINE-ERROR', label: '알림 하단 오류' },
   { id: 'NOTI-HISTORY-READ', label: '읽은 알림' },
   { id: 'NOTI-HISTORY-UNREAD', label: '안 읽은 알림' },
   { id: 'NOTI-HISTORY-MORE', label: '알림 더보기' },
