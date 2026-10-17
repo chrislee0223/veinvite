@@ -11,6 +11,7 @@ import {
   enqueueRewardReservationContinuation,
 } from '@/lib/rewards/rewardReservationContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { auditOperatorEvidence } from '@/lib/sybil/v2/operatorEvidenceAudit';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -873,6 +874,7 @@ export async function GET(request: NextRequest) {
         v2AssessmentEvents,
         postPayoutReviewEvents,
         v2Evidence,
+        evidenceAudit: auditOperatorEvidence(v2Evidence),
         reviewMode: inviteeRestrictionCanResolve
           ? 'INVITEE_RESTRICTION'
           : inviterRestrictionCanResolve
