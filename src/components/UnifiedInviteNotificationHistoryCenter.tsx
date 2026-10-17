@@ -17,6 +17,7 @@ import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
@@ -189,6 +190,7 @@ function itemCopy(
   const restored = REFERRAL_RESTORED_COPY[locale];
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
   const adjusted = rewardAdjustedCopy(locale);
+  const xPromotion = REWARD_X_PROMOTION_COPY[locale];
   const effectiveKind = item.presentationKind ?? item.kind;
 
   switch (effectiveKind) {
@@ -225,6 +227,12 @@ function itemCopy(
           ? rewardPaidNotificationBody(locale, amount)
           : copy.rewardBody,
         hint: null,
+      };
+    case 'X_PROMOTION_PAID':
+      return {
+        title: xPromotion.title,
+        body: xPromotion.paidBody,
+        hint: amount ? `+${amount} B3TR` : null,
       };
     case 'REWARD_ADJUSTED':
       return {
