@@ -74,6 +74,11 @@ test('explicit background refresh detects physical or logical funding changes', 
     /snapshotCommitted !==[\s\S]*planning\.cohortReservedWei/,
     'new fixed reward reservations must also invalidate the logical funding snapshot',
   );
+  assert.match(
+    estimateRoute,
+    /snapshotReservedExisting !==[\s\S]*planning\.reservedExistingWei/,
+    'changes in any outstanding reward liability must invalidate the forecast pricing basis',
+  );
   assert.doesNotMatch(
     estimateRoute,
     /pricingBasisWei !== snapshot\.projectedAllocationWei/,
