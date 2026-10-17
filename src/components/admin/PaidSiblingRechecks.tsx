@@ -13,6 +13,8 @@ type Case = {
   shared_client_id: string;
   reward_paid_at: string;
   blocked_at: string;
+  corroborating_signal_code: string;
+  corroborating_evidence_at: string;
 };
 
 type ResponseData = { cases: Case[]; error?: string };
@@ -28,6 +30,7 @@ const DEFAULT_CLEAR_REASON =
 
 export function PaidSiblingRechecks() {
   const [cases, setCases] = useState<Case[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -42,8 +45,10 @@ export function PaidSiblingRechecks() {
       if (!response.ok) throw new Error(body.error ?? 'Review list unavailable.');
       setCases(body.cases);
       setError('');
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Review list unavailable.');
+      setLoaded(true);
     }
   }, []);
 
@@ -95,8 +100,12 @@ export function PaidSiblingRechecks() {
     }
   }
 
+  // Keep this specialist surface out of the normal Sybil review UI when no
+  // independently corroborated retrospective cases are actionable.
+  if (loaded && cases.length === 0 && !error && !message) return null;
+
   return (
-    <section className="panel" aria-label="지급 후 연결 지갑 재검토">
+    <section className="panel" aria-label="지급 후 독립 증거 재심사">
       <div className="panelHeader">
         <div>
           <span className="sectionLabel">PAID SIBLING RECHECK</span>
@@ -106,8 +115,9 @@ export function PaidSiblingRechecks() {
           onClick={() => void refresh()}>새로고침</button>
       </div>
       <p>
-        이미 보상받은 지갑과 동일 초대자·동일 브라우저를 사용한 후발 지갑이 시빌로 차단되면 표시됩니다.
-        기기 연결만으로 기존 보상을 자동 무효화하지 않습니다.
+        이미 보상받은 지갑과 동일 초대자·동일 브라우저를 사용한 후발 지갑이 차단된 것만으로는 재심사를 열지 않습니다.
+        최초 보상 지갑에 관한 새롭고 독립적인 강한 시빌 증거가 발견된 예외적인 경우에만 표시됩니다.
+        기존 보상과 CLEAR 판정은 자동 변경되지 않습니다.
       </p>
       {error ? <div className="notice error" role="alert">{error}</div> : null}
       {message ? <div className="notice success" role="status">{message}</div> : null}
@@ -128,6 +138,8 @@ export function PaidSiblingRechecks() {
               <p>과거 지급 피초대자: <code>{item.paid_invitee_wallet}</code></p>
               <p>차단된 피초대자: <code>{item.blocked_invitee_wallet}</code></p>
               <p>공통 기기 식별자: <code>{item.shared_client_id}</code></p>
+              <p>최초 지급 지갑의 독립 증거: <strong>{item.corroborating_signal_code}</strong></p>
+              <p>증거 등록: {new Date(item.corroborating_evidence_at).toLocaleString('ko-KR')}</p>
               <p>기존 보상 지급: {new Date(item.reward_paid_at).toLocaleString('ko-KR')}</p>
               <p>후발 지갑 차단: {new Date(item.blocked_at).toLocaleString('ko-KR')}</p>
               <p>정상적인 최초 참여 후 부정 중복 참여했을 가능성도 있습니다.
