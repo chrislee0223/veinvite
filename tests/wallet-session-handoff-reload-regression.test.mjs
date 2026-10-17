@@ -194,7 +194,9 @@ test('malformed silent-renewal bodies fail 400 without reading or revoking any s
   for(const body of [null,[],{},'wallet',{walletAddress:null},{walletAddress:42},{walletAddress:[A]}]){
     const response=await app.POST(renewalRequest(body));
     assert.equal(response.status,400,JSON.stringify(body));
-    assert.deepEqual(response.body,{error:'Invalid wallet address.'});
+    // Route runs in a VM realm; compare data, not the realm-specific prototype.
+    assert.equal(response.body.error,'Invalid wallet address.');
+    assert.deepEqual(Object.keys(response.body),['error']);
   }
   assert.equal(app.getSessionCalls,0);
   assert.equal(app.unscopedRevokes,0);
