@@ -6,6 +6,10 @@ const sql = await readFile(
   'supabase/migrations/20261017154000_sybil_hold_actionable_liveness_and_rechecks.sql',
   'utf8',
 );
+const accessFix = await readFile(
+  'supabase/migrations/20261017154731_lock_sybil_hold_monitor_trigger_execute.sql',
+  'utf8',
+);
 const pipeline = await readFile('src/lib/sybil/v2/pipeline.ts', 'utf8');
 const watcher = await readFile('src/app/api/cron/reliability-health/route.ts', 'utf8');
 const recovery = await readFile('src/app/api/cron/vote-reconcile/route.ts', 'utf8');
@@ -61,4 +65,14 @@ test('both alert sources reuse the same service-only read path; no new payment o
   assert.match(sql, /revoke all on function public\.read_sybil_v2_early_hold_liveness\(text\)/u);
   assert.doesNotMatch(sql, /\b(update|delete from|insert into)\s+public\.(?:invitations|reward_queue_entries|sybil_v2_wallet_restrictions)/iu);
   assert.match(watcher, /read_sybil_v2_early_hold_liveness/u);
+});
+
+test('existing SECURITY DEFINER monitor trigger remains service-only after redefinition', () => {
+  assert.match(accessFix, /revoke all on function public\.enrich_operator_monitor_snapshot_sybil_v2_hold_liveness\(\)/u);
+  assert.match(accessFix, /from public, anon, authenticated/u);
+  assert.match(accessFix, /grant execute on function public\.enrich_operator_monitor_snapshot_sybil_v2_hold_liveness\(\)/u);
+  assert.match(accessFix, /to service_role/u);
+  assert.match(accessFix, /has_function_privilege\('anon'/u);
+  assert.match(accessFix, /has_function_privilege\('authenticated'/u);
+  assert.doesNotMatch(accessFix, /drop trigger|drop function|update public\.invitations|insert into public\.reward_queue_entries/iu);
 });
