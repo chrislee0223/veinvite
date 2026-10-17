@@ -102,8 +102,11 @@ begin
       (v_appeal.restriction_kind='PRE_CLAIM_HOLD' and v_assessment.state<>'HOLD')) then
     raise exception 'SYBIL_APPEAL_CASE_CHANGED';
   end if;
+  -- Record an actual *later* decision, never reinterpret the original
+  -- assessment or a stale same-revision snapshot as a changed verdict.
   if p_outcome='CASE_VERDICT_CHANGED' and
-     ((v_appeal.restriction_kind='BLACKLIST' and v_assessment.state='RESTRICTED') or
+     (v_assessment.revision <= v_appeal.assessment_revision or
+      (v_appeal.restriction_kind='BLACKLIST' and v_assessment.state='RESTRICTED') or
       (v_appeal.restriction_kind='PRE_CLAIM_HOLD' and v_assessment.state='HOLD')) then
     raise exception 'SYBIL_APPEAL_VERDICT_NOT_CHANGED';
   end if;
