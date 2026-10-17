@@ -14,6 +14,7 @@ import {
 import { useWallet as useDappKitWallet } from '@vechain/dapp-kit-react';
 
 import { Brand } from '@/components/Brand';
+import { HeldMissionProgressPanel } from '@/components/HeldMissionProgressPanel';
 import { RestrictedApprovedRewardClaims } from '@/components/RestrictedApprovedRewardClaims';
 import {
   LegalConsentGate,
@@ -416,12 +417,14 @@ export function WalletSessionSurface({
 
 function WalletRestrictionSurface({
   locale,
+  walletAddress,
   restrictionKind,
   isDisconnecting,
   onChooseAnother,
   onDisconnect,
 }: {
   locale: Locale;
+  walletAddress: string;
   restrictionKind: RestrictionKind;
   isDisconnecting: boolean;
   onChooseAnother: () => void;
@@ -510,6 +513,13 @@ function WalletRestrictionSurface({
         </span>
         {permanent ? (
           <RestrictedApprovedRewardClaims
+            locale={supportedLocale}
+          />
+        ) : null}
+        {restrictionKind === 'PRE_CLAIM_HOLD' ? (
+          <HeldMissionProgressPanel
+            key={walletAddress}
+            walletAddress={walletAddress}
             locale={supportedLocale}
           />
         ) : null}
@@ -1200,6 +1210,7 @@ export function WalletSessionGate({
     return (
       <WalletRestrictionSurface
         locale={locale}
+        walletAddress={verifiedWallet}
         restrictionKind={restrictionKind}
         isDisconnecting={isDisconnecting}
         onChooseAnother={() => {
