@@ -45,6 +45,11 @@ test('historical invalidation and reward recovery use existing atomic audited pa
   assert.match(view, /commit;/u);
 });
 
+test('separate paid referrals linked to one blocked restriction never share selection', () => {
+  assert.match(screen, /selected === \x60\$\{item\.restriction_id\}:\$\{item\.paid_invite_code\}\x60/u);
+  assert.match(view, /for share/u);
+});
+
 test('authenticated operator UI requires deliberate evidence, reason and confirmation', () => {
   assert.match(route, /requireWalletSession/u);
   assert.match(route, /canOperateVeInviteRewards/u);

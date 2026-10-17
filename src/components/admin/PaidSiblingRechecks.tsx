@@ -104,13 +104,13 @@ export function PaidSiblingRechecks() {
         <div key={item.restriction_id + item.paid_invite_code}>
           <button type="button" className="ghost" disabled={busy}
             onClick={() => {
-              setSelected(selected === item.restriction_id ? null : item.restriction_id);
+              setSelected(selected === `${item.restriction_id}:${item.paid_invite_code}` ? null : `${item.restriction_id}:${item.paid_invite_code}`);
               setReason('');
               setConfirmation('');
             }}>
             <strong>{item.paid_invite_code}</strong> · 차단된 후발 초대 {item.blocked_invite_code} · 상세/심사
           </button>
-          {selected === item.restriction_id ? (
+          {selected === `${item.restriction_id}:${item.paid_invite_code}` ? (
             <div>
               <p>초대자: <code>{item.inviter_wallet}</code></p>
               <p>과거 지급 피초대자: <code>{item.paid_invitee_wallet}</code></p>

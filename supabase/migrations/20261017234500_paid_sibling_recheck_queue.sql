@@ -135,6 +135,19 @@ begin
     raise exception 'PAID_SIBLING_REVIEW_STATE_CHANGED';
   end if;
 
+  -- Prevent concurrent reinstatement of the source restriction between
+  -- observation and a historical invalidation decision.
+  perform 1
+  from public.sybil_v2_wallet_restrictions r
+  where r.id = p_restriction_id
+    and r.network = v_network
+    and r.status = 'ACTIVE'
+    and r.resolved_at is null
+  for share;
+  if not found then
+    raise exception 'PAID_SIBLING_REVIEW_STALE';
+  end if;
+
   select * into v_candidate
   from public.operator_sybil_v2_paid_sibling_recheck_candidates c
   where c.network = v_network
