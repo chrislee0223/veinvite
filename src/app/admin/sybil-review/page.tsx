@@ -130,6 +130,10 @@ type ReviewDetailResponse = {
     explanation: string;
     status: string;
     created_at: string;
+    resolution_outcome: string | null;
+    resolution_reason: string | null;
+    resolved_at: string | null;
+    resolved_by_wallet: string | null;
   }>;
   evidenceAudit?: {
     storedSignals: number;
@@ -326,6 +330,11 @@ export default function SybilReviewPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsRunning, setAnalyticsRunning] = useState(false);
   const [reason, setReason] = useState('');
+  const [appealOutcome, setAppealOutcome] = useState<
+    'UPHELD_RESTRICTION' | 'CASE_VERDICT_CHANGED'
+  >('UPHELD_RESTRICTION');
+  const [appealResolutionReason, setAppealResolutionReason] = useState('');
+  const [appealClosing, setAppealClosing] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -341,6 +350,8 @@ export default function SybilReviewPage() {
     setOnchainError('');
     setAnalyticsLoading(false);
     setReason('');
+    setAppealResolutionReason('');
+    setAppealOutcome('UPHELD_RESTRICTION');
     setConfirmation('');
   }, []);
 
@@ -409,6 +420,8 @@ export default function SybilReviewPage() {
 
     setDetail(reviewResult.value);
     setReason('');
+    setAppealResolutionReason('');
+    setAppealOutcome('UPHELD_RESTRICTION');
     setConfirmation('');
     setDetailLoading(false);
 
@@ -670,6 +683,63 @@ export default function SybilReviewPage() {
       setSubmitting(false);
     }
   };
+
+  async function closeOwnerAppeal(
+    appealId: string,
+    assessmentRevision: number | string,
+  ) {
+    const revision = Number(assessmentRevision);
+    if (
+      !walletAddress ||
+      !Number.isSafeInteger(revision) ||
+      revision < 1 ||
+      appealClosing ||
+      appealResolutionReason.trim().length < 25 ||
+      appealResolutionReason.trim().length > 600
+    ) return;
+
+    const explanation = appealOutcome === 'UPHELD_RESTRICTION'
+      ? '재검토 기록을 종결하되 기존 제한 및 보상을 유지합니다.'
+      : '기존 판정을 별도 절차로 실제 변경한 뒤 재검토 기록을 종결합니다.';
+    if (!window.confirm(explanation)) return;
+
+    setAppealClosing(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch('/api/admin/sybil/appeals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intent: 'CLOSE_SYBIL_APPEAL',
+          appealId,
+          expectedRevision: revision,
+          outcome: appealOutcome,
+          reason: appealResolutionReason.trim(),
+        }),
+      });
+      const result = await readJson<{
+        closed: boolean;
+        status: string;
+        verdictUnchanged: boolean;
+        rewardUnchanged: boolean;
+        restrictionUnchanged: boolean;
+      }>(response);
+      if (
+        !result.closed || result.status !== 'RESOLVED' ||
+        !result.verdictUnchanged || !result.rewardUnchanged ||
+        !result.restrictionUnchanged
+      ) throw new Error('Unexpected appeal result.');
+      setAppealResolutionReason('');
+      await loadReviews();
+      if (selectedCode) await loadDetail(selectedCode);
+      setMessage('재검토 요청 처리 이력이 저장됐습니다. 시빌 판정 및 보상은 이 작업으로 변경되지 않았습니다.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Appeal closure failed.');
+    } finally {
+      setAppealClosing(false);
+    }
+  }
 
   const selected = detail?.invitation ?? null;
   const reviewEvents = detail?.reviewEvents ?? [];
@@ -1259,6 +1329,55 @@ export default function SybilReviewPage() {
                                 {appeal.explanation}
                               </p>
                               <small>{formatDate(appeal.created_at)} · {appeal.restriction_kind}</small>
+                              {appeal.status === 'RESOLVED' ? (
+                                <div>
+                                  <small>
+                                    {appeal.resolution_outcome} · {formatDate(appeal.resolved_at)}
+                                    · {shortAddress(appeal.resolved_by_wallet)}
+                                  </small>
+                                  <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                                    {appeal.resolution_reason}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                                  <label>
+                                    <span>검토 처리 결과 / Review disposition</span>
+                                    <select
+                                      value={appealOutcome}
+                                      onChange={(event) => setAppealOutcome(
+                                        event.target.value as 'UPHELD_RESTRICTION' | 'CASE_VERDICT_CHANGED',
+                                      )}
+                                      disabled={appealClosing}
+                                    >
+                                      <option value="UPHELD_RESTRICTION">
+                                        기존 제한 유지 / Restriction upheld
+                                      </option>
+                                      <option value="CASE_VERDICT_CHANGED">
+                                        별도 판정 변경 확인 / Verdict already changed
+                                      </option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    <span>종결 사유 (25~600자) / Resolution basis</span>
+                                    <textarea
+                                      rows={3}
+                                      maxLength={600}
+                                      value={appealResolutionReason}
+                                      onChange={(event) => setAppealResolutionReason(event.target.value)}
+                                      disabled={appealClosing}
+                                      placeholder="검증한 증거와 별도 Sybil 판정 결과를 명시하세요. 이 버튼으로 판정이 바뀌지는 않습니다."
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={appealClosing || appealResolutionReason.trim().length < 25}
+                                    onClick={() => void closeOwnerAppeal(appeal.id, appeal.assessment_revision)}
+                                  >
+                                    재검토 기록 종결 / Close request only
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
