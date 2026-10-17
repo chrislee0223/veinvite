@@ -31,6 +31,7 @@ type ReviewRow = {
   v2_revision: number | string | null;
   v2_reason_codes: unknown;
   v2_updated_at: string | null;
+  v2_first_held_at: string | null;
   post_payout_state: string | null;
   post_payout_risk_score: number | null;
   post_payout_revision: number | string | null;
@@ -699,8 +700,10 @@ export default function SybilReviewPage() {
     (check) => !completedCoreChecks.has(check),
   );
   const stalledHoldReviews = overview?.reviews.filter((review) => {
-    if (review.v2_state !== 'HOLD' || !review.v2_updated_at) return false;
-    const assessedAt = Date.parse(review.v2_updated_at);
+    if (review.v2_state !== 'HOLD') return false;
+    const firstHeldAt = review.v2_first_held_at ?? review.v2_updated_at;
+    if (!firstHeldAt) return false;
+    const assessedAt = Date.parse(firstHeldAt);
     return Number.isFinite(assessedAt) &&
       Date.now() - assessedAt >= 60 * 60 * 1000;
   }).length ?? 0;
@@ -846,7 +849,7 @@ export default function SybilReviewPage() {
                           : review.post_payout_state === 'HOLD'
                             ? `POST_PAYOUT · ${formatDate(review.post_payout_updated_at)}`
                             : review.v2_state === 'HOLD'
-                              ? `SYBIL_V2 · ${formatDate(review.v2_updated_at)}`
+                              ? `SYBIL_V2 · ${formatDate(review.v2_first_held_at ?? review.v2_updated_at)}`
                               : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
@@ -934,6 +937,14 @@ export default function SybilReviewPage() {
                         }
                       />
                       <Fact label="Reward" value={selected.reward_status} />
+                      {selected.v2_state === 'HOLD' ? (
+                        <Fact
+                          label="HOLD since"
+                          value={formatDate(
+                            selected.v2_first_held_at ?? selected.v2_updated_at,
+                          )}
+                        />
+                      ) : null}
                       <Fact
                         label="Checked"
                         value={formatDate(
