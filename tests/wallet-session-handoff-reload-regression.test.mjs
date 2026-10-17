@@ -104,6 +104,13 @@ function sessionRouteHarness(currentWallet){
     '@/lib/supabaseServer':{supabaseAdmin:Supabase},
     '@/lib/securityClientServer':{ensureSecurityClientForWallet:async()=>{}},
     '@/lib/securityClientBestEffort':{settleOptionalSecurityObservation:async()=> 'ok'},
+    // The POST renewal body validator is a new dependency of the same
+    // module; this harness also verifies DELETE/handoff still works.
+    '@/lib/walletAuthRequestValidation':{
+      isWalletSessionRenewalRequestBody:(value)=>
+        value!==null && typeof value==='object' && !Array.isArray(value) &&
+        typeof value.walletAddress==='string',
+    },
   };
   const context={exports:{},module:{exports:{}},require:(id)=>{
     if(!(id in mocks))throw Error('Unexpected import '+id);
@@ -112,7 +119,11 @@ function sessionRouteHarness(currentWallet){
   context.exports=context.module.exports;
   const source=ts.transpileModule(files.session,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   runInNewContext(source,context,{filename:'session-route-handoff.js'});
-  return Object.assign(result, {DELETE:context.module.exports.DELETE,setSessionWallet:(x)=>{sessionWallet=x}});
+  return Object.assign(result, {
+    POST:context.module.exports.POST,
+    DELETE:context.module.exports.DELETE,
+    setSessionWallet:(x)=>{sessionWallet=x},
+  });
 }
 function req(expected){
   return {nextUrl:{origin:'https://veinvite.vercel.app'},headers:{get:(key)=>{
@@ -165,3 +176,43 @@ test('explicit logout retains unscoped revocation and clears both cookie formats
   assert.equal(app.cookies.length,2);
   assert.equal(app.updatedWallets.length,0);
 });
+
+function renewalRequest(body,{intent='renew',origin='https://veinvite.vercel.app'}={}){
+  return {
+    nextUrl:{origin:'https://veinvite.vercel.app'},
+    headers:{get:(key)=>{
+      if(key==='x-veinvite-session-intent')return intent;
+      if(key==='origin')return origin;
+      return null;
+    }},
+    json:async()=>body,
+  };
+}
+
+test('malformed silent-renewal bodies fail 400 without reading or revoking any session',async()=>{
+  const app=sessionRouteHarness(A);
+  for(const body of [null,[],{},'wallet',{walletAddress:null},{walletAddress:42},{walletAddress:[A]}]){
+    const response=await app.POST(renewalRequest(body));
+    assert.equal(response.status,400,JSON.stringify(body));
+    // Route runs in a VM realm; compare data, not the realm-specific prototype.
+    assert.equal(response.body.error,'Invalid wallet address.');
+    assert.deepEqual(Object.keys(response.body),['error']);
+  }
+  assert.equal(app.getSessionCalls,0);
+  assert.equal(app.unscopedRevokes,0);
+  assert.equal(app.updatedWallets.length,0);
+  assert.equal(app.cookies.length,0);
+});
+
+test('silent renewal retains its intent/origin protections and wallet ownership check',async()=>{
+  const app=sessionRouteHarness(A);
+  assert.equal((await app.POST(renewalRequest({walletAddress:B},{intent:null}))).status,403);
+  assert.equal((await app.POST(renewalRequest({walletAddress:B},{origin:'https://not-veinvite.example'}))).status,403);
+  assert.equal(app.getSessionCalls,0,'request origin and custom intent rejected before DB');
+  const wrongWallet=await app.POST(renewalRequest({walletAddress:B}));
+  assert.equal(wrongWallet.status,403,'one browser cannot renew its session for a different wallet');
+  assert.equal(app.getSessionCalls,1);
+  assert.equal(app.cookies.length,0);
+  assert.equal(app.unscopedRevokes,0);
+});
+

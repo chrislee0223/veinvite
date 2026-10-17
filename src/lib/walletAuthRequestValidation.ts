@@ -64,3 +64,16 @@ export function isWalletVerifyRequestBody(
       typeof value.proofType === 'string') &&
     (value.certificate === undefined || isCertificate(value.certificate));
 }
+
+export type WalletSessionRenewalRequestBody = {
+  walletAddress: string;
+};
+
+// Sliding renewal requires a selected wallet and never makes a signature or
+// creates a session. Missing/invalid JSON values must fail as HTTP 400 before
+// .trim() and the existing expected-wallet/session ownership checks.
+export function isWalletSessionRenewalRequestBody(
+  value: unknown,
+): value is WalletSessionRenewalRequestBody {
+  return isRecord(value) && typeof value.walletAddress === 'string';
+}

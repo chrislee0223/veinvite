@@ -17,6 +17,7 @@ import {
   WALLET_SESSION_COOKIE_NAME,
 } from '@/lib/walletAuthServer';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { isWalletSessionRenewalRequestBody } from '@/lib/walletAuthRequestValidation';
 import { settleOptionalSecurityObservation } from '@/lib/securityClientBestEffort';
 
 const SLIDING_SESSION_LIFETIME_DAYS = 30;
@@ -24,10 +25,6 @@ const SLIDING_SESSION_LIFETIME_SECONDS =
   SLIDING_SESSION_LIFETIME_DAYS * 24 * 60 * 60;
 const SESSION_RENEWAL_INTENT = 'renew';
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
-
-type RenewalBody = {
-  walletAddress?: string;
-};
 
 function hashSessionToken(token: string) {
   return createHash('sha256')
@@ -214,10 +211,10 @@ export async function POST(
     );
   }
 
-  let body: RenewalBody;
+  let rawBody: unknown;
 
   try {
-    body = (await request.json()) as RenewalBody;
+    rawBody = await request.json();
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON body.' },
@@ -230,10 +227,23 @@ export async function POST(
     );
   }
 
+  // NextRequest.json() is untrusted runtime data. Null, arrays and a
+  // non-string walletAddress must never crash the renewal endpoint or
+  // reach the database. Keep the original ownership checks unchanged.
+  if (!isWalletSessionRenewalRequestBody(rawBody)) {
+    return NextResponse.json(
+      { error: 'Invalid wallet address.' },
+      {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store' },
+      },
+    );
+  }
+
   const expectedWallet =
-    body.walletAddress
-      ?.trim()
-      .toLowerCase() ?? '';
+    rawBody.walletAddress
+      .trim()
+      .toLowerCase();
 
   if (!WALLET_PATTERN.test(expectedWallet)) {
     return NextResponse.json(
