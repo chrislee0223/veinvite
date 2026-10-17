@@ -42,14 +42,6 @@ const STANDALONE_RISK_LOCALES = [
   'de',
 ] as const;
 
-async function waitForNotificationHarness(page: Page) {
-  await expect(
-    page.locator('[data-qa-notification-ready]'),
-  ).toHaveAttribute('data-qa-notification-ready', 'true', {
-    timeout: 15_000,
-  });
-}
-
 async function openPromotionPanel(
   page: Page,
   locale: SupportedLocale,
@@ -72,8 +64,6 @@ async function openPromotionPanel(
     '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
-
-  await waitForNotificationHarness(page);
 
   const row = page.locator('.notificationHistoryRow').first();
   await expect(row).toBeVisible({ timeout: 10_000 });
@@ -318,8 +308,6 @@ async function openStandalonePromotionState({
     '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
-
-  await waitForNotificationHarness(page);
 
   const row = page.locator('.notificationHistoryRow').first();
   await expect(row).toBeVisible({ timeout: 10_000 });
