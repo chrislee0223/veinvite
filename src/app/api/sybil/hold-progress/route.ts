@@ -45,6 +45,20 @@ export async function GET(request: NextRequest) {
       return result({ authenticated: false, progressAvailable: false }, 401);
     }
 
+    // The client address is only an equality assertion, never a selector or
+    // authorization source. Reject a stale cookie during a wallet switch.
+    const expectedWallet = request.headers
+      .get('x-veinvite-session-wallet')
+      ?.trim()
+      .toLowerCase();
+    if (
+      !expectedWallet ||
+      !/^0x[0-9a-f]{40}$/.test(expectedWallet) ||
+      expectedWallet !== session.walletAddress
+    ) {
+      return result({ authenticated: true, progressAvailable: false }, 403);
+    }
+
     const walletRateLimit = await enforceRateLimits([{
       scope: 'sybil_hold_progress_wallet',
       subject: session.walletAddress,
