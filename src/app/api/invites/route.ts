@@ -51,10 +51,16 @@ type RewardQueueRow = {
 type RewardXPromotionSplitRow = {
   invite_code: string;
   mode: string;
+  policy_version: string;
   reservation_amount_wei: string | number;
   base_amount_wei: string | number;
   promotion_amount_wei: string | number;
 };
+
+const X_PROMOTION_ADDITIVE_POLICY =
+  'x-promotion-additive-v2';
+const X_PROMOTION_FIXED_BONUS_WEI =
+  10_000_000_000_000_000_000n;
 
 const invitationColumns = `
   invite_code,
@@ -123,12 +129,14 @@ function toInviteRecord(
 
     if (
       !reservedAmountWei ||
+      promotionSplit.policy_version !==
+        X_PROMOTION_ADDITIVE_POLICY ||
       splitReservationWei !== reservedAmountWei ||
       !baseAmountWei ||
-      BigInt(baseAmountWei) <= 0n ||
+      baseAmountWei !== reservedAmountWei ||
       splitPromotionWei === null ||
-      BigInt(baseAmountWei) + BigInt(splitPromotionWei) !==
-        BigInt(reservedAmountWei)
+      BigInt(splitPromotionWei) !==
+        X_PROMOTION_FIXED_BONUS_WEI
     ) {
       throw new Error(
         `Invalid LIVE X promotion split for ${row.invite_code}.`,
@@ -304,7 +312,7 @@ export async function GET(request: NextRequest) {
         supabaseAdmin
           .from('reward_x_promotion_splits')
           .select(
-            'invite_code, mode, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+            'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
           )
           .in('invite_code', inviteCodes)
           .eq('mode', 'LIVE'),

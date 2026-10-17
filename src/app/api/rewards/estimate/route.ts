@@ -229,6 +229,10 @@ async function checkLiveFunding(
       snapshotString(
         fundingInput.cohortReservedWei,
       );
+    const snapshotReservedExisting =
+      snapshotString(
+        fundingInput.reservedExistingWei,
+      );
 
     const changed =
       snapshotRound !==
@@ -242,7 +246,9 @@ async function checkLiveFunding(
       snapshotDesignated !==
         planning.designatedBudgetWei ||
       snapshotCommitted !==
-        planning.cohortReservedWei;
+        planning.cohortReservedWei ||
+      snapshotReservedExisting !==
+        planning.reservedExistingWei;
 
     return changed ? 'changed' : 'unchanged';
   } catch (error) {

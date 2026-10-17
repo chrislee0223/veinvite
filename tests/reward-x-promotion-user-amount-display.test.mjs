@@ -23,18 +23,23 @@ const homeHelpers = await readFile(
   'utf8',
 );
 
-test('reward actions preserve total reservation and expose optional LIVE split amounts', () => {
+test('reward actions expose full core reservation plus the fixed additive X bonus', () => {
   assert.match(actionType, /reservedAmountWei: string/);
   assert.match(actionType, /claimAmountWei\?: string/);
   assert.match(actionType, /promotionAmountWei\?: string/);
-
   assert.match(
     actionRoute,
     /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/,
   );
+  assert.match(actionRoute, /policy_version/);
+  assert.match(actionRoute, /x-promotion-additive-v2/);
   assert.match(
     actionRoute,
-    /splitReservationWei === amount[\s\S]*BigInt\(baseAmountWei\)[\s\S]*BigInt\(splitPromotionWei\)[\s\S]*BigInt\(amount\)/,
+    /splitReservationWei === amount[\s\S]*baseAmountWei === amount[\s\S]*BigInt\(splitPromotionWei\)[\s\S]*X_PROMOTION_FIXED_BONUS_WEI/,
+  );
+  assert.doesNotMatch(
+    actionRoute,
+    /BigInt\(baseAmountWei\)\s*\+[\s\S]*BigInt\(splitPromotionWei\)[\s\S]*BigInt\(amount\)/,
   );
   assert.match(
     actionRoute,
@@ -42,15 +47,16 @@ test('reward actions preserve total reservation and expose optional LIVE split a
   );
 });
 
-test('malformed existing LIVE split fails closed instead of displaying the full reservation', () => {
+test('malformed or unknown LIVE split semantics fail closed', () => {
   assert.match(
     actionRoute,
     /Invalid LIVE X promotion split in reward action display/,
   );
-  assert.doesNotMatch(
+  assert.match(
     actionRoute,
-    /Invalid LIVE X promotion split in reward action display:[\\s\\S]{0,250}claimAmountWei = null/,
+    /promotionSplit\.policy_version ===[\s\S]*X_PROMOTION_ADDITIVE_POLICY/,
   );
+  assert.match(actionRoute, /10_000_000_000_000_000_000n/);
 });
 
 test('optional X promotion lookup failure cannot remove the core reward action list', () => {
@@ -68,7 +74,7 @@ test('optional X promotion lookup failure cannot remove the core reward action l
   );
 });
 
-test('home displays the actual claim amount while keeping promotion separate', () => {
+test('home displays the actual full claim amount while keeping promotion separate', () => {
   assert.match(
     home,
     /invite\.rewardClaimAmountWei[\s\S]*\? formatB3trWei\([\s\S]*invite\.rewardClaimAmountWei[\s\S]*: '—'/,
@@ -91,7 +97,7 @@ test('home displays the actual claim amount while keeping promotion separate', (
   );
 });
 
-test('restricted reward claims also display base and promotion separately', () => {
+test('restricted reward claims also display core and promotion separately', () => {
   assert.match(
     restricted,
     /action\.claimAmountWei[\s\S]*\? formatB3trWei\([\s\S]*action\.claimAmountWei[\s\S]*: '—'/,
@@ -119,13 +125,7 @@ test('unresolved promotion enrichment never guesses the immediate claim amount f
 
 test('display-only wiring cannot enable X promotion or payouts', () => {
   for (const source of [actionRoute, home, restricted]) {
-    assert.doesNotMatch(
-      source,
-      /reward_x_promotion_enabled\s*=\s*true/,
-    );
-    assert.doesNotMatch(
-      source,
-      /reward_x_promotion_payout_enabled\s*=\s*true/,
-    );
+    assert.doesNotMatch(source, /reward_x_promotion_enabled\s*=\s*true/);
+    assert.doesNotMatch(source, /reward_x_promotion_payout_enabled\s*=\s*true/);
   }
 });
