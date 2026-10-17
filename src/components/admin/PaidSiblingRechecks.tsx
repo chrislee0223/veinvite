@@ -21,13 +21,8 @@ type ResponseData = { cases: Case[]; error?: string };
 
 const API = '/api/admin/sybil/paid-siblings';
 const MIN_REASON = 25;
-// An operator may accept the existing paid CLEAR after personally confirming
-// that later shared-client evidence does not invalidate the original reward.
-// This shortcut does not auto-classify, blacklist, recover or change payouts.
-const DEFAULT_CLEAR_REASON =
-  '후발 중복 지갑의 동일 브라우저 사용은 확인되지만 최초 보상이 부정 수령이었다는 독립적 증거가 없어 기존 CLEAR 판정과 지급을 유지합니다.';
-
-
+// New independent HIGH evidence is why the case exists. Never pre-fill a
+// generic "no evidence" clearance rationale for an actionable case.
 export function PaidSiblingRechecks() {
   const [cases, setCases] = useState<Case[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -56,8 +51,7 @@ export function PaidSiblingRechecks() {
 
   async function resolve(item: Case, decision: 'CLEAR' | 'BLACKLIST') {
     const isClear = decision === 'CLEAR';
-    const effectiveReason = reason.trim() ||
-      (isClear ? DEFAULT_CLEAR_REASON : '');
+    const effectiveReason = reason.trim();
     const effectiveConfirmation = isClear
       ? item.paid_invite_code
       : confirmation.trim().toUpperCase();
@@ -144,13 +138,13 @@ export function PaidSiblingRechecks() {
               <p>후발 지갑 차단: {new Date(item.blocked_at).toLocaleString('ko-KR')}</p>
               <p>정상적인 최초 참여 후 부정 중복 참여했을 가능성도 있습니다.
                 최초 지급을 무효화하려면 독립적인 추가 증거와 판단 근거가 필요합니다.
-                기존 CLEAR 유지 시에는 아래 사유가 비어 있으면 기본 검토 사유를 제시하고,
-                운영자 확인창을 한 번 더 거쳐 완료 기록을 남깁니다.</p>
+                새 독립 증거의 실제 내용을 확인하고 CLEAR 유지 또는 과거 지급 무효화의
+                구체적인 판단 사유를 직접 입력해야 합니다.</p>
               <label>
                 심사 사유 (25–500자)
                 <textarea aria-label="과거 지급 재심사 사유" rows={3}
                   maxLength={500} value={reason} disabled={busy}
-                  placeholder={DEFAULT_CLEAR_REASON}
+                  placeholder="새롭게 발견된 독립 증거와 기존 지급의 관계를 확인한 후 결정 근거를 입력하세요."
                   onChange={(event) => setReason(event.target.value)} />
               </label>
               <label>
@@ -161,7 +155,7 @@ export function PaidSiblingRechecks() {
               </label>
               <div className="headerActions">
                 <button type="button" className="ghost"
-                  disabled={busy}
+                  disabled={busy || reason.trim().length < MIN_REASON}
                   onClick={() => void resolve(item, 'CLEAR')}>재심사 완료 · CLEAR 유지</button>
                 <button type="button" className="ghost"
                   disabled={busy || reason.trim().length < MIN_REASON || confirmation !== item.paid_invite_code}
