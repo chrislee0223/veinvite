@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const alt =
-  "You've been invited to VeInvite — Join. Verify. Earn B3TR.";
+  'Join VeInvite — Verify. Explore. Earn B3TR.';
 export const size = {
   width: 1200,
   height: 600,
@@ -78,7 +78,7 @@ export default function Image() {
                 letterSpacing: '-2.8px',
               }}
             >
-              You’ve been invited to VeInvite.
+              Join VeInvite.
             </div>
             <div
               style={{
@@ -91,7 +91,7 @@ export default function Image() {
                 letterSpacing: '-1.5px',
               }}
             >
-              Join. Verify. Earn B3TR.
+              Verify. Explore. Earn B3TR.
             </div>
             <div
               style={{
