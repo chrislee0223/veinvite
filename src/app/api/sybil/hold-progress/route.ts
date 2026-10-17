@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { enforceRateLimits, getClientIpSubject } from '@/lib/rateLimitServer';
 import { getWalletSession } from '@/lib/walletAuthServer';
 import { getVeBetterNetwork } from '@/lib/vebetter/network';
 import { loadActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
@@ -28,10 +29,29 @@ function result(
  */
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIpSubject(request);
+    const ipRateLimit = await enforceRateLimits([
+      ip ? {
+        scope: 'sybil_hold_progress_ip',
+        subject: ip,
+        limit: 30,
+        windowSeconds: 60,
+      } : null,
+    ]);
+    if (ipRateLimit) return ipRateLimit;
+
     const session = await getWalletSession(request);
     if (!session) {
       return result({ authenticated: false, progressAvailable: false }, 401);
     }
+
+    const walletRateLimit = await enforceRateLimits([{
+      scope: 'sybil_hold_progress_wallet',
+      subject: session.walletAddress,
+      limit: 12,
+      windowSeconds: 60,
+    }]);
+    if (walletRateLimit) return walletRateLimit;
 
     const network = getVeBetterNetwork();
     const restriction = await loadActiveSybilV2Restriction({
