@@ -28,6 +28,12 @@ test('all 3 read/count/ack functions archive progress after paid', () => {
 test('reconciliation is wallet scoped and cannot make first-page history unavailable on error', () => {
   assert.match(route, /if \(beforeId === null\)/);
   assert.match(route, /'reconcile_verified_paid_reward_history'/);
+  assert.match(route, /'reconcile_verified_x_promotion_paid_history'/);
   assert.match(route, /\{ p_inviter_wallet: wallet \}/);
-  assert.match(route, /if \(reconciliationError\) \{/);
+  assert.match(route, /if \(corePaid\.error\) \{/);
+  assert.match(route, /if \(xPromotionPaid\.error\) \{/);
+  assert.doesNotMatch(
+    route,
+    /if \((?:corePaid|xPromotionPaid)\.error\)[\s\S]{0,220}throw new Error/,
+  );
 });

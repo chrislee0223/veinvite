@@ -1,0 +1,174 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const sql = readFileSync(
+  'supabase/migrations/20261017183000_add_x_promotion_paid_notifications.sql',
+  'utf8',
+);
+const historyRoute = readFileSync(
+  'src/app/api/notifications/history/route.ts',
+  'utf8',
+);
+const kinds = readFileSync(
+  'src/lib/notifications/inviteNotificationStateV2.ts',
+  'utf8',
+);
+const policy = readFileSync(
+  'src/lib/notifications/notificationPolicy.ts',
+  'utf8',
+);
+const historyCenter = readFileSync(
+  'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
+  'utf8',
+);
+const inAppNotifications = readFileSync(
+  'src/components/InAppInviteNotifications.tsx',
+  'utf8',
+);
+const historyClient = readFileSync(
+  'src/lib/notifications/notificationHistoryClient.ts',
+  'utf8',
+);
+
+test('X promotion paid notifications are derived only from finalized immutable payout evidence', () => {
+  for (const proof of [
+    'public.reward_x_promotion_receipts r',
+    'public.reward_x_promotion_obligations o',
+    "o.financial_state = 'PAID'",
+    'o.paid_at = r.paid_at',
+    'public.reward_x_promotion_splits x',
+    "x.mode = 'LIVE'",
+    'public.reward_x_promotion_payout_settlements s',
+    's.tx_id = r.tx_id',
+    's.paid_at = r.paid_at',
+    'public.invitations i',
+    'lower(r.recipient_wallet) = v_wallet',
+    "r.tx_id ~ '^0x[0-9a-f]{64}$'",
+  ]) {
+    assert.ok(sql.includes(proof), 'missing X promotion notification proof: ' + proof);
+  }
+});
+
+test('X promotion paid history is receipt-id deduped and service-role only', () => {
+  assert.match(sql, /'xpromo:v1:' \|\| r\.id::text/);
+  assert.match(sql, /on conflict \(dedupe_key\) do nothing/);
+  assert.match(
+    sql,
+    /revoke all on function public\.reconcile_verified_x_promotion_paid_history\(text\)[\s\S]*from public, anon, authenticated/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.reconcile_verified_x_promotion_paid_history\(text\)[\s\S]*to service_role/i,
+  );
+  assert.doesNotMatch(
+    sql,
+    /\b(?:update|delete)\s+(?:from\s+)?public\.reward_x_promotion_/i,
+  );
+});
+
+test('notification schema and client policy expose X promotion paid as a tap-to-read durable bell item', () => {
+  assert.match(sql, /'X_PROMOTION_PAID'::text/);
+  assert.match(kinds, /\| 'X_PROMOTION_PAID'/);
+  assert.match(policy, /X_PROMOTION_PAID: HISTORY_TAP/);
+  assert.doesNotMatch(
+    policy,
+    /X_PROMOTION_PAID:[\s\S]{0,180}readBehavior: 'receipt'/,
+  );
+});
+
+test('history first page reconciles X promotion receipts without making history unavailable', () => {
+  assert.match(historyRoute, /if \(beforeId === null\)/);
+  assert.match(
+    historyRoute,
+    /'reconcile_verified_x_promotion_paid_history'/,
+  );
+  assert.match(
+    historyRoute,
+    /X promotion paid notification reconciliation failed/,
+  );
+});
+
+test('bell copy reuses localized X promotion copy and shows the paid amount separately', () => {
+  assert.match(historyCenter, /REWARD_X_PROMOTION_COPY/);
+  assert.match(
+    historyCenter,
+    /case 'X_PROMOTION_PAID':[\s\S]*xPromotion\.title[\s\S]*xPromotion\.paidBody/,
+  );
+  assert.match(
+    historyCenter,
+    /case 'X_PROMOTION_PAID':[\s\S]*hint: amount[\s\S]*B3TR/,
+  );
+});
+
+test('X promotion paid survives warm history caching and refreshes home data only', () => {
+  assert.match(
+    inAppNotifications,
+    /'REWARD_PAID',[\s\S]*'X_PROMOTION_PAID',[\s\S]*'REWARD_ADJUSTED'/,
+  );
+  assert.match(
+    historyClient,
+    /kind === 'REWARD_PAID' \|\|[\s\S]*kind === 'X_PROMOTION_PAID' \|\|[\s\S]*kind === 'REWARD_ADJUSTED'/,
+  );
+  const networkBlock = historyClient.slice(
+    historyClient.indexOf('export function notificationRequiresNetworkRefresh'),
+  );
+  assert.doesNotMatch(networkBlock, /X_PROMOTION_PAID/);
+});
+
+test('reading X promotion paid does not advance the legacy referral stage', () => {
+  const ackSql = readFileSync(
+    'supabase/migrations/20261017183500_isolate_x_promotion_paid_notification_ack.sql',
+    'utf8',
+  );
+  assert.match(
+    ackSql,
+    /v_row\.kind not like 'SECURITY_%'[\s\S]*v_row\.kind <> 'X_PROMOTION_PAID'/,
+  );
+  assert.match(
+    ackSql,
+    /insert into public\.invite_notification_history_reads/,
+  );
+  assert.match(
+    ackSql,
+    /acknowledge_invite_notification_v2/,
+  );
+});
+
+test('new paid promotion history refreshes Home immediately without invalidating network caches', () => {
+  const notifications = readFileSync(
+    'src/components/InAppInviteNotifications.tsx',
+    'utf8',
+  );
+  assert.match(
+    notifications,
+    /history\.items\.filter\(notificationRequiresHomeRefresh\)/,
+  );
+  assert.match(
+    notifications,
+    /history\.items\.filter\(notificationRequiresNetworkRefresh\)/,
+  );
+  assert.match(
+    notifications,
+    /lastHomeRefreshNotificationIdRef/,
+  );
+  assert.match(
+    notifications,
+    /lastNetworkRefreshNotificationIdRef/,
+  );
+
+  const homeBlock = notifications.slice(
+    notifications.indexOf('const latestHomeRefreshId'),
+    notifications.indexOf('const latestNetworkRefreshId'),
+  );
+  assert.match(homeBlock, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(homeBlock, /NETWORK_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(homeBlock, /invalidateNetwork(?:Root|Summary)Cache/);
+
+  const networkBlock = notifications.slice(
+    notifications.indexOf('const latestNetworkRefreshId'),
+    notifications.indexOf('    },\n    [],', notifications.indexOf('const latestNetworkRefreshId')),
+  );
+  assert.match(networkBlock, /NETWORK_DATA_REFRESH_REQUESTED_EVENT/);
+  assert.doesNotMatch(networkBlock, /HOME_DATA_REFRESH_REQUESTED_EVENT/);
+});

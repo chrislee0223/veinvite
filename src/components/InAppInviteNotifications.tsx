@@ -84,6 +84,7 @@ const NOTIFICATION_HISTORY_KINDS = new Set([
   'VOT3_CONVERTED',
   'REWARD_READY',
   'REWARD_PAID',
+  'X_PROMOTION_PAID',
   'REWARD_ADJUSTED',
   'INVITE_INELIGIBLE',
   'SECURITY_REVIEW_STARTED',
@@ -307,7 +308,9 @@ export function InAppInviteNotifications({
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const openSnapshotRef = useRef<string | null>(null);
-  const lastDataRefreshNotificationIdRef =
+  const lastHomeRefreshNotificationIdRef =
+    useRef<string | null>(null);
+  const lastNetworkRefreshNotificationIdRef =
     useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
@@ -330,7 +333,8 @@ export function InAppInviteNotifications({
     setBusy(false);
     setErrorMessage('');
     openSnapshotRef.current = null;
-    lastDataRefreshNotificationIdRef.current = null;
+    lastHomeRefreshNotificationIdRef.current = null;
+    lastNetworkRefreshNotificationIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
   }, [wallet]);
@@ -350,7 +354,8 @@ export function InAppInviteNotifications({
     setBusy(false);
     setErrorMessage('');
     openSnapshotRef.current = null;
-    lastDataRefreshNotificationIdRef.current = null;
+    lastHomeRefreshNotificationIdRef.current = null;
+    lastNetworkRefreshNotificationIdRef.current = null;
     latestHistoryRequestRef.current = null;
     lifecycleRefreshRef.current = null;
     window.dispatchEvent(
@@ -421,19 +426,29 @@ export function InAppInviteNotifications({
       setNextCursor(history.nextCursor);
       writeHistoryCache(requestWallet, history);
 
-      const latestDataRefreshId = newestHistoryId(
-        history.items.filter(notificationRequiresNetworkRefresh),
+      const latestHomeRefreshId = newestHistoryId(
+        history.items.filter(notificationRequiresHomeRefresh),
       );
       if (
-        latestDataRefreshId &&
-        lastDataRefreshNotificationIdRef.current !== latestDataRefreshId
+        latestHomeRefreshId &&
+        lastHomeRefreshNotificationIdRef.current !== latestHomeRefreshId
       ) {
-        lastDataRefreshNotificationIdRef.current = latestDataRefreshId;
-        invalidateNetworkRootCache(requestWallet);
-        invalidateNetworkSummaryCache(requestWallet);
+        lastHomeRefreshNotificationIdRef.current = latestHomeRefreshId;
         window.dispatchEvent(
           new Event(HOME_DATA_REFRESH_REQUESTED_EVENT),
         );
+      }
+
+      const latestNetworkRefreshId = newestHistoryId(
+        history.items.filter(notificationRequiresNetworkRefresh),
+      );
+      if (
+        latestNetworkRefreshId &&
+        lastNetworkRefreshNotificationIdRef.current !== latestNetworkRefreshId
+      ) {
+        lastNetworkRefreshNotificationIdRef.current = latestNetworkRefreshId;
+        invalidateNetworkRootCache(requestWallet);
+        invalidateNetworkSummaryCache(requestWallet);
         window.dispatchEvent(
           new Event(NETWORK_DATA_REFRESH_REQUESTED_EVENT),
         );

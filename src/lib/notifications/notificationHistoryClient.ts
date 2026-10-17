@@ -35,6 +35,7 @@ export function notificationRequiresHomeRefresh(
     kind === 'INVITE_INELIGIBLE' ||
     kind === 'REWARD_READY' ||
     kind === 'REWARD_PAID' ||
+    kind === 'X_PROMOTION_PAID' ||
     kind === 'REWARD_ADJUSTED' ||
     kind === 'SECURITY_RESTRICTION_CONFIRMED' ||
     kind === 'SECURITY_REVIEW_CLEARED' ||
