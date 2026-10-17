@@ -1,4 +1,4 @@
-import { Certificate } from '@vechain/sdk-core';
+import { Address, Blake2b256, Certificate, HexUInt, Secp256k1 } from '@vechain/sdk-core';
 
 // This is the exact verifier used by the production authentication route.
 // Keep it dependency-light so a signed wallet response can be exercised
@@ -17,6 +17,90 @@ export type WalletCertificate = {
   signer?: string;
   signature?: string;
 };
+
+
+// VeChain certificate signatures encode a recoverable secp256k1 signature
+// using v = 0 or 1. Some EVM-compatible signers encode the identical recovery
+// bit as 27 or 28. Only normalize those two *encoding aliases*; ownership is
+// still verified against the entire signed VeChain certificate/challenge.
+export function normalizeVeWorldCertificateRecoverySignature(
+  signature: string,
+): string {
+  if (!/^0x[0-9a-f]{130}$/i.test(signature)) {
+    return signature;
+  }
+
+  const recovery = Number.parseInt(signature.slice(-2), 16);
+  if (recovery !== 27 && recovery !== 28) {
+    return signature;
+  }
+
+  return `${signature.slice(0, -2)}0${recovery - 27}`;
+}
+
+export type WalletCertificateSignerDiagnostic = {
+  recoveryByteFormat: 'vechain' | 'evm_legacy' | 'unsupported' | 'malformed';
+  recoveredSignerMatchesClaimed: boolean | null;
+};
+
+// For rejected signatures only. Never return or log the recovered address,
+// certificate, challenge, raw signature, signer or nonce. This distinguishes
+// a malformed recovery byte from a valid signed hash that recovers the wrong
+// signer, including potential smart-wallet / switched-account cases.
+export function diagnoseVeWorldCertificateSignature(
+  certificate: WalletCertificate,
+): WalletCertificateSignerDiagnostic {
+  const raw = certificate.signature ?? '';
+  if (!/^0x[0-9a-f]{130}$/i.test(raw)) {
+    return {
+      recoveryByteFormat: 'malformed',
+      recoveredSignerMatchesClaimed: null,
+    };
+  }
+
+  const v = Number.parseInt(raw.slice(-2), 16);
+  const recoveryByteFormat =
+    v === 0 || v === 1
+      ? 'vechain'
+      : v === 27 || v === 28
+        ? 'evm_legacy'
+        : 'unsupported';
+
+  if (recoveryByteFormat === 'unsupported') {
+    return { recoveryByteFormat, recoveredSignerMatchesClaimed: null };
+  }
+
+  try {
+    const canonical = Certificate.of({
+      purpose: certificate.purpose!,
+      payload: {
+        type: certificate.payload!.type!,
+        content: certificate.payload!.content!,
+      },
+      domain: certificate.domain!,
+      timestamp: certificate.timestamp!,
+      signer: certificate.signer!,
+      signature: normalizeVeWorldCertificateRecoverySignature(raw),
+    });
+    const recovered = Address.ofPublicKey(
+      Secp256k1.recover(
+        Blake2b256.of(canonical.encode()).bytes,
+        HexUInt.of(canonical.signature!).bytes,
+      ),
+    ).toString().toLowerCase();
+
+    return {
+      recoveryByteFormat,
+      recoveredSignerMatchesClaimed:
+        recovered === canonical.signer,
+    };
+  } catch {
+    return {
+      recoveryByteFormat,
+      recoveredSignerMatchesClaimed: null,
+    };
+  }
+}
 
 type CertificateWalletChallenge = {
   expires_at: string;
@@ -160,7 +244,9 @@ export function verifyVeWorldCertificate({
       signer:
         certificateSigner,
       signature:
-        certificate.signature,
+        normalizeVeWorldCertificateRecoverySignature(
+          certificate.signature,
+        ),
     }).verify();
   } catch {
     return 'Invalid VeWorld certificate signature.';
