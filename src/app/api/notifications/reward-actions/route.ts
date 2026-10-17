@@ -42,10 +42,16 @@ type SubmissionRow = {
 type RewardXPromotionSplitRow = {
   invite_code: string;
   mode: string;
+  policy_version: string;
   reservation_amount_wei: string | number;
   base_amount_wei: string | number;
   promotion_amount_wei: string | number;
 };
+
+const X_PROMOTION_ADDITIVE_POLICY =
+  'x-promotion-additive-v2';
+const X_PROMOTION_FIXED_BONUS_WEI =
+  10_000_000_000_000_000_000n;
 
 type InvitationRow = {
   invite_code: string;
@@ -168,7 +174,7 @@ export async function GET(request: NextRequest) {
     const promotionResult = await supabaseAdmin
       .from('reward_x_promotion_splits')
       .select(
-        'invite_code, mode, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+        'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
       )
       .in('invite_code', inviteCodes)
       .eq('mode', 'LIVE');
@@ -281,13 +287,13 @@ export async function GET(request: NextRequest) {
           integerWei(promotionSplit.promotion_amount_wei);
 
         if (
+          promotionSplit.policy_version ===
+            X_PROMOTION_ADDITIVE_POLICY &&
           splitReservationWei === amount &&
-          baseAmountWei !== null &&
-          BigInt(baseAmountWei) > 0n &&
+          baseAmountWei === amount &&
           splitPromotionWei !== null &&
-          BigInt(baseAmountWei) +
-            BigInt(splitPromotionWei) ===
-            BigInt(amount)
+          BigInt(splitPromotionWei) ===
+            X_PROMOTION_FIXED_BONUS_WEI
         ) {
           claimAmountWei = baseAmountWei;
           promotionAmountWei = splitPromotionWei;
