@@ -120,6 +120,20 @@ type ReviewDetailResponse = {
   postPayoutReview?: PostPayoutReview | null;
   postPayoutReviewEvents?: unknown[];
   v2Evidence?: V2Evidence[];
+  evidenceAudit?: {
+    storedSignals: number;
+    highSignals: number;
+    highFamilies: string[];
+    highFamilyCount: number;
+    infoSignals: number;
+    provenanceAnchoredSignals: number;
+    evidencePageMayBeTruncated: boolean;
+    signalsShareHighFamily: boolean;
+    independentHighCorroborationShown: boolean;
+    requiresManualEvidenceReview: true;
+    decisionAuthorized: false;
+    cautionCodes: string[];
+  };
   activeInviterRestriction?: {
     restriction_id: string;
     network: string;
@@ -980,7 +994,9 @@ export default function SybilReviewPage() {
 
                     {selected.inviter_escalation_posture === 'HOLD' ||
                     selected.post_payout_state === 'HOLD' ||
-                    selected.v2_state === 'HOLD' ? (
+                    selected.v2_state === 'HOLD' ||
+                    (selected.v2_state === 'RESTRICTED' &&
+                      Boolean(selected.invitee_active_restriction_id)) ? (
                       <section className="onchainSection">
                         <div className="sectionHeaderRow">
                           <div>
@@ -989,7 +1005,9 @@ export default function SybilReviewPage() {
                                 ? 'INVITER ESCALATION EVIDENCE'
                                 : selected.post_payout_state === 'HOLD'
                                   ? 'POST-PAYOUT EVIDENCE'
-                                  : 'SYBIL V2 EVIDENCE'}
+                                  : selected.v2_state === 'RESTRICTED'
+                                    ? 'SYBIL V2 DECISION AUDIT'
+                                    : 'SYBIL V2 EVIDENCE'}
                             </span>
                             <h3>자동 탐지 근거 / Detection evidence</h3>
                           </div>
@@ -1004,12 +1022,48 @@ export default function SybilReviewPage() {
                         <p className="observationNote">
                           {selected.post_payout_state === 'HOLD'
                             ? '이미 지급된 보상은 변경하지 않습니다. 지급 후 B3TR 흐름과 기존 독립 증거가 함께 확인된 건만 수동 검토합니다.'
-                            : '여러 독립 증거군이 결합되어 HOLD된 건입니다. 단일 신호만으로 BLACKLIST하지 않습니다.'}
+                            : '저장된 신호가 여러 개여도 같은 증거 계열일 수 있습니다. 실제 BLACKLIST 또는 REINSTATE 판단에는 증거 출처와 별도의 운영자 확인이 필요합니다.'}
                           <br />
                           {selected.post_payout_state === 'HOLD'
                             ? 'Past rewards stay final; only corroborated post-payout evidence can open a future-participation review.'
-                            : 'HOLD requires corroborating evidence families; one signal alone is not a blacklist.'}
+                            : 'Multiple signals may share one evidence family. Inspect sources and independent corroboration before a final decision.'}
                         </p>
+                        {detail?.evidenceAudit ? (
+                          <div className="analyticsWarning" role="status">
+                            <strong>구조화된 증거 교차검증 / Structured evidence audit</strong>
+                            <span>
+                              저장된 신호 {detail.evidenceAudit.storedSignals}개
+                              · HIGH 이상 {detail.evidenceAudit.highSignals}개
+                              · HIGH 증거 계열 {detail.evidenceAudit.highFamilyCount}종
+                              · 관측 시점/블록 기록 {detail.evidenceAudit.provenanceAnchoredSignals}개
+                            </span>
+                            <small>
+                              {detail.evidenceAudit.highFamilies.join(', ') || 'HIGH evidence family not recorded'}
+                            </small>
+                            {detail.evidenceAudit.signalsShareHighFamily ? (
+                              <small>
+                                주의: HIGH 신호들이 같은 증거 계열에 속합니다.
+                                이를 독립적인 여러 근거로 계산하면 안 됩니다.
+                              </small>
+                            ) : null}
+                            {detail.evidenceAudit.highFamilyCount < 2 ? (
+                              <small>
+                                서로 다른 HIGH 증거 계열 2종이 구조화된 기록에서 확인되지 않았습니다.
+                                별도 수동 분석이 있었다면 증거 ID와 관측 근거를 확인하세요.
+                              </small>
+                            ) : (
+                              <small>
+                                다른 HIGH 계열이 기록돼 있어도 실제 증거의 독립성은 운영자가 검증해야 합니다.
+                              </small>
+                            )}
+                            {detail.evidenceAudit.evidencePageMayBeTruncated ? (
+                              <small>최대 100건 조회 제한에 도달했습니다. 이 요약은 불완전할 수 있습니다.</small>
+                            ) : null}
+                            <small>
+                              이 요약은 판정 승인 조건이 아니며, 수동 검토와 감사 기록을 대체하지 않습니다.
+                            </small>
+                          </div>
+                        ) : null}
                         {v2Evidence.length > 0 ? (
                           <div className="history">
                             {v2Evidence.slice(0, 20).map((item) => (
