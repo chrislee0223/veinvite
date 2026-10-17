@@ -57,6 +57,7 @@ type V2AssessmentRow = {
   source: string;
   assessed_at: string;
   updated_at: string;
+  first_held_at?: string | null;
 };
 
 type PostPayoutReviewRow = {
@@ -117,6 +118,7 @@ type ReviewRow = InvitationReviewRow & {
   v2_revision: number | string | null;
   v2_reason_codes: unknown;
   v2_updated_at: string | null;
+  v2_first_held_at: string | null;
   post_payout_state: string | null;
   post_payout_risk_score: number | null;
   post_payout_revision: number | string | null;
@@ -407,6 +409,7 @@ function decorateReview(
     v2_revision: assessment?.revision ?? null,
     v2_reason_codes: assessment?.reason_codes ?? [],
     v2_updated_at: assessment?.updated_at ?? null,
+    v2_first_held_at: assessment?.first_held_at ?? null,
     post_payout_state: postPayout?.state ?? null,
     post_payout_risk_score:
       postPayout?.risk_score ?? null,
@@ -473,7 +476,7 @@ async function loadOpenReviews(
     supabaseAdmin
       .from('operator_sybil_v2_operator_action_candidates')
       .select(
-        'invite_code,network,state,risk_score,policy_version,analyzer_version,revision,evidence_cutoff_block,required_checks,completed_checks,reason_codes,evidence_summary,source,assessed_at,updated_at',
+        'invite_code,network,state,risk_score,policy_version,analyzer_version,revision,evidence_cutoff_block,required_checks,completed_checks,reason_codes,evidence_summary,source,assessed_at,updated_at,first_held_at',
       )
       .eq('network', network)
       .order('updated_at', { ascending: true })
@@ -627,6 +630,7 @@ async function loadOpenReviews(
         left.inviter_active_restriction_imposed_at ??
           left.inviter_escalation_latest_incident_at ??
           left.post_payout_updated_at ??
+          left.v2_first_held_at ??
           left.v2_updated_at ??
           left.sybil_checked_at ??
           left.updated_at,
@@ -635,6 +639,7 @@ async function loadOpenReviews(
         right.inviter_active_restriction_imposed_at ??
           right.inviter_escalation_latest_incident_at ??
           right.post_payout_updated_at ??
+          right.v2_first_held_at ??
           right.v2_updated_at ??
           right.sybil_checked_at ??
           right.updated_at,
