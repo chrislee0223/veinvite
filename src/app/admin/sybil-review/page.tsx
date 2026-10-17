@@ -130,6 +130,10 @@ type ReviewDetailResponse = {
     explanation: string;
     status: string;
     created_at: string;
+    resolution_outcome: string | null;
+    resolution_reason: string | null;
+    resolved_at: string | null;
+    resolved_by_wallet: string | null;
   }>;
   evidenceAudit?: {
     storedSignals: number;
@@ -326,6 +330,11 @@ export default function SybilReviewPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsRunning, setAnalyticsRunning] = useState(false);
   const [reason, setReason] = useState('');
+  const [appealOutcome, setAppealOutcome] = useState<
+    'UPHELD_RESTRICTION' | 'CASE_VERDICT_CHANGED'
+  >('UPHELD_RESTRICTION');
+  const [appealResolutionReason, setAppealResolutionReason] = useState('');
+  const [appealClosing, setAppealClosing] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -341,6 +350,8 @@ export default function SybilReviewPage() {
     setOnchainError('');
     setAnalyticsLoading(false);
     setReason('');
+    setAppealResolutionReason('');
+    setAppealOutcome('UPHELD_RESTRICTION');
     setConfirmation('');
   }, []);
 
@@ -409,6 +420,8 @@ export default function SybilReviewPage() {
 
     setDetail(reviewResult.value);
     setReason('');
+    setAppealResolutionReason('');
+    setAppealOutcome('UPHELD_RESTRICTION');
     setConfirmation('');
     setDetailLoading(false);
 
