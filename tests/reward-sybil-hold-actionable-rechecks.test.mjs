@@ -40,10 +40,9 @@ test('new independent evidence and exhausted chain scans remain actionable', () 
   assert.match(sql, /q\.status = 'ASSIGNED'/u);
   assert.match(pipeline, /operator_sybil_v2_hold_new_evidence_candidates/u);
   assert.match(pipeline, /newEvidenceHolds/u);
-  assert.match(pipeline, /\.limit\(Math\.min\(2, bounded\)\)/u);
-  assert.match(pipeline, /candidates\.pop\(\)/u);
-  assert.match(pipeline, /candidates\.unshift\(\{ invite_code: inviteCode \}\)/u);
-  assert.match(pipeline, /if \(seen\.has\(inviteCode\)\) continue;/u);
+  assert.match(pipeline, /\.limit\(bounded \+ reservedFreshSlots\)/u);
+  assert.match(pipeline, /prioritizeFreshHoldCandidates\(/u);
+  assert.match(pipeline, /const seen = new Set\(/u);
   assert.match(recovery, /runSybilV2AssessmentBatch/u);
 });
 
