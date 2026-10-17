@@ -22,6 +22,14 @@ const historyCenter = readFileSync(
   'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
   'utf8',
 );
+const inAppNotifications = readFileSync(
+  'src/components/InAppInviteNotifications.tsx',
+  'utf8',
+);
+const historyClient = readFileSync(
+  'src/lib/notifications/notificationHistoryClient.ts',
+  'utf8',
+);
 
 test('X promotion paid notifications are derived only from finalized immutable payout evidence', () => {
   for (const proof of [
@@ -91,4 +99,19 @@ test('bell copy reuses localized X promotion copy and shows the paid amount sepa
     historyCenter,
     /case 'X_PROMOTION_PAID':[\s\S]*hint: amount[\s\S]*B3TR/,
   );
+});
+
+test('X promotion paid survives warm history caching and refreshes home data only', () => {
+  assert.match(
+    inAppNotifications,
+    /'REWARD_PAID',[\s\S]*'X_PROMOTION_PAID',[\s\S]*'REWARD_ADJUSTED'/,
+  );
+  assert.match(
+    historyClient,
+    /kind === 'REWARD_PAID' \|\|[\s\S]*kind === 'X_PROMOTION_PAID' \|\|[\s\S]*kind === 'REWARD_ADJUSTED'/,
+  );
+  const networkBlock = historyClient.slice(
+    historyClient.indexOf('export function notificationRequiresNetworkRefresh'),
+  );
+  assert.doesNotMatch(networkBlock, /X_PROMOTION_PAID/);
 });
