@@ -7,6 +7,10 @@ const sql = await readFile(
   'utf8',
 );
 const route = await readFile('src/app/api/sybil/appeal/route.ts','utf8');
+const lockOrderSql = await readFile(
+  'supabase/migrations/20261017170500_align_appeal_lock_order_with_operator.sql',
+  'utf8',
+);
 const admin = await readFile('src/app/api/admin/sybil/review/route.ts','utf8');
 const page = await readFile('src/app/admin/sybil-review/page.tsx','utf8');
 
@@ -74,4 +78,24 @@ test('pending appeals surface in operator queue even after manual BLACKLIST', ()
   assert.match(page, /APPEAL PENDING/u);
   assert.match(page, /OWNER APPEAL/u);
   assert.match(page, /owner_appeal_created_at/u);
+});
+
+test('owner appeal lock order matches operator HOLD vs REINSTATE transactions', () => {
+  assert.match(lockOrderSql, /v_state_preview = 'RESTRICTED'/u);
+  assert.match(lockOrderSql, /v_state_preview = 'HOLD'/u);
+  assert.match(lockOrderSql, /v_locked_restriction_id/u);
+  assert.match(lockOrderSql, /r\.status='ACTIVE'/u);
+  assert.match(lockOrderSql, /for share;/u);
+  assert.match(lockOrderSql, /v_assessment\.revision <> p_expected_revision/u);
+  const restricted = lockOrderSql.split("if v_state_preview = 'RESTRICTED' then")[1]
+    ?.split("elsif v_state_preview = 'HOLD' then")[0] ?? '';
+  const hold = lockOrderSql.split("elsif v_state_preview = 'HOLD' then")[1]
+    ?.split("else\n    raise exception 'SYBIL_APPEAL_CASE_CHANGED'")[0] ?? '';
+  assert.ok(restricted.indexOf('from public.sybil_v2_wallet_restrictions') <
+    restricted.indexOf('from public.invitations'));
+  assert.ok(restricted.indexOf('from public.invitations') <
+    restricted.indexOf('from public.sybil_v2_referral_assessments'));
+  assert.ok(hold.indexOf('from public.sybil_v2_referral_assessments') <
+    hold.indexOf('from public.invitations'));
+  assert.doesNotMatch(lockOrderSql, /\b(update|delete from)\s+public\.(invitations|sybil_v2_wallet_restrictions)/iu);
 });
