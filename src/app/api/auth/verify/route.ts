@@ -20,6 +20,10 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import {
+  isWalletVerifyRequestBody,
+  type WalletVerifyRequestBody,
+} from '@/lib/walletAuthRequestValidation';
+import {
   supabaseAdmin,
 } from '@/lib/supabaseServer';
 import {
@@ -54,17 +58,6 @@ type WalletChallengeRow = {
   message: string | null;
   origin: string | null;
   network: string | null;
-};
-
-type VerifyRequestBody = {
-  walletAddress?: string;
-  nonce?: string;
-  signature?: string;
-  proofType?:
-    | 'typed_data'
-    | 'certificate'
-    | 'message';
-  certificate?: WalletCertificate;
 };
 
 function isValidWalletAddress(
@@ -196,18 +189,27 @@ export async function POST(
     return ipRateLimitResponse;
   }
 
-  let body: VerifyRequestBody;
+  let rawBody: unknown;
 
   try {
-    body =
-      (await request.json()) as
-        VerifyRequestBody;
+    rawBody = await request.json();
   } catch {
     return jsonError(
       'Invalid JSON body.',
       400,
     );
   }
+
+  // Parsed JSON may be null, an array, or contain a malformed certificate.
+  // Validate nested runtime types before normalization, SQL or SDK crypto.
+  if (!isWalletVerifyRequestBody(rawBody)) {
+    return jsonError(
+      'Invalid wallet authentication request.',
+      400,
+    );
+  }
+
+  const body: WalletVerifyRequestBody = rawBody;
 
   if (
     !body.walletAddress ||
