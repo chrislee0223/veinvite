@@ -61,6 +61,7 @@ declare
   v_assessment record;
   v_wallet text;
   v_active_blacklist_id uuid;
+  v_current_invitee text;
   v_note text;
   v_now timestamptz := now();
 begin
@@ -107,6 +108,13 @@ begin
     if v_active_blacklist_id is null then
       raise exception 'SYBIL_APPEAL_CASE_CHANGED';
     end if;
+
+    -- Keep the same lock order as existing BLACKLIST reinstatement:
+    -- active restriction -> invitation -> assessment.
+    select lower(i.invitee_wallet) into v_current_invitee
+    from public.invitations i
+    where i.invite_code=v_appeal.invite_code
+    for share;
   end if;
 
   select a.state,a.revision into v_assessment
@@ -117,6 +125,23 @@ begin
   if v_assessment.revision is null then
     raise exception 'SYBIL_APPEAL_CASE_CHANGED';
   end if;
+
+  -- HOLD review order is assessment -> invitation, matching the
+  -- existing Sybil operator decision path. A wallet reassignment after
+  -- appeal intake must not be described as an upheld restriction.
+  if p_outcome='UPHELD_RESTRICTION'
+     and v_appeal.restriction_kind='PRE_CLAIM_HOLD' then
+    select lower(i.invitee_wallet) into v_current_invitee
+    from public.invitations i
+    where i.invite_code=v_appeal.invite_code
+    for share;
+  end if;
+  if p_outcome='UPHELD_RESTRICTION' and
+     (v_current_invitee is null or
+      v_current_invitee<>v_appeal.wallet_address) then
+    raise exception 'SYBIL_APPEAL_CASE_CHANGED';
+  end if;
+
   if p_outcome='UPHELD_RESTRICTION' and
      (v_assessment.revision<>v_appeal.assessment_revision or
       (v_appeal.restriction_kind='BLACKLIST' and v_assessment.state<>'RESTRICTED') or
