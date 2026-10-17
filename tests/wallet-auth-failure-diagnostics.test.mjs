@@ -56,6 +56,9 @@ test('proof rejection diagnostics expose reference and reason without wallet or 
   assert.match(route, /timestampSafeInteger/);
   assert.match(route, /domainPresent/);
   assert.match(route, /signerPresent/);
+  assert.match(route, /recoveryByteFormat/);
+  assert.match(route, /recoveredSignerMatchesClaimed/);
+  assert.match(route, /diagnoseVeWorldCertificateSignature\(certificate\)/);
   assert.match(route, /\{ error: message, code, referenceId \}/);
   const logStart = route.indexOf("console.warn('Wallet verification denied.'");
   const logEnd = route.indexOf('});', logStart);
