@@ -17,10 +17,9 @@ test('reward X share copy keeps the agreed readable global layout', () => {
     text,
     [
       'I just earned 193.91 #B3TR',
-      'by inviting a friend with @Veinvite',
-      'on #VeBetterDAO 🎉',
+      'with @Veinvite on #VeBetterDAO 🎉',
       '',
-      'Invite friends. Earn B3TR. 👇',
+      'Join. Verify. Earn B3TR. 👇',
     ].join('\n'),
   );
 });
@@ -49,6 +48,7 @@ test('reward X intent contains one referral URL and the discovery tags', () => {
   assert.equal(intent.pathname, '/intent/post');
   assert.equal(text.match(/https:\/\/veinvite\.vercel\.app\/s\//g)?.length, 1);
   assert.match(text, /@Veinvite/);
+  assert.doesNotMatch(text, /\bfriend(?:s)?\b/i);
   assert.match(text, /#B3TR/);
   assert.match(text, /#VeBetterDAO/);
   assert.match(text, /#VeChain #Web3 #Crypto$/);
