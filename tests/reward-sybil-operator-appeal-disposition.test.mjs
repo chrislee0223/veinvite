@@ -22,6 +22,13 @@ test('database closure is CAS-guarded, audited, and independent from verdict cha
   assert.match(sql, /v_appeal\.assessment_revision<>p_expected_revision/u);
   assert.match(sql, /SYBIL_APPEAL_ALREADY_RESOLVED/u);
   assert.match(sql, /SYBIL_APPEAL_VERDICT_NOT_CHANGED/u);
+  // A stale RESTRICTED assessment alone cannot uphold a wallet whose
+  // actual blacklist restriction was already REINSTATED.
+  assert.match(sql, /v_active_blacklist_id uuid/u);
+  assert.match(sql, /r\\.wallet_address=v_appeal\\.wallet_address/u);
+  assert.match(sql, /r\\.related_invite_code=v_appeal\\.invite_code/u);
+  assert.match(sql, /r\\.status='ACTIVE'/u);
+  assert.match(sql, /if v_active_blacklist_id is null then/u);
   assert.match(sql, /v_assessment\.state='RESTRICTED'/u);
   assert.match(sql, /v_assessment\.state='HOLD'/u);
   assert.match(sql, /update public\.sybil_v2_appeal_requests/u);
