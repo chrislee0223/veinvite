@@ -11,6 +11,11 @@ export const RELIABILITY_JOBS = [
   { name: 'vote-reconcile:reward-boost-reserve', maxAgeMinutes: 120 },
   { name: 'daily-reconcile', maxAgeMinutes: 30 * 60 },
   { name: 'analytics-maintenance', maxAgeMinutes: 30 * 60 },
+  // x-promotion maintenance runs every 15 minutes. Three missed successful
+  // cycles is long enough to avoid transient noise while still surfacing a
+  // stuck lifecycle or payout worker promptly.
+  { name: 'x-promotion-lifecycle', maxAgeMinutes: 45 },
+  { name: 'x-promotion-payout', maxAgeMinutes: 45 },
 ] as const;
 
 const FINGERPRINT_PREFIX = 'WATCH_V1:';
@@ -45,6 +50,13 @@ export type SybilHoldLiveness = {
   stalledOver24h: number;
 };
 
+export type XPromotionLiveness = {
+  liveEnabled: boolean;
+  payoutEnabled: boolean;
+  externalVerificationReady: boolean;
+  runtimeReady: boolean;
+};
+
 // Review delays are actionable even when a wallet has completed all core
 // checks: an operator still has to decide CLEAR/BLOCKED. Do not use any HOLD
 // liveness signal to change wallet/reward authority automatically.
@@ -67,10 +79,41 @@ export function staleSybilHoldCodes(held: SybilHoldLiveness): string[] {
   return [];
 }
 
+export function xPromotionGateCodes(
+  state: XPromotionLiveness,
+): string[] {
+  const values = [
+    state.liveEnabled,
+    state.payoutEnabled,
+    state.externalVerificationReady,
+    state.runtimeReady,
+  ];
+  if (values.some((value) => typeof value !== 'boolean')) {
+    throw new Error('Invalid X promotion liveness state.');
+  }
+
+  // Ignore intentionally inactive campaign states. Once LIVE + payout are
+  // enabled, the gate/runtime boundary must stay coherent.
+  if (!state.liveEnabled || !state.payoutEnabled) return [];
+
+  if (state.externalVerificationReady && !state.runtimeReady) {
+    return ['X_PROMOTION_GATE_ON_WHILE_RUNTIME_NOT_READY'];
+  }
+  if (!state.externalVerificationReady && state.runtimeReady) {
+    return ['X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY'];
+  }
+  return [];
+}
+
 export function isReliabilityDegraded(codes: readonly string[]): boolean {
-  // An aged, still-open 1-hour operator review is a warning, not a platform
-  // outage. A review still open past 24 hours becomes a critical fault.
-  return codes.some((code) => code !== 'SYBIL_EARLY_HOLD_STALLED:1H');
+  // Aged 1-hour HOLD reviews and a safely-closed X gate are operator warnings,
+  // not whole-application outages. A gate left open while runtime is not
+  // ready, stale critical jobs, or a 24-hour HOLD remain degraded.
+  const warnings = new Set([
+    'SYBIL_EARLY_HOLD_STALLED:1H',
+    'X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY',
+  ]);
+  return codes.some((code) => !warnings.has(code));
 }
 
 export function stableAlarmCodes(codes: readonly string[]): string[] {
