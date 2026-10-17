@@ -139,6 +139,8 @@ type ReviewRow = InvitationReviewRow & {
   invitee_active_restriction_source: string | null;
   invitee_active_restriction_reason_codes: unknown;
   invitee_active_restriction_imposed_at: string | null;
+  owner_appeal_pending: boolean;
+  owner_appeal_created_at: string | null;
 };
 
 function noStoreHeaders() {
@@ -402,6 +404,7 @@ function decorateReview(
   inviterReview: InviterReviewCandidateRow | null = null,
   activeInviterRestriction: ActiveInviterRestrictionRow | null = null,
   activeInviteeRestriction: ActiveInviteeRestrictionRow | null = null,
+  ownerAppeal: { created_at: string } | null = null,
 ): ReviewRow {
   return {
     ...invitation,
@@ -448,6 +451,8 @@ function decorateReview(
       activeInviteeRestriction?.reason_codes ?? [],
     invitee_active_restriction_imposed_at:
       activeInviteeRestriction?.imposed_at ?? null,
+    owner_appeal_pending: Boolean(ownerAppeal),
+    owner_appeal_created_at: ownerAppeal?.created_at ?? null,
   };
 }
 
@@ -460,6 +465,7 @@ async function loadOpenReviews(
     postPayoutResult,
     inviterResult,
     activeInviterRestrictionResult,
+    appealResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('invitations')
@@ -507,6 +513,13 @@ async function loadOpenReviews(
       .eq('network', network)
       .order('imposed_at', { ascending: true })
       .limit(REVIEW_LIST_LIMIT),
+    supabaseAdmin
+      .from('sybil_v2_appeal_requests')
+      .select('invite_code,created_at')
+      .eq('network', network)
+      .eq('status', 'PENDING')
+      .order('created_at', { ascending: true })
+      .limit(REVIEW_LIST_LIMIT),
   ]);
 
   if (legacyResult.error) {
@@ -535,6 +548,12 @@ async function loadOpenReviews(
     );
   }
 
+  if (appealResult.error) {
+    throw new Error(
+      'Pending Sybil owner appeals could not be loaded.',
+    );
+  }
+
   const legacyRows =
     (legacyResult.data ?? []) as InvitationReviewRow[];
   const v2Rows =
@@ -545,6 +564,17 @@ async function loadOpenReviews(
     (inviterResult.data ?? []) as InviterReviewCandidateRow[];
   const activeInviterRestrictionRows =
     (activeInviterRestrictionResult.data ?? []) as ActiveInviterRestrictionRow[];
+  const ownerAppealRows = (appealResult.data ?? []) as Array<{
+    invite_code: string;
+    created_at: string;
+  }>;
+  const ownerAppealsByCode = new Map<string, { created_at: string }>();
+  for (const appeal of ownerAppealRows) {
+    // The oldest unresolved request takes priority.
+    if (!ownerAppealsByCode.has(appeal.invite_code)) {
+      ownerAppealsByCode.set(appeal.invite_code, appeal);
+    }
+  }
 
   const v2ByCode = new Map(
     v2Rows.map((row) => [row.invite_code, row]),
@@ -574,6 +604,7 @@ async function loadOpenReviews(
     ...postPayoutRows.map((row) => row.invite_code),
     ...inviterRows.map((row) => row.latest_invite_code),
     ...activeInviterRestrictionRows.map((row) => row.related_invite_code),
+    ...ownerAppealRows.map((row) => row.invite_code),
   ]));
 
   const legacyByCode = new Map(
@@ -621,14 +652,22 @@ async function loadOpenReviews(
         postPayoutByCode.get(invitation.invite_code) ?? null,
         inviterByCode.get(invitation.invite_code) ?? null,
         activeInviterRestrictionByCode.get(invitation.invite_code) ?? null,
+        null,
+        ownerAppealsByCode.get(invitation.invite_code) ?? null,
       ),
     );
   }
 
   return [...deduped.values()]
     .sort((left, right) => {
+      // A verified owner's pending appeal must be discoverable even after
+      // HOLD transitioned to RESTRICTED / BLACKLIST.
+      if (left.owner_appeal_pending !== right.owner_appeal_pending) {
+        return left.owner_appeal_pending ? -1 : 1;
+      }
       const leftTime = Date.parse(
-        left.inviter_active_restriction_imposed_at ??
+        left.owner_appeal_created_at ??
+          left.inviter_active_restriction_imposed_at ??
           left.inviter_escalation_latest_incident_at ??
           left.post_payout_updated_at ??
           left.v2_first_held_at ??
@@ -637,7 +676,8 @@ async function loadOpenReviews(
           left.updated_at,
       );
       const rightTime = Date.parse(
-        right.inviter_active_restriction_imposed_at ??
+        right.owner_appeal_created_at ??
+          right.inviter_active_restriction_imposed_at ??
           right.inviter_escalation_latest_incident_at ??
           right.post_payout_updated_at ??
           right.v2_first_held_at ??
