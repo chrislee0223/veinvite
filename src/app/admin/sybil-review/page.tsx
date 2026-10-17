@@ -51,6 +51,8 @@ type ReviewRow = {
   invitee_active_restriction_source: string | null;
   invitee_active_restriction_reason_codes: unknown;
   invitee_active_restriction_imposed_at: string | null;
+  owner_appeal_pending: boolean;
+  owner_appeal_created_at: string | null;
 };
 
 type ReviewEvent = {
@@ -844,7 +846,9 @@ export default function SybilReviewPage() {
                       <div className="reviewTop">
                         <strong>{review.invite_code}</strong>
                         <span className="badge">
-                          {review.inviter_active_restriction_id
+                          {review.owner_appeal_pending
+                            ? 'APPEAL PENDING'
+                            : review.inviter_active_restriction_id
                             ? 'INVITER RESTRICTED'
                             : review.inviter_escalation_posture === 'HOLD'
                               ? `INVITER · ${formatInteger(review.inviter_escalation_incident_count_90d)}건`
@@ -865,7 +869,9 @@ export default function SybilReviewPage() {
                             : `Invitee ${shortAddress(review.invitee_wallet)}`}
                       </span>
                       <span>
-                        {review.inviter_active_restriction_id
+                        {review.owner_appeal_pending
+                          ? `OWNER APPEAL · ${formatDate(review.owner_appeal_created_at)}`
+                          : review.inviter_active_restriction_id
                           ? `INVITER_RESTRICTION · ${formatDate(review.inviter_active_restriction_imposed_at)}`
                           : review.inviter_escalation_posture === 'HOLD'
                             ? `INVITER_ESCALATION · ${formatDate(review.inviter_escalation_latest_incident_at)}`
@@ -876,7 +882,9 @@ export default function SybilReviewPage() {
                               : `${review.sybil_source} · ${formatDate(review.sybil_checked_at)}`}
                       </span>
                       <small>
-                        {review.inviter_active_restriction_id
+                        {review.owner_appeal_pending
+                          ? 'The verified wallet requested another review. No restrictions or rewards have changed.'
+                          : review.inviter_active_restriction_id
                           ? (Array.isArray(review.inviter_active_restriction_reason_codes)
                               ? review.inviter_active_restriction_reason_codes.join(', ')
                               : 'Active inviter restriction.')
