@@ -34,7 +34,7 @@ test('restrict UI to status values, without transaction and invite buttons', () 
   assert.match(panel, /rewardBlocked/u);
   assert.match(panel, /reviewPending/u);
   assert.doesNotMatch(panel, /sendTransaction|writeContract|claimReward|reserveReward|createInvitation|issueReferral/u);
-  assert.match(endpoint, /restriction\.related_invite_code !== inviteCode/u);
+  assert.match(endpoint, /finalRestriction\.related_invite_code !== inviteCode/u);
   assert.match(endpoint, /const finalRestriction = await loadActiveSybilV2Restriction/u);
 });
 
