@@ -564,12 +564,6 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
   useEffect(() => {
     setOpen(seed.open);
     setItems(seed.items);
@@ -582,10 +576,6 @@ export function QaNotificationStateHarness({
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
       <QaNotificationStage embedded={embedded}>
-        <span
-          hidden
-          data-qa-notification-ready={hydrated ? 'true' : 'false'}
-        />
         <TransientSnackbar
           locale={locale}
           feedback={{
@@ -620,10 +610,6 @@ export function QaNotificationStateHarness({
 
   return (
     <QaNotificationStage embedded={embedded}>
-      <span
-        hidden
-        data-qa-notification-ready={hydrated ? 'true' : 'false'}
-      />
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
