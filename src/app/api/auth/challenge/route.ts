@@ -6,6 +6,7 @@ import {
   getClientIpSubject,
 } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
+import { isWalletChallengeRequestBody } from '@/lib/walletAuthRequestValidation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -141,13 +142,22 @@ export async function POST(request: NextRequest) {
     return rateLimitResponse;
   }
 
-  let body: { walletAddress?: string };
+  let body: unknown;
 
   try {
-    body = (await request.json()) as { walletAddress?: string };
+    body = await request.json();
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON body.' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  // A syntactically valid JSON value can still be null, an array, or
+  // an object containing a non-string wallet address.
+  if (!isWalletChallengeRequestBody(body)) {
+    return NextResponse.json(
+      { error: 'Invalid wallet address.' },
       { status: 400, headers: { 'Cache-Control': 'no-store' } },
     );
   }
