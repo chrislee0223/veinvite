@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const alt =
-  'A friend earned B3TR with VeInvite — Join. Verify. Invite. Earn.';
+  'Earn B3TR with VeInvite — Invite. Verify. Earn.';
 export const size = {
   width: 1200,
   height: 600,
@@ -78,7 +78,7 @@ export default function Image() {
                 letterSpacing: '-2.7px',
               }}
             >
-              A friend earned B3TR with VeInvite.
+              Earn B3TR with VeInvite.
             </div>
             <div
               style={{
@@ -91,7 +91,7 @@ export default function Image() {
                 letterSpacing: '-1.5px',
               }}
             >
-              Join. Verify. Invite. Earn.
+              Invite. Verify. Earn.
             </div>
             <div
               style={{
@@ -102,7 +102,7 @@ export default function Image() {
                 color: '#747989',
               }}
             >
-              See how referrals turn into rewards.
+              Turn genuine referrals into B3TR rewards.
             </div>
           </div>
         </div>

@@ -196,7 +196,12 @@ test('paid reward receipt shares through the promotion-aware verified link flow'
   assert.match(rewardShare, /I just earned \$\{amount\} #B3TR/);
   assert.match(rewardShare, /@Veinvite/);
   assert.match(rewardShare, /on #VeBetterDAO/);
-  assert.match(rewardShare, /Invite friends\. Earn B3TR\. 👇/);
+  assert.match(rewardShare, /Join\. Verify\. Earn B3TR\. 👇/);
+  const publicShareFunction = rewardShare.slice(
+    rewardShare.indexOf('export function rewardReceiptShareText'),
+    rewardShare.indexOf('export function rewardReceiptShareLabel'),
+  );
+  assert.doesNotMatch(publicShareFunction, /\\bfriend(?:s)?\\b/i);
   assert.match(rewardShare, /'#VeChain #Web3 #Crypto'/);
   assert.match(rewardShare, /formatRewardShareAmount/);
   assert.match(rewardShare, /referralUrl/);
