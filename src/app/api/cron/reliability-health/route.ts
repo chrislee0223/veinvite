@@ -12,8 +12,10 @@ import {
   isReliabilityDegraded,
   staleCronCodes,
   staleSybilHoldCodes,
+  xPromotionLivenessCodes,
   type JobHeartbeat,
   type SybilHoldLiveness,
+  type XPromotionLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -98,6 +100,61 @@ async function readSybilHoldLiveness(): Promise<SybilHoldLiveness> {
   };
 }
 
+
+async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
+  const { network } = getVeBetterNetworkConfig();
+  const { data: config, error: configError } = await supabaseAdmin
+    .from('reward_runtime_config')
+    .select(
+      'reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready',
+    )
+    .eq('id', 1)
+    .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS))
+    .maybeSingle();
+
+  if (configError || !config) {
+    throw new Error('X promotion runtime state could not be read.');
+  }
+
+  const liveEnabled =
+    config.reward_x_promotion_enabled === true;
+  const payoutEnabled =
+    config.reward_x_promotion_payout_enabled === true;
+  const externalVerificationReady =
+    config.reward_x_promotion_external_verification_ready === true;
+
+  if (!liveEnabled || !payoutEnabled) {
+    return {
+      liveEnabled,
+      payoutEnabled,
+      externalVerificationReady,
+      // Runtime dependency state is intentionally irrelevant while the
+      // promotion or its payout worker is disabled.
+      externalRuntimeReady: true,
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_x_promotion_external_runtime_readiness_v1',
+    {
+      p_network: network,
+      p_max_age_seconds: 1200,
+    },
+  ).abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+
+  if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('X promotion external readiness could not be read.');
+  }
+
+  return {
+    liveEnabled,
+    payoutEnabled,
+    externalVerificationReady,
+    externalRuntimeReady:
+      (data as Record<string, unknown>).ready === true,
+  };
+}
+
 export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'CRON_SECRET_UNCONFIGURED' }, { status: 503, headers: HEADERS });
@@ -117,14 +174,16 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const [delayedRewards, sybilHolds] = await Promise.all([
+    const [delayedRewards, sybilHolds, xPromotion] = await Promise.all([
       readRewardReservationDelay(),
       readSybilHoldLiveness(),
+      readXPromotionLiveness(),
     ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
       ...delayedRewardCode(delayedRewards),
       ...staleSybilHoldCodes(sybilHolds),
+      ...xPromotionLivenessCodes(xPromotion),
     ]);
     const changes = alarmChanges(previous, current);
     // A one-hour operator review backlog needs attention, not an artificial
@@ -158,6 +217,7 @@ export async function GET(request: NextRequest) {
         active: current,
         delayedRewards,
         sybilHolds,
+        xPromotion,
       });
     }
     if (changes.resolved.length) {
@@ -173,6 +233,7 @@ export async function GET(request: NextRequest) {
       activeAlerts: current,
       delayedRewards,
       sybilHolds,
+      xPromotion,
       // Only critical HOLD delays or reliability faults return 503; a 1-hour
       // manual-review warning never mislabels the application as unavailable.
       newAlerts: changes.newlyActive.length,
