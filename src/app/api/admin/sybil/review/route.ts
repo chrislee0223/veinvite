@@ -761,7 +761,7 @@ async function loadOwnerAppeals(
 ) {
   const { data, error } = await supabaseAdmin
     .from('sybil_v2_appeal_requests')
-    .select('id,assessment_revision,restriction_kind,category,explanation,status,created_at')
+    .select('id,assessment_revision,restriction_kind,category,explanation,status,created_at,resolution_outcome,resolution_reason,resolved_at,resolved_by_wallet')
     .eq('invite_code', inviteCode)
     .eq('network', network)
     .order('created_at', { ascending: false })
