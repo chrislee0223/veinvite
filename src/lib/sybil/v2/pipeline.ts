@@ -48,6 +48,8 @@ import {
   SYBIL_V2_POLICY_VERSION,
   type SybilV2Signal,
 } from '@/lib/sybil/v2/policy';
+import { prioritizeFreshHoldCandidates } from '@/lib/sybil/v2/freshHoldCandidatePriority';
+
 import {
   hasNewEvidenceForCurrentAssessment,
 } from '@/lib/sybil/v2/assessmentFreshness';
@@ -4400,22 +4402,18 @@ export async function runSybilV2AssessmentBatch(
     );
   }
 
-  const candidates = [...(data ?? [])];
-  const seen = new Set(
-    candidates.map((candidate) => String(candidate.invite_code)),
-  );
-
-  // A permanently busy completed-referral batch must never starve new
-  // independent evidence for an early SYSTEM HOLD. Reserve at most 2 slots,
-  // displacing the last ordinary candidates only when fresh evidence exists.
-  // Those displaced candidates remain eligible on the next recovery pass.
+  // A normal batch can overlap with the new-evidence HOLD view.
+  // Fetch (ordinary count + 2) rows so two *distinct, additional* HOLDs
+  // remain selectable even if all ordinary candidates are also fresh.
+  // This does not increase the assessment batch size or ignore old work.
+  const reservedFreshSlots = Math.min(2, bounded);
   const { data: newEvidenceHolds, error: newEvidenceError } =
     await supabaseAdmin
       .from('operator_sybil_v2_hold_new_evidence_candidates')
       .select('invite_code')
       .eq('network', getVeBetterNetworkConfig().network)
       .order('priority_at', { ascending: true })
-      .limit(Math.min(2, bounded));
+      .limit(bounded + reservedFreshSlots);
 
   if (newEvidenceError) {
     throw new Error(
@@ -4423,16 +4421,14 @@ export async function runSybilV2AssessmentBatch(
     );
   }
 
-  for (const row of [...(newEvidenceHolds ?? [])].reverse()) {
-    const inviteCode = String(row.invite_code);
-    if (seen.has(inviteCode)) continue;
-    if (candidates.length >= bounded) {
-      const displaced = candidates.pop();
-      if (displaced) seen.delete(String(displaced.invite_code));
-    }
-    candidates.unshift({ invite_code: inviteCode });
-    seen.add(inviteCode);
-  }
+  const candidates = prioritizeFreshHoldCandidates(
+    data ?? [],
+    newEvidenceHolds ?? [],
+    bounded,
+  );
+  const seen = new Set(
+    candidates.map((candidate) => String(candidate.invite_code)),
+  );
 
   // Recovery/pre-vote path: raw chain evidence is collected at activation, so
   // scan completed unpaid referrals even before reward eligibility. A new
