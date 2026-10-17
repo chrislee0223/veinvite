@@ -194,10 +194,9 @@ export function rewardReceiptShareText({
 
   return [
     `I just earned ${amount} #B3TR`,
-    'by inviting a friend with @Veinvite',
-    'on #VeBetterDAO 🎉',
+    'with @Veinvite on #VeBetterDAO 🎉',
     '',
-    'Invite friends. Earn B3TR. 👇',
+    'Join. Verify. Earn B3TR. 👇',
   ].join('\n');
 }
 
