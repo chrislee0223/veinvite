@@ -178,3 +178,73 @@ test('notification lifecycle coalesces reload bursts and persists unauthorized b
     /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return null;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return null;/,
   );
 });
+
+
+test('notification history never exposes raw server or exception errors to localized UI', () => {
+  assert.match(
+    notifications,
+    /NOTIFICATION_HISTORY_COPY\[locale as SupportedLocale\]/,
+  );
+  assert.ok(
+    (notifications.match(/setErrorMessage\(localizedHistoryError\)/g) ?? []).length >= 4,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}error\.message/,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}body\.error/,
+  );
+});
+
+
+test('notification QA fixture timestamps are deterministic across SSR and hydration', () => {
+  assert.match(
+    qaNotificationHarness,
+    /const QA_NOTIFICATION_NOW_MS = Date\.parse\(/,
+  );
+  const minutesAgo = qaNotificationHarness.slice(
+    qaNotificationHarness.indexOf('function minutesAgo'),
+    qaNotificationHarness.indexOf('function historyItem'),
+  );
+  assert.doesNotMatch(minutesAgo, /Date\.now\(\)/);
+  assert.match(minutesAgo, /QA_NOTIFICATION_NOW_MS - minutes \* 60_000/);
+});
+
+
+test('notification QA mounts the clock-dependent production tree only after hydration', () => {
+  assert.match(
+    qaNotificationHarness,
+    /if \(!hydrated\) \{[\s\S]*data-qa-notification-ready="false"[\s\S]*return/,
+  );
+  assert.ok(
+    (qaNotificationHarness.match(/data-qa-notification-ready="true"/g) ?? [])
+      .length >= 2,
+  );
+
+  const hydrationEffect = qaNotificationHarness.indexOf(
+    'setHydrated(true);',
+  );
+  const seedEffect = qaNotificationHarness.indexOf(
+    'setOpen(seed.open);',
+  );
+  const gate = qaNotificationHarness.indexOf(
+    'if (!hydrated)',
+  );
+  assert.ok(hydrationEffect >= 0);
+  assert.ok(seedEffect > hydrationEffect);
+  assert.ok(gate > seedEffect);
+
+  const preHydration = qaNotificationHarness.slice(
+    gate,
+    qaNotificationHarness.indexOf(
+      "if (stateId === 'NOTI-REWARD-PAID-POPUP')",
+      gate,
+    ),
+  );
+  assert.doesNotMatch(
+    preHydration,
+    /InviteNotificationHistoryCenter|TransientSnackbar/,
+  );
+});
