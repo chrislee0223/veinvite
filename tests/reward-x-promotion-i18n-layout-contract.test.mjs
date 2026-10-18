@@ -6,9 +6,6 @@ import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
 import {
-  REWARD_X_PROMOTION_COPY,
-} from '../src/lib/i18n/rewardXPromotionCopy.ts';
-import {
   rewardReceiptShareLabel,
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
@@ -22,6 +19,12 @@ const xCopySource = readFileSync(
   'src/lib/i18n/rewardXPromotionCopy.ts',
   'utf8',
 );
+const xExpandedCopySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
+  'utf8',
+);
+const combinedXCopySource =
+  xCopySource + '\n' + xExpandedCopySource;
 const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
@@ -44,15 +47,46 @@ const BODY_KEYS = [
   'preparingBody',
 ];
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^$()|[\]\\]/g, '\\$&');
+}
+
+function localeBlock(locale) {
+  if (locale === 'en') {
+    const match = xCopySource.match(
+      /const EN: RewardXPromotionCopy = \{([\s\S]*?)\n\};/,
+    );
+    assert.ok(match, 'missing English X promotion copy');
+    return match[1];
+  }
+
+  const escaped = escapeRegExp(locale);
+  const match = combinedXCopySource.match(
+    new RegExp(
+      "(?:^|\\n)\\s*(?:'" + escaped + "'|" + escaped + "):\\s*\\{([\\s\\S]*?)\\n\\s*\\},",
+      'm',
+    ),
+  );
+  assert.ok(match, 'missing X promotion copy: ' + locale);
+  return match[1];
+}
+
+function fieldValue(block, key) {
+  const match = block.match(
+    new RegExp('\\b' + key + ":\\s*(['\"])(.*?)\\1,"),
+  );
+  assert.ok(match, 'missing X promotion field: ' + key);
+  return match[2];
+}
+
 test('X promotion copy is complete and locally written for all supported locales', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
-  assert.doesNotMatch(xCopySource, /\.\.\.EN\b/);
+  assert.doesNotMatch(combinedXCopySource, /\.\.\.EN\b/);
 
-  const english = REWARD_X_PROMOTION_COPY.en;
+  const english = localeBlock('en');
 
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok(copy, 'missing X promotion copy: ' + locale);
+    const block = localeBlock(locale);
 
     for (const key of [
       'title',
@@ -62,16 +96,15 @@ test('X promotion copy is complete and locally written for all supported locales
       'verifying',
       'retry',
     ]) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
+      const value = fieldValue(block, key);
       assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
     }
 
     if (locale !== 'en') {
       for (const key of BODY_KEYS) {
         assert.notEqual(
-          copy[key],
-          english[key],
+          fieldValue(block, key),
+          fieldValue(english, key),
           locale + ' still falls back to English for ' + key,
         );
       }
@@ -81,11 +114,11 @@ test('X promotion copy is complete and locally written for all supported locales
 
 test('localized X promotion controls stay compact enough for wrapped mobile UI', () => {
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok([...copy.title].length <= 30, locale + ' title is unexpectedly long');
-    assert.ok([...copy.verify].length <= 28, locale + ' verify label is unexpectedly long');
-    assert.ok([...copy.verifying].length <= 24, locale + ' verifying label is unexpectedly long');
-    assert.ok([...copy.retry].length <= 24, locale + ' retry label is unexpectedly long');
+    const block = localeBlock(locale);
+    assert.ok([...fieldValue(block, 'title')].length <= 30, locale + ' title is unexpectedly long');
+    assert.ok([...fieldValue(block, 'verify')].length <= 28, locale + ' verify label is unexpectedly long');
+    assert.ok([...fieldValue(block, 'verifying')].length <= 24, locale + ' verifying label is unexpectedly long');
+    assert.ok([...fieldValue(block, 'retry')].length <= 24, locale + ' retry label is unexpectedly long');
 
     const shareLabel = rewardReceiptShareLabel(locale);
     assert.ok(shareLabel.trim().length > 0, locale + ' X share label is empty');
@@ -142,7 +175,6 @@ test('X promotion panel has long-copy and bidi layout guards', () => {
     /className="promotionShare"[\s\S]*<span>\{rewardReceiptShareLabel\(locale\)\}<\/span>[\s\S]*<b dir="ltr">/,
   );
 });
-
 
 test('X promotion submission errors are localized for all supported locales', () => {
   for (const locale of SUPPORTED_LOCALES) {
