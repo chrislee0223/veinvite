@@ -39,4 +39,9 @@ export default async function globalSetup(): Promise<void> {
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
   await warm('/qa/network-slot-visual', 90_000);
+  // The X promotion QA page pulls in the real reward receipt and wallet-aware
+  // promotion client. Compile the route once before parallel locale workers
+  // start so Next.js dev-mode cold compilation is never mistaken for a
+  // hydration/layout failure.
+  await warm('/qa/reward-x-promotion?locale=en', 90_000);
 }
