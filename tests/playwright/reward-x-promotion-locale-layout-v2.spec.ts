@@ -72,6 +72,12 @@ async function openRewardReceipt(
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
+  await expect(
+    page.locator(
+      'html[data-qa-notification-hydrated="NOTI-REWARD-PAID"]',
+    ),
+  ).toHaveCount(1, { timeout: 10_000 });
+
   const row = page.locator('button.notificationHistoryRow').first();
   await expect(row).toBeVisible({ timeout: 10_000 });
   await row.click();
