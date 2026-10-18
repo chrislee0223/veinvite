@@ -1,6 +1,7 @@
-import type { Locale } from './locales';
+import type { SupportedLocale } from './locales';
+import { REWARD_RECEIPT_EXPANDED_COPY } from './rewardReceiptExpandedCopy';
 
-type RewardReceiptCopy = {
+export type RewardReceiptCopy = {
   eyebrow: string;
   title: string;
   description: string;
@@ -13,7 +14,7 @@ type RewardReceiptCopy = {
   error: string;
 };
 
-export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
+export const REWARD_RECEIPT_COPY: Record<SupportedLocale, RewardReceiptCopy> = {
   en: {
     eyebrow: 'REFERRAL REWARD PAID',
     title: 'Your B3TR reward arrived',
@@ -146,4 +147,5 @@ export const REWARD_RECEIPT_COPY: Record<Locale, RewardReceiptCopy> = {
     acknowledging: 'Enregistrement…',
     error: 'Impossible de marquer cette récompense comme consultée. Veuillez réessayer.',
   },
+  ...REWARD_RECEIPT_EXPANDED_COPY,
 };

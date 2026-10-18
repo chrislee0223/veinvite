@@ -355,7 +355,7 @@ export function InviteNotificationHistoryCenter({
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
   const metaCopy = NOTIFICATION_META_COPY[supportedLocale];
   const notificationCopy = NOTIFICATION_COPY[supportedLocale];
-  const receiptCopy = REWARD_RECEIPT_COPY[locale];
+  const receiptCopy = REWARD_RECEIPT_COPY[supportedLocale];
   const rtl = isRtlLocale(supportedLocale);
   const bellRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);

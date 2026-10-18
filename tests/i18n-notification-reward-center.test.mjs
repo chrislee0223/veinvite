@@ -72,7 +72,11 @@ test('paid history uses a natural amount sentence and receipt open marks it read
   assert.match(rewardPaidCopy, /Record<SupportedLocale, string>/);
   assert.match(
     rewardPaidCopy,
-    /친구 초대 보상으로 \{amount\} B3TR이 지갑에 지급됐어요\./,
+    /초대 보상 \{amount\} B3TR이 지갑에 지급됐어요\./,
+  );
+  assert.doesNotMatch(
+    rewardPaidCopy,
+    /친구 초대/,
   );
   assert.match(center, /const receiptAutoAckIdRef = useRef<string \| null>\(null\)/);
   assert.match(center, /void acknowledgeReceipt\(\)/);
