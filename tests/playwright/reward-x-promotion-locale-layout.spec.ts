@@ -42,11 +42,19 @@ const STANDALONE_RISK_LOCALES = [
   'de',
 ] as const;
 
-async function waitForNotificationHarness(page: Page) {
-  await expect(
-    page.locator('[data-qa-notification-ready]'),
-  ).toHaveAttribute('data-qa-notification-ready', 'true', {
-    timeout: 45_000,
+async function openRewardReceipt(page: Page) {
+  const panel = page.locator('.notificationHistoryPanel');
+  await expect(panel).toBeVisible({ timeout: 10_000 });
+
+  const row = page.locator('.notificationHistoryRow').filter({
+    has: page.locator('.notificationReceiptAction'),
+  }).first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect(row.locator('.notificationReceiptAction')).toBeVisible();
+  await row.click();
+
+  await expect(page.locator('.notificationReceiptView')).toBeVisible({
+    timeout: 10_000,
   });
 }
 
@@ -74,15 +82,7 @@ async function openPromotionPanel(
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  await waitForNotificationHarness(page);
-
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible({ timeout: 10_000 });
-  await row.click();
-
-  await expect(page.locator('.notificationReceiptView')).toBeVisible({
-    timeout: 10_000,
-  });
+  await openRewardReceipt(page);
 
   const panel = page.locator('.promotionPanel');
   await expect(panel).toBeVisible({ timeout: 10_000 });
@@ -340,15 +340,7 @@ async function openStandalonePromotionState({
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  await waitForNotificationHarness(page);
-
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible({ timeout: 10_000 });
-  await row.click();
-
-  await expect(page.locator('.notificationReceiptView')).toBeVisible({
-    timeout: 10_000,
-  });
+  await openRewardReceipt(page);
 
   const surface = page.locator(selector);
   await expect(surface).toBeVisible({ timeout: 10_000 });
