@@ -2,7 +2,7 @@ import type { SupportedLocale } from './locales';
 
 const REWARD_PAID_NOTIFICATION_BODY: Record<SupportedLocale, string> = {
   en: 'Your referral reward of {amount} B3TR was paid to your wallet.',
-  ko: '친구 초대 보상으로 {amount} B3TR이 지갑에 지급됐어요.',
+  ko: '초대 보상 {amount} B3TR이 지갑에 지급됐어요.',
   zh: '你的邀请奖励 {amount} B3TR 已发放到钱包。',
   hi: 'आपके रेफ़रल इनाम के {amount} B3TR आपके वॉलेट में भेज दिए गए हैं।',
   es: 'Se han enviado {amount} B3TR de recompensa por invitación a tu cartera.',
