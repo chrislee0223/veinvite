@@ -56,6 +56,7 @@ test('X promotion copy explicitly covers all 29 supported locales without EN spr
   assert.doesNotMatch(expandedCopy, /\.\.\.EN\b/);
 
   const allLocales = new Set([
+    'en',
     ...explicitMainLocales,
     ...expandedLocales,
   ]);
