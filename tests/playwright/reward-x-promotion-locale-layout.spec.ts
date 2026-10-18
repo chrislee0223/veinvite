@@ -54,13 +54,9 @@ async function openPromotionPanel(
 
   await page.setViewportSize({ width, height });
   await page.goto(
-    '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
+    '/qa/x-promotion?locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
-
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible();
-  await row.click();
 
   const panel = page.locator('.promotionPanel');
   await expect(panel).toBeVisible({ timeout: 10_000 });
@@ -283,13 +279,9 @@ async function openStandalonePromotionState({
 
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(
-    '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
+    '/qa/x-promotion?locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
-
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible();
-  await row.click();
 
   const surface = page.locator(selector);
   await expect(surface).toBeVisible({ timeout: 10_000 });
