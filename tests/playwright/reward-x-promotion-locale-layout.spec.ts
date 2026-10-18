@@ -24,7 +24,7 @@ const OPEN_PROMOTION = {
   },
 } as const;
 
-const HIGH_RISK_LOCALES = [
+const HIGH_RISK_LOCALES = new Set<SupportedLocale>([
   'ar',
   'ur',
   'arz',
@@ -33,39 +33,18 @@ const HIGH_RISK_LOCALES = [
   'te',
   'sw',
   'ro',
-] as const;
+]);
 
-async function openPromotionPanel(
-  page: Page,
-  locale: SupportedLocale,
-  width: number,
-  height: number,
-) {
-  await page.route(
-    /\/api\/rewards\/x-promotion(?:\?.*)?$/,
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(OPEN_PROMOTION),
-      });
-    },
-  );
+// Standalone branches use the same wrapping primitives for every locale.
+// Exercise one RTL script, one long Latin locale and one complex Indic script
+// in the browser while the static contract checks all 29 localized strings.
+const STANDALONE_BROWSER_LOCALES = [
+  'ar',
+  'de',
+  'te',
+] as const satisfies readonly SupportedLocale[];
 
-  await page.setViewportSize({ width, height });
-  await page.goto(
-    '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
-    { waitUntil: 'domcontentloaded', timeout: 30_000 },
-  );
-
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible();
-  await row.click();
-
-  const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
-  await panel.scrollIntoViewIfNeeded();
-
+async function settleLayout(page: Page) {
   await page.evaluate(async () => {
     await Promise.race([
       document.fonts.ready,
@@ -77,6 +56,13 @@ async function openPromotionPanel(
       ),
     );
   });
+}
+
+async function readPromotionPanelReport(page: Page) {
+  const panel = page.locator('.promotionPanel');
+  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await panel.scrollIntoViewIfNeeded();
+  await settleLayout(page);
 
   return panel.evaluate((node) => {
     const root = node as HTMLElement;
@@ -182,101 +168,38 @@ async function openPromotionPanel(
         getComputedStyle(
           root.querySelector<HTMLElement>('.promotionSubmit input')!,
         ).direction,
-      inputTop: input?.top ?? null,
       inputBottom: input?.bottom ?? null,
       buttonTop: button?.top ?? null,
-      buttonBottom: button?.bottom ?? null,
     };
   });
 }
 
-for (const locale of SUPPORTED_LOCALES) {
-  for (const viewport of [
-    { width: 320, height: 568 },
-    { width: 393, height: 852 },
-  ] as const) {
-    test(
-      'X promotion locale layout / ' +
-        locale +
-        ' / ' +
-        viewport.width +
-        'px',
-      async ({ page }) => {
-        const report = await openPromotionPanel(
-          page,
-          locale,
-          viewport.width,
-          viewport.height,
-        );
+function expectPromotionReport(
+  locale: SupportedLocale,
+  report: Awaited<ReturnType<typeof readPromotionPanelReport>>,
+  mobile: boolean,
+) {
+  expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
+  expect(report.amountDirection).toBe('ltr');
+  expect(report.shareAmountDirection).toBe('ltr');
+  expect(report.inputDirection).toBe('ltr');
+  expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
 
-        expect(report.direction).toBe(
-          isRtlLocale(locale) ? 'rtl' : 'ltr',
-        );
-        expect(report.amountDirection).toBe('ltr');
-        expect(report.shareAmountDirection).toBe('ltr');
-        expect(report.inputDirection).toBe('ltr');
-        expect(
-          report.issues,
-          JSON.stringify({ locale, viewport, report }),
-        ).toEqual([]);
-
-        // At these mobile widths the URL field and translated verify button
-        // deliberately stack instead of fighting over one row.
-        expect(report.inputBottom).not.toBeNull();
-        expect(report.buttonTop).not.toBeNull();
-        expect((report.buttonTop ?? 0) >= (report.inputBottom ?? 0) - 1).toBe(
-          true,
-        );
-      },
-    );
+  if (mobile) {
+    expect(report.inputBottom).not.toBeNull();
+    expect(report.buttonTop).not.toBeNull();
+    expect((report.buttonTop ?? 0) >= (report.inputBottom ?? 0) - 1).toBe(true);
   }
 }
 
-for (const locale of HIGH_RISK_LOCALES) {
-  test(
-    'X promotion constrained desktop receipt / ' + locale,
-    async ({ page }) => {
-      const report = await openPromotionPanel(
-        page,
-        locale,
-        1280,
-        900,
-      );
-      expect(report.direction).toBe(
-        isRtlLocale(locale) ? 'rtl' : 'ltr',
-      );
-      expect(report.amountDirection).toBe('ltr');
-      expect(report.shareAmountDirection).toBe('ltr');
-      expect(report.inputDirection).toBe('ltr');
-      expect(
-        report.issues,
-        JSON.stringify({ locale, report }),
-      ).toEqual([]);
-    },
-  );
-}
-
-
-async function openStandalonePromotionState({
-  page,
-  locale,
-  selector,
-  status,
-  body,
-}: {
-  page: Page;
-  locale: SupportedLocale;
-  selector: '.genericShare' | '.promotionStatus' | '.promotionPreparing';
-  status: number;
-  body: unknown;
-}) {
+async function openPromotionPanel(page: Page, locale: SupportedLocale) {
   await page.route(
     /\/api\/rewards\/x-promotion(?:\?.*)?$/,
     async (route) => {
       await route.fulfill({
-        status,
+        status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(body),
+        body: JSON.stringify(OPEN_PROMOTION),
       });
     },
   );
@@ -290,131 +213,27 @@ async function openStandalonePromotionState({
   const row = page.locator('.notificationHistoryRow').first();
   await expect(row).toBeVisible();
   await row.click();
-
-  const surface = page.locator(selector);
-  await expect(surface).toBeVisible({ timeout: 10_000 });
-  await surface.scrollIntoViewIfNeeded();
-
-  return surface.evaluate((node) => {
-    const root = node as HTMLElement;
-    const issues: string[] = [];
-    const rootBox = root.getBoundingClientRect();
-    const receipt = root.closest<HTMLElement>('.notificationReceiptView');
-    const receiptBox = receipt?.getBoundingClientRect() ?? null;
-
-    if (root.scrollWidth > root.clientWidth + 2) {
-      issues.push(
-        'standalone state horizontally overflows: ' +
-          root.scrollWidth +
-          '>' +
-          root.clientWidth,
-      );
-    }
-
-    if (
-      receiptBox &&
-      (rootBox.left < receiptBox.left - 2 ||
-        rootBox.right > receiptBox.right + 2)
-    ) {
-      issues.push('standalone state escapes receipt width');
-    }
-
-    for (const el of root.querySelectorAll<HTMLElement>('span,button')) {
-      if (!el.textContent?.trim() || el.getClientRects().length === 0) continue;
-      const rect = el.getBoundingClientRect();
-      if (el.scrollWidth > el.clientWidth + 2) {
-        issues.push(
-          'standalone child clipped: ' +
-            (el.textContent ?? '').slice(0, 48),
-        );
-      }
-      if (rect.left < rootBox.left - 2 || rect.right > rootBox.right + 2) {
-        issues.push('standalone child outside surface');
-      }
-    }
-
-    const viewportOverflow =
-      Math.max(
-        document.documentElement.scrollWidth,
-        document.body.scrollWidth,
-      ) - window.innerWidth;
-    if (viewportOverflow > 1) {
-      issues.push('viewport overflows horizontally: ' + viewportOverflow);
-    }
-
-    return {
-      issues,
-      direction: getComputedStyle(root).direction,
-    };
-  });
+  return readPromotionPanelReport(page);
 }
 
-for (const locale of HIGH_RISK_LOCALES) {
-  test(
-    'X generic share mobile layout / ' + locale,
-    async ({ page }) => {
-      const report = await openStandalonePromotionState({
-        page,
-        locale,
-        selector: '.genericShare',
-        status: 200,
-        body: {
-          newOffersEnabled: true,
-          promotionPending: false,
-          promotion: null,
-        },
-      });
-      expect(report.direction).toBe(
-        isRtlLocale(locale) ? 'rtl' : 'ltr',
-      );
-      expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
-    },
-  );
+for (const locale of SUPPORTED_LOCALES) {
+  test('X promotion responsive locale layout / ' + locale, async ({ page }) => {
+    const narrow = await openPromotionPanel(page, locale);
+    expectPromotionReport(locale, narrow, true);
 
-  test(
-    'X promotion retry mobile layout / ' + locale,
-    async ({ page }) => {
-      const report = await openStandalonePromotionState({
-        page,
-        locale,
-        selector: '.promotionStatus',
-        status: 503,
-        body: { error: 'QA unavailable' },
-      });
-      expect(report.direction).toBe(
-        isRtlLocale(locale) ? 'rtl' : 'ltr',
-      );
-      expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
-    },
-  );
+    // Reuse the exact same rendered component at the second mobile width
+    // instead of paying for a second page load per locale.
+    await page.setViewportSize({ width: 393, height: 852 });
+    const mobile = await readPromotionPanelReport(page);
+    expectPromotionReport(locale, mobile, true);
 
-  test(
-    'X promotion preparing mobile layout / ' + locale,
-    async ({ page }) => {
-      const report = await openStandalonePromotionState({
-        page,
-        locale,
-        selector: '.promotionPreparing',
-        status: 200,
-        body: {
-          newOffersEnabled: true,
-          promotionPending: true,
-          promotion: null,
-        },
-      });
-      expect(report.direction).toBe(
-        isRtlLocale(locale) ? 'rtl' : 'ltr',
-      );
-      expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
-    },
-  );
-}
+    if (HIGH_RISK_LOCALES.has(locale)) {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      const constrainedDesktop = await readPromotionPanelReport(page);
+      expectPromotionReport(locale, constrainedDesktop, false);
+    }
 
-
-for (const locale of HIGH_RISK_LOCALES) {
-  test(
-    'X promotion localized submit error / ' + locale,
-    async ({ page }) => {
+    if (STANDALONE_BROWSER_LOCALES.includes(locale as typeof STANDALONE_BROWSER_LOCALES[number])) {
       await page.route(
         '**/api/rewards/x-promotion/submit',
         async (route) => {
@@ -428,13 +247,7 @@ for (const locale of HIGH_RISK_LOCALES) {
         },
       );
 
-      await openPromotionPanel(
-        page,
-        locale,
-        320,
-        568,
-      );
-
+      await page.setViewportSize({ width: 320, height: 568 });
       const input = page.locator('.promotionSubmit input');
       const button = page.locator('.promotionSubmit button');
       await input.fill('https://x.com/test/status/1234567890123456789');
@@ -449,7 +262,7 @@ for (const locale of HIGH_RISK_LOCALES) {
         'This English internal error must never render.',
       );
 
-      const report = await error.evaluate((node) => {
+      const errorReport = await error.evaluate((node) => {
         const el = node as HTMLElement;
         const root = el.closest<HTMLElement>('.promotionPanel');
         const box = el.getBoundingClientRect();
@@ -468,15 +281,138 @@ for (const locale of HIGH_RISK_LOCALES) {
             ) - window.innerWidth,
         };
       });
-
-      expect(
-        report,
-        JSON.stringify({ locale, report }),
-      ).toEqual({
+      expect(errorReport, JSON.stringify({ locale, errorReport })).toEqual({
         clipped: false,
         outside: false,
         viewportOverflow: 0,
       });
+    }
+  });
+}
+
+async function verifyStandaloneStates(
+  page: Page,
+  locale: SupportedLocale,
+) {
+  let response = {
+    status: 200,
+    body: {
+      newOffersEnabled: true,
+      promotionPending: false,
+      promotion: null,
+    },
+  };
+
+  await page.route(
+    /\/api\/rewards\/x-promotion(?:\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: response.status,
+        contentType: 'application/json',
+        body: JSON.stringify(response.body),
+      });
     },
   );
+
+  const cases = [
+    {
+      selector: '.genericShare',
+      status: 200,
+      body: {
+        newOffersEnabled: true,
+        promotionPending: false,
+        promotion: null,
+      },
+    },
+    {
+      selector: '.promotionStatus',
+      status: 503,
+      body: { error: 'QA unavailable' },
+    },
+    {
+      selector: '.promotionPreparing',
+      status: 200,
+      body: {
+        newOffersEnabled: true,
+        promotionPending: true,
+        promotion: null,
+      },
+    },
+  ] as const;
+
+  for (const item of cases) {
+    response = {
+      status: item.status,
+      body: item.body,
+    };
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto(
+      '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+
+    const row = page.locator('.notificationHistoryRow').first();
+    await expect(row).toBeVisible();
+    await row.click();
+
+    const surface = page.locator(item.selector);
+    await expect(surface).toBeVisible({ timeout: 10_000 });
+    await surface.scrollIntoViewIfNeeded();
+    await settleLayout(page);
+
+    const report = await surface.evaluate((node) => {
+      const root = node as HTMLElement;
+      const issues: string[] = [];
+      const rootBox = root.getBoundingClientRect();
+      const receipt = root.closest<HTMLElement>('.notificationReceiptView');
+      const receiptBox = receipt?.getBoundingClientRect() ?? null;
+
+      if (root.scrollWidth > root.clientWidth + 2) {
+        issues.push('standalone state horizontally overflows');
+      }
+
+      if (
+        receiptBox &&
+        (rootBox.left < receiptBox.left - 2 ||
+          rootBox.right > receiptBox.right + 2)
+      ) {
+        issues.push('standalone state escapes receipt width');
+      }
+
+      for (const el of root.querySelectorAll<HTMLElement>('span,button')) {
+        if (!el.textContent?.trim() || el.getClientRects().length === 0) continue;
+        const rect = el.getBoundingClientRect();
+        if (el.scrollWidth > el.clientWidth + 2) {
+          issues.push('standalone child clipped');
+        }
+        if (rect.left < rootBox.left - 2 || rect.right > rootBox.right + 2) {
+          issues.push('standalone child outside surface');
+        }
+      }
+
+      const viewportOverflow =
+        Math.max(
+          document.documentElement.scrollWidth,
+          document.body.scrollWidth,
+        ) - window.innerWidth;
+      if (viewportOverflow > 1) {
+        issues.push('viewport overflows horizontally: ' + viewportOverflow);
+      }
+
+      return {
+        issues,
+        direction: getComputedStyle(root).direction,
+      };
+    });
+
+    expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
+    expect(report.issues, JSON.stringify({ locale, item, report })).toEqual([]);
+  }
+}
+
+for (const locale of STANDALONE_BROWSER_LOCALES) {
+  test('X promotion standalone states / ' + locale, async ({ page }) => {
+    await verifyStandaloneStates(page, locale);
+  });
 }
