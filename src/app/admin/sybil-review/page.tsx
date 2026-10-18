@@ -10,7 +10,6 @@ import Link from 'next/link';
 import { useWallet } from '@vechain/vechain-kit';
 
 import { WalletControl } from '@/components/WalletControl';
-import { PaidSiblingRechecks } from '@/components/admin/PaidSiblingRechecks';
 
 type ReviewRow = {
   invite_code: string;
@@ -837,8 +836,6 @@ export default function SybilReviewPage() {
                 판정 상태가 화면을 연 뒤 바뀌면 요청을 거부합니다. 운영자 지갑·사유·결과는 감사 기록에 남고, 온체인 분석은 observation-only로 유지됩니다.
               </span>
             </section>
-
-            <PaidSiblingRechecks />
 
             {error ? <div className="notice error" role="alert">{error}</div> : null}
             {message ? <div className="notice success" role="status">{message}</div> : null}
