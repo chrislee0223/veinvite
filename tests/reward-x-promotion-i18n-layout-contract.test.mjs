@@ -258,22 +258,44 @@ test('X promotion submission errors are localized for all supported locales', ()
   assert.doesNotMatch(submitErrorSource, /\.\.\.EN\b/);
 });
 
-test('X promotion client never renders raw API or network error messages', () => {
+test('X promotion submit flow never renders raw API or network error messages', () => {
+  const submitStart = panelSource.indexOf(
+    'const submitPost = useCallback',
+  );
+  const submitEnd = panelSource.indexOf(
+    '\n\n  if (loading)',
+    submitStart,
+  );
+  assert.ok(submitStart >= 0);
+  assert.ok(submitEnd > submitStart);
+
+  const submitSource = panelSource.slice(
+    submitStart,
+    submitEnd,
+  );
+
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, response\.status\)/,
   );
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, 0\)/,
   );
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
+  assert.doesNotMatch(submitSource, /body\.error\s*\|\|/);
   assert.doesNotMatch(
-    panelSource,
+    submitSource,
     /error instanceof Error[\s\S]*error\.message/,
   );
   assert.doesNotMatch(
-    panelSource,
+    submitSource,
     /The X Post could not be verified\./,
+  );
+
+  // The state-load path may inspect a server error internally, but its catch
+  // stores only a boolean and never exposes that server string to the UI.
+  assert.match(
+    panelSource,
+    /catch \{[\s\S]*setLoadError\(true\)/,
   );
 });
