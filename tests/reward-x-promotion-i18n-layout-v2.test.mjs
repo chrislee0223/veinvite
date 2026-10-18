@@ -23,6 +23,10 @@ const receipt = readFileSync(
   'src/components/RewardReceiptView.tsx',
   'utf8',
 );
+const share = readFileSync(
+  'src/lib/rewards/rewardReceiptShare.ts',
+  'utf8',
+);
 
 const supportedLocales = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map(
   (match) => match[1],
@@ -163,4 +167,35 @@ test('reward receipt allows localized explorer actions to wrap without escaping 
   assert.match(receipt, /overflow-wrap:anywhere/);
   assert.match(receipt, /white-space:normal/);
   assert.match(receipt, /dir="ltr"/);
+});
+
+
+test('X share button labels cover every locale and stay compact enough for wrapped buttons', () => {
+  const labels = [...share.matchAll(
+    /^\s*(?:'([^']+)'|([a-z]+)):\s*\{[\s\S]*?^\s*label:\s*(['"])(.*?)\3,/gmu,
+  )]
+    .map((match) => ({
+      locale: match[1] ?? match[2],
+      label: match[4],
+    }))
+    .filter(({ locale }) => supportedLocales.includes(locale));
+
+  assert.equal(labels.length, supportedLocales.length);
+  assert.deepEqual(
+    labels.map(({ locale }) => locale).sort(),
+    [...supportedLocales].sort(),
+  );
+
+  for (const { locale, label } of labels) {
+    assert.ok(label.trim().length > 0, locale + ' share label is empty');
+    assert.ok(
+      [...label].length <= 24,
+      locale + ' share label is unexpectedly long: ' + label,
+    );
+  }
+
+  assert.match(
+    share,
+    /tr:\s*\{[\s\S]*?label:\s*"X'te paylaş"/,
+  );
 });
