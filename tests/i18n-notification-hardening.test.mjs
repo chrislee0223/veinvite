@@ -178,3 +178,23 @@ test('notification lifecycle coalesces reload bursts and persists unauthorized b
     /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return null;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return null;/,
   );
 });
+
+
+test('notification QA exposes interactions only after client hydration', () => {
+  assert.match(
+    qaNotificationHarness,
+    /const \[hydrated, setHydrated\] = useState\(false\)/,
+  );
+  assert.match(
+    qaNotificationHarness,
+    /useEffect\(\(\) => \{[\s\S]*setHydrated\(true\)[\s\S]*\}, \[\]\)/,
+  );
+  assert.match(
+    qaNotificationHarness,
+    /if \(!hydrated\) \{[\s\S]*data-qa-notification-ready="false"[\s\S]*return/,
+  );
+  assert.match(
+    qaNotificationHarness,
+    /data-qa-notification-ready="true"/,
+  );
+});
