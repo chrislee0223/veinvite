@@ -10,7 +10,7 @@ const OPEN_PROMOTION = {
   newOffersEnabled: true,
   promotionPending: false,
   promotion: {
-    inviteCode: 'qa-reward-invite-code',
+    inviteCode: 'QA-X-PROMOTION',
     state: 'OPEN',
     amountWei: '10000000000000000000',
     amountB3tr: '10',
