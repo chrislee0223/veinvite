@@ -553,7 +553,7 @@ export function InviteNotificationSurfaceV2({
               {!multiple &&
               primary.rewardAmountWei &&
               (primary.kind === 'REWARD_READY' || primary.kind === 'REWARD_PAID') ? (
-                <strong className="rewardAmount">
+                <strong className="rewardAmount" dir="ltr">
                   +{formatB3trWei(primary.rewardAmountWei)} B3TR
                 </strong>
               ) : null}
@@ -620,7 +620,7 @@ export function InviteNotificationSurfaceV2({
         .notificationCopy h2 { margin:0; font-size:1.25rem; line-height:1.25; letter-spacing:-.025em; overflow-wrap:anywhere; }
         .notificationCopy p { margin:9px auto 0; max-width:400px; color:#b5b0ba; font-size:.88rem; font-weight:650; line-height:1.55; overflow-wrap:anywhere; }
         .notificationCopy .notificationHint { margin-top:5px; color:#ffd04a; font-size:.8rem; font-weight:900; }
-        .rewardAmount { display:block; margin-top:12px; color:#ffd04a; font-size:clamp(1.75rem,8vw,2.35rem); line-height:1.05; letter-spacing:-.03em; }
+        .rewardAmount { display:block; margin-top:12px; color:#ffd04a; font-size:clamp(1.75rem,8vw,2.35rem); line-height:1.05; letter-spacing:-.03em; unicode-bidi:isolate; }
         .summaryList { width:100%; display:grid; gap:8px; }
         .summaryRow { min-width:0; padding:12px 13px; display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid rgba(255,255,255,.075); border-radius:14px; background:rgba(255,255,255,.035); text-align:start; }
         .summaryRow span { color:#8e8992; font-size:.65rem; font-weight:800; direction:ltr; }
