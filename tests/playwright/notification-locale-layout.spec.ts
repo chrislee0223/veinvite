@@ -18,6 +18,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-X-PROMOTION-PAID',      // localized +10 B3TR paid notice
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -72,6 +73,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
       '.notificationReceiptView > p',
+      '.notificationExplorerLink',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
       const value = el.textContent?.trim() ?? '';
@@ -131,6 +133,11 @@ for (const locale of SUPPORTED_LOCALES) {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
       });
+      await expect(
+        page.locator('[data-qa-notification-ready]'),
+      ).toHaveAttribute('data-qa-notification-ready', 'true', {
+        timeout: 45_000,
+      });
       await verifyNotificationLayout(page, locale);
       // Verify resizing the same real component to a typical phone width.
       await page.setViewportSize(MOBILE);
@@ -146,6 +153,11 @@ for (const locale of HIGH_RISK_LOCALES) {
       await page.goto('/qa/notification-state?state=' + state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded',
         timeout: 30_000,
+      });
+      await expect(
+        page.locator('[data-qa-notification-ready]'),
+      ).toHaveAttribute('data-qa-notification-ready', 'true', {
+        timeout: 45_000,
       });
       await verifyNotificationLayout(page, locale);
       await page.setViewportSize(DESKTOP);
