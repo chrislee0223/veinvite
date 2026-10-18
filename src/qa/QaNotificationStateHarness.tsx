@@ -31,6 +31,7 @@ export type QaNotificationStateId =
   | 'NOTI-HISTORY-OPEN'
   | 'NOTI-HISTORY-LOADING'
   | 'NOTI-HISTORY-ERROR'
+  | 'NOTI-HISTORY-INLINE-ERROR'
   | 'NOTI-HISTORY-READ'
   | 'NOTI-HISTORY-UNREAD'
   | 'NOTI-HISTORY-MORE'
@@ -96,8 +97,14 @@ const QA_REWARD_RECEIPT: RewardReceipt = {
   createdAt: '2026-10-04T00:00:00.000Z',
 };
 
+const QA_NOTIFICATION_NOW_MS = Date.parse(
+  '2026-10-17T12:00:00.000Z',
+);
+
 function minutesAgo(minutes: number): string {
-  return new Date(Date.now() - minutes * 60_000).toISOString();
+  return new Date(
+    QA_NOTIFICATION_NOW_MS - minutes * 60_000,
+  ).toISOString();
 }
 
 function historyItem({
@@ -202,6 +209,14 @@ function fixtureForState(
         unreadCount: 0,
         open: true,
         errorMessage: 'QA notification history request failed.',
+      };
+    case 'NOTI-HISTORY-INLINE-ERROR':
+      return {
+        mode: 'history',
+        items: mixedHistory(),
+        unreadCount: 2,
+        open: true,
+        errorMessage: 'QA inline notification history request failed.',
       };
     case 'NOTI-HISTORY-READ':
       return {
@@ -555,6 +570,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -565,9 +585,28 @@ export function QaNotificationStateHarness({
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
 
+  // QA-only hydration gate: do not SSR the live notification tree because
+  // relative-time/day-bucket rendering intentionally depends on the browser
+  // clock/time zone. Server and first client render stay identical; the real
+  // production component mounts immediately after hydration.
+  if (!hydrated) {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <span
+          hidden
+          data-qa-notification-ready="false"
+        />
+      </QaNotificationStage>
+    );
+  }
+
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
       <QaNotificationStage embedded={embedded}>
+        <span
+          hidden
+          data-qa-notification-ready="true"
+        />
         <TransientSnackbar
           locale={locale}
           feedback={{
@@ -602,6 +641,10 @@ export function QaNotificationStateHarness({
 
   return (
     <QaNotificationStage embedded={embedded}>
+      <span
+        hidden
+        data-qa-notification-ready="true"
+      />
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
