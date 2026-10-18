@@ -70,11 +70,11 @@ function copyBlock(locale) {
 
   const escaped = escapeRegex(locale);
   const pattern = new RegExp(
-    '(?:^|\\n)\\s{2}(?:[\\'"]' +
+    "(?:^|\\n)\\s{2}(?:['\"]" +
       escaped +
-      '[\\'"]|' +
+      "['\"]|" +
       escaped +
-      '):\\s*\\{([\\s\\S]*?)\\n\\s{2}\\},',
+      "):\\s*\\{([\\s\\S]*?)\\n\\s{2}\\},",
     'm',
   );
   const match = combinedCopySource.match(pattern);
@@ -84,9 +84,9 @@ function copyBlock(locale) {
 
 function copyValue(block, key) {
   const pattern = new RegExp(
-    '^\\s*' +
+    "^\\s*" +
       escapeRegex(key) +
-      ':\\s*([\\'"])(.*)\\1,?\\s*$',
+      ":\\s*(['\"])(.*)\\1,?\\s*$",
     'm',
   );
   const match = block.match(pattern);
