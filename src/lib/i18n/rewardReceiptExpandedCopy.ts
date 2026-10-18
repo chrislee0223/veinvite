@@ -98,7 +98,7 @@ export const REWARD_RECEIPT_EXPANDED_COPY = {
     error: 'Det gick inte att markera belöningskvittot som visat. Försök igen.',
   },
   ro: {
-    eyebrow: 'RECOMPENSA PENTRU INVITAȚIE A FOST PLĂTITĂ',
+    eyebrow: 'RECOMPENSĂ DE INVITAȚIE PLĂTITĂ',
     title: 'Recompensa B3TR a sosit',
     description: 'Recompensa VeInvite pentru invitație a fost plătită în acest portofel.',
     round: 'Runda VeBetterDAO',
