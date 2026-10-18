@@ -6,9 +6,6 @@ import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
 import {
-  REWARD_X_PROMOTION_COPY,
-} from '../src/lib/i18n/rewardXPromotionCopy.ts';
-import {
   rewardReceiptShareLabel,
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
@@ -22,6 +19,11 @@ const xCopySource = readFileSync(
   'src/lib/i18n/rewardXPromotionCopy.ts',
   'utf8',
 );
+const expandedCopySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
+  'utf8',
+);
+const combinedCopySource = xCopySource + '\n' + expandedCopySource;
 const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
@@ -44,34 +46,76 @@ const BODY_KEYS = [
   'preparingBody',
 ];
 
+const ALL_COPY_KEYS = [
+  'title',
+  ...BODY_KEYS,
+  'postUrlPlaceholder',
+  'verify',
+  'verifying',
+  'retry',
+];
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&');
+}
+
+function copyBlock(locale) {
+  if (locale === 'en') {
+    const match = xCopySource.match(
+      /const EN: RewardXPromotionCopy = \{([\s\S]*?)\n\};/,
+    );
+    assert.ok(match, 'missing English X promotion copy block');
+    return match[1];
+  }
+
+  const escaped = escapeRegex(locale);
+  const pattern = new RegExp(
+    '(?:^|\\n)\\s{2}(?:[\\'"]' +
+      escaped +
+      '[\\'"]|' +
+      escaped +
+      '):\\s*\\{([\\s\\S]*?)\\n\\s{2}\\},',
+    'm',
+  );
+  const match = combinedCopySource.match(pattern);
+  assert.ok(match, 'missing X promotion copy block: ' + locale);
+  return match[1];
+}
+
+function copyValue(block, key) {
+  const pattern = new RegExp(
+    '^\\s*' +
+      escapeRegex(key) +
+      ':\\s*([\\'"])(.*)\\1,?\\s*$',
+    'm',
+  );
+  const match = block.match(pattern);
+  assert.ok(match, 'missing X promotion copy key: ' + key);
+  return match[2]
+    .replace(/\\'/g, "'")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
 test('X promotion copy is complete and locally written for all supported locales', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
-  assert.doesNotMatch(xCopySource, /\.\.\.EN\b/);
+  assert.doesNotMatch(combinedCopySource, /\.\.\.EN\b/);
 
-  const english = REWARD_X_PROMOTION_COPY.en;
+  const englishBlock = copyBlock('en');
 
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok(copy, 'missing X promotion copy: ' + locale);
+    const block = copyBlock(locale);
 
-    for (const key of [
-      'title',
-      ...BODY_KEYS,
-      'postUrlPlaceholder',
-      'verify',
-      'verifying',
-      'retry',
-    ]) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
+    for (const key of ALL_COPY_KEYS) {
+      const value = copyValue(block, key);
       assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
     }
 
     if (locale !== 'en') {
       for (const key of BODY_KEYS) {
         assert.notEqual(
-          copy[key],
-          english[key],
+          copyValue(block, key),
+          copyValue(englishBlock, key),
           locale + ' still falls back to English for ' + key,
         );
       }
@@ -81,15 +125,31 @@ test('X promotion copy is complete and locally written for all supported locales
 
 test('localized X promotion controls stay compact enough for wrapped mobile UI', () => {
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok([...copy.title].length <= 30, locale + ' title is unexpectedly long');
-    assert.ok([...copy.verify].length <= 28, locale + ' verify label is unexpectedly long');
-    assert.ok([...copy.verifying].length <= 24, locale + ' verifying label is unexpectedly long');
-    assert.ok([...copy.retry].length <= 24, locale + ' retry label is unexpectedly long');
+    const block = copyBlock(locale);
+
+    assert.ok(
+      [...copyValue(block, 'title')].length <= 30,
+      locale + ' title is unexpectedly long',
+    );
+    assert.ok(
+      [...copyValue(block, 'verify')].length <= 28,
+      locale + ' verify label is unexpectedly long',
+    );
+    assert.ok(
+      [...copyValue(block, 'verifying')].length <= 24,
+      locale + ' verifying label is unexpectedly long',
+    );
+    assert.ok(
+      [...copyValue(block, 'retry')].length <= 24,
+      locale + ' retry label is unexpectedly long',
+    );
 
     const shareLabel = rewardReceiptShareLabel(locale);
     assert.ok(shareLabel.trim().length > 0, locale + ' X share label is empty');
-    assert.ok([...shareLabel].length <= 24, locale + ' X share label is unexpectedly long');
+    assert.ok(
+      [...shareLabel].length <= 24,
+      locale + ' X share label is unexpectedly long',
+    );
   }
 });
 
@@ -134,7 +194,10 @@ test('X promotion panel has long-copy and bidi layout guards', () => {
     '@media(max-width:430px)',
     'grid-template-columns:1fr',
   ]) {
-    assert.ok(panelSource.includes(expected), 'missing panel layout guard: ' + expected);
+    assert.ok(
+      panelSource.includes(expected),
+      'missing panel layout guard: ' + expected,
+    );
   }
 
   assert.match(
@@ -142,7 +205,6 @@ test('X promotion panel has long-copy and bidi layout guards', () => {
     /className="promotionShare"[\s\S]*<span>\{rewardReceiptShareLabel\(locale\)\}<\/span>[\s\S]*<b dir="ltr">/,
   );
 });
-
 
 test('X promotion submission errors are localized for all supported locales', () => {
   for (const locale of SUPPORTED_LOCALES) {
@@ -162,11 +224,26 @@ test('X promotion submission errors are localized for all supported locales', ()
     }
 
     if (locale !== 'en') {
-      assert.notEqual(copy.invalidPost, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.invalidPost);
-      assert.notEqual(copy.walletAccess, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.walletAccess);
-      assert.notEqual(copy.conflict, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.conflict);
-      assert.notEqual(copy.rateLimited, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.rateLimited);
-      assert.notEqual(copy.unavailable, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.unavailable);
+      assert.notEqual(
+        copy.invalidPost,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.invalidPost,
+      );
+      assert.notEqual(
+        copy.walletAccess,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.walletAccess,
+      );
+      assert.notEqual(
+        copy.conflict,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.conflict,
+      );
+      assert.notEqual(
+        copy.rateLimited,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.rateLimited,
+      );
+      assert.notEqual(
+        copy.unavailable,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.unavailable,
+      );
     }
 
     assert.equal(rewardXPromotionSubmitError(locale, 400), copy.invalidPost);
@@ -182,9 +259,21 @@ test('X promotion submission errors are localized for all supported locales', ()
 });
 
 test('X promotion client never renders raw API or network error messages', () => {
-  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, response\.status\)/);
-  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, 0\)/);
+  assert.match(
+    panelSource,
+    /rewardXPromotionSubmitError\(locale, response\.status\)/,
+  );
+  assert.match(
+    panelSource,
+    /rewardXPromotionSubmitError\(locale, 0\)/,
+  );
   assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
-  assert.doesNotMatch(panelSource, /error instanceof Error[\s\S]*error\.message/);
-  assert.doesNotMatch(panelSource, /The X Post could not be verified\./);
+  assert.doesNotMatch(
+    panelSource,
+    /error instanceof Error[\s\S]*error\.message/,
+  );
+  assert.doesNotMatch(
+    panelSource,
+    /The X Post could not be verified\./,
+  );
 });
