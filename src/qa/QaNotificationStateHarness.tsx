@@ -555,6 +555,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -602,6 +607,11 @@ export function QaNotificationStateHarness({
 
   return (
     <QaNotificationStage embedded={embedded}>
+      <span
+        data-qa-notification-hydrated={hydrated ? 'true' : 'false'}
+        aria-hidden="true"
+        style={{ display: 'none' }}
+      />
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
