@@ -23,6 +23,15 @@ const receipt = readFileSync(
   'src/components/RewardReceiptView.tsx',
   'utf8',
 );
+const receiptCopyMain = readFileSync(
+  'src/lib/i18n/rewardReceiptCopy.ts',
+  'utf8',
+);
+const receiptCopyExpanded = readFileSync(
+  'src/lib/i18n/rewardReceiptExpandedCopy.ts',
+  'utf8',
+);
+
 const share = readFileSync(
   'src/lib/rewards/rewardReceiptShare.ts',
   'utf8',
@@ -198,5 +207,63 @@ test('X share button labels cover every locale and stay compact enough for wrapp
   assert.match(
     share,
     /tr:\s*\{[\s\S]*?label:\s*"X'te paylaş"/,
+  );
+});
+
+
+test('reward receipt copy explicitly covers all 29 supported locales', () => {
+  const combinedReceiptCopy =
+    receiptCopyMain + '\n' + receiptCopyExpanded;
+
+  const explicitLocales = [...combinedReceiptCopy.matchAll(
+    /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu,
+  )]
+    .map((match) => match[1] ?? match[2])
+    .filter((locale) => supportedLocales.includes(locale));
+
+  assert.deepEqual(
+    [...new Set(explicitLocales)].sort(),
+    [...supportedLocales].sort(),
+  );
+  assert.equal(
+    explicitLocales.length,
+    supportedLocales.length,
+  );
+
+  assert.match(
+    receiptCopyMain,
+    /Record<SupportedLocale, RewardReceiptCopy>/,
+  );
+  assert.match(
+    receiptCopyMain,
+    /\.\.\.REWARD_RECEIPT_EXPANDED_COPY/,
+  );
+
+  for (const key of [
+    'eyebrow',
+    'title',
+    'description',
+    'round',
+    'invite',
+    'transaction',
+    'viewTransaction',
+    'acknowledge',
+    'acknowledging',
+    'error',
+  ]) {
+    assert.match(
+      combinedReceiptCopy,
+      new RegExp('\\b' + key + ':'),
+      'missing reward receipt copy key ' + key,
+    );
+  }
+
+  assert.ok(
+    Buffer.byteLength(receiptCopyMain, 'utf8') < 30_000,
+    'main reward receipt copy should stay below cleanup threshold',
+  );
+  assert.ok(
+    Buffer.byteLength(receiptCopyExpanded, 'utf8') < 30_000,
+    'expanded reward receipt copy should stay below cleanup threshold',
   );
 });
