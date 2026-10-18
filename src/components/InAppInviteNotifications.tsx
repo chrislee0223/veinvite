@@ -10,7 +10,8 @@ import {
 import { InviteNotificationHistoryCenter } from './InviteNotificationHistoryCenter';
 import { useVisiblePeriodicRefresh } from '@/hooks/useVisiblePeriodicRefresh';
 import { useWalletLauncher } from './WalletControl';
-import type { Locale } from '@/lib/i18n/locales';
+import type { Locale, SupportedLocale } from '@/lib/i18n/locales';
+import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import type {
   InviteNotificationHistoryItem,
   InviteNotificationHistoryResponse,
@@ -298,6 +299,9 @@ export function InAppInviteNotifications({
   rewardShareUrl?: string;
 }) {
   const { wallet, isWalletModalOpen } = useWalletLauncher();
+  const localizedHistoryError =
+    (NOTIFICATION_HISTORY_COPY[locale as SupportedLocale] ??
+      NOTIFICATION_HISTORY_COPY.en).errorBody;
   const [items, setItems] =
     useState<InviteNotificationHistoryItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -496,11 +500,7 @@ export function InAppInviteNotifications({
           surfaceError &&
           sameWallet(activeWalletRef.current, requestWallet)
         ) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : 'Notification history request failed.',
-          );
+          setErrorMessage(localizedHistoryError);
         }
         return null;
       } finally {
@@ -518,6 +518,7 @@ export function InAppInviteNotifications({
     [
       applyLatestHistory,
       loadHistoryPage,
+      localizedHistoryError,
     ],
   );
 
@@ -724,11 +725,7 @@ export function InAppInviteNotifications({
           'VeInvite notification history acknowledgement failed:',
           error,
         );
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Notification acknowledgement failed.',
-        );
+        setErrorMessage(localizedHistoryError);
       } finally {
         setBusy(false);
       }
@@ -740,6 +737,7 @@ export function InAppInviteNotifications({
       loadLatestHistory,
       nextCursor,
       refreshLifecycle,
+      localizedHistoryError,
       wallet,
     ],
   );
@@ -803,11 +801,7 @@ export function InAppInviteNotifications({
         'VeInvite mark-all notification history failed:',
         error,
       );
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Notification acknowledgement failed.',
-      );
+      setErrorMessage(localizedHistoryError);
     } finally {
       setBusy(false);
     }
@@ -818,6 +812,7 @@ export function InAppInviteNotifications({
     loadLatestHistory,
     nextCursor,
     refreshLifecycle,
+    localizedHistoryError,
     unreadCount,
     wallet,
   ]);
@@ -850,18 +845,14 @@ export function InAppInviteNotifications({
         error,
       );
       if (sameWallet(activeWalletRef.current, requestWallet)) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Notification history request failed.',
-        );
+        setErrorMessage(localizedHistoryError);
       }
     } finally {
       if (sameWallet(activeWalletRef.current, requestWallet)) {
         setLoading(false);
       }
     }
-  }, [busy, loadHistoryPage, loading, nextCursor, wallet]);
+  }, [busy, loadHistoryPage, loading, localizedHistoryError, nextCursor, wallet]);
 
   const refreshVisibleNotifications = useCallback(() => {
     if (!wallet) return;
