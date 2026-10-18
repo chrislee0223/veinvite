@@ -1,4 +1,5 @@
 import type { SupportedLocale } from './locales';
+import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
 
 export type RewardXPromotionCopy = {
   title: string;
@@ -20,10 +21,10 @@ export type RewardXPromotionCopy = {
 
 const EN: RewardXPromotionCopy = {
   title: 'X Promotion Bonus',
-  openBody: 'Share on X within 24 hours, then paste the public Post link below. The same Post must still be public at the 24-hour check.',
-  graceBody: 'The sharing window has ended. If you already posted in time, paste that Post link now.',
-  verifyingBody: 'We are checking your X Post. Your promotion amount remains reserved.',
-  retentionBody: 'Post confirmed. Keep the same Post public until the 24-hour check completes.',
+  openBody: 'Share on X within 24 hours, then paste the public post link below. The same post must still be public at the 24-hour check.',
+  graceBody: 'The sharing window has ended. If you already posted in time, paste that post link now.',
+  verifyingBody: 'We are checking your X post. Your promotion amount remains reserved.',
+  retentionBody: 'Post confirmed. Keep the same post public until the 24-hour check completes.',
   reviewBody: 'Verification needs another review. Your promotion amount remains reserved.',
   payoutBody: 'Verification is complete. Your promotion payout is being prepared.',
   paidBody: 'Your X promotion bonus has been paid.',
@@ -40,15 +41,15 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
   en: EN,
   ko: {
     title: 'X 프로모션 보너스',
-    openBody: '24시간 안에 X에 공유한 뒤 공개 게시물 링크를 아래에 붙여 주세요. 같은 게시물이 24시간 확인 시점에도 공개 상태여야 해요.',
+    openBody: '24시간 안에 X에 공유한 뒤 공개 게시물 링크를 아래에 붙여 주세요. 24시간 확인 시점에도 같은 게시물이 공개 상태여야 해요.',
     graceBody: '공유 가능 시간은 끝났어요. 시간 안에 이미 게시했다면 지금 그 게시물 링크를 붙여 주세요.',
-    verifyingBody: 'X 게시물을 확인 중이에요. 프로모션 금액은 그대로 보류돼 있어요.',
+    verifyingBody: 'X 게시물을 확인 중이에요. 프로모션 보상은 그대로 확보되어 있어요.',
     retentionBody: '게시물이 확인됐어요. 24시간 확인이 끝날 때까지 같은 게시물을 공개 상태로 유지해 주세요.',
-    reviewBody: '추가 확인이 필요해요. 프로모션 금액은 그대로 보류돼 있어요.',
-    payoutBody: '확인이 완료됐어요. 프로모션 보상을 지급 준비 중이에요.',
+    reviewBody: '추가 확인이 필요해요. 프로모션 보상은 그대로 확보되어 있어요.',
+    payoutBody: '확인이 완료됐어요. 프로모션 보상 지급을 준비 중이에요.',
     paidBody: 'X 프로모션 보상이 지급됐어요.',
     expiredBody: 'X 프로모션 게시물 제출 시간이 만료됐어요.',
-    releasedBody: '이 프로모션 금액은 보상 풀로 반환됐어요.',
+    releasedBody: '프로모션 보상 금액이 보상 풀로 돌아갔어요.',
     preparingBody: 'X 프로모션 기회를 준비 중이에요. 잠시 후 이 보상 내역을 다시 확인해 주세요.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: '게시물 확인',
@@ -276,18 +277,5 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verifying: 'Đang kiểm tra…',
     retry: 'Thử lại',
   },
-  hi: { ...EN, title: 'X प्रमोशन बोनस', verify: 'पोस्ट सत्यापित करें', verifying: 'जाँच जारी…', retry: 'फिर कोशिश करें' },
-  ar: { ...EN, title: 'مكافأة ترويج X', verify: 'تحقق من المنشور', verifying: 'جارٍ التحقق…', retry: 'حاول مجددًا' },
-  bn: { ...EN, title: 'X প্রচার বোনাস', verify: 'পোস্ট যাচাই করুন', verifying: 'যাচাই চলছে…', retry: 'আবার চেষ্টা করুন' },
-  sv: { ...EN, title: 'X-kampanjbonus', verify: 'Verifiera inlägg', verifying: 'Kontrollerar…', retry: 'Försök igen' },
-  ro: { ...EN, title: 'Bonus promoțional X', verify: 'Verifică postarea', verifying: 'Se verifică…', retry: 'Încearcă din nou' },
-  ur: { ...EN, title: 'X پروموشن بونس', verify: 'پوسٹ کی تصدیق کریں', verifying: 'جانچ جاری…', retry: 'دوبارہ کوشش کریں' },
-  pcm: { ...EN, title: 'X Promotion Bonus', verify: 'Check Post', verifying: 'Checking…', retry: 'Try again' },
-  arz: { ...EN, title: 'مكافأة ترويج X', verify: 'راجع البوست', verifying: 'بنراجع…', retry: 'جرّب تاني' },
-  mr: { ...EN, title: 'X प्रमोशन बोनस', verify: 'पोस्ट तपासा', verifying: 'तपासत आहे…', retry: 'पुन्हा प्रयत्न करा' },
-  te: { ...EN, title: 'X ప్రమోషన్ బోనస్', verify: 'పోస్ట్‌ను ధృవీకరించండి', verifying: 'తనిఖీ చేస్తోంది…', retry: 'మళ్లీ ప్రయత్నించండి' },
-  sw: { ...EN, title: 'Bonasi ya Promosheni ya X', verify: 'Thibitisha chapisho', verifying: 'Inakaguliwa…', retry: 'Jaribu tena' },
-  ha: { ...EN, title: 'Kyautar Tallan X', verify: 'Tabbatar da sakon', verifying: 'Ana dubawa…', retry: 'Sake gwadawa' },
-  el: { ...EN, title: 'Μπόνους προώθησης X', verify: 'Επαλήθευση ανάρτησης', verifying: 'Έλεγχος…', retry: 'Δοκιμή ξανά' },
-  cs: { ...EN, title: 'Bonus za propagaci na X', verify: 'Ověřit příspěvek', verifying: 'Kontrola…', retry: 'Zkusit znovu' },
+  ...REWARD_X_PROMOTION_EXPANDED_COPY,
 };
