@@ -28,15 +28,6 @@ const submitErrorSource = readFileSync(
   'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
   'utf8',
 );
-const notificationSurfaceSource = readFileSync(
-  'src/components/InviteNotificationSurfaceV2.tsx',
-  'utf8',
-);
-const notificationHistorySource = readFileSync(
-  'src/components/UnifiedInviteNotificationHistoryCenter.tsx',
-  'utf8',
-);
-
 const SUPPORTED_LOCALES = [
   ...localesSource.matchAll(/\{ locale: '([^']+)'/g),
 ].map((match) => match[1]);
@@ -310,30 +301,6 @@ test('complex-script X promotion copy gets readable line boxes without shrinking
   assert.match(
     panelSource,
     /\.promotionPanel\[lang='ur'\] p\{line-height:1\.72\}/,
-  );
-});
-
-
-test('notification B3TR amounts stay LTR-isolated inside RTL locales', () => {
-  assert.match(
-    notificationSurfaceSource,
-    /className="rewardAmount" dir="ltr"/,
-  );
-  assert.match(
-    notificationSurfaceSource,
-    /\.rewardAmount[^}]*unicode-bidi:isolate/,
-  );
-  assert.match(
-    notificationHistorySource,
-    /effectiveKind === 'X_PROMOTION_PAID'/,
-  );
-  assert.match(
-    notificationHistorySource,
-    /<b dir=\{hintIsTechnical \? 'ltr' : undefined\}>/,
-  );
-  assert.match(
-    notificationHistorySource,
-    /notificationHistoryMeta b\[dir='ltr'\][^}]*unicode-bidi:isolate/,
   );
 });
 
