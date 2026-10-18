@@ -58,6 +58,16 @@ async function settleLayout(page: Page) {
   });
 }
 
+async function waitForNotificationHydration(page: Page) {
+  const marker = page.locator('[data-qa-notification-hydrated]');
+  await expect(marker).toHaveCount(1, { timeout: 30_000 });
+  await expect(marker).toHaveAttribute(
+    'data-qa-notification-hydrated',
+    'true',
+    { timeout: 30_000 },
+  );
+}
+
 async function readPromotionPanelReport(page: Page) {
   const panel = page.locator('.promotionPanel');
   await expect(panel).toBeVisible({ timeout: 10_000 });
@@ -210,19 +220,14 @@ async function openPromotionPanel(page: Page, locale: SupportedLocale) {
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  await expect(
-    page.locator('[data-qa-notification-hydrated="true"]'),
-  ).toHaveCount(1);
-
-  await expect(
-    page.locator('[data-qa-notification-hydrated="true"]'),
-  ).toHaveCount(1);
+  await waitForNotificationHydration(page);
 
   const row = page.locator('.notificationHistoryRow').first();
   await expect(row).toBeVisible();
   await row.click();
-  await expect(page.locator('.notificationReceiptView')).toBeVisible();
-  await expect(page.locator('.notificationReceiptView')).toBeVisible();
+  await expect(page.locator('.notificationReceiptView')).toBeVisible({
+    timeout: 15_000,
+  });
   return readPromotionPanelReport(page);
 }
 
@@ -365,9 +370,14 @@ async function verifyStandaloneStates(
       { waitUntil: 'domcontentloaded', timeout: 30_000 },
     );
 
+    await waitForNotificationHydration(page);
+
     const row = page.locator('.notificationHistoryRow').first();
     await expect(row).toBeVisible();
     await row.click();
+    await expect(page.locator('.notificationReceiptView')).toBeVisible({
+      timeout: 15_000,
+    });
 
     const surface = page.locator(item.selector);
     await expect(surface).toBeVisible({ timeout: 10_000 });
