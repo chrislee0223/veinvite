@@ -565,6 +565,13 @@ export function QaNotificationStateHarness({
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
 
+  useEffect(() => {
+    document.documentElement.dataset.qaNotificationHydrated = stateId;
+    return () => {
+      delete document.documentElement.dataset.qaNotificationHydrated;
+    };
+  }, [stateId]);
+
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
       <QaNotificationStage embedded={embedded}>
