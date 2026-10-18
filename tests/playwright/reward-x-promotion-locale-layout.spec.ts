@@ -210,9 +210,19 @@ async function openPromotionPanel(page: Page, locale: SupportedLocale) {
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
+  await expect(
+    page.locator('[data-qa-notification-hydrated="true"]'),
+  ).toHaveCount(1);
+
+  await expect(
+    page.locator('[data-qa-notification-hydrated="true"]'),
+  ).toHaveCount(1);
+
   const row = page.locator('.notificationHistoryRow').first();
   await expect(row).toBeVisible();
   await row.click();
+  await expect(page.locator('.notificationReceiptView')).toBeVisible();
+  await expect(page.locator('.notificationReceiptView')).toBeVisible();
   return readPromotionPanelReport(page);
 }
 
@@ -294,7 +304,10 @@ async function verifyStandaloneStates(
   page: Page,
   locale: SupportedLocale,
 ) {
-  let response = {
+  let response: {
+    status: number;
+    body: Record<string, unknown>;
+  } = {
     status: 200,
     body: {
       newOffersEnabled: true,
