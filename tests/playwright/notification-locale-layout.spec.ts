@@ -17,12 +17,19 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-HISTORY-OPEN',          // multiple cards, unread badge and Mark-all
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
-  'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-REWARD-PAID',          // core reward amount and receipt action
 ] as const;
 
 const HIGH_RISK_LOCALES = [
   'ar', 'arz', 'ur', 'hi', 'bn', 'mr', 'te', 'zh-tw', 'ko', 'de', 'el',
 ] as const satisfies readonly SupportedLocale[];
+
+const MOBILE_CONTROL_STATES = [
+  'NOTI-X-PROMOTION-PAID',
+  'NOTI-HISTORY-ERROR',
+  'NOTI-HISTORY-INLINE-ERROR',
+  'NOTI-HISTORY-MORE',
+] as const;
 
 const EXTRA_STATES = [
   'NOTI-REFERRAL-INVALIDATED',
@@ -67,10 +74,15 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationHistoryMeta b',
       '.notificationReceiptAction',
       '.notificationReceiptAction span',
+      '.notificationHistoryRetry',
+      '.notificationHistoryMore',
+      '.notificationHistoryInlineError',
+      '.notificationHistoryInlineError button',
       '.notificationHistoryGroup h4',
       '.notificationActionCopy strong',
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
+      '.notificationExplorerLink',
       '.notificationReceiptView > p',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
@@ -94,6 +106,16 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       if (el.clientHeight && el.scrollHeight > el.clientHeight + 2
         && (style.overflowY === 'clip' || style.overflowY === 'hidden')) {
         issues.push(name + ' vertically clipped: ' + value.slice(0, 32));
+      }
+    }
+    for (const token of root.querySelectorAll<HTMLElement>(
+      '.notificationHistoryMeta b[dir="ltr"]',
+    )) {
+      if (getComputedStyle(token).direction !== 'ltr') {
+        issues.push(
+          'technical notification hint is not LTR-isolated: ' +
+            (token.textContent ?? '').slice(0, 32),
+        );
       }
     }
     for (const row of root.querySelectorAll('.notificationHistoryRow')) {
@@ -133,6 +155,22 @@ for (const locale of SUPPORTED_LOCALES) {
       });
       await verifyNotificationLayout(page, locale);
       // Verify resizing the same real component to a typical phone width.
+      await page.setViewportSize(MOBILE);
+      await verifyNotificationLayout(page, locale);
+    });
+  }
+}
+
+
+for (const locale of HIGH_RISK_LOCALES) {
+  for (const state of MOBILE_CONTROL_STATES) {
+    test('high-risk mobile controls: notification ' + locale + ' / ' + state, async ({ page }) => {
+      await page.setViewportSize(NARROW);
+      await page.goto('/qa/notification-state?state=' + state + '&locale=' + locale, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+      await verifyNotificationLayout(page, locale);
       await page.setViewportSize(MOBILE);
       await verifyNotificationLayout(page, locale);
     });

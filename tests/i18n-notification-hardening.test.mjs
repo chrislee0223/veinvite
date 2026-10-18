@@ -178,3 +178,22 @@ test('notification lifecycle coalesces reload bursts and persists unauthorized b
     /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return null;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return null;/,
   );
 });
+
+
+test('notification history never exposes raw server or exception errors to localized UI', () => {
+  assert.match(
+    notifications,
+    /NOTIFICATION_HISTORY_COPY\[locale as SupportedLocale\]/,
+  );
+  assert.ok(
+    (notifications.match(/setErrorMessage\(localizedHistoryError\)/g) ?? []).length >= 4,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}error\.message/,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}body\.error/,
+  );
+});
