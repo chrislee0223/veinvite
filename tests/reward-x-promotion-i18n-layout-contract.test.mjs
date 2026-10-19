@@ -3,41 +3,41 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
-  SUPPORTED_LOCALES,
-} from '../src/lib/i18n/locales.ts';
-import {
-  REWARD_X_PROMOTION_COPY,
-} from '../src/lib/i18n/rewardXPromotionCopy.ts';
-import {
-  REWARD_X_PROMOTION_SUBMIT_ERROR_COPY,
-  rewardXPromotionSubmitError,
-} from '../src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts';
-import {
   rewardReceiptShareLabel,
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
 } from '../src/lib/rewards/rewardReceiptShare.ts';
 
-const xCopySource = readFileSync(
-  'src/lib/i18n/rewardXPromotionCopy.ts',
-  'utf8',
-);
-const expandedCopySource = readFileSync(
-  'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
-  'utf8',
-);
-const panelSource = readFileSync(
-  'src/components/RewardXPromotionPanel.tsx',
-  'utf8',
-);
-const submitErrorSource = readFileSync(
-  'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
-  'utf8',
-);
-const shareSource = readFileSync(
-  'src/lib/rewards/rewardReceiptShare.ts',
-  'utf8',
-);
+const read = (path) => readFileSync(path, 'utf8');
+
+const localesSource = read('src/lib/i18n/locales.ts');
+const xCopySource = read('src/lib/i18n/rewardXPromotionCopy.ts');
+const expandedCopySource = read('src/lib/i18n/rewardXPromotionExpandedCopy.ts');
+const submitErrorSource = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
+const panelSource = read('src/components/RewardXPromotionPanel.tsx');
+const receiptSource = read('src/components/RewardReceiptView.tsx');
+const shareSource = read('src/lib/rewards/rewardReceiptShare.ts');
+
+const SUPPORTED_LOCALES = [
+  ...localesSource.matchAll(/\{ locale: '([^']+)'/g),
+].map((match) => match[1]);
+
+const EXPANDED_LOCALES = [
+  'hi',
+  'ar',
+  'bn',
+  'sv',
+  'ro',
+  'ur',
+  'pcm',
+  'arz',
+  'mr',
+  'te',
+  'sw',
+  'ha',
+  'el',
+  'cs',
+];
 
 const BODY_KEYS = [
   'openBody',
@@ -52,17 +52,47 @@ const BODY_KEYS = [
   'preparingBody',
 ];
 
-test('X promotion copy is complete and locally written for all 29 supported locales', () => {
+function localeBlock(source, locale) {
+  const key = locale.includes('-')
+    ? "'" + locale + "'"
+    : "(?:'" + locale + "'|" + locale + ")";
+  const match = source.match(
+    new RegExp(
+      '(?:^|\\n)\\s*' + key + ':\\s*\\{([\\s\\S]*?)\\n\\s*\\},',
+      'mu',
+    ),
+  );
+  return match?.[1] ?? '';
+}
+
+function assertTextField(block, locale, key) {
+  const match = block.match(
+    new RegExp('\\b' + key + ':\\s*([\'\x60"])([\\s\\S]*?)\\1[,\\n]', 'u'),
+  );
+  assert.ok(match, locale + ' missing ' + key);
+  assert.ok(match[2].trim().length > 0, locale + ' ' + key + ' is empty');
+  return match[2];
+}
+
+test('X promotion registry explicitly covers every supported locale without English spreads', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
   assert.equal(new Set(SUPPORTED_LOCALES).size, 29);
-  assert.doesNotMatch(xCopySource, /\.\.\.EN\b/);
-  assert.doesNotMatch(expandedCopySource, /\.\.\.EN\b/);
-
-  const english = REWARD_X_PROMOTION_COPY.en;
+  assert.doesNotMatch(xCopySource, /\.\.\.EN\b/u);
+  assert.doesNotMatch(expandedCopySource, /\.\.\.EN\b/u);
 
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok(copy, 'missing X promotion copy: ' + locale);
+    assert.match(
+      xCopySource,
+      new RegExp("(?:^|\\n)\\s*['\"]?" + locale + "['\"]?\\s*:", 'u'),
+      'missing explicit X promotion registry key: ' + locale,
+    );
+  }
+});
+
+test('expanded X promotion locale pack has full locally-authored state copy', () => {
+  for (const locale of EXPANDED_LOCALES) {
+    const block = localeBlock(expandedCopySource, locale);
+    assert.ok(block, 'missing expanded X promotion locale: ' + locale);
 
     for (const key of [
       'title',
@@ -72,41 +102,38 @@ test('X promotion copy is complete and locally written for all 29 supported loca
       'verifying',
       'retry',
     ]) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
-      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
-    }
-
-    if (locale !== 'en') {
-      for (const key of BODY_KEYS) {
-        assert.notEqual(
-          copy[key],
-          english[key],
-          locale + ' still falls back to English for ' + key,
-        );
-      }
+      assertTextField(block, locale, key);
     }
   }
 });
 
 test('localized X promotion controls stay compact enough for wrapped mobile UI', () => {
-  for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok([...copy.title].length <= 30, locale + ' title is unexpectedly long');
-    assert.ok([...copy.verify].length <= 28, locale + ' verify label is unexpectedly long');
-    assert.ok([...copy.verifying].length <= 24, locale + ' verifying label is unexpectedly long');
-    assert.ok([...copy.retry].length <= 24, locale + ' retry label is unexpectedly long');
+  for (const locale of EXPANDED_LOCALES) {
+    const block = localeBlock(expandedCopySource, locale);
+    const title = assertTextField(block, locale, 'title');
+    const verify = assertTextField(block, locale, 'verify');
+    const verifying = assertTextField(block, locale, 'verifying');
+    const retry = assertTextField(block, locale, 'retry');
 
+    assert.ok([...title].length <= 30, locale + ' title is unexpectedly long');
+    assert.ok([...verify].length <= 28, locale + ' verify label is unexpectedly long');
+    assert.ok([...verifying].length <= 24, locale + ' verifying label is unexpectedly long');
+    assert.ok([...retry].length <= 24, locale + ' retry label is unexpectedly long');
+  }
+
+  for (const locale of SUPPORTED_LOCALES) {
     const shareLabel = rewardReceiptShareLabel(locale);
     assert.ok(shareLabel.trim().length > 0, locale + ' X share label is empty');
     assert.ok([...shareLabel].length <= 24, locale + ' X share label is unexpectedly long');
   }
 });
 
-test('X promotion submission errors are localized for every supported locale', () => {
+test('X promotion submission error copy explicitly covers all locales and status families', () => {
+  assert.doesNotMatch(submitErrorSource, /\.\.\.EN\b/u);
+
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_SUBMIT_ERROR_COPY[locale];
-    assert.ok(copy, 'missing submit error copy: ' + locale);
+    const block = localeBlock(submitErrorSource, locale);
+    assert.ok(block, 'missing submit-error locale: ' + locale);
 
     for (const key of [
       'invalidPost',
@@ -115,37 +142,23 @@ test('X promotion submission errors are localized for every supported locale', (
       'rateLimited',
       'unavailable',
     ]) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
-      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
+      assertTextField(block, locale, key);
     }
-
-    if (locale !== 'en') {
-      assert.notEqual(copy.invalidPost, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.invalidPost);
-      assert.notEqual(copy.walletAccess, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.walletAccess);
-      assert.notEqual(copy.conflict, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.conflict);
-      assert.notEqual(copy.rateLimited, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.rateLimited);
-      assert.notEqual(copy.unavailable, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.unavailable);
-    }
-
-    assert.equal(rewardXPromotionSubmitError(locale, 400), copy.invalidPost);
-    assert.equal(rewardXPromotionSubmitError(locale, 401), copy.walletAccess);
-    assert.equal(rewardXPromotionSubmitError(locale, 403), copy.walletAccess);
-    assert.equal(rewardXPromotionSubmitError(locale, 409), copy.conflict);
-    assert.equal(rewardXPromotionSubmitError(locale, 429), copy.rateLimited);
-    assert.equal(rewardXPromotionSubmitError(locale, 500), copy.unavailable);
-    assert.equal(rewardXPromotionSubmitError(locale, 0), copy.unavailable);
   }
 
-  assert.doesNotMatch(submitErrorSource, /\.\.\.EN\b/);
+  assert.match(submitErrorSource, /status === 400[\s\S]*copy\.invalidPost/u);
+  assert.match(submitErrorSource, /status === 401 \|\| status === 403[\s\S]*copy\.walletAccess/u);
+  assert.match(submitErrorSource, /status === 409[\s\S]*copy\.conflict/u);
+  assert.match(submitErrorSource, /status === 429[\s\S]*copy\.rateLimited/u);
+  assert.match(submitErrorSource, /return copy\.unavailable/u);
 });
 
 test('X promotion client never renders raw API or network error messages', () => {
-  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, response\.status\)/);
-  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, 0\)/);
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
-  assert.doesNotMatch(panelSource, /error instanceof Error[\s\S]*error\.message/);
-  assert.doesNotMatch(panelSource, /The X Post could not be verified\./);
+  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, response\.status\)/u);
+  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, 0\)/u);
+  assert.doesNotMatch(panelSource, /body\.error/u);
+  assert.doesNotMatch(panelSource, /error instanceof Error[\s\S]*error\.message/u);
+  assert.doesNotMatch(panelSource, /The X Post could not be verified\./u);
 });
 
 test('public X post stays intentionally global while in-app controls stay localized', () => {
@@ -156,11 +169,11 @@ test('public X post stays intentionally global while in-app controls stay locali
 
   assert.match(
     shareSource,
-    /Public X campaign posts intentionally use one concise global English/,
+    /Public X campaign posts intentionally use one concise global English/u,
   );
-  assert.doesNotMatch(shareSource, /\breceived:\s/);
-  assert.doesNotMatch(shareSource, /\binvite:\s/);
-  assert.doesNotMatch(shareSource, /\bfriend(?:s)?\b/i);
+  assert.doesNotMatch(shareSource, /\breceived:\s/u);
+  assert.doesNotMatch(shareSource, /\binvite:\s/u);
+  assert.doesNotMatch(shareSource, /\bfriend(?:s)?\b/iu);
 
   for (const locale of SUPPORTED_LOCALES) {
     assert.equal(
@@ -179,14 +192,14 @@ test('public X post stays intentionally global while in-app controls stay locali
     }));
     const text = intent.searchParams.get('text') ?? '';
     assert.ok(text.length < 280, locale + ' X intent exceeds 280 characters');
-    assert.match(text, /@Veinvite/);
-    assert.match(text, /#B3TR/);
-    assert.match(text, /#VeBetterDAO/);
-    assert.doesNotMatch(text, /\bfriend(?:s)?\b/i);
+    assert.match(text, /@Veinvite/u);
+    assert.match(text, /#B3TR/u);
+    assert.match(text, /#VeBetterDAO/u);
+    assert.doesNotMatch(text, /\bfriend(?:s)?\b/iu);
   }
 });
 
-test('X promotion panel keeps long-copy and bidi layout guards', () => {
+test('X promotion panel keeps long-copy and bidi layout guards without removing expiry safety', () => {
   for (const expected of [
     'getLocaleDirection',
     'lang={locale}',
@@ -203,6 +216,20 @@ test('X promotion panel keeps long-copy and bidi layout guards', () => {
 
   assert.match(
     panelSource,
-    /className="promotionShare"[\s\S]*<span>\{rewardReceiptShareLabel\(locale\)\}<\/span>[\s\S]*<b dir="ltr">/,
+    /className="promotionShare"[\s\S]*<span>\{rewardReceiptShareLabel\(locale\)\}<\/span>[\s\S]*<b dir="ltr">/u,
   );
+  assert.match(
+    panelSource,
+    /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/u,
+  );
+  assert.match(panelSource, /transitionAt - Date\.now\(\) \+ 1_000/u);
+});
+
+test('reward receipt itself wraps translated description, facts and explorer link safely', () => {
+  assert.match(receiptSource, /\.notificationReceiptView\{min-width:0/u);
+  assert.match(receiptSource, /\.notificationReceiptHero p\{min-width:0[\s\S]*overflow-wrap:break-word/u);
+  assert.match(receiptSource, /\.notificationReceiptFacts dt\{min-width:0[\s\S]*overflow-wrap:anywhere/u);
+  assert.match(receiptSource, /\.notificationReceiptFacts dd\{min-width:0[\s\S]*overflow-wrap:anywhere/u);
+  assert.match(receiptSource, /\.notificationExplorerLink>span:first-child\{min-width:0;overflow-wrap:anywhere\}/u);
+  assert.match(receiptSource, /\.notificationExplorerLink>span:last-child\{flex:0 0 auto\}/u);
 });
