@@ -1,15 +1,16 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import { ThorClient } from '@vechain/sdk-network';
 
 import {
   buildPayoutManifest,
+  type PayoutManifest,
   type RewardPayoutForManifest,
   type RewardRoundForManifest,
 } from '@/lib/rewards/payoutManifest';
 import {
   RewardTransactionVerificationError,
+  verifyCanonicalRewardTransactionOnChain,
   verifyFinalizedRewardTransactionOnChain,
 } from '@/lib/rewards/transactionVerification';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -47,95 +48,41 @@ function positiveId(value: unknown, fieldName: string): string {
   return BigInt(normalized).toString();
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 async function observeCanonicalSuccessfulReceipt({
   txId,
   expectedOperator,
+  manifest,
+  manifestCreatedAt,
 }: {
   txId: string;
   expectedOperator: string;
+  manifest: PayoutManifest;
+  manifestCreatedAt: string;
 }): Promise<boolean> {
-  const { nodeUrl } = getVeBetterNetworkConfig();
-  const thor = ThorClient.at(nodeUrl);
-  const [rawTransaction, rawReceipt] = await Promise.all([
-    thor.transactions.getTransaction(txId),
-    thor.transactions.getTransactionReceipt(txId),
-  ]);
-
-  if (!rawTransaction || !rawReceipt) {
-    return false;
+  try {
+    // Unlike a bare non-reverted transaction receipt, this validates the
+    // actual B3TR RewardDistributed event: exact recipient, amount, operator,
+    // app and signed calldata for each immutable payout manifest clause.
+    // This is not PAID authority: full finality remains mandatory below.
+    await verifyCanonicalRewardTransactionOnChain({
+      txId,
+      manifest,
+      operatorWallet: expectedOperator,
+      manifestCreatedAt,
+    });
+    return true;
+  } catch (error) {
+    // A not-yet-indexed transaction is ordinary retryable work. A reverted,
+    // mismatched or malicious payout must never be marked as confirmed.
+    if (
+      error instanceof RewardTransactionVerificationError &&
+      (error.code === 'TX_NOT_FOUND' ||
+        error.code === 'TX_RECEIPT_NOT_FOUND')
+    ) {
+      return false;
+    }
+    throw error;
   }
-
-  const transaction = rawTransaction as unknown as Record<string, unknown>;
-  const receipt = rawReceipt as unknown as Record<string, unknown>;
-  const meta = isRecord(receipt.meta) ? receipt.meta : null;
-
-  if (!meta) {
-    throw new Error(
-      'Submitted payout receipt metadata is unavailable before broadcast confirmation.',
-    );
-  }
-
-  if (receipt.reverted !== false) {
-    throw new Error(
-      'Submitted payout transaction reverted and cannot release the next reward batch.',
-    );
-  }
-
-  const observedTxId = String(
-    transaction.id ??
-      (isRecord(transaction.meta) ? transaction.meta.txID : '') ?? '',
-  ).toLowerCase();
-  const receiptTxId = String(meta.txID ?? '').toLowerCase();
-  const transactionOrigin = normalizeAddress(
-    transaction.origin ??
-      (isRecord(transaction.meta) ? transaction.meta.txOrigin : null),
-  );
-  const receiptOrigin = normalizeAddress(meta.txOrigin);
-
-  if (
-    observedTxId !== txId ||
-    receiptTxId !== txId ||
-    transactionOrigin !== expectedOperator ||
-    receiptOrigin !== expectedOperator
-  ) {
-    throw new Error(
-      'Submitted payout transaction or receipt identity does not match the immutable journal.',
-    );
-  }
-
-  const blockNumber = Number(meta.blockNumber);
-  const blockId = String(meta.blockID ?? '').toLowerCase();
-
-  if (
-    !Number.isSafeInteger(blockNumber) ||
-    blockNumber < 0 ||
-    !HEX_32_PATTERN.test(blockId)
-  ) {
-    throw new Error(
-      'Submitted payout receipt block metadata is invalid.',
-    );
-  }
-
-  const canonicalBlock =
-    await thor.blocks.getBlockCompressed(blockNumber);
-
-  if (!canonicalBlock) {
-    return false;
-  }
-
-  const canonicalId = String(canonicalBlock.id).toLowerCase();
-  const isTrunk = (
-    canonicalBlock as unknown as { isTrunk?: unknown }
-  ).isTrunk;
-
-  return (
-    canonicalId === blockId &&
-    isTrunk !== false
-  );
 }
 
 async function acquireRecoveryLock(
@@ -504,6 +451,8 @@ Promise<SubmittedPayoutRecoveryResult> {
           await observeCanonicalSuccessfulReceipt({
             txId,
             expectedOperator: configuredDistributor,
+            manifest,
+            manifestCreatedAt: String(manifestRow.created_at ?? ''),
           });
 
         if (canonicalSuccessfulReceipt) {
