@@ -90,23 +90,59 @@ async function installPromotionRoutes(page: Page) {
   return state;
 }
 
-async function gotoHarness(
+async function openHarness(
   page: Page,
-  locale: SupportedLocale,
   width: number,
   height: number,
 ) {
   await page.setViewportSize({ width, height });
   await page.goto(
-    '/qa/x-promotion?locale=' + locale,
+    '/qa/x-promotion?locale=en',
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
+
+  await expect(
+    page.locator('[data-qa-x-promotion-receipt]'),
+  ).toBeVisible({ timeout: 30_000 });
 
   await page.evaluate(async () => {
     await Promise.race([
       document.fonts.ready,
       new Promise((resolve) => setTimeout(resolve, 1500)),
     ]);
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve()),
+      ),
+    );
+  });
+}
+
+async function selectHarnessLocale(
+  page: Page,
+  locale: SupportedLocale,
+) {
+  const picker = page.locator(
+    '[data-qa-x-promotion-locale]',
+  );
+  await picker.selectOption(locale, { force: true });
+  await expect(picker).toHaveValue(locale);
+
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve()),
+      ),
+    );
+  });
+}
+
+async function remountPromotion(page: Page) {
+  await page
+    .locator('[data-qa-x-promotion-remount]')
+    .click({ force: true });
+
+  await page.evaluate(async () => {
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() =>
         requestAnimationFrame(() => resolve()),
@@ -294,14 +330,16 @@ async function measureStandalone(
   });
 }
 
-// Exhaustive language coverage uses the narrowest supported phone width. If a
-// translation is going to overflow, collide with the B3TR amount, or break
-// bidi isolation, 320px is the strongest signal and keeps CI bounded.
-for (const locale of SUPPORTED_LOCALES) {
-  test('X promotion 320px locale layout / ' + locale, async ({ page }) => {
-    await installPromotionRoutes(page);
-    await gotoHarness(page, locale, 320, 568);
+// Exhaustive language coverage still checks every supported locale at the
+// narrowest phone width. The QA page is opened once and switches locale
+// client-side, avoiding ~29 cold navigations inside the 12-minute CI budget.
+test('X promotion 320px layout across all locales', async ({ page }) => {
+  test.setTimeout(180_000);
+  await installPromotionRoutes(page);
+  await openHarness(page, 320, 568);
 
+  for (const locale of SUPPORTED_LOCALES) {
+    await selectHarnessLocale(page, locale);
     const report = await measurePromotionPanel(page);
 
     expect(report.direction).toBe(
@@ -315,24 +353,29 @@ for (const locale of SUPPORTED_LOCALES) {
       JSON.stringify({ locale, report }),
     ).toEqual([]);
 
-    // At <=430px the URL field and translated verify action deliberately
-    // stack instead of competing for one row.
     expect(report.inputBottom).not.toBeNull();
     expect(report.buttonTop).not.toBeNull();
-    expect((report.buttonTop ?? 0) >= (report.inputBottom ?? 0) - 1).toBe(true);
-  });
-}
+    expect(
+      (report.buttonTop ?? 0) >=
+        (report.inputBottom ?? 0) - 1,
+    ).toBe(true);
+  }
+});
 
-// High-risk scripts get deeper state coverage without multiplying every state
-// across all 29 languages. This keeps CI under its 12-minute browser budget
-// while still exercising RTL, long words, complex scripts and the desktop
-// two-column submit layout.
-for (const locale of HIGH_RISK_LOCALES) {
-  test('X promotion high-risk states / ' + locale, async ({ page }) => {
-    const api = await installPromotionRoutes(page);
+// RTL, long-Latin and complex-script locales get deeper state coverage, but
+// still reuse the same mounted QA page. Static contracts cover all 29
+// localized error strings while these representative browser cases verify
+// real wrapping, bidi isolation and state-specific surfaces.
+test('X promotion high-risk state matrix', async ({ page }) => {
+  test.setTimeout(180_000);
+  const api = await installPromotionRoutes(page);
+  await openHarness(page, 1280, 900);
 
+  for (const locale of HIGH_RISK_LOCALES) {
     api.promotion = { status: 200, body: OPEN_PROMOTION };
-    await gotoHarness(page, locale, 1280, 900);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await selectHarnessLocale(page, locale);
+
     const desktop = await measurePromotionPanel(page);
     expect(desktop.direction).toBe(
       isRtlLocale(locale) ? 'rtl' : 'ltr',
@@ -345,6 +388,8 @@ for (const locale of HIGH_RISK_LOCALES) {
       JSON.stringify({ locale, state: 'desktop-open', desktop }),
     ).toEqual([]);
 
+    await page.setViewportSize({ width: 320, height: 568 });
+
     api.promotion = {
       status: 200,
       body: {
@@ -353,7 +398,7 @@ for (const locale of HIGH_RISK_LOCALES) {
         promotion: null,
       },
     };
-    await gotoHarness(page, locale, 320, 568);
+    await remountPromotion(page);
     const generic = await measureStandalone(page, '.genericShare');
     expect(generic.direction).toBe(
       isRtlLocale(locale) ? 'rtl' : 'ltr',
@@ -367,7 +412,7 @@ for (const locale of HIGH_RISK_LOCALES) {
       status: 503,
       body: { error: 'QA unavailable' },
     };
-    await gotoHarness(page, locale, 320, 568);
+    await remountPromotion(page);
     const retry = await measureStandalone(page, '.promotionStatus');
     expect(retry.direction).toBe(
       isRtlLocale(locale) ? 'rtl' : 'ltr',
@@ -385,8 +430,11 @@ for (const locale of HIGH_RISK_LOCALES) {
         promotion: null,
       },
     };
-    await gotoHarness(page, locale, 320, 568);
-    const preparing = await measureStandalone(page, '.promotionPreparing');
+    await remountPromotion(page);
+    const preparing = await measureStandalone(
+      page,
+      '.promotionPreparing',
+    );
     expect(preparing.direction).toBe(
       isRtlLocale(locale) ? 'rtl' : 'ltr',
     );
@@ -402,11 +450,14 @@ for (const locale of HIGH_RISK_LOCALES) {
         error: 'This English internal error must never render.',
       },
     };
-    await gotoHarness(page, locale, 320, 568);
+    await remountPromotion(page);
+    await measurePromotionPanel(page);
 
     const input = page.locator('.promotionSubmit input');
     const button = page.locator('.promotionSubmit button');
-    await input.fill('https://x.com/test/status/1234567890123456789');
+    await input.fill(
+      'https://x.com/test/status/1234567890123456789',
+    );
     await button.click();
 
     const error = page.locator('.promotionError');
@@ -446,5 +497,6 @@ for (const locale of HIGH_RISK_LOCALES) {
       outside: false,
       viewportOverflow: 0,
     });
-  });
-}
+  }
+});
+
