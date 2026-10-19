@@ -15,7 +15,9 @@ const OPEN_PROMOTION = {
     amountWei: '10000000000000000000',
     amountB3tr: '10',
     openedAt: '2026-10-17T00:00:00.000Z',
-    postDeadlineAt: '2026-10-18T00:00:00.000Z',
+    // Keep the QA offer open regardless of the calendar date so the
+    // production deadline-boundary refresh timer cannot make layout tests flaky.
+    postDeadlineAt: '2099-01-01T00:00:00.000Z',
     submissionGraceSeconds: 900,
     shareToken: '123e4567-e89b-42d3-a456-426614174000',
     submittedAt: null,
