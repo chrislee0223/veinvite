@@ -33,6 +33,7 @@ const EN: RewardXPromotionCopy = {
   releasedBody: 'This promotion amount was released back to the reward pool.',
   preparingBody: 'Your X promotion opportunity is being prepared. Check this reward receipt again shortly.',
   postUrlPlaceholder: 'https://x.com/.../status/...',
+  shareFollowupBody: 'After posting on X, return to VeInvite. Open your reward in Notifications and paste the public post URL to verify your bonus.',
   verify: 'Verify Post',
   verifying: 'Checking…',
   retry: 'Try again',
