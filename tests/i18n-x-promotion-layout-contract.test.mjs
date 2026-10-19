@@ -10,6 +10,7 @@ const panel = readFileSync('src/components/RewardXPromotionPanel.tsx', 'utf8');
 const receipt = readFileSync('src/components/RewardReceiptView.tsx', 'utf8');
 const qa = readFileSync('src/qa/QaNotificationStateHarness.tsx', 'utf8');
 const preview = readFileSync('src/components/NotificationUiPreview.tsx', 'utf8');
+const qaPage = readFileSync('src/app/qa/notification-state/page.tsx', 'utf8');
 
 const supportedLocales = [...localesSource.matchAll(/\{ locale: '([^']+)'/g)]
   .map((match) => match[1]);
@@ -100,5 +101,9 @@ test('receipt and QA harness protect long localized X promotion surfaces', () =>
   assert.match(
     preview,
     /NOTI-X-PROMOTION-PANEL/,
+  );
+  assert.match(
+    qaPage,
+    /'NOTI-X-PROMOTION-PANEL'/,
   );
 });
