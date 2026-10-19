@@ -44,10 +44,10 @@ test('retroactive action requires same inviter, restricted sibling, wallet switc
     'sybil_v2_wallet_restrictions',
     "eq('status', 'ACTIVE')",
     'peer.inviter_wallet.toLowerCase() !== inviter.toLowerCase()',
-    'r.wallet_address.toLowerCase()',
+    'item.wallet_address.toLowerCase()',
     'peer.invitee_wallet.toLowerCase()',
   ]) assert.ok(route.includes(item), item);
-  assert.match(route, /r\.wallet_address\.toLowerCase\(\) ===\s*peer\.invitee_wallet\.toLowerCase\(\)/u);
+  assert.match(route, /item\.wallet_address\.toLowerCase\(\) ===\s*peer\.invitee_wallet\.toLowerCase\(\)/u);
 });
 
 test('old rewards are preserved and the existing historical invalidation mints recovery debt', async () => {
