@@ -818,6 +818,7 @@ export default function SybilReviewPage() {
           <div className="headerActions">
             <Link href="/admin/participants">참가자 / Participants</Link>
             <Link href="/admin/rewards">보상 / Rewards</Link>
+            <Link href="/admin/sybil-historical">과거 지급 재검토</Link>
             <WalletControl />
           </div>
         </header>
