@@ -400,12 +400,18 @@ export function RewardXPromotionPanel({
         <button
           type="button"
           className="promotionShare"
-          onClick={() =>
+          onClick={() => {
+            // Backgrounded tabs can delay expiry timers. Recheck against
+            // the immutable server-issued deadline on the actual click.
+            if (Date.now() >= Date.parse(promotion.postDeadlineAt)) {
+              void load();
+              return;
+            }
             openIntent(
               promotionShareIntent,
               onRewardShare,
-            )
-          }
+            );
+          }}
         >
           {rewardReceiptShareLabel(locale)} · +{promotion.amountB3tr} B3TR
         </button>
