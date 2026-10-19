@@ -14,10 +14,12 @@ import {
   staleSybilHoldCodes,
   staleSybilScanFailureCodes,
   xPromotionGateCodes,
+  xPromotionPipelineCodes,
   type JobHeartbeat,
   type SybilHoldLiveness,
   type SybilScanFailureLiveness,
   type XPromotionLiveness,
+  type XPromotionPipelineLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -164,6 +166,61 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
   };
 }
 
+async function readXPromotionPipelineLiveness():
+Promise<XPromotionPipelineLiveness> {
+  // Use indexed filters and LIMIT 1 to avoid full-table scans or returning
+  // wallet/Post identifiers to operator logs. Only active HELD obligations
+  // qualify; historical RELEASED or PAID rows cannot cause false alerts.
+  const { network } = getVeBetterNetworkConfig();
+  const now = Date.now();
+  const before = (hours: number) =>
+    new Date(now - hours * 60 * 60 * 1000).toISOString();
+
+  const [pending, final, payout] = await Promise.all([
+    supabaseAdmin
+      .from('reward_x_promotion_post_submissions')
+      .select('id,reward_x_promotion_obligations!inner(financial_state)')
+      .eq('network', network)
+      .eq('submission_state', 'PENDING')
+      .eq('reward_x_promotion_obligations.financial_state', 'HELD')
+      .lt('submitted_at', before(2))
+      .limit(1)
+      .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS)),
+    supabaseAdmin
+      .from('reward_x_promotion_post_verifications')
+      .select('id,reward_x_promotion_obligations!inner(financial_state)')
+      .eq('network', network)
+      .in('verification_state', ['INITIAL_VERIFIED', 'REVIEW_REQUIRED'])
+      .eq('reward_x_promotion_obligations.financial_state', 'HELD')
+      .lt('verify_after', before(2))
+      .limit(1)
+      .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS)),
+    supabaseAdmin
+      .from('reward_x_promotion_post_verifications')
+      .select('id,reward_x_promotion_obligations!inner(financial_state)')
+      .eq('network', network)
+      .eq('verification_state', 'FINAL_VERIFIED')
+      .is('invalidated_at', null)
+      .eq('reward_x_promotion_obligations.financial_state', 'HELD')
+      .lt('final_verified_at', before(3))
+      .limit(1)
+      .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS)),
+  ]);
+
+  if (pending.error || final.error || payout.error ||
+      !Array.isArray(pending.data) ||
+      !Array.isArray(final.data) ||
+      !Array.isArray(payout.data)) {
+    throw new Error('X promotion pipeline liveness could not be read.');
+  }
+
+  return {
+    pendingPostStalled: pending.data.length > 0,
+    finalCheckStalled: final.data.length > 0,
+    payoutStalled: payout.data.length > 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'CRON_SECRET_UNCONFIGURED' }, { status: 503, headers: HEADERS });
@@ -183,11 +240,12 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const [delayedRewards, sybilHolds, sybilScanFailures, xPromotion] = await Promise.all([
+    const [delayedRewards, sybilHolds, sybilScanFailures, xPromotion, xPromotionPipeline] = await Promise.all([
       readRewardReservationDelay(),
       readSybilHoldLiveness(),
       readSybilScanFailureLiveness(),
       readXPromotionLiveness(),
+      readXPromotionPipelineLiveness(),
     ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
@@ -195,6 +253,7 @@ export async function GET(request: NextRequest) {
       ...staleSybilHoldCodes(sybilHolds),
       ...staleSybilScanFailureCodes(sybilScanFailures),
       ...xPromotionGateCodes(xPromotion),
+      ...xPromotionPipelineCodes(xPromotionPipeline, xPromotion),
     ]);
     const changes = alarmChanges(previous, current);
     // Operator-only warnings (a one-hour HOLD or a safely closed X gate)
@@ -230,6 +289,7 @@ export async function GET(request: NextRequest) {
         sybilHolds,
         sybilScanFailures,
         xPromotion,
+        xPromotionPipeline,
       });
     }
     if (changes.resolved.length) {
@@ -247,6 +307,7 @@ export async function GET(request: NextRequest) {
       sybilHolds,
       sybilScanFailures,
       xPromotion,
+      xPromotionPipeline,
       // Warning-only HOLD/X-gate states stay HTTP 200; critical reliability
       // faults still return 503.
       newAlerts: changes.newlyActive.length,

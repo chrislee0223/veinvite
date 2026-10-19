@@ -165,6 +165,41 @@ export function RewardXPromotionPanel({
     return () => window.clearInterval(timer);
   }, [load, poll]);
 
+  // An open receipt may stay mounted past the 24-hour post deadline.
+  // Refresh at each state boundary rather than polling every 30 seconds for
+  // a full day or showing an already-expired share button indefinitely.
+  useEffect(() => {
+    if (
+      !promotion ||
+      !['OPEN', 'SUBMISSION_GRACE'].includes(promotion.state)
+    ) {
+      return;
+    }
+
+    const postDeadline = Date.parse(promotion.postDeadlineAt);
+    if (!Number.isFinite(postDeadline)) return;
+
+    const transitionAt =
+      promotion.state === 'OPEN'
+        ? postDeadline
+        : postDeadline + promotion.submissionGraceSeconds * 1000;
+    const delayMs = Math.max(
+      1_000,
+      Math.min(transitionAt - Date.now() + 1_000, 86_401_000),
+    );
+    const timer = window.setTimeout(
+      () => void load(),
+      delayMs,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [
+    load,
+    promotion?.state,
+    promotion?.postDeadlineAt,
+    promotion?.submissionGraceSeconds,
+  ]);
+
   const genericShareIntent = useMemo(() => {
     if (
       loading ||
@@ -365,12 +400,18 @@ export function RewardXPromotionPanel({
         <button
           type="button"
           className="promotionShare"
-          onClick={() =>
+          onClick={() => {
+            // Backgrounded tabs can delay expiry timers. Recheck against
+            // the immutable server-issued deadline on the actual click.
+            if (Date.now() >= Date.parse(promotion.postDeadlineAt)) {
+              void load();
+              return;
+            }
             openIntent(
               promotionShareIntent,
               onRewardShare,
-            )
-          }
+            );
+          }}
         >
           {rewardReceiptShareLabel(locale)} · +{promotion.amountB3tr} B3TR
         </button>

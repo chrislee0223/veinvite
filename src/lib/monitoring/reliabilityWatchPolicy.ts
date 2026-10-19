@@ -82,6 +82,36 @@ export type XPromotionLiveness = {
   runtimeReady: boolean;
 };
 
+// Read-only X bonus backlog flags. Keep raw wallet/post identifiers out of
+// the watchdog alarm fingerprint and do not affect core payout decisions.
+export type XPromotionPipelineLiveness = {
+  pendingPostStalled: boolean;
+  finalCheckStalled: boolean;
+  payoutStalled: boolean;
+};
+
+export function xPromotionPipelineCodes(
+  state: XPromotionPipelineLiveness,
+  gate: XPromotionLiveness,
+): string[] {
+  const values = [
+    state.pendingPostStalled,
+    state.finalCheckStalled,
+    state.payoutStalled,
+  ];
+  if (values.some((value) => typeof value !== 'boolean')) {
+    throw new Error('Invalid X promotion pipeline liveness state.');
+  }
+  if (!gate.liveEnabled || !gate.payoutEnabled) return [];
+
+  const codes: string[] = [];
+  if (state.pendingPostStalled) codes.push('X_PROMOTION_POST_VERIFICATION_STALLED');
+  if (state.finalCheckStalled) codes.push('X_PROMOTION_FINAL_CHECK_STALLED');
+  if (state.payoutStalled) codes.push('X_PROMOTION_PAYOUT_STALLED');
+  return codes;
+}
+
+
 // Review delays are actionable even when a wallet has completed all core
 // checks: an operator still has to decide CLEAR/BLOCKED. Do not use any HOLD
 // liveness signal to change wallet/reward authority automatically.
@@ -138,6 +168,9 @@ export function isReliabilityDegraded(codes: readonly string[]): boolean {
     'SYBIL_EARLY_HOLD_STALLED:1H',
     'SYBIL_SCAN_FAILED:1H',
     'X_PROMOTION_GATE_OFF_WHILE_RUNTIME_READY',
+    'X_PROMOTION_POST_VERIFICATION_STALLED',
+    'X_PROMOTION_FINAL_CHECK_STALLED',
+    'X_PROMOTION_PAYOUT_STALLED',
   ]);
   return codes.some((code) => !warnings.has(code));
 }
