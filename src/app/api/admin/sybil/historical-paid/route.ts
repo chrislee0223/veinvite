@@ -38,7 +38,7 @@ async function corroboratedRestrictedPeer(
 ) {
   const { data: evidence, error: evidenceError } = await supabaseAdmin
     .from('sybil_v2_evidence_records')
-    .select('invite_code,signal_code')
+    .select('invite_code,signal_code,strength,evidence_family')
     .eq('network', network)
     .eq('related_wallet', invitee.toLowerCase())
     .in('signal_code', [
@@ -46,12 +46,24 @@ async function corroboratedRestrictedPeer(
       'FIRST_VTHO_FUNDER',
       'RECENT_PREACTIVATION_VTHO_FUNDER',
     ])
-    .limit(100);
+    .limit(101);
   if (evidenceError) throw new Error('Sybil evidence lookup failed.');
+  if ((evidence ?? []).length > 100) {
+    throw new Error('Sybil evidence lookup exceeded the safe limit.');
+  }
 
   const signalsByCode = new Map<string, Set<string>>();
   for (const row of evidence ?? []) {
     if (row.invite_code === currentCode) continue;
+    const isStrongSwitch =
+      row.signal_code === 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH' &&
+      row.strength === 'HIGH' &&
+      row.evidence_family === 'SECURITY_IDENTITY';
+    const isOnchainFunder =
+      (row.signal_code === 'FIRST_VTHO_FUNDER' ||
+       row.signal_code === 'RECENT_PREACTIVATION_VTHO_FUNDER') &&
+      row.evidence_family === 'FUNDING';
+    if (!isStrongSwitch && !isOnchainFunder) continue;
     const signals = signalsByCode.get(row.invite_code) ?? new Set<string>();
     signals.add(row.signal_code);
     signalsByCode.set(row.invite_code, signals);
