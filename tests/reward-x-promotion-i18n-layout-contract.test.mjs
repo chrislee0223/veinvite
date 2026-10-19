@@ -17,6 +17,9 @@ import {
   REWARD_X_PROMOTION_SUBMIT_ERROR_COPY,
   rewardXPromotionSubmitError,
 } from '../src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts';
+import {
+  REWARD_RECEIPT_COPY,
+} from '../src/lib/i18n/rewardReceiptCopy.ts';
 
 const xCopySource = readFileSync(
   'src/lib/i18n/rewardXPromotionCopy.ts',
@@ -205,4 +208,45 @@ test('multilingual hardening preserves current X promotion lifecycle stability g
     receiptSource,
     /key=\{\`x-promotion-receipt:\$\{receipt\.id\}\`\}/,
   );
+});
+
+test('reward receipt copy is complete for all 29 supported locales', () => {
+  assert.equal(SUPPORTED_LOCALES.length, 29);
+
+  for (const locale of SUPPORTED_LOCALES) {
+    const copy = REWARD_RECEIPT_COPY[locale];
+    assert.ok(copy, 'missing reward receipt copy: ' + locale);
+
+    for (const key of [
+      'eyebrow',
+      'title',
+      'description',
+      'round',
+      'invite',
+      'transaction',
+      'viewTransaction',
+      'acknowledge',
+      'acknowledging',
+      'error',
+    ]) {
+      const value = copy[key];
+      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
+      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
+    }
+  }
+});
+
+test('reward receipt isolates bidi-sensitive values and wraps long localized labels', () => {
+  for (const expected of [
+    'lang={locale}',
+    'dir={direction}',
+    'notificationReceiptAmount\" dir=\"ltr\"',
+    '<dd dir=\"ltr\">#{receipt.veBetterRoundId}</dd>',
+    '<dd dir=\"ltr\">{receipt.inviteCode}</dd>',
+    'overflow-wrap:anywhere',
+    'unicode-bidi:isolate',
+    'key={`x-promotion-receipt:${receipt.id}`}',
+  ]) {
+    assert.ok(receiptSource.includes(expected), 'missing receipt i18n guard: ' + expected);
+  }
 });
