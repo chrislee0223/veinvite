@@ -9,6 +9,7 @@ import {
 import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
+import { RewardReceiptView } from '@/components/RewardReceiptView';
 import { TransientSnackbar } from '@/components/TransientSnackbar';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -31,6 +32,7 @@ export type QaNotificationStateId =
   | 'NOTI-HISTORY-OPEN'
   | 'NOTI-HISTORY-LOADING'
   | 'NOTI-HISTORY-ERROR'
+  | 'NOTI-HISTORY-INLINE-ERROR'
   | 'NOTI-HISTORY-READ'
   | 'NOTI-HISTORY-UNREAD'
   | 'NOTI-HISTORY-MORE'
@@ -42,6 +44,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-X-PROMOTION-PANEL'
   | 'NOTI-X-PROMOTION-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
@@ -203,6 +206,14 @@ function fixtureForState(
         open: true,
         errorMessage: 'QA notification history request failed.',
       };
+    case 'NOTI-HISTORY-INLINE-ERROR':
+      return {
+        mode: 'history',
+        items: mixedHistory(),
+        unreadCount: 2,
+        open: true,
+        errorMessage: 'QA inline notification history request failed.',
+      };
     case 'NOTI-HISTORY-READ':
       return {
         mode: 'history',
@@ -305,6 +316,16 @@ function fixtureForState(
         ],
         unreadCount: 1,
         open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        rewardShareUrl:
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
+    case 'NOTI-X-PROMOTION-PANEL':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
         previewRewardReceipt: QA_REWARD_RECEIPT,
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
@@ -537,6 +558,7 @@ export function QaNotificationStateHarness({
     () => fixtureForState(stateId),
     [stateId],
   );
+  const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(
     seed.open,
   );
@@ -555,6 +577,9 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -564,6 +589,36 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (!hydrated) {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <div data-qa-notification-ready="false" />
+      </QaNotificationStage>
+    );
+  }
+
+  if (stateId === 'NOTI-X-PROMOTION-PANEL') {
+    return (
+      <QaNotificationStage>
+        <div
+          data-qa-notification-ready="true"
+          style={{
+            width: 'min(400px, 100%)',
+            minWidth: 0,
+          }}
+        >
+          <RewardReceiptView
+            locale={locale}
+            receipt={QA_REWARD_RECEIPT}
+            loading={false}
+            error=""
+            rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
+          />
+        </div>
+      </QaNotificationStage>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
