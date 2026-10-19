@@ -190,3 +190,14 @@ test('an open receipt refreshes when the X offer deadline or submission grace en
   // Prevent a 24-hour interval poll from introducing unnecessary database load.
   assert.doesNotMatch(panel, /\['OPEN', 'SUBMISSION_GRACE'\]\.includes\(promotion\?\.state/);
 });
+
+test('reward popup fails closed after expiry even if its share action was already cached', () => {
+  assert.match(popupHook, /postDeadlineAt\?: string/);
+  assert.match(popupHook, /Date\.now\(\) < Date\.parse\(promotion\.postDeadlineAt\)/);
+  assert.match(popupHook, /shareDeadlineMs !== null && Date\.now\(\) >= shareDeadlineMs/);
+  assert.match(popupHook, /shareExpiryTimerRef/);
+  assert.match(popupHook, /clearTimeout\(shareExpiryTimerRef\.current\)/);
+  assert.match(popupHook, /setTimeout\(\(\) => \{/);
+  assert.match(popupHook, /onShare: undefined/);
+  assert.match(popupHook, /visible\?\.kind === 'reward' && visible\.id === feedbackId/);
+});
