@@ -30,6 +30,14 @@ const receiptView = readFileSync(
   'src/components/RewardReceiptView.tsx',
   'utf8',
 );
+const notificationCopy = readFileSync(
+  'src/lib/i18n/notificationCopy.ts',
+  'utf8',
+);
+const notificationExpandedCopy = readFileSync(
+  'src/lib/i18n/notificationExpandedCopy.ts',
+  'utf8',
+);
 
 test('X promotion copy has no English spread fallback', () => {
   assert.doesNotMatch(coreCopy, /\.\.\.EN\b/);
@@ -250,6 +258,67 @@ test('reward receipt layout isolates identifiers and wraps long localized labels
     assert.ok(
       receiptView.includes(expected),
       'missing reward receipt layout guard: ' + expected,
+    );
+  }
+});
+
+
+test('core notification copy covers every supported locale without runtime gaps', () => {
+  assert.match(
+    notificationCopy,
+    /Record<SupportedLocale, NotificationCopy>/,
+  );
+  assert.match(
+    notificationCopy,
+    /\.\.\.NOTIFICATION_EXPANDED_COPY/,
+  );
+
+  for (const locale of [
+    'ar','bn','pt','ru','id','vi','zh-tw','sv','ro','ur','pcm','arz',
+    'mr','te','sw','ha','el','cs',
+  ]) {
+    assert.match(
+      notificationExpandedCopy,
+      new RegExp(
+        "(?:^|\\n)\\s*(?:'" +
+          locale.replace('-', '\\-') +
+          "'|" +
+          locale.replace('-', '\\-') +
+          "):\\s*\\{",
+        'm',
+      ),
+      'missing expanded notification locale: ' + locale,
+    );
+  }
+
+  for (const key of [
+    'bellAria',
+    'closeAria',
+    'confirm',
+    'acceptedTitle',
+    'acceptedBody',
+    'dappTitle',
+    'dappBody',
+    'vot3Title',
+    'vot3Body',
+    'vot3Hint',
+    'progressTitle',
+    'progressVot3Body',
+    'allMissionsTitle',
+    'allMissionsBody',
+    'allMissionsHint',
+    'rewardTitle',
+    'rewardBody',
+    'acknowledgementError',
+  ]) {
+    const expandedMatches =
+      notificationExpandedCopy.match(
+        new RegExp('\\b' + key + ':', 'g'),
+      ) ?? [];
+    assert.equal(
+      expandedMatches.length,
+      18,
+      key + ' must exist for all expanded notification locales',
     );
   }
 });
