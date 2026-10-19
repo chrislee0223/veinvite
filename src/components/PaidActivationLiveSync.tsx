@@ -11,7 +11,7 @@ import {
   subscribeRewardClaimUpdated,
 } from '@/lib/rewards/rewardClaimClient';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
-import { storeRewardPaidToast } from '@/lib/notifications/rewardPaidToast';
+import { clearRewardPaidToast, storeRewardPaidToast } from '@/lib/notifications/rewardPaidToast';
 
 const PAID_ACTIVATION_UPDATED_EVENT = 'veinvite-paid-activation-updated';
 const CLAIM_POLL_INTERVAL_MS = 2_000;
@@ -33,11 +33,13 @@ function hasBlockingDialogOpen(): boolean {
 
 type ReceiptResponse = {
   receipts?: RewardReceipt[];
+  latestUnseen?: RewardReceipt | null;
 };
 
 type ReceiptSnapshot = {
   latestReceiptId: string | null;
   receipts: RewardReceipt[];
+  latestUnseen: RewardReceipt | null;
 };
 
 async function readReceiptSnapshot(): Promise<ReceiptSnapshot | null> {
@@ -56,6 +58,7 @@ async function readReceiptSnapshot(): Promise<ReceiptSnapshot | null> {
     return {
       latestReceiptId: receipts[0]?.id ?? null,
       receipts,
+      latestUnseen: body.latestUnseen ?? null,
     };
   } catch {
     // Receipt polling is UI reconciliation only. A transient browser/network
@@ -165,9 +168,18 @@ export function PaidActivationLiveSync() {
     const snapshot = await readLatest();
     if (!snapshot) return false;
 
+    // Drop stale transient queue entries only when the wallet-authorized
+    // server says the receipt was already acknowledged (including elsewhere).
+    for (const receipt of snapshot.receipts) {
+      if (receipt.seen) {
+        clearRewardPaidToast(receipt.recipientWallet, receipt.id);
+      }
+    }
+
     const targetInviteCodes = targetInviteCodesRef.current;
     if (targetInviteCodes.size > 0) {
       const targetReceipts = snapshot.receipts.filter((receipt) =>
+        !receipt.seen &&
         typeof receipt.inviteCode === 'string' &&
         targetInviteCodes.has(receipt.inviteCode.trim().toUpperCase()),
       );
@@ -191,6 +203,24 @@ export function PaidActivationLiveSync() {
     if (!initializedRef.current) {
       latestReceiptIdRef.current = snapshot.latestReceiptId;
       initializedRef.current = true;
+
+      // A new browser session has no sessionStorage toast queue. Restore
+      // server-authoritative unseen PAID receipts, without reloading or
+      // altering payout state. Oldest-first prevents simultaneous payouts
+      // from collapsing into a single first-confirmation popup.
+      const recentUnseen = snapshot.receipts
+        .filter((receipt) => !receipt.seen)
+        .slice(0, 20);
+      for (const receipt of [...recentUnseen].reverse()) {
+        storeRewardPaidToast(receipt);
+      }
+      if (
+        snapshot.latestUnseen &&
+        !snapshot.latestUnseen.seen &&
+        !recentUnseen.some((receipt) => receipt.id === snapshot.latestUnseen?.id)
+      ) {
+        storeRewardPaidToast(snapshot.latestUnseen);
+      }
       return false;
     }
 
@@ -208,7 +238,7 @@ export function PaidActivationLiveSync() {
       newReceipts.push(receipt);
     }
     for (const receipt of newReceipts.reverse()) {
-      storeRewardPaidToast(receipt);
+      if (!receipt.seen) storeRewardPaidToast(receipt);
     }
     return requestPaidReload(snapshot.latestReceiptId);
   }, [readLatest, requestPaidReload]);
