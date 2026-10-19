@@ -1,6 +1,7 @@
-import type { Locale } from './locales';
+import type { SupportedLocale } from './locales';
+import { NOTIFICATION_EXPANDED_COPY } from './notificationExpandedCopy';
 
-type NotificationCopy = {
+export type NotificationCopy = {
   bellAria: string;
   closeAria: string;
   confirm: string;
@@ -21,7 +22,7 @@ type NotificationCopy = {
   acknowledgementError: string;
 };
 
-export const NOTIFICATION_COPY: Record<Locale, NotificationCopy> = {
+export const NOTIFICATION_COPY: Record<SupportedLocale, NotificationCopy> = {
   en: {
     bellAria: 'Open notifications',
     closeAria: 'Close notification',
@@ -242,4 +243,5 @@ export const NOTIFICATION_COPY: Record<Locale, NotificationCopy> = {
     rewardBody: 'Votre récompense B3TR a été versée sur votre wallet.',
     acknowledgementError: 'Impossible de marquer la notification comme lue. Veuillez réessayer.',
   },
+  ...NOTIFICATION_EXPANDED_COPY,
 };
