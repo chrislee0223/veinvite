@@ -179,3 +179,14 @@ test('X promotion copy explicitly covers every locale registered by VeInvite', (
     );
   }
 });
+
+
+test('an open receipt refreshes when the X offer deadline or submission grace ends', () => {
+  assert.match(panel, /promotion\.state === 'OPEN'[\s\S]*?transitionAt/);
+  assert.match(panel, /promotion\.submissionGraceSeconds \* 1000/);
+  assert.match(panel, /window\.setTimeout\([\s\S]*?\(\) => void load\(\)/);
+  assert.match(panel, /window\.clearTimeout\(timer\)/);
+  assert.match(panel, /transitionAt - Date\.now\(\) \+ 1_000/);
+  // Prevent a 24-hour interval poll from introducing unnecessary database load.
+  assert.doesNotMatch(panel, /\['OPEN', 'SUBMISSION_GRACE'\]\.includes\(promotion\?\.state/);
+});
