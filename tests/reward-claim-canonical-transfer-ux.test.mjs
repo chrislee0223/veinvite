@@ -17,11 +17,11 @@ const [home, label, actionRoute, recovery, verifier, legacy, monitoring] =
   ]);
 
 test('Home shows transfer confirmation separately from final PAID receipt', () => {
-  assert.match(home, /RewardTransferConfirmationLabel/u);
+  assert.match(home, /TransferStatus/u);
   assert.match(home, /inviteCode=\{invite\.code\}/u);
   assert.match(label, /✓ B3TR/u);
-  assert.match(label, /finalCheckText/u);
-  assert.match(label, /queuedText/u);
+  assert.match(label, /copy\.finalCheck/u);
+  assert.match(label, /copy\.claimQueued/u);
   assert.match(label, /broadcastConfirmedAt/u);
   assert.match(label, /TX_ID_PATTERN\.test\(action\.txId\)/u);
   assert.match(actionRoute, /broadcastConfirmedAt &&[\s\S]*submission\?\.tx_id/u);
