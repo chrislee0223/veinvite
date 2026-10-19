@@ -18,6 +18,7 @@ import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   clearRewardPaidToast,
   readRewardPaidToast,
+  REWARD_PAID_TOAST_UPDATED_EVENT,
   type RewardPaidToastPayload,
 } from '@/lib/notifications/rewardPaidToast';
 import type { ReferralLinkRecord } from '@/lib/referralLinks';
@@ -74,6 +75,22 @@ export function useRewardPaidTransientFeedback({
       wallet ? readRewardPaidToast(wallet) : null,
     );
   }, [setFeedback, wallet]);
+
+  // The server-authenticated receipt poller restores first-unseen rewards
+  // after a fresh app launch. Pick up its queue updates even when the Home
+  // component was mounted before the post-startup receipt check completed.
+  useEffect(() => {
+    if (!wallet) return;
+    const onQueueUpdated = () => {
+      setPendingReward(readRewardPaidToast(wallet));
+    };
+    window.addEventListener(REWARD_PAID_TOAST_UPDATED_EVENT, onQueueUpdated);
+    // Close the subscribe/read race if a receipt arrived just before mount.
+    onQueueUpdated();
+    return () => {
+      window.removeEventListener(REWARD_PAID_TOAST_UPDATED_EVENT, onQueueUpdated);
+    };
+  }, [wallet]);
 
   const acknowledgeReward = useCallback(async (
     payload: RewardPaidToastPayload,
