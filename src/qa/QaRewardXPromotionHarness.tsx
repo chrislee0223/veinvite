@@ -58,7 +58,7 @@ export function QaRewardXPromotionHarness({
           receipt={QA_X_PROMOTION_RECEIPT}
           loading={false}
           error=""
-          rewardShareUrl="https://veinvite.vercel.app/s/qa-x-promotion"
+          rewardShareUrl="https://veinvite.vercel.app/s/AbCdEfGhIjKlMnOp"
           onRewardShare={() => {}}
         />
       </section>
