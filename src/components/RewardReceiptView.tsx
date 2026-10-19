@@ -47,7 +47,7 @@ export function RewardReceiptView({
       ) : receipt ? (
         <>
           <section className="notificationReceiptHero">
-            <div className="notificationReceiptAmount">
+            <div className="notificationReceiptAmount" dir="ltr">
               <strong>{receipt.amountB3tr}</strong>
               <span>B3TR</span>
             </div>
@@ -56,11 +56,11 @@ export function RewardReceiptView({
           <dl className="notificationReceiptFacts">
             <div>
               <dt>{copy.round}</dt>
-              <dd>#{receipt.veBetterRoundId}</dd>
+              <dd dir="ltr">#{receipt.veBetterRoundId}</dd>
             </div>
             <div>
               <dt>{copy.invite}</dt>
-              <dd>{receipt.inviteCode}</dd>
+              <dd dir="ltr">{receipt.inviteCode}</dd>
             </div>
             <div>
               <dt>{copy.transaction}</dt>
@@ -75,7 +75,8 @@ export function RewardReceiptView({
               target="_blank"
               rel="noopener noreferrer"
             >
-              {copy.viewTransaction}<span aria-hidden="true">↗</span>
+              <span>{copy.viewTransaction}</span>
+              <span aria-hidden="true">↗</span>
             </a>
           ) : null}
 
@@ -105,13 +106,15 @@ export function RewardReceiptView({
         .notificationReceiptAmount{display:flex;align-items:baseline;gap:7px}
         .notificationReceiptAmount strong{color:#fff1b0;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
         .notificationReceiptAmount span{color:#d4b953;font-size:.64rem;font-weight:900;letter-spacing:.02em}
-        .notificationReceiptHero p{margin:0;color:#a8a197;font-size:.67rem;line-height:1.55}
+        .notificationReceiptHero p{min-width:0;margin:0;color:#a8a197;font-size:.67rem;line-height:1.55;overflow-wrap:break-word}
         .notificationReceiptFacts{margin:14px 0 0;overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:13px;background:rgba(255,255,255,.018)}
-        .notificationReceiptFacts div{min-height:39px;padding:9px 11px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:14px}
+        .notificationReceiptFacts div{min-width:0;min-height:39px;padding:9px 11px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:14px}
         .notificationReceiptFacts div+div{border-top:1px solid rgba(255,255,255,.05)}
-        .notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}
-        .notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}
-        .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850}
+        .notificationReceiptFacts dt{min-width:0;flex:1 1 38%;color:#777168;font-size:.56rem;font-weight:800;line-height:1.35;overflow-wrap:anywhere}
+        .notificationReceiptFacts dd{min-width:0;max-width:62%;flex:0 1 62%;margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end;unicode-bidi:isolate}
+        .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+        .notificationExplorerLink span:first-child{min-width:0;overflow-wrap:anywhere}
+        .notificationExplorerLink span:last-child{flex:0 0 auto}
                 .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important}
         .notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}
         .notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}

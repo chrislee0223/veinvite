@@ -2,7 +2,7 @@ import { ENTRY_REJECTION_COPY } from './entryRejectionCopy';
 import { HOME_COPY } from './homeCopy';
 import { INVITEE_COPY } from './inviteeCopy';
 import { NOTIFICATION_COPY } from './notificationCopy';
-import type { Locale } from './locales';
+import { getLanguageOption, type Locale } from './locales';
 
 // Keep user-facing rejection feedback useful without exposing the exact
 // reward/voting evidence or timing rules used by the eligibility engine.
@@ -231,5 +231,6 @@ for (const locale of Object.keys(REWARD_STATUS_COPY) as Locale[]) {
   const reward = REWARD_STATUS_COPY[locale];
   HOME_COPY[locale].rewardPending = reward.title;
   HOME_COPY[locale].rewardDescription = reward.description;
-  NOTIFICATION_COPY[locale].allMissionsHint = reward.missionHint;
+  const supportedLocale = getLanguageOption(locale).locale;
+  NOTIFICATION_COPY[supportedLocale].allMissionsHint = reward.missionHint;
 }

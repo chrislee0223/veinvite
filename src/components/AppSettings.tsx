@@ -677,7 +677,7 @@ export function AppSettings({
 
       <TransientSnackbar
         feedback={feedback}
-        closeLabel={NOTIFICATION_COPY[locale].closeAria}
+        closeLabel={NOTIFICATION_COPY[currentLanguage.locale].closeAria}
         onDismiss={clearFeedback}
       />
 
