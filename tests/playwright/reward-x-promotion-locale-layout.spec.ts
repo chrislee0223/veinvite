@@ -6,6 +6,8 @@ import {
 } from '../../src/lib/i18n/locales';
 import { rewardXPromotionSubmitError } from '../../src/lib/i18n/rewardXPromotionSubmitErrorCopy';
 
+test.describe.configure({ mode: 'serial' });
+
 const OPEN_PROMOTION = {
   newOffersEnabled: true,
   promotionPending: false,
