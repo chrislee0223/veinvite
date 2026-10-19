@@ -31,6 +31,10 @@ const verifier = await readFile(
   new URL('../src/lib/rewards/transactionVerificationLegacy.ts', import.meta.url),
   'utf8',
 );
+const versionedVerifier = await readFile(
+  new URL('../src/lib/rewards/transactionVerification.ts', import.meta.url),
+  'utf8',
+);
 
 test('broadcast confirmation is separate from PAID settlement', () => {
   assert.match(
@@ -64,40 +68,48 @@ test('broadcast confirmation is separate from PAID settlement', () => {
   );
 });
 
-test('only a canonical successful receipt can release the next-batch gate', () => {
+test('canonical broadcast requires the same immutable B3TR event proof as final PAID settlement', () => {
   assert.match(
     recovery,
-    /error\.code === 'TX_NOT_FINALIZED'[\s\S]{0,900}observeCanonicalSuccessfulReceipt\([\s\S]{0,350}markBroadcastConfirmed\(manifestId, txId\)/,
+    /observeCanonicalSuccessfulReceipt[\s\S]*verifyCanonicalRewardTransactionOnChain/,
   );
   assert.match(
     recovery,
-    /receipt\.reverted !== false[\s\S]{0,220}cannot release the next reward batch/,
+    /error\.code === 'TX_NOT_FINALIZED'[\s\S]{0,900}observeCanonicalSuccessfulReceipt\([\s\S]{0,500}markBroadcastConfirmed\(manifestId, txId\)/,
   );
   assert.match(
     recovery,
-    /canonicalId === blockId[\s\S]{0,100}isTrunk !== false/,
+    /expectedOperator: configuredDistributor,[\s\S]*manifest,[\s\S]*manifestCreatedAt/,
   );
   assert.match(
-    recovery,
-    /transactionOrigin !== expectedOperator[\s\S]{0,120}receiptOrigin !== expectedOperator/,
+    versionedVerifier,
+    /verifyCanonicalRewardTransactionOnChain[\s\S]*loadCanonicalRewardTransactionEvidence[\s\S]*requireFinality: false/,
   );
   assert.match(
-    recovery,
-    /error\.code === 'TX_NOT_FOUND'[\s\S]{0,180}error\.code === 'TX_RECEIPT_NOT_FOUND'/,
+    versionedVerifier,
+    /sanitizeStructuredProofsForLegacyVerifier/,
   );
-
-  const notFoundBranch = recovery.match(
-    /error\.code === 'TX_NOT_FOUND'[\s\S]*?return \{[\s\S]*?status: 'WAITING_FINALITY'[\s\S]*?\};/,
-  )?.[0] ?? '';
-  assert.doesNotMatch(notFoundBranch, /markBroadcastConfirmed/);
-
+  assert.match(
+    verifier,
+    /requireFinality &&[\s\S]*evidence\.blockNumber >[\s\S]*evidence\.finalizedHeadNumber/,
+  );
+  assert.match(
+    verifier,
+    /requireFinality &&[\s\S]*receipt\.blockNumber >[\s\S]*finalizedHead\.number/,
+  );
+  assert.match(verifier, /actual\.data !== expected\.data\.toLowerCase\(\)/);
+  assert.match(verifier, /rewardEvent\.receiver !==[\s\S]*expectedClause\.recipientWallet/);
+  assert.match(verifier, /rewardEvent\.amountWei !==[\s\S]*expectedClause\.amountWei/);
+  assert.match(verifier, /rewardEvent\.distributor !==[\s\S]*normalizedOperator/);
+  assert.match(recovery, /error\.code === 'TX_NOT_FOUND'/);
+  assert.match(recovery, /error\.code === 'TX_RECEIPT_NOT_FOUND'/);
+  assert.match(
+    recovery,
+    /await markBroadcastConfirmed\(manifestId, txId\)/,
+  );
   assert.match(
     migration,
     /status = any \(array\['CREATED'::text, 'PAYING'::text\]\)[\s\S]{0,100}broadcast_confirmed_at is null/i,
-  );
-  assert.match(
-    migration,
-    /rr\.status in \('CREATED','PAYING'\)[\s\S]{0,100}rr\.broadcast_confirmed_at is null/i,
   );
 });
 
