@@ -10,6 +10,7 @@ import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
 import { TransientSnackbar } from '@/components/TransientSnackbar';
+import { RewardReceiptView } from '@/components/RewardReceiptView';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
@@ -42,6 +43,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-X-PROMOTION-RECEIPT-DIRECT'
   | 'NOTI-X-PROMOTION-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
@@ -309,6 +311,13 @@ function fixtureForState(
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
       };
+    case 'NOTI-X-PROMOTION-RECEIPT-DIRECT':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
+      };
     case 'NOTI-X-PROMOTION-PAID':
       return {
         mode: 'history',
@@ -564,6 +573,34 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (stateId === 'NOTI-X-PROMOTION-RECEIPT-DIRECT') {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <div
+          data-testid="qa-x-promotion-receipt-direct"
+          style={{
+            width: 'min(400px, calc(100vw - 28px))',
+            maxWidth: '100%',
+            maxHeight: 'min(610px, calc(100dvh - 28px))',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+            border: '1px solid rgba(255,205,80,.22)',
+            borderRadius: '22px',
+            background: '#11110f',
+          }}
+        >
+          <RewardReceiptView
+            locale={locale}
+            receipt={QA_REWARD_RECEIPT}
+            loading={false}
+            error=""
+            rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
+          />
+        </div>
+      </QaNotificationStage>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
