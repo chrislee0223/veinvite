@@ -314,14 +314,18 @@ test('complex-script X promotion copy gets readable line boxes without shrinking
 });
 
 
-test('notification B3TR amounts stay LTR-isolated inside RTL locales', () => {
-  assert.match(
-    notificationSurfaceSource,
-    /className="rewardAmount" dir="ltr"/,
+test('notification and receipt B3TR amounts stay LTR-isolated inside RTL locales', () => {
+  const receiptSource = readFileSync(
+    'src/components/RewardReceiptView.tsx',
+    'utf8',
   );
   assert.match(
-    notificationSurfaceSource,
-    /\.rewardAmount[^}]*unicode-bidi:isolate/,
+    receiptSource,
+    /className="notificationReceiptAmount" dir="ltr"/,
+  );
+  assert.match(
+    receiptSource,
+    /\.notificationReceiptAmount[^}]*unicode-bidi:isolate/,
   );
   assert.match(
     notificationHistorySource,
@@ -338,7 +342,7 @@ test('notification B3TR amounts stay LTR-isolated inside RTL locales', () => {
 });
 
 
-test('localized X share registry contains only labels used by the current product', () => {
+test('localized X share controls use localized labels while the public campaign post stays reviewed and global', () => {
   const shareSource = readFileSync(
     'src/lib/rewards/rewardReceiptShare.ts',
     'utf8',
@@ -347,7 +351,17 @@ test('localized X share registry contains only labels used by the current produc
     shareSource.indexOf('export const REWARD_RECEIPT_SHARE_COPY'),
     shareSource.indexOf('export function formatRewardShareAmount'),
   );
-  assert.doesNotMatch(registry, /\breceived:\s/);
-  assert.doesNotMatch(registry, /\binvite:\s/);
   assert.match(registry, /label:/);
+  assert.match(
+    shareSource,
+    /return REWARD_RECEIPT_SHARE_COPY\[locale\]\.label/,
+  );
+  assert.match(
+    shareSource,
+    /I just earned \$\{amount\} #B3TR/,
+  );
+  assert.match(
+    shareSource,
+    /with @Veinvite on #VeBetterDAO/,
+  );
 });
