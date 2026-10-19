@@ -1,7 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import { RewardReceiptView } from '@/components/RewardReceiptView';
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  SUPPORTED_LOCALES,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 
 const QA_X_PROMOTION_RECEIPT: RewardReceipt = {
@@ -28,6 +33,15 @@ export function QaRewardXPromotionHarness({
 }: {
   locale: SupportedLocale;
 }) {
+  const [activeLocale, setActiveLocale] =
+    useState<SupportedLocale>(locale);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    setActiveLocale(locale);
+    setRevision((current) => current + 1);
+  }, [locale]);
+
   return (
     <main
       style={{
@@ -41,6 +55,46 @@ export function QaRewardXPromotionHarness({
         color: '#fff',
       }}
     >
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '2px',
+          height: '2px',
+          opacity: 0.01,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
+        <select
+          data-qa-x-promotion-locale
+          value={activeLocale}
+          onChange={(event) => {
+            setActiveLocale(
+              event.target.value as SupportedLocale,
+            );
+            setRevision((current) => current + 1);
+          }}
+        >
+          {SUPPORTED_LOCALES.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          data-qa-x-promotion-remount
+          onClick={() => {
+            setRevision((current) => current + 1);
+          }}
+        >
+          remount
+        </button>
+      </div>
+
       <section
         data-qa-x-promotion-receipt
         style={{
@@ -54,7 +108,8 @@ export function QaRewardXPromotionHarness({
         }}
       >
         <RewardReceiptView
-          locale={locale}
+          key={`${activeLocale}:${revision}`}
+          locale={activeLocale}
           receipt={QA_X_PROMOTION_RECEIPT}
           loading={false}
           error=""
