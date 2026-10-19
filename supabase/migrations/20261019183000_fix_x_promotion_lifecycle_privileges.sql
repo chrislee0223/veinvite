@@ -1,3 +1,46 @@
+-- Deployment interlock: the old permission bug left already-paid referrals
+-- in RESERVED without an offer. Never open a new 24h promotion for them by
+-- accident. Review and explicitly dispose of those historical obligations
+-- using the existing audited release RPC before applying this migration.
+-- This check is read-only and aborts the whole migration if any remain.
+do $historical_offer_guard$
+begin
+  if exists (
+    select 1
+    from public.reward_x_promotion_obligations o
+    join public.reward_x_promotion_splits s
+      on s.id=o.split_id
+     and s.mode='LIVE'
+    join public.reward_payouts p
+      on p.invite_code=o.invite_code
+     and p.recipient_wallet=o.recipient_wallet
+     and p.status='PAID'
+     and p.amount_wei=s.base_amount_wei
+     and p.paid_at is not null
+    where o.network='mainnet'
+      and o.financial_state in ('RESERVED','HELD')
+      and not exists (
+        select 1
+        from public.reward_x_promotion_opportunities x
+        where x.obligation_id=o.id
+      )
+      and exists (
+        select 1
+        from public.reward_receipts r
+        where r.payout_id=p.id
+          and r.invite_code=o.invite_code
+          and r.network=o.network
+          and r.recipient_wallet=o.recipient_wallet
+          and r.amount_wei=s.base_amount_wei
+          and r.paid_at is not null
+      )
+  ) then
+    raise exception
+      'X_PROMOTION_HISTORICAL_BASE_PAID_RESERVATIONS_NEED_DISPOSITION';
+  end if;
+end;
+$historical_offer_guard$;
+
 -- X promotion server-only lifecycle: column-scoped UPDATE is needed for
 -- SELECT ... FOR UPDATE and guarded financial state transitions.
 -- Never grant blanket UPDATE of immutable payout recipient or amount.
