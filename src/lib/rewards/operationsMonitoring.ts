@@ -27,6 +27,10 @@ const QUEUE_WARNING_MS = 15 * 60 * 1000;
 const QUEUE_CRITICAL_MS = 60 * 60 * 1000;
 const SIGNED_TX_WARNING_MS = 10 * 60 * 1000;
 const SIGNED_TX_CRITICAL_MS = 30 * 60 * 1000;
+// Empirical VeChain full-finality settlement on Production takes roughly
+// 65-91 minutes. A manifest-verified canonical transfer is not an outage.
+const CONFIRMED_FINALITY_WARNING_MS = 2 * 60 * 60 * 1000;
+const CONFIRMED_FINALITY_CRITICAL_MS = 3 * 60 * 60 * 1000;
 const ACTIVE_ROUND_WARNING_MS = 30 * 60 * 1000;
 const ACTIVE_ROUND_CRITICAL_MS = 2 * 60 * 60 * 1000;
 
@@ -354,7 +358,7 @@ Promise<RewardOperationsHealth> {
     supabaseAdmin
       .from('reward_rounds')
       .select(
-        'id, status, created_at, started_at',
+        'id, status, created_at, started_at, broadcast_confirmed_at',
       )
       .eq('network', pool.network)
       .eq('app_id', pool.appId)
@@ -608,6 +612,7 @@ Promise<RewardOperationsHealth> {
       | (TimestampedRow & {
           id?: unknown;
           status?: unknown;
+          broadcast_confirmed_at?: unknown;
         })
       | null;
   const activeRoundStartedAt =
@@ -616,24 +621,35 @@ Promise<RewardOperationsHealth> {
   const activeRoundAgeMs =
     ageMs(activeRoundStartedAt, nowMs);
 
+  const activeRoundCanonical = Boolean(
+    timestamp(activeRound?.broadcast_confirmed_at),
+  );
+
   if (activeRound && activeRoundAgeMs !== null) {
-    if (
-      activeRoundAgeMs >= ACTIVE_ROUND_CRITICAL_MS
-    ) {
+    const warningAge = activeRoundCanonical
+      ? CONFIRMED_FINALITY_WARNING_MS
+      : ACTIVE_ROUND_WARNING_MS;
+    const criticalAge = activeRoundCanonical
+      ? CONFIRMED_FINALITY_CRITICAL_MS
+      : ACTIVE_ROUND_CRITICAL_MS;
+
+    if (activeRoundAgeMs >= criticalAge) {
       addAlert(
         alerts,
         'REWARD_ROUND_STALLED',
         'CRITICAL',
-        'An automatic reward round has remained open for at least two hours.',
+        activeRoundCanonical
+          ? 'A canonically transferred reward round has not finalized for three hours.'
+          : 'A reward round has remained open without confirmed transfer for two hours.',
       );
-    } else if (
-      activeRoundAgeMs >= ACTIVE_ROUND_WARNING_MS
-    ) {
+    } else if (activeRoundAgeMs >= warningAge) {
       addAlert(
         alerts,
         'REWARD_ROUND_DELAYED',
         'WARNING',
-        'An automatic reward round has remained open for at least 30 minutes.',
+        activeRoundCanonical
+          ? 'A canonically transferred reward round is waiting unusually long for finality.'
+          : 'A reward round has not confirmed its transfer within 30 minutes.',
       );
     }
   }
@@ -694,68 +710,38 @@ Promise<RewardOperationsHealth> {
       nowMs,
     );
 
+  const signedRoundIsConfirmed =
+    oldestUnsettledSignedTx !== null &&
+    String(oldestUnsettledSignedTx.round_id) === String(activeRound?.id) &&
+    activeRoundCanonical;
+
   if (oldestUnsettledAgeMs !== null) {
-    if (
-      oldestUnsettledAgeMs >=
-      SIGNED_TX_CRITICAL_MS
-    ) {
+    const warningAge = signedRoundIsConfirmed
+      ? CONFIRMED_FINALITY_WARNING_MS
+      : SIGNED_TX_WARNING_MS;
+    const criticalAge = signedRoundIsConfirmed
+      ? CONFIRMED_FINALITY_CRITICAL_MS
+      : SIGNED_TX_CRITICAL_MS;
+
+    if (oldestUnsettledAgeMs >= criticalAge) {
       addAlert(
         alerts,
         'SIGNED_PAYOUT_UNSETTLED',
         'CRITICAL',
-        'A signed automatic payout has remained unsettled for at least 30 minutes.',
+        signedRoundIsConfirmed
+          ? 'A verified canonical B3TR transfer remains unfinalized after three hours.'
+          : 'A signed automatic payout remains unconfirmed after 30 minutes.',
       );
-    } else if (
-      oldestUnsettledAgeMs >=
-      SIGNED_TX_WARNING_MS
-    ) {
+    } else if (oldestUnsettledAgeMs >= warningAge) {
       addAlert(
         alerts,
         'SIGNED_PAYOUT_WAITING_FINALITY',
         'WARNING',
-        'A signed automatic payout has remained unsettled for at least 10 minutes.',
+        signedRoundIsConfirmed
+          ? 'A canonical B3TR transfer has awaited full finality for over two hours.'
+          : 'A signed automatic payout has remained unconfirmed for at least 10 minutes.',
       );
     }
-  }
-
-  const forecast = planning.forecast;
-  const maxImmediatelyPayableCount =
-    forecast?.maxImmediatelyPayableCount ?? null;
-
-  if (
-    queuedCount > 0 &&
-    BigInt(pool.effectiveRewardPoolWei) === 0n
-  ) {
-    addAlert(
-      alerts,
-      'REWARD_POOL_EMPTY_WITH_QUEUE',
-      'CRITICAL',
-      'Eligible rewards are queued but the effective user reward pool is empty.',
-    );
-  }
-
-  if (
-    forecast &&
-    BigInt(forecast.maxImmediatelyPayableCount) <
-      BigInt(queuedCount)
-  ) {
-    addAlert(
-      alerts,
-      'REWARD_POOL_CAPACITY_INSUFFICIENT',
-      'CRITICAL',
-      'The current reward pool cannot immediately cover every queued eligible reward under the active reward policy.',
-    );
-  } else if (
-    forecast &&
-    BigInt(forecast.maxImmediatelyPayableCount) <
-      BigInt(forecast.stressCompletions)
-  ) {
-    addAlert(
-      alerts,
-      'REWARD_POOL_STRESS_BUFFER_LOW',
-      'WARNING',
-      'The current reward pool is below the predictive stress-recipient buffer.',
-    );
   }
 
   const severity = finalSeverity(alerts);
