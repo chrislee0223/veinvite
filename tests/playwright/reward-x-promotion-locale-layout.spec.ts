@@ -49,7 +49,6 @@ async function openPromotionPanel(
   height: number,
 ) {
   await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
-  await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
   await page.route(
     /\/api\/rewards\/x-promotion(?:\?.*)?$/,
     async (route) => {
@@ -312,6 +311,7 @@ async function openStandalonePromotionState({
   status: number;
   body: unknown;
 }) {
+  await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
   await page.route(
     /\/api\/rewards\/x-promotion(?:\?.*)?$/,
     async (route) => {
