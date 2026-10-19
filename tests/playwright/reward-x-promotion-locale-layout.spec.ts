@@ -123,6 +123,46 @@ async function auditPromotionPanel(page: Page) {
       issues.push('promotion panel escapes receipt width');
     }
 
+    if (receipt) {
+      if (receipt.scrollWidth > receipt.clientWidth + 2) {
+        issues.push(
+          'reward receipt horizontally overflows: ' +
+            receipt.scrollWidth +
+            '>' +
+            receipt.clientWidth,
+        );
+      }
+
+      const receiptSelectors = [
+        '.notificationReceiptHero p',
+        '.notificationReceiptFacts dt',
+        '.notificationReceiptFacts dd',
+        '.notificationExplorerLink',
+        '.notificationExplorerLink > span:first-child',
+      ];
+      for (const selector of receiptSelectors) {
+        for (const el of receipt.querySelectorAll<HTMLElement>(selector)) {
+          const value = el.textContent?.trim() ?? '';
+          if (!value || el.getClientRects().length === 0) continue;
+          const bounds = el.getBoundingClientRect();
+          if (el.clientWidth && el.scrollWidth > el.clientWidth + 2) {
+            issues.push(
+              selector +
+                ' clipped horizontally: ' +
+                value.slice(0, 48),
+            );
+          }
+          if (
+            receiptBox &&
+            (bounds.left < receiptBox.left - 2 ||
+              bounds.right > receiptBox.right + 2)
+          ) {
+            issues.push(selector + ' outside reward receipt');
+          }
+        }
+      }
+    }
+
     const selectors = [
       '.promotionHeading strong',
       '.promotionHeading span',
