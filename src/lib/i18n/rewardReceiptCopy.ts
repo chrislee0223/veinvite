@@ -178,8 +178,8 @@ export const REWARD_RECEIPT_COPY: Record<SupportedLocale, RewardReceiptCopy> = {
     invite: 'Invite code',
     transaction: 'Transaction',
     viewTransaction: 'Check am for VeChain Explorer',
-    acknowledge: 'I understand',
-    acknowledging: 'Saving…',
+    acknowledge: 'I get am',
+    acknowledging: 'Dey save…',
     error: 'We no fit mark dis reward as seen. Try again.',
   },
   arz: {
