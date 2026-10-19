@@ -49,10 +49,12 @@ async function installRoutes(
   page: Page,
   mode: QaMode,
 ) {
-  await page.unroute('**/api/rewards/x-promotion**').catch(() => undefined);
+  await page
+    .unroute(/\/api\/rewards\/x-promotion(?:\/submit)?(?:\?.*)?$/)
+    .catch(() => undefined);
 
   await page.route(
-    '**/api/rewards/x-promotion/submit',
+    /\/api\/rewards\/x-promotion\/submit(?:\?.*)?$/,
     async (route) => {
       await route.fulfill({
         status: 409,
