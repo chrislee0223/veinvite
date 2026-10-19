@@ -42,6 +42,17 @@ const STANDALONE_RISK_LOCALES = [
   'de',
 ] as const;
 
+
+async function waitForDirectReceiptHydration(page: Page) {
+  await expect(
+    page.locator('.qaDirectRewardReceipt'),
+  ).toHaveAttribute(
+    'data-qa-direct-receipt-ready',
+    'true',
+    { timeout: 20_000 },
+  );
+}
+
 async function openPromotionPanel(
   page: Page,
   locale: SupportedLocale,
@@ -65,6 +76,8 @@ async function openPromotionPanel(
     '/qa/notification-state?state=NOTI-X-PROMOTION-RECEIPT&locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
+
+  await waitForDirectReceiptHydration(page);
 
   await expect(
     page.locator('.qaDirectRewardReceipt .notificationReceiptView'),
@@ -328,6 +341,8 @@ async function openStandalonePromotionState({
     '/qa/notification-state?state=NOTI-X-PROMOTION-RECEIPT&locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
+
+  await waitForDirectReceiptHydration(page);
 
   await expect(
     page.locator('.qaDirectRewardReceipt .notificationReceiptView'),
