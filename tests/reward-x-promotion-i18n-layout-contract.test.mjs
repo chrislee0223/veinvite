@@ -166,7 +166,12 @@ test('reward receipt copy covers every supported locale with no fallback gap', (
     );
   }
 
-  for (const key of [
+  const locales = [
+    'en','ko','zh','zh-tw','ja','es','de','fr','it','tr','nl','pt','ru',
+    'id','vi','hi','ar','bn','sv','ro','ur','pcm','arz','mr','te','sw',
+    'ha','el','cs',
+  ];
+  const keys = [
     'eyebrow',
     'title',
     'description',
@@ -177,14 +182,43 @@ test('reward receipt copy covers every supported locale with no fallback gap', (
     'acknowledge',
     'acknowledging',
     'error',
-  ]) {
-    const matches =
-      receiptCopy.match(new RegExp('\\b' + key + ':', 'g')) ?? [];
-    assert.equal(
-      matches.length,
-      29,
-      key + ' must exist for every reward receipt locale',
+  ];
+
+  for (let index = 0; index < locales.length; index += 1) {
+    const locale = locales[index];
+    const startPattern = new RegExp(
+      "(?:^|\\n)\\s*(?:'" +
+        locale.replace('-', '\\-') +
+        "'|" +
+        locale.replace('-', '\\-') +
+        "):\\s*\\{",
+      'm',
     );
+    const start = receiptCopy.search(startPattern);
+    assert.notEqual(start, -1, 'missing reward receipt locale: ' + locale);
+
+    const nextLocale = locales[index + 1];
+    const end = nextLocale
+      ? receiptCopy.search(
+          new RegExp(
+            "(?:^|\\n)\\s*(?:'" +
+              nextLocale.replace('-', '\\-') +
+              "'|" +
+              nextLocale.replace('-', '\\-') +
+              "):\\s*\\{",
+            'm',
+          ),
+        )
+      : receiptCopy.lastIndexOf('\n};');
+    const block = receiptCopy.slice(start, end);
+
+    for (const key of keys) {
+      assert.match(
+        block,
+        new RegExp('\\b' + key + ':'),
+        locale + ' missing reward receipt field: ' + key,
+      );
+    }
   }
 });
 
