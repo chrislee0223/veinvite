@@ -41,6 +41,10 @@ type QaMode =
   | 'preparing'
   | 'load-error';
 
+type QaSurface =
+  | 'promotion'
+  | 'receipt';
+
 async function installRoutes(
   page: Page,
   mode: QaMode,
@@ -101,11 +105,14 @@ async function gotoQa(
   locale: SupportedLocale,
   viewport: { width: number; height: number },
   mode: QaMode,
+  surface: QaSurface = 'promotion',
 ) {
   await installRoutes(page, mode);
   await page.setViewportSize(viewport);
   await page.goto(
-    '/qa/x-promotion-i18n?locale=' + encodeURIComponent(locale),
+    '/qa/x-promotion-i18n?locale=' +
+      encodeURIComponent(locale) +
+      (surface === 'receipt' ? '&mode=receipt' : ''),
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
   await page.evaluate(async () => {
@@ -254,6 +261,109 @@ async function inspectStandalone(
   });
 }
 
+
+
+async function inspectReceipt(page: Page) {
+  const receipt = page.locator('.notificationReceiptView');
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.genericShare')).toBeVisible({
+    timeout: 10_000,
+  });
+
+  return receipt.evaluate((node) => {
+    const root = node as HTMLElement;
+    const rootBox = root.getBoundingClientRect();
+    const shell = root.closest<HTMLElement>(
+      '[data-qa-x-promotion-shell]',
+    );
+    const shellBox = shell?.getBoundingClientRect() ?? null;
+    const issues: string[] = [];
+
+    if (root.scrollWidth > root.clientWidth + 2) {
+      issues.push('receipt horizontal overflow');
+    }
+
+    if (
+      shellBox &&
+      (rootBox.left < shellBox.left - 2 ||
+        rootBox.right > shellBox.right + 2)
+    ) {
+      issues.push('receipt escapes QA shell');
+    }
+
+    for (const selector of [
+      '.notificationReceiptHero p',
+      '.notificationReceiptFacts dt',
+      '.notificationReceiptFacts dd',
+      '.notificationExplorerLink',
+      '.notificationExplorerLink span',
+      '.genericShare',
+    ]) {
+      for (const el of root.querySelectorAll<HTMLElement>(selector)) {
+        if (el.getClientRects().length === 0) continue;
+        const box = el.getBoundingClientRect();
+        if (el.scrollWidth > el.clientWidth + 2) {
+          issues.push(selector + ' clipped');
+        }
+        if (
+          box.left < rootBox.left - 2 ||
+          box.right > rootBox.right + 2
+        ) {
+          issues.push(selector + ' outside receipt');
+        }
+      }
+    }
+
+    for (const row of root.querySelectorAll<HTMLElement>(
+      '.notificationReceiptFacts > div',
+    )) {
+      const label = row.querySelector<HTMLElement>('dt');
+      const value = row.querySelector<HTMLElement>('dd');
+      if (!label || !value) continue;
+      const a = label.getBoundingClientRect();
+      const b = value.getBoundingClientRect();
+      const horizontalOverlap =
+        Math.min(a.right, b.right) -
+        Math.max(a.left, b.left);
+      const verticalOverlap =
+        Math.min(a.bottom, b.bottom) -
+        Math.max(a.top, b.top);
+      if (horizontalOverlap > 2 && verticalOverlap > 2) {
+        issues.push('receipt fact label overlaps value');
+      }
+    }
+
+    const amount = root.querySelector<HTMLElement>(
+      '.notificationReceiptAmount',
+    );
+    const factValues = [
+      ...root.querySelectorAll<HTMLElement>(
+        '.notificationReceiptFacts dd',
+      ),
+    ];
+
+    const viewportOverflow =
+      Math.max(
+        document.documentElement.scrollWidth,
+        document.body.scrollWidth,
+      ) - window.innerWidth;
+    if (viewportOverflow > 1) {
+      issues.push('viewport horizontal overflow');
+    }
+
+    return {
+      issues,
+      direction: getComputedStyle(root).direction,
+      amountDirection: amount
+        ? getComputedStyle(amount).direction
+        : null,
+      factDirections: factValues.map(
+        (value) => getComputedStyle(value).direction,
+      ),
+    };
+  });
+}
+
 const SHARDS = Array.from({ length: 4 }, (_, shard) =>
   SUPPORTED_LOCALES.filter((_, index) => index % 4 === shard),
 );
@@ -382,3 +492,46 @@ test('X promotion submit errors stay localized and inside mobile layout', async 
     });
   }
 });
+
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 393, height: 852 },
+] as const) {
+  SHARDS.forEach((locales, shard) => {
+    test(
+      'Reward receipt locales shard ' +
+        (shard + 1) +
+        ' / ' +
+        viewport.width +
+        'px',
+      async ({ page }) => {
+        for (const locale of locales) {
+          await gotoQa(
+            page,
+            locale,
+            viewport,
+            'generic',
+            'receipt',
+          );
+          const report = await inspectReceipt(page);
+
+          expect(report.direction).toBe(
+            isRtlLocale(locale) ? 'rtl' : 'ltr',
+          );
+          expect(report.amountDirection).toBe('ltr');
+          expect(report.factDirections.length).toBe(3);
+          expect(
+            report.factDirections.every(
+              (direction) => direction === 'ltr',
+            ),
+          ).toBe(true);
+          expect(
+            report.issues,
+            JSON.stringify({ locale, viewport, report }),
+          ).toEqual([]);
+        }
+      },
+    );
+  });
+}
