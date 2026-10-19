@@ -45,3 +45,11 @@ test('opportunity sync returns meaningful per-candidate failure evidence', () =>
   assert.match(migration, /'reason',left\(v_failure_message,240\)/);
   assert.match(migration, /'failures',v_failures/);
 });
+
+test('rolled-back opportunity creation never counts as successful activation', () => {
+  const activationIncrement = migration.indexOf('v_activated:=v_activated+1;');
+  const creationStatement = migration.indexOf('v_creation :=');
+  assert.ok(activationIncrement > creationStatement);
+  assert.match(migration, /v_candidate_activated:=false/);
+  assert.match(migration, /if v_candidate_activated then/);
+});
