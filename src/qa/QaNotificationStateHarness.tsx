@@ -576,6 +576,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [clientReady, setClientReady] = useState(false);
+
+  useEffect(() => {
+    setClientReady(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -591,6 +596,7 @@ export function QaNotificationStateHarness({
       <QaNotificationStage embedded={embedded}>
         <div
           className="qaDirectRewardReceipt"
+          data-qa-direct-receipt-ready={clientReady ? 'true' : 'false'}
           style={{
             width: 'min(400px, 100%)',
             maxWidth: '100%',
