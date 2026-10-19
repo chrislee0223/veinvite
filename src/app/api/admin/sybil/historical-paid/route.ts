@@ -245,8 +245,7 @@ export async function POST(request: NextRequest) {
           `historical-paid:${code}:${before.peer.peerInviteCode}:${input.expectedRevision}`,
         p_reason_codes: [
           'HISTORICAL_REFERRAL_OPERATOR_BLACKLIST',
-          'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH',
-          'RECENT_PREACTIVATION_VTHO_FUNDER',
+          ...before.peer.signals,
         ],
         p_evidence_summary: {
           reviewPath: 'HISTORICAL_PAID_CLEAR',
@@ -279,7 +278,7 @@ export async function POST(request: NextRequest) {
       Number(recognized.completed_referrals) ===
         Number(before.projectedLeaderboard?.projected_recognized_referrals);
     return NextResponse.json({
-      changed: true,
+      changed: (decision as { changed?: boolean } | null)?.changed ?? true,
       verified,
       reviewMode: 'HISTORICAL_PAID',
       historical: decision,
