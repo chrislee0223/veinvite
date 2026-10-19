@@ -744,6 +744,46 @@ Promise<RewardOperationsHealth> {
     }
   }
 
+  const forecast = planning.forecast;
+  const maxImmediatelyPayableCount =
+    forecast?.maxImmediatelyPayableCount ?? null;
+
+  if (
+    queuedCount > 0 &&
+    BigInt(pool.effectiveRewardPoolWei) === 0n
+  ) {
+    addAlert(
+      alerts,
+      'REWARD_POOL_EMPTY_WITH_QUEUE',
+      'CRITICAL',
+      'Eligible rewards are queued but the effective user reward pool is empty.',
+    );
+  }
+
+  if (
+    forecast &&
+    BigInt(forecast.maxImmediatelyPayableCount) <
+      BigInt(queuedCount)
+  ) {
+    addAlert(
+      alerts,
+      'REWARD_POOL_CAPACITY_INSUFFICIENT',
+      'CRITICAL',
+      'The current reward pool cannot immediately cover every queued eligible reward under the active reward policy.',
+    );
+  } else if (
+    forecast &&
+    BigInt(forecast.maxImmediatelyPayableCount) <
+      BigInt(forecast.stressCompletions)
+  ) {
+    addAlert(
+      alerts,
+      'REWARD_POOL_STRESS_BUFFER_LOW',
+      'WARNING',
+      'The current reward pool is below the predictive stress-recipient buffer.',
+    );
+  }
+
   const severity = finalSeverity(alerts);
 
   return {
