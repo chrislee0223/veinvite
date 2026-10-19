@@ -14,6 +14,7 @@ import type {
 } from '@/components/TransientSnackbar';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   clearRewardPaidToast,
@@ -293,6 +294,19 @@ export function useRewardPaidTransientFeedback({
               '_blank',
               'noopener,noreferrer',
             );
+            if (shareDeadlineMs !== null) {
+              // Opening an X composer is not the post submission step.
+              // Keep the reward unacknowledged and explain the required
+              // public Post URL verification in the user's language.
+              setFeedback((visible) =>
+                visible?.kind === 'reward' && visible.id === feedbackId
+                  ? {
+                      ...visible,
+                      text: REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                    }
+                  : visible,
+              );
+            }
           },
         };
       });
