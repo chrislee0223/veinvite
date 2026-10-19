@@ -198,6 +198,10 @@ export default function HistoricalPaidSybilReviewPage() {
             border: '1px solid #888', borderRadius: 12, padding: 16, margin: '16px 0',
           }}>
             <h2>과거 CLEAR 자동 역추적 · 관리자 검토</h2>
+            <button type="button" disabled={submitting}
+              onClick={() => setRefresh((value) => value + 1)}>
+              후보 다시 확인
+            </button>
             <p>
               강한 동일 기기 전환 증거와 독립된 VTHO 자금 연결이 모두
               확인된 과거 지급 유저만 표시합니다. 자동 차단이나 보상 변경은 없습니다.
