@@ -69,6 +69,7 @@ declare
   v_creation jsonb;
   v_considered integer := 0;
   v_activated integer := 0;
+  v_candidate_activated boolean := false;
   v_created integer := 0;
   v_already integer := 0;
   v_failed integer := 0;
@@ -113,13 +114,12 @@ begin
     limit v_limit
   loop
     v_considered:=v_considered+1;
+    v_candidate_activated:=false;
     begin
       if v_candidate.financial_state='RESERVED' then
         v_activation :=
           public.activate_reward_x_promotion_obligation_v1(v_candidate.invite_code);
-        if coalesce((v_activation->>'activated')::boolean,false) then
-          v_activated:=v_activated+1;
-        end if;
+        v_candidate_activated:=coalesce((v_activation->>'activated')::boolean,false);
       end if;
 
       v_creation :=
@@ -129,6 +129,12 @@ begin
         v_created:=v_created+1;
       else
         v_already:=v_already+1;
+      end if;
+      -- An exception rolls back the per-candidate DB subtransaction, but
+      -- PL/pgSQL variables are not rolled back. Count activations only once
+      -- the opportunity creation step has also succeeded.
+      if v_candidate_activated then
+        v_activated:=v_activated+1;
       end if;
     exception when others then
       get stacked diagnostics
