@@ -9,6 +9,7 @@ import {
 import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
+import { RewardReceiptView } from '@/components/RewardReceiptView';
 import { TransientSnackbar } from '@/components/TransientSnackbar';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -42,6 +43,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-X-PROMOTION-RECEIPT'
   | 'NOTI-X-PROMOTION-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
@@ -309,6 +311,16 @@ function fixtureForState(
         rewardShareUrl:
           'https://veinvite.vercel.app/s/qa-reward-share-preview',
       };
+    case 'NOTI-X-PROMOTION-RECEIPT':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: true,
+        previewRewardReceipt: QA_REWARD_RECEIPT,
+        rewardShareUrl:
+          'https://veinvite.vercel.app/s/qa-reward-share-preview',
+      };
     case 'NOTI-X-PROMOTION-PAID':
       return {
         mode: 'history',
@@ -564,6 +576,32 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (stateId === 'NOTI-X-PROMOTION-RECEIPT') {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <div
+          data-testid="qa-x-promotion-receipt"
+          style={{
+            width: 'min(400px, 100%)',
+            maxHeight: 'calc(100dvh - 48px)',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,.08)',
+            borderRadius: '16px',
+            background: '#0b0b0a',
+          }}
+        >
+          <RewardReceiptView
+            locale={locale}
+            receipt={QA_REWARD_RECEIPT}
+            loading={false}
+            error=""
+            rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
+          />
+        </div>
+      </QaNotificationStage>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
