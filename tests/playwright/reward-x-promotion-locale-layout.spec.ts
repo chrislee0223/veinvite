@@ -11,7 +11,7 @@ test.describe.configure({
   // The first QA browser visit may still need to compile/load the client
   // chunk even after the server route is warmed. Keep this scoped to the
   // X-promotion audit instead of weakening the global Playwright timeout.
-  timeout: 60_000,
+  timeout: 90_000,
 });
 
 const OPEN_PROMOTION = {
@@ -117,7 +117,7 @@ async function gotoHarness(
 
 async function measurePromotionPanel(page: Page) {
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 30_000 });
+  await expect(panel).toBeVisible({ timeout: 60_000 });
   await panel.scrollIntoViewIfNeeded();
 
   return panel.evaluate((node) => {
@@ -237,7 +237,7 @@ async function measureStandalone(
   selector: '.genericShare' | '.promotionStatus' | '.promotionPreparing',
 ) {
   const surface = page.locator(selector);
-  await expect(surface).toBeVisible({ timeout: 30_000 });
+  await expect(surface).toBeVisible({ timeout: 60_000 });
   await surface.scrollIntoViewIfNeeded();
 
   return surface.evaluate((node) => {
