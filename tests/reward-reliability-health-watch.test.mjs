@@ -36,6 +36,11 @@ function harness() {
     externalVerificationReady: true,
     runtimeReady: true,
   };
+  let xPipeline = {
+    pendingPostStalled: false,
+    finalCheckStalled: false,
+    payoutStalled: false,
+  };
   let paused = false;
   let dbError = false;
   const errors = [];
@@ -77,6 +82,33 @@ function harness() {
           }),
         }) }),
       };
+
+      if (
+        table === 'reward_x_promotion_post_submissions' ||
+        table === 'reward_x_promotion_post_verifications'
+      ) {
+        const filters = {};
+        const q = {
+          eq(column, value) { filters[column] = value; return this; },
+          in(column, values) { filters[column] = values; return this; },
+          is(column, value) { filters[column] = value; return this; },
+          lt(column, value) { filters['lt:' + column] = value; return this; },
+          limit(value) { assert.equal(value, 1); return this; },
+          abortSignal: async () => {
+            const code = table === 'reward_x_promotion_post_submissions'
+              ? 'pendingPostStalled'
+              : filters.verification_state === 'FINAL_VERIFIED'
+                ? 'payoutStalled'
+                : 'finalCheckStalled';
+            assert.equal(filters.network, 'mainnet');
+            assert.equal(filters['reward_x_promotion_obligations.financial_state'], 'HELD');
+            return dbError
+              ? { error: { message: 'database unavailable' }, data: null }
+              : { error: null, data: xPipeline[code] ? [{ id: 1 }] : [] };
+          },
+        };
+        return { select: () => q };
+      }
       throw Error('Unexpected table ' + table);
     },
     rpc(name, args) {
@@ -152,6 +184,7 @@ function harness() {
     setHolds: (counts) => { held = counts; },
     setScanFailures: (counts) => { scanFailures = counts; },
     setXPromotion: (state) => { xPromotion = { ...xPromotion, ...state }; },
+    setXPipeline: (state) => { xPipeline = { ...xPipeline, ...state }; },
     setPaused: (value) => { paused = value; },
     setDbError: (value) => { dbError = value; },
     errors, infos,
@@ -352,4 +385,46 @@ test('failed scan liveness query refuses malformed aggregate and fails closed', 
   assert.equal(invalid.status, 503);
   assert.equal(invalid.body.error, 'CRON_HEALTH_DB_UNAVAILABLE');
   assert.equal(h.getState(), null);
+});
+
+test('X bonus stuck states are read-only, wallet-private and non-outage alerts', async () => {
+  const h = harness();
+  h.setXPipeline({
+    pendingPostStalled: true,
+    finalCheckStalled: true,
+    payoutStalled: true,
+  });
+  const first = await h.GET(h.request);
+  assert.equal(first.status, 200);
+  assert.equal(first.body.newAlerts, 3);
+  assert.deepEqual(Array.from(first.body.activeAlerts), [
+    'X_PROMOTION_FINAL_CHECK_STALLED',
+    'X_PROMOTION_PAYOUT_STALLED',
+    'X_PROMOTION_POST_VERIFICATION_STALLED',
+  ]);
+  assert.equal(first.body.xPromotionPipeline.pendingPostStalled, true);
+  assert.equal(h.errors.length, 1);
+  assert.equal((await h.GET(h.request)).body.newAlerts, 0);
+
+  // Closing the payout gate intentionally removes the anomaly warnings.
+  h.setXPromotion({ payoutEnabled: false });
+  assert.equal((await h.GET(h.request)).body.activeAlerts.length, 0);
+  h.setXPromotion({ payoutEnabled: true });
+  h.setXPipeline({
+    pendingPostStalled: false,
+    finalCheckStalled: false,
+    payoutStalled: false,
+  });
+  assert.equal((await h.GET(h.request)).body.activeAlerts.length, 0);
+});
+
+test('X bonus pipeline query failures fail closed without touching rewards', async () => {
+  const h = harness();
+  h.setDbError(true);
+  const res = await h.GET(h.request);
+  assert.equal(res.status, 503);
+  assert.equal(res.body.error, 'CRON_HEALTH_DB_UNAVAILABLE');
+  assert.doesNotMatch(routeSource, /create_reward_x_promotion_payout_intent_v1/);
+  assert.doesNotMatch(routeSource, /record_reward_x_promotion_post_submission_v1/);
+  assert.match(routeSource, /\.limit\(1\)/);
 });
