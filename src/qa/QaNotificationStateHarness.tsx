@@ -32,6 +32,7 @@ export type QaNotificationStateId =
   | 'NOTI-HISTORY-OPEN'
   | 'NOTI-HISTORY-LOADING'
   | 'NOTI-HISTORY-ERROR'
+  | 'NOTI-HISTORY-INLINE-ERROR'
   | 'NOTI-HISTORY-READ'
   | 'NOTI-HISTORY-UNREAD'
   | 'NOTI-HISTORY-MORE'
@@ -204,6 +205,14 @@ function fixtureForState(
         unreadCount: 0,
         open: true,
         errorMessage: 'QA notification history request failed.',
+      };
+    case 'NOTI-HISTORY-INLINE-ERROR':
+      return {
+        mode: 'history',
+        items: mixedHistory(),
+        unreadCount: 2,
+        open: true,
+        errorMessage: 'QA inline notification history request failed.',
       };
     case 'NOTI-HISTORY-READ':
       return {
