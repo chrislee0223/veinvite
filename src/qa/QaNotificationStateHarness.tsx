@@ -592,8 +592,9 @@ export function QaNotificationStateHarness({
         <div
           className="qaDirectRewardReceipt"
           style={{
-            width: 'min(400px, calc(100vw - 24px))',
-            height: 'min(720px, calc(100dvh - 24px))',
+            width: 'min(400px, 100%)',
+            maxWidth: '100%',
+            height: 'min(720px, calc(100dvh - 48px))',
             minWidth: 0,
             overflow: 'hidden',
             border: '1px solid rgba(255,255,255,.08)',
