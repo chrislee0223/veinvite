@@ -208,7 +208,8 @@ export async function POST(request: NextRequest) {
   if (!code || input.intent !== 'INVALIDATE_HISTORICAL_PAID_SYBIL' ||
       input.confirmation !== code || input.decision !== 'BLACKLIST' ||
       reason.length < 24 || reason.length > 500 ||
-      !Number.isSafeInteger(input.expectedRevision) ||
+      (typeof input.expectedRevision !== 'number' ||
+       !Number.isSafeInteger(input.expectedRevision)) ||
       typeof input.expectedPaidAt !== 'string') {
     return NextResponse.json(
       { error: 'Explicit BLACKLIST decision, reason (24-500 chars), exact confirmation, revision and payout timestamp required.' },
@@ -262,12 +263,21 @@ export async function POST(request: NextRequest) {
     const after = await readHistoricalCase(code, authority.network);
     // A successful RPC is durable even if verification queries subsequently
     // fail. Flag partial verification rather than silently claiming success.
-    const verified = after?.invalidation?.status === 'ACTIVE' &&
+    const { data: recognized, error: rankError } = await supabaseAdmin
+      .from('operator_referral_leaderboard')
+      .select('completed_referrals')
+      .eq('wallet_address', before.invitation.inviter_wallet.toLowerCase())
+      .maybeSingle();
+    const verified = !rankError &&
+      after?.invalidation?.status === 'ACTIVE' &&
       after.obligation?.status === 'ACTIVE' &&
       after.obligation.recipient_wallet.toLowerCase() ===
         before.invitation.inviter_wallet.toLowerCase() &&
       after.obligation.amount_wei === before.receipt.amount_wei &&
-      after.projectedLeaderboard?.candidate_referrals === 0;
+      Boolean(after.receipt) &&
+      recognized !== null &&
+      Number(recognized.completed_referrals) ===
+        Number(before.projectedLeaderboard?.projected_recognized_referrals);
     return NextResponse.json({
       changed: true,
       verified,
