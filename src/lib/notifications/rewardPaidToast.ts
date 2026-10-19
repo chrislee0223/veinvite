@@ -3,6 +3,13 @@ import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 const STORAGE_PREFIX = 'veinvite:reward-paid-toast:v1:';
 const MAX_PENDING_PAID_TOASTS = 20;
 
+export const REWARD_PAID_TOAST_UPDATED_EVENT =
+  'veinvite-reward-paid-toast-updated';
+
+function notifyQueueUpdated(): void {
+  window.dispatchEvent(new Event(REWARD_PAID_TOAST_UPDATED_EVENT));
+}
+
 export type RewardPaidToastPayload = {
   receiptId: string;
   inviteCode: string;
@@ -81,6 +88,7 @@ export function storeRewardPaidToast(receipt: RewardReceipt): void {
     }
     queue.push(payload);
     writeQueue(payload.recipientWallet, queue);
+    notifyQueueUpdated();
   } catch {
     // The payout remains authoritative even if transient UI state cannot persist.
   }
@@ -105,12 +113,13 @@ export function clearRewardPaidToast(
   if (!validWallet(wallet) || !receiptId) return;
 
   try {
-    writeQueue(
-      wallet,
-      readQueue(wallet).filter(
-        (payload) => payload.receiptId !== receiptId,
-      ),
+    const current = readQueue(wallet);
+    const remaining = current.filter(
+      (payload) => payload.receiptId !== receiptId,
     );
+    if (remaining.length === current.length) return;
+    writeQueue(wallet, remaining);
+    notifyQueueUpdated();
   } catch {
     // The durable bell history remains authoritative if storage is unavailable.
   }
