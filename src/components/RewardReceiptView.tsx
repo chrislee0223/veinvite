@@ -80,6 +80,7 @@ export function RewardReceiptView({
           ) : null}
 
           <RewardXPromotionPanel
+            key={`x-promotion-receipt:${receipt.id}`}
             locale={locale}
             inviteCode={receipt.inviteCode}
             receiptAmountB3tr={receipt.amountB3tr}
