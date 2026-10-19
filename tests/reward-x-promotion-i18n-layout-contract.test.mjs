@@ -23,6 +23,22 @@ const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
 );
+const appProvidersSource = readFileSync(
+  'src/components/AppProviders.tsx',
+  'utf8',
+);
+const hydrationShieldSource = readFileSync(
+  'src/components/LocaleHydrationShield.tsx',
+  'utf8',
+);
+const notificationQaPageSource = readFileSync(
+  'src/app/qa/notification-state/page.tsx',
+  'utf8',
+);
+const xPromotionQaHarnessSource = readFileSync(
+  'src/qa/QaRewardXPromotionHarness.tsx',
+  'utf8',
+);
 const submitErrorSource = readFileSync(
   'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
   'utf8',
@@ -197,4 +213,24 @@ test('X promotion client never renders raw API or network error messages', () =>
   assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
   assert.doesNotMatch(panelSource, /error instanceof Error[\s\S]*error\.message/);
   assert.doesNotMatch(panelSource, /The X Post could not be verified\./);
+});
+
+
+test('X promotion and promotion-paid QA states bypass startup providers and remain routable', () => {
+  assert.match(
+    appProvidersSource,
+    /X_PROMOTION_LAYOUT_QA_PATH = '\/qa\/x-promotion'/,
+  );
+  assert.match(
+    hydrationShieldSource,
+    /X_PROMOTION_LAYOUT_QA_PATH = '\/qa\/x-promotion'/,
+  );
+  assert.match(
+    notificationQaPageSource,
+    /'NOTI-X-PROMOTION-PAID'/,
+  );
+  assert.match(
+    xPromotionQaHarnessSource,
+    /https:\/\/veinvite\.vercel\.app\/s\/[A-Za-z0-9_-]{16}/,
+  );
 });
