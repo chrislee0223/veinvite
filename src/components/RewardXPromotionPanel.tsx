@@ -51,7 +51,6 @@ type PromotionResponse = {
   newOffersEnabled?: boolean;
   promotionPending?: boolean;
   promotion?: Promotion | null;
-  error?: string;
 };
 
 function openIntent(
@@ -117,7 +116,6 @@ export function RewardXPromotionPanel({
 
       if (!response.ok) {
         throw new Error(
-          body.error ||
           'X promotion state unavailable.',
         );
       }
