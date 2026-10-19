@@ -22,6 +22,14 @@ const share = readFileSync(
   'src/lib/rewards/rewardReceiptShare.ts',
   'utf8',
 );
+const receiptCopy = readFileSync(
+  'src/lib/i18n/rewardReceiptCopy.ts',
+  'utf8',
+);
+const receiptView = readFileSync(
+  'src/components/RewardReceiptView.tsx',
+  'utf8',
+);
 
 test('X promotion copy has no English spread fallback', () => {
   assert.doesNotMatch(coreCopy, /\.\.\.EN\b/);
@@ -137,4 +145,77 @@ test('public X campaign post stays friend-neutral and under the reviewed format'
   assert.match(publicFunction, /#VeBetterDAO/);
   assert.match(publicFunction, /Join\. Verify\. Earn B3TR\./);
   assert.doesNotMatch(publicFunction, /\bfriend(?:s)?\b/i);
+});
+
+
+test('reward receipt copy covers every supported locale with no fallback gap', () => {
+  assert.match(
+    receiptCopy,
+    /Record<SupportedLocale, RewardReceiptCopy>/,
+  );
+
+  for (const locale of [
+    'en','ko','zh','zh-tw','ja','es','de','fr','it','tr','nl','pt','ru',
+    'id','vi','hi','ar','bn','sv','ro','ur','pcm','arz','mr','te','sw',
+    'ha','el','cs',
+  ]) {
+    assert.match(
+      receiptCopy,
+      new RegExp("(?:^|\\n)\\s*(?:'" + locale.replace('-', '\\-') + "'|" + locale.replace('-', '\\-') + "):\\s*\\{", 'm'),
+      'missing reward receipt locale: ' + locale,
+    );
+  }
+
+  for (const key of [
+    'eyebrow',
+    'title',
+    'description',
+    'round',
+    'invite',
+    'transaction',
+    'viewTransaction',
+    'acknowledge',
+    'acknowledging',
+    'error',
+  ]) {
+    const matches =
+      receiptCopy.match(new RegExp('\\b' + key + ':', 'g')) ?? [];
+    assert.equal(
+      matches.length,
+      29,
+      key + ' must exist for every reward receipt locale',
+    );
+  }
+});
+
+test('reward receipt layout isolates identifiers and wraps long localized labels', () => {
+  assert.match(
+    receiptView,
+    /notificationReceiptAmount" dir="ltr"/,
+  );
+  assert.match(
+    receiptView,
+    /<dd dir="ltr">#\{receipt\.veBetterRoundId\}<\/dd>/,
+  );
+  assert.match(
+    receiptView,
+    /<dd dir="ltr">\{receipt\.inviteCode\}<\/dd>/,
+  );
+  assert.match(
+    receiptView,
+    /<dd title=\{receipt\.txId\} dir="ltr">/,
+  );
+
+  for (const expected of [
+    'overflow-wrap:break-word',
+    'overflow-wrap:anywhere',
+    'unicode-bidi:isolate',
+    'max-width:62%',
+    'notificationExplorerLink span:first-child',
+  ]) {
+    assert.ok(
+      receiptView.includes(expected),
+      'missing reward receipt layout guard: ' + expected,
+    );
+  }
 });
