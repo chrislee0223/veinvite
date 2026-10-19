@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -103,8 +104,12 @@ export function RewardXPromotionPanel({
     useState(false);
   const [submitError, setSubmitError] =
     useState('');
+  const requestSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
+    // State requests can overlap (timers, focus, manual verification). The
+    // most recently started request alone may update this receipt's UI.
+    const requestSequence = ++requestSequenceRef.current;
     try {
       const response = await fetch(
         `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
@@ -114,6 +119,8 @@ export function RewardXPromotionPanel({
       );
       const body =
         (await response.json()) as PromotionResponse;
+
+      if (requestSequence !== requestSequenceRef.current) return;
 
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
@@ -129,9 +136,13 @@ export function RewardXPromotionPanel({
       setState(body);
       setLoadError(false);
     } catch {
-      setLoadError(true);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoadError(true);
+      }
     } finally {
-      setLoading(false);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoading(false);
+      }
     }
   }, [inviteCode]);
 
@@ -142,6 +153,11 @@ export function RewardXPromotionPanel({
     setPostUrl('');
     setSubmitError('');
     void load();
+    return () => {
+      // A prior invite's response must not revive its share token/status
+      // after the panel is unmounted or its invite identity changes.
+      requestSequenceRef.current += 1;
+    };
   }, [load]);
 
   const promotion = state?.promotion ?? null;
