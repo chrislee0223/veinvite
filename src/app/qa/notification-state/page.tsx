@@ -10,9 +10,14 @@ export const dynamic = 'force-dynamic';
 // This isolates translated UI layout QA from unrelated wallet initialization.
 const QA_NOTIFICATION_STATES = new Set<QaNotificationStateId>([
   'NOTI-HISTORY-OPEN',
+  'NOTI-HISTORY-ERROR',
+  'NOTI-HISTORY-INLINE-ERROR',
+  'NOTI-HISTORY-MORE',
   'NOTI-REFERRAL-RESTORED',
   'NOTI-POST-PAYOUT-REVIEW',
   'NOTI-REWARD-PAID',
+  'NOTI-X-PROMOTION-RECEIPT',
+  'NOTI-X-PROMOTION-PAID',
   'NOTI-REWARD-PAID-POPUP',
   'NOTI-REFERRAL-INVALIDATED',
   'NOTI-REWARD-ADJUSTED',

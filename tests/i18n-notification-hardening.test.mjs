@@ -9,6 +9,7 @@ const hardening = read('src/app/notification-i18n-hardening.css');
 const layout = read('src/app/layout.tsx');
 const preview = read('src/components/NotificationUiPreview.tsx');
 const qaNotificationHarness = read('src/qa/QaNotificationStateHarness.tsx');
+const qaNotificationRoute = read('src/app/qa/notification-state/page.tsx');
 const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const notifications = read('src/components/InAppInviteNotifications.tsx');
 const receiptSeenRoute = read('src/app/api/rewards/receipts/[id]/seen/route.ts');
@@ -93,9 +94,28 @@ test('notification QA preview exposes every harness state and production kind', 
   ].map((match) => match[1]);
 
   assert.ok(harnessStates.length > 0);
+  const previewOnlyExclusions = new Set([
+    'NOTI-X-PROMOTION-RECEIPT',
+  ]);
   assert.deepEqual(
-    harnessStates.filter((state) => !previewStates.has(state)),
+    harnessStates.filter(
+      (state) =>
+        !previewStates.has(state) &&
+        !previewOnlyExclusions.has(state),
+    ),
     [],
+  );
+  assert.match(
+    qaNotificationHarness,
+    /'NOTI-X-PROMOTION-RECEIPT'/,
+  );
+  assert.match(
+    qaNotificationRoute,
+    /'NOTI-X-PROMOTION-RECEIPT'/,
+  );
+  assert.match(
+    qaNotificationHarness,
+    /<RewardReceiptView[\s\S]*receipt=\{QA_REWARD_RECEIPT\}/,
   );
 
   const productionKindBlock = read(
@@ -176,5 +196,24 @@ test('notification lifecycle coalesces reload bursts and persists unauthorized b
   assert.match(
     notifications,
     /fetch\(\s*`\/api\/notifications\/history\?\$\{params\.toString\(\)\}`[\s\S]*if \(response\.status === 401\) \{\s*if \(!sameWallet\(activeWalletRef\.current, requestWallet\)\) \{\s*return null;\s*\}\s*backOffLifecycleAfterUnauthorized\(\);\s*invalidateWalletSession\(requestWallet\);\s*return null;/,
+  );
+});
+
+
+test('notification history never exposes raw server or exception errors to localized UI', () => {
+  assert.match(
+    notifications,
+    /NOTIFICATION_HISTORY_COPY\[locale as SupportedLocale\]/,
+  );
+  assert.ok(
+    (notifications.match(/setErrorMessage\(localizedHistoryError\)/g) ?? []).length >= 4,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}error\.message/,
+  );
+  assert.doesNotMatch(
+    notifications,
+    /setErrorMessage\([\s\S]{0,100}body\.error/,
   );
 });
