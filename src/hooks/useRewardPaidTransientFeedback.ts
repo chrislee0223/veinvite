@@ -14,6 +14,7 @@ import type {
 } from '@/components/TransientSnackbar';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
+import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   clearRewardPaidToast,
@@ -42,6 +43,7 @@ type RewardXPromotionPopupState = {
     state?: string;
     amountB3tr?: string;
     shareToken?: string | null;
+    postDeadlineAt?: string | null;
   } | null;
   error?: string;
 };
@@ -173,6 +175,7 @@ export function useRewardPaidTransientFeedback({
     const enrichShareAction = async () => {
       let shareIntentUrl = '';
       let shareLabel = '';
+      let promotionDeadlineMs: number | null = null;
 
       try {
         const response = await fetch(
@@ -198,8 +201,13 @@ export function useRewardPaidTransientFeedback({
         const promotion =
           body.promotion ?? null;
 
+        const offerDeadlineMs = promotion?.postDeadlineAt
+          ? Date.parse(promotion.postDeadlineAt)
+          : Number.NaN;
         if (
           promotion?.state === 'OPEN' &&
+          Number.isFinite(offerDeadlineMs) &&
+          Date.now() <= offerDeadlineMs &&
           typeof promotion.shareToken === 'string' &&
           typeof promotion.amountB3tr === 'string'
         ) {
@@ -211,6 +219,7 @@ export function useRewardPaidTransientFeedback({
             });
 
           if (promotionUrl) {
+            promotionDeadlineMs = offerDeadlineMs;
             shareIntentUrl =
               rewardReceiptXIntentUrl({
                 locale,
@@ -258,11 +267,39 @@ export function useRewardPaidTransientFeedback({
           ...current,
           shareLabel,
           onShare: () => {
+            // Popup can remain open past the deadline. Never advertise
+            // an expired +B3TR action even if the earlier API read was OPEN.
+            if (
+              promotionDeadlineMs !== null &&
+              Date.now() > promotionDeadlineMs
+            ) {
+              setFeedback((active) =>
+                active?.kind === 'reward' && active.id === feedbackId
+                  ? {
+                      ...active,
+                      text: REWARD_X_PROMOTION_COPY[locale].expiredBody,
+                      shareLabel: undefined,
+                      onShare: undefined,
+                    }
+                  : active,
+              );
+              return;
+            }
             window.open(
               shareIntentUrl,
               '_blank',
               'noopener,noreferrer',
             );
+            if (promotionDeadlineMs !== null) {
+              setFeedback((active) =>
+                active?.kind === 'reward' && active.id === feedbackId
+                  ? {
+                      ...active,
+                      text: REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                    }
+                  : active,
+              );
+            }
           },
         };
       });
