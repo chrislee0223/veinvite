@@ -26,6 +26,10 @@ const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
 );
+const receiptSource = readFileSync(
+  'src/components/RewardReceiptView.tsx',
+  'utf8',
+);
 const submitErrorSource = readFileSync(
   'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
   'utf8',
@@ -187,4 +191,18 @@ test('X promotion client never renders raw API or network error messages', () =>
   assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
   assert.doesNotMatch(panelSource, /error instanceof Error[\s\S]*error\.message/);
   assert.doesNotMatch(panelSource, /The X Post could not be verified\./);
+});
+
+
+test('multilingual hardening preserves current X promotion lifecycle stability guards', () => {
+  assert.match(panelSource, /useRef/);
+  assert.match(panelSource, /requestSequenceRef/);
+  assert.match(
+    panelSource,
+    /An open receipt may stay mounted past the 24-hour post deadline/,
+  );
+  assert.match(
+    receiptSource,
+    /key=\{\`x-promotion-receipt:\$\{receipt\.id\}\`\}/,
+  );
 });
