@@ -21,14 +21,23 @@ const receiptRoute = readFileSync(
   'utf8',
 );
 
-function toastHarness() {
+function toastHarness({ denyStorage = false } = {}) {
   const data = new Map();
   const handlers = new Map();
   const events = [];
   const storage = {
-    getItem: (key) => data.get(key) ?? null,
-    setItem: (key, value) => data.set(key, value),
-    removeItem: (key) => data.delete(key),
+    getItem: (key) => {
+      if (denyStorage) throw new Error('WebView storage forbidden');
+      return data.get(key) ?? null;
+    },
+    setItem: (key, value) => {
+      if (denyStorage) throw new Error('WebView storage forbidden');
+      data.set(key, value);
+    },
+    removeItem: (key) => {
+      if (denyStorage) throw new Error('WebView storage forbidden');
+      data.delete(key);
+    },
   };
   const window = {
     sessionStorage: storage,
@@ -130,4 +139,25 @@ test('one confirmed receipt can be restored from a new browser session and clear
   assert.equal(nextSession.readRewardPaidToast(wallet).receiptId, '55');
   nextSession.clearRewardPaidToast(wallet, '55');
   assert.equal(nextSession.readRewardPaidToast(wallet), null);
+});
+
+
+test('private WebView storage denial still displays and acknowledges wallet-scoped paid popups', () => {
+  const h = toastHarness({ denyStorage: true });
+  const alice = '0x' + 'a'.repeat(40);
+  const bob = '0x' + 'b'.repeat(40);
+  h.storeRewardPaidToast(receipt(54, alice));
+  h.storeRewardPaidToast(receipt(55, alice));
+  h.storeRewardPaidToast(receipt(56, bob));
+  assert.equal(h.readRewardPaidToast(alice).receiptId, '54');
+  assert.equal(h.readRewardPaidToast(bob).receiptId, '56');
+  h.clearRewardPaidToast(alice, '54');
+  assert.equal(h.readRewardPaidToast(alice).receiptId, '55');
+  assert.equal(h.readRewardPaidToast(bob).receiptId, '56');
+  h.clearRewardPaidToast(alice, '55');
+  h.clearRewardPaidToast(bob, '56');
+  assert.equal(h.readRewardPaidToast(alice), null);
+  assert.equal(h.readRewardPaidToast(bob), null);
+  assert.equal(h.data.size, 0, 'denied storage is never relied upon');
+  assert.equal(h.events.filter((kind) => kind === h.REWARD_PAID_TOAST_UPDATED_EVENT).length, 6);
 });
