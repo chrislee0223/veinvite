@@ -39,4 +39,8 @@ export default async function globalSetup(): Promise<void> {
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
   await warm('/qa/network-slot-visual', 90_000);
+  // The X-promotion QA page is a client-heavy route. Compile it once before
+  // four fully-parallel workers hit 29 locale cases, otherwise the cold dev
+  // build can consume most of the 30s per-test timeout before hydration starts.
+  await warm('/qa/x-promotion?locale=en', 90_000);
 }
