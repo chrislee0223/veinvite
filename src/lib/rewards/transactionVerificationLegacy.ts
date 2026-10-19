@@ -484,11 +484,13 @@ export function verifyPayoutTransactionEvidence({
   operatorWallet,
   manifestCreatedAt,
   evidence,
+  requireFinality = true,
 }: {
   manifest: PayoutManifest;
   operatorWallet: string;
   manifestCreatedAt: string | Date;
   evidence: FinalizedRewardTransactionEvidence;
+  requireFinality?: boolean;
 }): VerifiedRewardTransaction {
   const normalizedOperator =
     normalizeAddress(
@@ -513,6 +515,7 @@ export function verifyPayoutTransactionEvidence({
   }
 
   if (
+    requireFinality &&
     evidence.blockNumber >
       evidence.finalizedHeadNumber
   ) {
@@ -674,6 +677,21 @@ export function verifyPayoutTransactionEvidence({
 export async function loadFinalizedRewardTransactionEvidence(
   rawTxId: string,
 ): Promise<FinalizedRewardTransactionEvidence> {
+  return loadRewardTransactionEvidence(rawTxId, true);
+}
+
+// Canonical receipts permit a fast, fully manifest-verified user-facing
+// transfer signal. This is NOT a finalized PAID settlement authority.
+export async function loadCanonicalRewardTransactionEvidence(
+  rawTxId: string,
+): Promise<FinalizedRewardTransactionEvidence> {
+  return loadRewardTransactionEvidence(rawTxId, false);
+}
+
+async function loadRewardTransactionEvidence(
+  rawTxId: string,
+  requireFinality: boolean,
+): Promise<FinalizedRewardTransactionEvidence> {
   const txId = normalizeHex32(
     rawTxId,
     'payout transaction id',
@@ -751,6 +769,7 @@ export async function loadFinalizedRewardTransactionEvidence(
   }
 
   if (
+    requireFinality &&
     receipt.blockNumber >
       finalizedHead.number
   ) {
@@ -785,7 +804,7 @@ export async function loadFinalizedRewardTransactionEvidence(
   ) {
     throw new RewardTransactionVerificationError(
       'TX_CHAIN_MISMATCH',
-      'The payout transaction receipt does not match the finalized canonical block.',
+      'The payout transaction receipt does not match the canonical block.',
     );
   }
 
