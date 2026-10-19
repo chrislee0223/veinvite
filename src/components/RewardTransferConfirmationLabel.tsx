@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type {
   RewardActionResponse,
 } from '@/lib/notifications/rewardAction';
+import type { ProgressClaimCopy } from '@/lib/i18n/progressClaimCopy';
 import {
   REWARD_ACTION_PENDING_TRANSFER_POLL_MS,
   REWARD_ACTION_IDLE_POLL_MS,
@@ -21,16 +22,14 @@ const TX_ID_PATTERN = /^0x[0-9a-f]{64}$/iu;
  * Only the server's manifest-verified canonical broadcast marker is trusted.
  * This never creates a PAID receipt, advances a payout, or opens X sharing.
  */
-export function RewardTransferConfirmationLabel({
+export function TransferStatus({
   inviteCode,
   wallet,
-  queuedText,
-  finalCheckText,
+  copy,
 }: {
   inviteCode: string;
   wallet: string;
-  queuedText: string;
-  finalCheckText: string;
+  copy: Pick<ProgressClaimCopy, 'claimQueued' | 'finalCheck'>;
 }) {
   const identity = `${wallet.toLowerCase()}:${inviteCode.toUpperCase()}`;
   const [confirmedIdentity, setConfirmedIdentity] = useState<string | null>(null);
@@ -136,8 +135,8 @@ export function RewardTransferConfirmationLabel({
   return (
     <span className="processingBadge" role="status" aria-live="polite">
       {confirmed
-        ? `✓ B3TR · ${finalCheckText}`
-        : queuedText}
+        ? `✓ B3TR · ${copy.finalCheck}`
+        : copy.claimQueued}
     </span>
   );
 }
