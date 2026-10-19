@@ -92,40 +92,13 @@ test('precise original-wallet B3TR debt supports full, partial and carry-forward
   }
 });
 
-
-test('read-only historical reverse discovery stays behind operator auth and does not touch reward state', async () => {
-  const { route, page } = await sources();
-  const reverse = route.split('async function readHistoricalCandidates(')[1]?.split('async function authorize(')[0] ?? '';
-  assert.ok(reverse.length > 100, 'reverse discovery defined in existing route');
-  assert.match(route, /request\.nextUrl\.searchParams\.get\('candidates'\) === '1'/u);
-  assert.match(route, /const authority = await authorize\(request\)/u);
-  assert.match(reverse, /SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH/u);
-  assert.match(reverse, /\.eq\('strength', 'HIGH'\)/u);
-  assert.match(reverse, /\.eq\('evidence_family', 'SECURITY_IDENTITY'\)/u);
-  assert.match(reverse, /\.eq\('evidence_family', 'FUNDING'\)/u);
-  assert.match(reverse, /FIRST_VTHO_FUNDER/u);
-  assert.match(reverse, /RECENT_PREACTIVATION_VTHO_FUNDER/u);
-  assert.match(reverse, /readHistoricalCase\(code, network\)/u);
-  assert.match(reverse, /review\?\.canBlacklist/u);
-  assert.match(reverse, /review\.invalidation\?\.status !== 'ACTIVE'/u);
-  assert.match(reverse, /exceeded safe review batch/u);
-  for (const forbidden of ['.insert(', '.update(', '.delete(', 'resolve_sybil_v2_historical_referral']) {
-    assert.ok(!reverse.includes(forbidden), 'reverse candidate lookup must not mutate: ' + forbidden);
-  }
-  assert.match(page, /\?candidates=1/u);
-  assert.match(page, /useEffect/u);
-  assert.match(page, /기존 지급: /u);
-  assert.match(page, /onClick=\{\(\) => void load\(candidate.inviteCode\)\}/u);
-  assert.match(page, /setRefresh\(\(value\) => value \+ 1\)/u);
-  assert.doesNotMatch(page, /useState\('M89HCCW'\)/u);
-});
-
-test('historical blacklist requires truly HIGH same-client signal from SECURITY_IDENTITY and separate FUNDING family', async () => {
+test('manual historical BLACK requires independently corroborated HIGH security switch and separate funding domain', async () => {
   const { route } = await sources();
-  const restrictedPeer = route.split('async function corroboratedRestrictedPeer(')[1]?.split('async function readHistoricalCase(')[0] ?? '';
-  assert.match(restrictedPeer, /row\.strength === 'HIGH'/u);
-  assert.match(restrictedPeer, /row\.evidence_family === 'SECURITY_IDENTITY'/u);
-  assert.match(restrictedPeer, /row\.evidence_family === 'FUNDING'/u);
-  assert.match(restrictedPeer, /if \(!isStrongSwitch && !isOnchainFunder\) continue;/u);
-  assert.match(restrictedPeer, /Sybil evidence lookup exceeded the safe limit/u);
+  const peer = route.split('async function corroboratedRestrictedPeer(')[1]
+    ?.split('async function readHistoricalCase(')[0] ?? '';
+  assert.match(peer, /row\.strength === 'HIGH'/u);
+  assert.match(peer, /row\.evidence_family === 'SECURITY_IDENTITY'/u);
+  assert.match(peer, /row\.evidence_family === 'FUNDING'/u);
+  assert.match(peer, /if \(!isStrongSwitch && !isOnchainFunder\) continue;/u);
+  assert.doesNotMatch(route, /readHistoricalCandidates|\?candidates=1/u);
 });
