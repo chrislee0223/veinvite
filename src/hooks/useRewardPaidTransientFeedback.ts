@@ -41,6 +41,7 @@ type RewardXPromotionPopupState = {
     state?: string;
     amountB3tr?: string;
     shareToken?: string | null;
+    postDeadlineAt?: string;
   } | null;
   error?: string;
 };
@@ -65,6 +66,13 @@ export function useRewardPaidTransientFeedback({
   const [pendingReward, setPendingReward] =
     useState<RewardPaidToastPayload | null>(null);
   const feedbackIdRef = useRef(0);
+  const shareExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (shareExpiryTimerRef.current !== null) {
+      clearTimeout(shareExpiryTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     setFeedback((current) =>
@@ -114,6 +122,10 @@ export function useRewardPaidTransientFeedback({
     if (!shareReady && !shareUnavailable) return;
 
     const payload = pendingReward;
+    if (shareExpiryTimerRef.current !== null) {
+      clearTimeout(shareExpiryTimerRef.current);
+      shareExpiryTimerRef.current = null;
+    }
     feedbackIdRef.current += 1;
     const feedbackId = feedbackIdRef.current;
 
@@ -156,6 +168,7 @@ export function useRewardPaidTransientFeedback({
     const enrichShareAction = async () => {
       let shareIntentUrl = '';
       let shareLabel = '';
+      let shareDeadlineMs: number | null = null;
 
       try {
         const response = await fetch(
@@ -184,8 +197,12 @@ export function useRewardPaidTransientFeedback({
         if (
           promotion?.state === 'OPEN' &&
           typeof promotion.shareToken === 'string' &&
-          typeof promotion.amountB3tr === 'string'
+          typeof promotion.amountB3tr === 'string' &&
+          typeof promotion.postDeadlineAt === 'string' &&
+          Number.isFinite(Date.parse(promotion.postDeadlineAt)) &&
+          Date.now() < Date.parse(promotion.postDeadlineAt)
         ) {
+          shareDeadlineMs = Date.parse(promotion.postDeadlineAt);
           const promotionUrl =
             rewardXPromotionShareUrl({
               referralUrl,
@@ -229,6 +246,9 @@ export function useRewardPaidTransientFeedback({
 
       if (!shareIntentUrl) return;
 
+      // Do not offer an expired promotion from a delayed API response.
+      if (shareDeadlineMs !== null && Date.now() >= shareDeadlineMs) return;
+
       setFeedback((current) => {
         if (
           current?.kind !== 'reward' ||
@@ -241,6 +261,16 @@ export function useRewardPaidTransientFeedback({
           ...current,
           shareLabel,
           onShare: () => {
+            // Even if a browser suspends timers in the background, an old
+            // reward popup cannot launch an expired qualifying share link.
+            if (shareDeadlineMs !== null && Date.now() >= shareDeadlineMs) {
+              setFeedback((visible) =>
+                visible?.kind === 'reward' && visible.id === feedbackId
+                  ? { ...visible, shareLabel: undefined, onShare: undefined }
+                  : visible,
+              );
+              return;
+            }
             window.open(
               shareIntentUrl,
               '_blank',
@@ -249,6 +279,20 @@ export function useRewardPaidTransientFeedback({
           },
         };
       });
+
+      // Remove a promotional button at its expiry boundary without polling
+      // the DB for the whole 24-hour window.
+      if (shareDeadlineMs !== null) {
+        const delay = Math.max(0, shareDeadlineMs - Date.now() + 250);
+        shareExpiryTimerRef.current = setTimeout(() => {
+          setFeedback((visible) =>
+            visible?.kind === 'reward' && visible.id === feedbackId
+              ? { ...visible, shareLabel: undefined, onShare: undefined }
+              : visible,
+          );
+          shareExpiryTimerRef.current = null;
+        }, delay);
+      }
     };
 
     void enrichShareAction();
