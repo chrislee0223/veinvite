@@ -6,7 +6,13 @@ import {
 } from '../../src/lib/i18n/locales';
 import { rewardXPromotionSubmitError } from '../../src/lib/i18n/rewardXPromotionSubmitErrorCopy';
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({
+  mode: 'serial',
+  // The first QA browser visit may still need to compile/load the client
+  // chunk even after the server route is warmed. Keep this scoped to the
+  // X-promotion audit instead of weakening the global Playwright timeout.
+  timeout: 60_000,
+});
 
 const OPEN_PROMOTION = {
   newOffersEnabled: true,
@@ -111,7 +117,7 @@ async function gotoHarness(
 
 async function measurePromotionPanel(page: Page) {
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await expect(panel).toBeVisible({ timeout: 30_000 });
   await panel.scrollIntoViewIfNeeded();
 
   return panel.evaluate((node) => {
@@ -231,7 +237,7 @@ async function measureStandalone(
   selector: '.genericShare' | '.promotionStatus' | '.promotionPreparing',
 ) {
   const surface = page.locator(selector);
-  await expect(surface).toBeVisible({ timeout: 10_000 });
+  await expect(surface).toBeVisible({ timeout: 30_000 });
   await surface.scrollIntoViewIfNeeded();
 
   return surface.evaluate((node) => {
