@@ -3,6 +3,10 @@ import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 const STORAGE_PREFIX = 'veinvite:reward-paid-toast:v1:';
 const MAX_PENDING_PAID_TOASTS = 20;
 
+// A wallet WebView may deny sessionStorage. Keep a bounded in-memory queue
+// while the authoritative unseen receipt remains on the server.
+const memoryQueues = new Map<string, RewardPaidToastPayload[]>();
+
 export const REWARD_PAID_TOAST_UPDATED_EVENT =
   'veinvite-reward-paid-toast-updated';
 
@@ -42,13 +46,8 @@ function validPayload(value: unknown): value is RewardPaidToastPayload {
   );
 }
 
-function readQueue(wallet: string): RewardPaidToastPayload[] {
-  const raw = window.sessionStorage.getItem(keyForWallet(wallet));
-  if (!raw) return [];
-
-  const parsed = JSON.parse(raw) as unknown;
-  const candidates = Array.isArray(parsed) ? parsed : [parsed];
-
+function sanitizedQueue(wallet: string, values: unknown): RewardPaidToastPayload[] {
+  const candidates = Array.isArray(values) ? values : [values];
   return candidates
     .filter(validPayload)
     .filter(
@@ -58,19 +57,45 @@ function readQueue(wallet: string): RewardPaidToastPayload[] {
     .slice(0, MAX_PENDING_PAID_TOASTS);
 }
 
+function readQueue(wallet: string): RewardPaidToastPayload[] {
+  const walletKey = wallet.toLowerCase();
+  try {
+    const raw = window.sessionStorage.getItem(keyForWallet(walletKey));
+    if (raw) {
+      const queue = sanitizedQueue(walletKey, JSON.parse(raw) as unknown);
+      memoryQueues.set(walletKey, queue);
+      return queue;
+    }
+  } catch {
+    // Storage disabled or malformed: use the still-available in-memory queue.
+  }
+  return memoryQueues.get(walletKey) ?? [];
+}
+
 function writeQueue(
   wallet: string,
   queue: RewardPaidToastPayload[],
 ): void {
-  const key = keyForWallet(wallet);
-  if (queue.length === 0) {
-    window.sessionStorage.removeItem(key);
-    return;
+  const walletKey = wallet.toLowerCase();
+  const safeQueue = sanitizedQueue(walletKey, queue);
+  if (safeQueue.length) {
+    memoryQueues.set(walletKey, safeQueue);
+  } else {
+    memoryQueues.delete(walletKey);
   }
-  window.sessionStorage.setItem(
-    key,
-    JSON.stringify(queue.slice(0, MAX_PENDING_PAID_TOASTS)),
-  );
+
+  try {
+    if (!safeQueue.length) {
+      window.sessionStorage.removeItem(keyForWallet(walletKey));
+    } else {
+      window.sessionStorage.setItem(
+        keyForWallet(walletKey),
+        JSON.stringify(safeQueue),
+      );
+    }
+  } catch {
+    // Never drop a paid popup just because a private WebView rejects storage.
+  }
 }
 
 export function storeRewardPaidToast(receipt: RewardReceipt): void {
