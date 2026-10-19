@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -99,8 +100,12 @@ export function RewardXPromotionPanel({
     useState(false);
   const [submitError, setSubmitError] =
     useState('');
+  const requestSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
+    // State requests can overlap (timers, focus, manual verification). The
+    // most recently started request alone may update this receipt's UI.
+    const requestSequence = ++requestSequenceRef.current;
     try {
       const response = await fetch(
         `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
@@ -110,6 +115,8 @@ export function RewardXPromotionPanel({
       );
       const body =
         (await response.json()) as PromotionResponse;
+
+      if (requestSequence !== requestSequenceRef.current) return;
 
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
@@ -125,9 +132,13 @@ export function RewardXPromotionPanel({
       setState(body);
       setLoadError(false);
     } catch {
-      setLoadError(true);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoadError(true);
+      }
     } finally {
-      setLoading(false);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoading(false);
+      }
     }
   }, [inviteCode]);
 
@@ -138,6 +149,11 @@ export function RewardXPromotionPanel({
     setPostUrl('');
     setSubmitError('');
     void load();
+    return () => {
+      // A prior invite's response must not revive its share token/status
+      // after the panel is unmounted or its invite identity changes.
+      requestSequenceRef.current += 1;
+    };
   }, [load]);
 
   const promotion = state?.promotion ?? null;
@@ -160,6 +176,41 @@ export function RewardXPromotionPanel({
 
     return () => window.clearInterval(timer);
   }, [load, poll]);
+
+  // An open receipt may stay mounted past the 24-hour post deadline.
+  // Refresh at each state boundary rather than polling every 30 seconds for
+  // a full day or showing an already-expired share button indefinitely.
+  useEffect(() => {
+    if (
+      !promotion ||
+      !['OPEN', 'SUBMISSION_GRACE'].includes(promotion.state)
+    ) {
+      return;
+    }
+
+    const postDeadline = Date.parse(promotion.postDeadlineAt);
+    if (!Number.isFinite(postDeadline)) return;
+
+    const transitionAt =
+      promotion.state === 'OPEN'
+        ? postDeadline
+        : postDeadline + promotion.submissionGraceSeconds * 1000;
+    const delayMs = Math.max(
+      1_000,
+      Math.min(transitionAt - Date.now() + 1_000, 86_401_000),
+    );
+    const timer = window.setTimeout(
+      () => void load(),
+      delayMs,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [
+    load,
+    promotion?.state,
+    promotion?.postDeadlineAt,
+    promotion?.submissionGraceSeconds,
+  ]);
 
   const genericShareIntent = useMemo(() => {
     if (
@@ -359,12 +410,18 @@ export function RewardXPromotionPanel({
         <button
           type="button"
           className="promotionShare"
-          onClick={() =>
+          onClick={() => {
+            // Backgrounded tabs can delay expiry timers. Recheck against
+            // the immutable server-issued deadline on the actual click.
+            if (Date.now() >= Date.parse(promotion.postDeadlineAt)) {
+              void load();
+              return;
+            }
             openIntent(
               promotionShareIntent,
               onRewardShare,
-            )
-          }
+            );
+          }}
         >
           <span>{rewardReceiptShareLabel(locale)}</span>
           <b dir="ltr">+{promotion.amountB3tr} B3TR</b>
