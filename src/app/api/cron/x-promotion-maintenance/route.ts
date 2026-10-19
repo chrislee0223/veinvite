@@ -186,6 +186,32 @@ Promise<JobResult> {
     const result =
       await runRewardXPromotionLifecycleMaintenance();
 
+    // Individual opportunity errors are isolated from the base reward path,
+    // but must not be mistaken for a successful lifecycle heartbeat.
+    const opportunitySync = result.opportunitySync;
+    const syncFailureCount =
+      opportunitySync &&
+      typeof opportunitySync === 'object' &&
+      !Array.isArray(opportunitySync)
+        ? (opportunitySync as Record<string, unknown>).failedCount
+        : null;
+    if (
+      typeof syncFailureCount !== 'number' ||
+      !Number.isSafeInteger(syncFailureCount) ||
+      syncFailureCount < 0
+    ) {
+      throw new Error('X promotion opportunity sync failure count is invalid.');
+    }
+    if (
+      syncFailureCount > 0 ||
+      result.pending.failed > 0 ||
+      result.final.failed > 0
+    ) {
+      throw new Error(
+        `X promotion lifecycle candidate failures: opportunitySync=${JSON.stringify(opportunitySync).slice(0,1300)}; pendingFailed=${result.pending.failed}; finalFailed=${result.final.failed}`,
+      );
+    }
+
     await markCronJobSucceeded(
       LIFECYCLE_JOB_NAME,
     );
