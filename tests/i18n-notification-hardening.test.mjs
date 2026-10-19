@@ -9,6 +9,7 @@ const hardening = read('src/app/notification-i18n-hardening.css');
 const layout = read('src/app/layout.tsx');
 const preview = read('src/components/NotificationUiPreview.tsx');
 const qaNotificationHarness = read('src/qa/QaNotificationStateHarness.tsx');
+const qaNotificationRoute = read('src/app/qa/notification-state/page.tsx');
 const receiptCenter = read('src/components/UnifiedInviteNotificationHistoryCenter.tsx');
 const notifications = read('src/components/InAppInviteNotifications.tsx');
 const receiptSeenRoute = read('src/app/api/rewards/receipts/[id]/seen/route.ts');
@@ -93,9 +94,28 @@ test('notification QA preview exposes every harness state and production kind', 
   ].map((match) => match[1]);
 
   assert.ok(harnessStates.length > 0);
+  const previewOnlyExclusions = new Set([
+    'NOTI-X-PROMOTION-RECEIPT',
+  ]);
   assert.deepEqual(
-    harnessStates.filter((state) => !previewStates.has(state)),
+    harnessStates.filter(
+      (state) =>
+        !previewStates.has(state) &&
+        !previewOnlyExclusions.has(state),
+    ),
     [],
+  );
+  assert.match(
+    qaNotificationHarness,
+    /'NOTI-X-PROMOTION-RECEIPT'/,
+  );
+  assert.match(
+    qaNotificationRoute,
+    /'NOTI-X-PROMOTION-RECEIPT'/,
+  );
+  assert.match(
+    qaNotificationHarness,
+    /<RewardReceiptView[\s\S]*receipt=\{QA_REWARD_RECEIPT\}/,
   );
 
   const productionKindBlock = read(
