@@ -57,6 +57,7 @@ import {
   readCachedReferralLink,
   sameWallet,
 } from '@/lib/homeClientHelpers';
+import { TransferStatus } from './RewardTransferConfirmationLabel';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useHomeStartupLoader } from '@/hooks/useHomeStartupLoader';
 import {
@@ -1037,7 +1038,7 @@ export function HomeClient() {
                           {pending ? progressCopy.claiming : progressCopy.claimReward}
                         </button>
                       ) : processing ? (
-                        <span className="processingBadge">{progressCopy.claimQueued}</span>
+                        <TransferStatus inviteCode={invite.code} wallet={wallet ?? ''} copy={progressCopy} />
                       ) : null}
                     </article>
                   );

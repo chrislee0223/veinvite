@@ -10,6 +10,7 @@ import { matchStructuredRewardProof } from '@/lib/rewards/structuredProof';
 import {
   RewardTransactionVerificationError,
   loadFinalizedRewardTransactionEvidence,
+  loadCanonicalRewardTransactionEvidence,
   verifyPayoutTransactionEvidence as verifyLegacyPayoutTransactionEvidence,
   type FinalizedRewardTransactionEvidence,
   type VerifiedRewardTransaction,
@@ -202,11 +203,13 @@ export function verifyPayoutTransactionEvidence({
   operatorWallet,
   manifestCreatedAt,
   evidence,
+  requireFinality = true,
 }: {
   manifest: PayoutManifest;
   operatorWallet: string;
   manifestCreatedAt: string | Date;
   evidence: FinalizedRewardTransactionEvidence;
+  requireFinality?: boolean;
 }): VerifiedRewardTransaction {
   if (manifest.version === PAYOUT_MANIFEST_VERSION_V2) {
     return verifyLegacyPayoutTransactionEvidence({
@@ -214,6 +217,7 @@ export function verifyPayoutTransactionEvidence({
       operatorWallet,
       manifestCreatedAt,
       evidence,
+      requireFinality,
     });
   }
 
@@ -235,6 +239,7 @@ export function verifyPayoutTransactionEvidence({
     operatorWallet,
     manifestCreatedAt,
     evidence: sanitizedEvidence,
+    requireFinality,
   });
 }
 
@@ -259,5 +264,32 @@ export async function verifyFinalizedRewardTransactionOnChain({
     operatorWallet,
     manifestCreatedAt,
     evidence,
+  });
+}
+
+/**
+ * Read-only confirmation for a canonical, successful B3TR payout. Verifies
+ * every immutable signed clause, recipient, amount, operator and on-chain
+ * RewardDistributed event. It must never be used to finalize PAID, mint a
+ * reward receipt, or begin the X promotion offer window before full finality.
+ */
+export async function verifyCanonicalRewardTransactionOnChain({
+  txId,
+  manifest,
+  operatorWallet,
+  manifestCreatedAt,
+}: {
+  txId: string;
+  manifest: PayoutManifest;
+  operatorWallet: string;
+  manifestCreatedAt: string | Date;
+}): Promise<VerifiedRewardTransaction> {
+  const evidence = await loadCanonicalRewardTransactionEvidence(txId);
+  return verifyPayoutTransactionEvidence({
+    manifest,
+    operatorWallet,
+    manifestCreatedAt,
+    evidence,
+    requireFinality: false,
   });
 }
