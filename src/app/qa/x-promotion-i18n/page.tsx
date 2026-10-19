@@ -8,12 +8,17 @@ export const dynamic = 'force-dynamic';
 export default async function QaXPromotionI18nPage({
   searchParams,
 }: {
-  searchParams: Promise<{ locale?: string }>;
+  searchParams: Promise<{ locale?: string; mode?: string }>;
 }) {
-  const { locale } = await searchParams;
+  const { locale, mode } = await searchParams;
   if (!isLocale(locale)) {
     notFound();
   }
 
-  return <QaXPromotionI18nHarness locale={locale} />;
+  return (
+    <QaXPromotionI18nHarness
+      locale={locale}
+      mode={mode === 'receipt' ? 'receipt' : 'promotion'}
+    />
+  );
 }
