@@ -80,7 +80,6 @@ export function RewardReceiptView({
           ) : null}
 
           <RewardXPromotionPanel
-            key={`x-promotion-receipt:${receipt.id}`}
             locale={locale}
             inviteCode={receipt.inviteCode}
             receiptAmountB3tr={receipt.amountB3tr}
@@ -112,7 +111,7 @@ export function RewardReceiptView({
         .notificationReceiptFacts div+div{border-top:1px solid rgba(255,255,255,.05)}
         .notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}
         .notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}
-        .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850}
+        .notificationExplorerLink{width:max-content;max-width:100%;min-width:0;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
                 .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important}
         .notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}
         .notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}
