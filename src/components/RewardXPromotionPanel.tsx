@@ -99,6 +99,7 @@ export function RewardXPromotionPanel({
     useState(false);
   const [postUrl, setPostUrl] =
     useState('');
+  const [nowMs, setNowMs] = useState(Date.now);
   const [submitting, setSubmitting] =
     useState(false);
   const [submitError, setSubmitError] =
@@ -145,6 +146,14 @@ export function RewardXPromotionPanel({
   }, [load]);
 
   const promotion = state?.promotion ?? null;
+  const offerDeadlineMs = promotion
+    ? Date.parse(promotion.postDeadlineAt)
+    : Number.NaN;
+  const offerGraceEndMs = promotion
+    ? offerDeadlineMs + promotion.submissionGraceSeconds * 1000
+    : Number.NaN;
+  const openWithinDeadline =
+    promotion?.state === 'OPEN' && nowMs <= offerDeadlineMs;
   const poll =
     state?.promotionPending === true ||
     [
@@ -164,6 +173,44 @@ export function RewardXPromotionPanel({
 
     return () => window.clearInterval(timer);
   }, [load, poll]);
+
+  // OPEN and SUBMISSION_GRACE are otherwise static: an unattended receipt
+  // would keep its +B3TR share action after the server deadline. Refresh
+  // on the exact state boundary and when returning to a suspended WebView.
+  const nextDeadlineBoundaryMs =
+    promotion?.state === 'OPEN'
+      ? offerDeadlineMs + 1
+      : promotion?.state === 'SUBMISSION_GRACE'
+        ? offerGraceEndMs + 1
+        : null;
+
+  useEffect(() => {
+    if (
+      nextDeadlineBoundaryMs === null ||
+      !Number.isFinite(nextDeadlineBoundaryMs)
+    ) return;
+
+    const refresh = () => {
+      setNowMs(Date.now());
+      void load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const delayMs = Math.max(
+      0,
+      Math.min(nextDeadlineBoundaryMs - Date.now(), 2_147_483_647),
+    );
+    const timer = window.setTimeout(refresh, delayMs);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [load, nextDeadlineBoundaryMs]);
 
   const genericShareIntent = useMemo(() => {
     if (
@@ -193,8 +240,8 @@ export function RewardXPromotionPanel({
 
   const promotionShareIntent = useMemo(() => {
     if (
-      promotion?.state !== 'OPEN' ||
-      !promotion.shareToken ||
+      !openWithinDeadline ||
+      !promotion?.shareToken ||
       !rewardShareUrl
     ) {
       return '';
@@ -216,6 +263,7 @@ export function RewardXPromotionPanel({
   }, [
     locale,
     promotion,
+    openWithinDeadline,
     receiptAmountB3tr,
     rewardShareUrl,
   ]);
@@ -331,8 +379,8 @@ export function RewardXPromotionPanel({
   }
 
   const canSubmit =
-    promotion.state === 'OPEN' ||
-    promotion.state === 'SUBMISSION_GRACE';
+    (promotion.state === 'OPEN' && openWithinDeadline) ||
+    (promotion.state === 'SUBMISSION_GRACE' && nowMs <= offerGraceEndMs);
 
   const body =
     promotion.state === 'OPEN'
