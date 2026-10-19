@@ -201,3 +201,8 @@ test('reward popup fails closed after expiry even if its share action was alread
   assert.match(popupHook, /onShare: undefined/);
   assert.match(popupHook, /visible\?\.kind === 'reward' && visible\.id === feedbackId/);
 });
+
+test('receipt share also blocks an expired offer when a background tab delayed expiry timers', () => {
+  assert.match(panel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/);
+  assert.match(panel, /if \(Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)\) \{[\s\S]*?void load\(\);[\s\S]*?return/);
+});
