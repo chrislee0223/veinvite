@@ -11,7 +11,7 @@ import {
 } from './SoftFocusMotion';
 import { GUIDE_COPY } from '@/lib/i18n/guideCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
-import type { Locale } from '@/lib/i18n/locales';
+import { getLanguageOption, type Locale } from '@/lib/i18n/locales';
 
 export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
   const [host, setHost] = useState<HTMLElement | null>(null);
@@ -21,6 +21,7 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const supportedLocale = getLanguageOption(locale).locale;
   const guide = GUIDE_COPY[locale];
 
   useEffect(() => {
@@ -206,7 +207,7 @@ export function HomeGuideInfoPortal({ locale }: { locale: Locale }) {
                 type="button"
                 className="veinviteSoftFocusClose"
                 onClick={closeGuide}
-                aria-label={NOTIFICATION_COPY[locale].closeAria}
+                aria-label={NOTIFICATION_COPY[supportedLocale].closeAria}
               >
                 <span className="veinviteDialogCloseGlyph" aria-hidden="true">×</span>
               </button>
