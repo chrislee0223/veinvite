@@ -49,6 +49,7 @@ const BODY_KEYS = [
   'expiredBody',
   'releasedBody',
   'preparingBody',
+  'shareFollowupBody',
 ];
 
 test('X promotion copy is complete and locally written for all supported locales', () => {
