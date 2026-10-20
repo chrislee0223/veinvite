@@ -10,6 +10,7 @@ import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
 import { TransientSnackbar } from '@/components/TransientSnackbar';
+import { RewardReceiptView } from '@/components/RewardReceiptView';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
@@ -42,6 +43,7 @@ export type QaNotificationStateId =
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
+  | 'NOTI-X-PROMOTION-OPEN'
   | 'NOTI-X-PROMOTION-PAID'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
@@ -564,6 +566,47 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (stateId === 'NOTI-X-PROMOTION-OPEN') {
+    return (
+      <main
+        data-qa-x-promotion-direct="true"
+        style={{
+          minHeight: '100dvh',
+          boxSizing: 'border-box',
+          padding: '10px',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'flex-start',
+          background:
+            'radial-gradient(circle at 82% 8%, rgba(244,183,40,0.10), transparent 26%), #080807',
+          color: '#fff',
+        }}
+      >
+        <div
+          style={{
+            width: 'min(400px, calc(100vw - 20px))',
+            maxWidth: '100%',
+            maxHeight: 'calc(100dvh - 20px)',
+            overflow: 'auto',
+            boxSizing: 'border-box',
+            padding: '14px',
+            border: '1px solid rgba(255,205,80,.22)',
+            borderRadius: '22px',
+            background: '#11110f',
+          }}
+        >
+          <RewardReceiptView
+            locale={locale}
+            receipt={QA_REWARD_RECEIPT}
+            loading={false}
+            error=""
+            rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
+          />
+        </div>
+      </main>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
