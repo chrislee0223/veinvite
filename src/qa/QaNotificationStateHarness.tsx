@@ -497,10 +497,17 @@ function QaNotificationStage({
   children: React.ReactNode;
   embedded?: boolean;
 }) {
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   if (embedded) return <>{children}</>;
 
   return (
     <main
+      data-qa-hydrated={hydrated ? 'true' : 'false'}
       style={{
         minHeight: '100dvh',
         boxSizing: 'border-box',
