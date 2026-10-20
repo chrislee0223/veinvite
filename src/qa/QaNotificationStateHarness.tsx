@@ -564,6 +564,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -577,15 +582,20 @@ export function QaNotificationStateHarness({
   if (stateId === 'NOTI-X-PROMOTION-PANEL') {
     return (
       <QaNotificationStage embedded={embedded}>
-        <div data-qa-x-promotion-panel="true">
-          <RewardReceiptView
-            locale={locale}
-            receipt={QA_REWARD_RECEIPT}
-            loading={false}
-            error=""
-            rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
-            onRewardShare={() => {}}
-          />
+        <div
+          data-qa-x-promotion-panel="true"
+          data-qa-x-promotion-hydrated={hydrated ? 'true' : 'false'}
+        >
+          {hydrated ? (
+            <RewardReceiptView
+              locale={locale}
+              receipt={QA_REWARD_RECEIPT}
+              loading={false}
+              error=""
+              rewardShareUrl="https://veinvite.vercel.app/s/qa-reward-share-preview"
+              onRewardShare={() => {}}
+            />
+          ) : null}
         </div>
       </QaNotificationStage>
     );
