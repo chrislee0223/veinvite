@@ -39,6 +39,7 @@ const SCENARIOS: Scenario[] = [
   { id: 'NOTI-COLLAPSED-PROGRESS', label: '여러 단계 완료' },
   { id: 'NOTI-REWARD-READY', label: '보상 수령 가능' },
   { id: 'NOTI-REWARD-PAID', label: '보상 지급 완료 · 종 기록' },
+  { id: 'NOTI-X-PROMOTION-OPEN', label: 'X 프로모션 · 실제 영수증 패널' },
   { id: 'NOTI-X-PROMOTION-PAID', label: 'X +10 B3TR 지급 완료' },
   { id: 'NOTI-REWARD-PAID-POPUP', label: '보상 지급 완료 · 하단 팝업' },
   { id: 'NOTI-REWARD-ADJUSTED', label: '보상 정책 조정' },
