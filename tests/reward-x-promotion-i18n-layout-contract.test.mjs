@@ -22,6 +22,14 @@ const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
 );
+const qaNotificationHarnessSource = readFileSync(
+  'src/qa/QaNotificationStateHarness.tsx',
+  'utf8',
+);
+const promotionBrowserQaSource = readFileSync(
+  'tests/playwright/reward-x-promotion-locale-layout-v2.spec.ts',
+  'utf8',
+);
 const shareSource = readFileSync(
   'src/lib/rewards/rewardReceiptShare.ts',
   'utf8',
@@ -259,5 +267,17 @@ test('public X campaign template stays concise and friend-neutral', () => {
   assert.doesNotMatch(
     shareFunction,
     /\bfriend(?:s)?\b/i,
+  );
+});
+
+
+test('interactive X promotion browser QA waits for React hydration before clicking receipt rows', () => {
+  assert.match(
+    qaNotificationHarnessSource,
+    /data-qa-hydrated=\{hydrated \? 'true' : 'false'\}/,
+  );
+  assert.match(
+    promotionBrowserQaSource,
+    /\[data-qa-hydrated="true"\]/,
   );
 });
