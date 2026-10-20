@@ -36,25 +36,11 @@ export function QaRewardXPromotionHarness({
   const [activeLocale, setActiveLocale] =
     useState<SupportedLocale>(locale);
   const [revision, setRevision] = useState(0);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   useEffect(() => {
     setActiveLocale(locale);
     setRevision((current) => current + 1);
   }, [locale]);
-
-  if (!hydrated) {
-    return (
-      <div
-        data-qa-x-promotion-ready="false"
-        aria-hidden="true"
-      />
-    );
-  }
 
   return (
     <main
