@@ -61,8 +61,15 @@ async function openPanel(
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
+  // Next dev mode can need several seconds to compile/hydrate this client
+  // boundary under the full parallel browser suite. Wait for a QA-only
+  // hydration marker before asserting the effect-driven promotion panel.
+  await expect(
+    page.locator('[data-qa-x-promotion-hydrated="true"]'),
+  ).toBeAttached({ timeout: 30_000 });
+
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await expect(panel).toBeVisible({ timeout: 15_000 });
   await panel.scrollIntoViewIfNeeded();
 
   await page.evaluate(async () => {
