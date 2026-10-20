@@ -58,6 +58,7 @@ const BODY_KEYS = [
   'expiredBody',
   'releasedBody',
   'preparingBody',
+  'shareFollowupBody',
 ];
 
 test('X promotion copy covers every supported locale without English body fallbacks', () => {
