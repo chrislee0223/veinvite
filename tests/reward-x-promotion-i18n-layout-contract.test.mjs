@@ -137,3 +137,21 @@ test('QA route exposes both X promotion notification and panel states', () => {
   assert.match(notificationQaPage, /'NOTI-X-PROMOTION-PAID'/);
   assert.match(notificationQaPage, /'NOTI-X-PROMOTION-PANEL'/);
 });
+
+
+test('direct X promotion QA waits for a client hydration marker', () => {
+  const harness = readFileSync(
+    'src/qa/QaNotificationStateHarness.tsx',
+    'utf8',
+  );
+  const browserAudit = readFileSync(
+    'tests/playwright/reward-x-promotion-locale-layout.spec.ts',
+    'utf8',
+  );
+  assert.match(harness, /data-qa-x-promotion-hydrated="true"/);
+  assert.match(harness, /setHydrated\(true\)/);
+  assert.match(
+    browserAudit,
+    /data-qa-x-promotion-hydrated="true"[\s\S]*toBeAttached/,
+  );
+});
