@@ -83,15 +83,26 @@ async function openHarness(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
   await page.goto('/qa/x-promotion?locale=en', {
     waitUntil: 'domcontentloaded',
-    timeout: 30_000,
+    timeout: 60_000,
   });
 
   await expect(
     page.locator('[data-qa-x-promotion-ready="true"]'),
-  ).toBeVisible({ timeout: 30_000 });
+  ).toBeVisible({ timeout: 60_000 });
 
   await expect(
     page.locator('[data-qa-x-promotion-receipt]'),
+  ).toBeVisible({ timeout: 60_000 });
+
+  // The receipt is server-rendered immediately, but the promotion panel
+  // performs its state fetch after React hydration. Wait for hydration
+  // explicitly instead of racing the first client-side request on cold CI.
+  await expect(
+    page.locator('[data-qa-x-promotion-hydrated="true"]'),
+  ).toBeVisible({ timeout: 60_000 });
+
+  await expect(
+    page.locator('.promotionPanel'),
   ).toBeVisible({ timeout: 30_000 });
 
   await page.evaluate(async () => {
