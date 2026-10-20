@@ -225,19 +225,23 @@ test('public X campaign post remains one reviewed global template', () => {
 test('dedicated X promotion QA harness is hydration-safe', () => {
   assert.match(
     qaHarnessSource,
-    /const \[hydrated, setHydrated\] = useState\(false\)/,
-  );
-  assert.match(
-    qaHarnessSource,
-    /if \(!hydrated\) \{[\s\S]*data-qa-x-promotion-ready="false"/,
-  );
-  assert.match(
-    qaHarnessSource,
     /data-qa-x-promotion-ready="true"/,
   );
   assert.match(
     qaHarnessSource,
     /data-qa-x-promotion-active-locale=\{activeLocale\}/,
+  );
+  assert.doesNotMatch(
+    qaHarnessSource,
+    /const \[hydrated, setHydrated\]/,
+  );
+  assert.doesNotMatch(
+    qaHarnessSource,
+    /data-qa-x-promotion-ready="false"/,
+  );
+  assert.match(
+    qaHarnessSource,
+    /<RewardReceiptView[\s\S]*receipt=\{QA_X_PROMOTION_RECEIPT\}/,
   );
 });
 
