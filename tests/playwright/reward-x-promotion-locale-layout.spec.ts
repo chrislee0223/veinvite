@@ -75,7 +75,7 @@ async function gotoPromotion(
       return;
     }
 
-    await route.continue();
+    await route.fallback();
   });
 
   await page.goto(
