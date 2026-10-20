@@ -55,6 +55,13 @@ type PromotionResponse = {
   error?: string;
 };
 
+export type RewardXPromotionQaPreview = {
+  response?: PromotionResponse | null;
+  loading?: boolean;
+  loadError?: boolean;
+  submitErrorStatus?: number | null;
+};
+
 function openIntent(
   intentUrl: string,
   onRewardShare?: (intentUrl: string) => void,
@@ -79,27 +86,48 @@ export function RewardXPromotionPanel({
   receiptAmountB3tr,
   rewardShareUrl,
   onRewardShare,
+  qaPreview,
 }: {
   locale: SupportedLocale;
   inviteCode: string;
   receiptAmountB3tr: string;
   rewardShareUrl: string;
   onRewardShare?: (intentUrl: string) => void;
+  /**
+   * QA-only initial render state. Production call sites omit this prop.
+   * It lets SSR browser-layout tests render the real component without
+   * depending on client hydration or reward APIs.
+   */
+  qaPreview?: RewardXPromotionQaPreview;
 }) {
   const copy = REWARD_X_PROMOTION_COPY[locale];
   const direction = getLocaleDirection(locale);
+  const previewMode = qaPreview !== undefined;
   const [state, setState] =
-    useState<PromotionResponse | null>(null);
+    useState<PromotionResponse | null>(
+      () => qaPreview?.response ?? null,
+    );
   const [loading, setLoading] =
-    useState(true);
+    useState(() =>
+      previewMode ? Boolean(qaPreview?.loading) : true,
+    );
   const [loadError, setLoadError] =
-    useState(false);
+    useState(() =>
+      previewMode ? Boolean(qaPreview?.loadError) : false,
+    );
   const [postUrl, setPostUrl] =
     useState('');
   const [submitting, setSubmitting] =
     useState(false);
   const [submitError, setSubmitError] =
-    useState('');
+    useState(() =>
+      qaPreview?.submitErrorStatus != null
+        ? rewardXPromotionSubmitError(
+            locale,
+            qaPreview.submitErrorStatus,
+          )
+        : '',
+    );
   const requestSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -143,6 +171,23 @@ export function RewardXPromotionPanel({
   }, [inviteCode]);
 
   useEffect(() => {
+    if (previewMode) {
+      requestSequenceRef.current += 1;
+      setState(qaPreview?.response ?? null);
+      setLoading(Boolean(qaPreview?.loading));
+      setLoadError(Boolean(qaPreview?.loadError));
+      setPostUrl('');
+      setSubmitError(
+        qaPreview?.submitErrorStatus != null
+          ? rewardXPromotionSubmitError(
+              locale,
+              qaPreview.submitErrorStatus,
+            )
+          : '',
+      );
+      return;
+    }
+
     setState(null);
     setLoading(true);
     setLoadError(false);
@@ -154,7 +199,12 @@ export function RewardXPromotionPanel({
       // after the panel is unmounted or its invite identity changes.
       requestSequenceRef.current += 1;
     };
-  }, [load]);
+  }, [
+    load,
+    locale,
+    previewMode,
+    qaPreview,
+  ]);
 
   const promotion = state?.promotion ?? null;
   const poll =
@@ -167,7 +217,7 @@ export function RewardXPromotionPanel({
     ].includes(promotion?.state ?? '');
 
   useEffect(() => {
-    if (!poll) return;
+    if (previewMode || !poll) return;
 
     const timer = window.setInterval(
       () => void load(),
@@ -175,13 +225,14 @@ export function RewardXPromotionPanel({
     );
 
     return () => window.clearInterval(timer);
-  }, [load, poll]);
+  }, [load, poll, previewMode]);
 
   // An open receipt may stay mounted past the 24-hour post deadline.
   // Refresh at each state boundary rather than polling every 30 seconds for
   // a full day or showing an already-expired share button indefinitely.
   useEffect(() => {
     if (
+      previewMode ||
       !promotion ||
       !['OPEN', 'SUBMISSION_GRACE'].includes(promotion.state)
     ) {
@@ -210,6 +261,7 @@ export function RewardXPromotionPanel({
     promotion?.state,
     promotion?.postDeadlineAt,
     promotion?.submissionGraceSeconds,
+    previewMode,
   ]);
 
   const genericShareIntent = useMemo(() => {
