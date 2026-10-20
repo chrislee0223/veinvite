@@ -127,6 +127,12 @@ async function selectHarnessLocale(
   );
   await picker.selectOption(locale, { force: true });
   await expect(picker).toHaveValue(locale);
+  await expect(
+    page.locator('[data-qa-x-promotion-receipt]'),
+  ).toHaveAttribute(
+    'data-qa-x-promotion-active-locale',
+    locale,
+  );
 
   await page.evaluate(async () => {
     await new Promise<void>((resolve) =>
