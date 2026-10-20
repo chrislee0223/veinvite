@@ -98,14 +98,25 @@ async function visitQa(
 ) {
   await page.setViewportSize({ width, height });
   await page.goto(
-    '/qa/x-promotion?locale=' + locale,
+    '/qa/notification-state?state=NOTI-REWARD-PAID&locale=' + locale,
     {
       waitUntil: 'domcontentloaded',
       timeout: 30_000,
     },
   );
+
+  const history = page.locator('.notificationHistoryPanel');
+  await expect(history).toBeVisible();
+
+  const receiptRow = page
+    .locator('.notificationHistoryRow')
+    .filter({ has: page.locator('.notificationReceiptAction') })
+    .first();
+  await expect(receiptRow).toBeVisible();
+  await receiptRow.click();
+
   await expect(
-    page.locator('[data-qa-x-promotion-ready="true"]'),
+    page.locator('.notificationReceiptView'),
   ).toBeVisible();
 
   await page.evaluate(async () => {
@@ -133,7 +144,7 @@ async function inspectOpenPanel(
 
   const report = await panel.evaluate((node) => {
     const root = node as HTMLElement;
-    const card = root.closest<HTMLElement>('.qaXPromotionCard');
+    const card = root.closest<HTMLElement>('.notificationReceiptView');
     const rootBox = root.getBoundingClientRect();
     const cardBox = card?.getBoundingClientRect() ?? null;
     const issues: string[] = [];
@@ -165,7 +176,7 @@ async function inspectOpenPanel(
       (rootBox.left < cardBox.left - 2 ||
         rootBox.right > cardBox.right + 2)
     ) {
-      issues.push('panel escapes QA card');
+      issues.push('panel escapes reward receipt');
     }
 
     for (const selector of [
@@ -388,7 +399,7 @@ test('X promotion standalone states wrap safely in risky locales', async ({
 
       const report = await surface.evaluate((node) => {
         const el = node as HTMLElement;
-        const card = el.closest<HTMLElement>('.qaXPromotionCard');
+        const card = el.closest<HTMLElement>('.notificationReceiptView');
         const box = el.getBoundingClientRect();
         const cardBox = card?.getBoundingClientRect() ?? null;
         return {
