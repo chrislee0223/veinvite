@@ -105,6 +105,10 @@ async function visitQa(
     },
   );
 
+  await expect(
+    page.locator('[data-qa-hydrated="true"]'),
+  ).toBeVisible();
+
   const history = page.locator('.notificationHistoryPanel');
   await expect(history).toBeVisible();
 
