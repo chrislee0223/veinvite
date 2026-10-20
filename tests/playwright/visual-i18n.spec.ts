@@ -160,10 +160,10 @@ for (const locale of SUPPORTED_LOCALES) {
       `/qa/render?scenario=invite-landing-ko-mobile&locale=${encodeURIComponent(locale)}`,
       {
         waitUntil: 'domcontentloaded',
-        // The first parallel landing requests can trigger the QA route's
-        // cold compilation on CI. Keep layout assertions strict, but give
-        // initial navigation enough time to finish compiling.
-        timeout: 30_000,
+        // The first parallel landing requests can queue behind another QA
+        // route's cold compilation on CI. Keep layout assertions strict, but
+        // give navigation enough time to finish compiling before measuring.
+        timeout: 60_000,
       },
     );
     await captureAndAssert(page, testInfo, `landing-${locale}-mobile`);
