@@ -97,6 +97,7 @@ export function QaRewardXPromotionHarness({
 
       <section
         data-qa-x-promotion-receipt
+        data-qa-x-promotion-active-locale={activeLocale}
         style={{
           width: 'min(400px, 100%)',
           maxHeight: 'calc(100dvh - 20px)',
