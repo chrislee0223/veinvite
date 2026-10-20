@@ -36,6 +36,11 @@ export function QaRewardXPromotionHarness({
   const [activeLocale, setActiveLocale] =
     useState<SupportedLocale>(locale);
   const [revision, setRevision] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setActiveLocale(locale);
@@ -45,6 +50,7 @@ export function QaRewardXPromotionHarness({
   return (
     <main
       data-qa-x-promotion-ready="true"
+      data-qa-x-promotion-hydrated={hydrated ? 'true' : 'false'}
       data-qa-x-promotion-active-locale={activeLocale}
       style={{
         minHeight: '100dvh',
