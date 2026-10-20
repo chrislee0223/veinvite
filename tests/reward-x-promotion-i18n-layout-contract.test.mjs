@@ -31,6 +31,14 @@ const qaHarnessSource = readFileSync(
   'src/qa/QaRewardXPromotionHarness.tsx',
   'utf8',
 );
+const appProvidersSource = readFileSync(
+  'src/components/AppProviders.tsx',
+  'utf8',
+);
+const hydrationShieldSource = readFileSync(
+  'src/components/LocaleHydrationShield.tsx',
+  'utf8',
+);
 
 const promotionSources = xCopySource + '\n' + expandedCopySource;
 
@@ -230,5 +238,25 @@ test('dedicated X promotion QA harness is hydration-safe', () => {
   assert.match(
     qaHarnessSource,
     /data-qa-x-promotion-active-locale=\{activeLocale\}/,
+  );
+});
+
+
+test('X promotion QA route stays provider-light and hydration-safe', () => {
+  assert.match(
+    appProvidersSource,
+    /X_PROMOTION_LAYOUT_QA_PATH = '\/qa\/x-promotion'/,
+  );
+  assert.match(
+    hydrationShieldSource,
+    /X_PROMOTION_LAYOUT_QA_PATH = '\/qa\/x-promotion'/,
+  );
+  assert.match(
+    appProvidersSource,
+    /pathname === X_PROMOTION_LAYOUT_QA_PATH/,
+  );
+  assert.match(
+    hydrationShieldSource,
+    /pathname === X_PROMOTION_LAYOUT_QA_PATH/,
   );
 });
