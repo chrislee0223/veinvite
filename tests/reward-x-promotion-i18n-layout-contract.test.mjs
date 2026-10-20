@@ -229,11 +229,23 @@ test('dedicated X promotion QA harness is hydration-safe', () => {
   );
   assert.match(
     qaHarnessSource,
+    /data-qa-x-promotion-hydrated=\{hydrated \? 'true' : 'false'\}/,
+  );
+  assert.match(
+    qaHarnessSource,
+    /const \[hydrated, setHydrated\] = useState\(false\)/,
+  );
+  assert.match(
+    qaHarnessSource,
+    /useEffect\(\(\) => \{[\s\S]*setHydrated\(true\);[\s\S]*\}, \[\]\);/,
+  );
+  assert.match(
+    qaHarnessSource,
     /data-qa-x-promotion-active-locale=\{activeLocale\}/,
   );
   assert.doesNotMatch(
     qaHarnessSource,
-    /const \[hydrated, setHydrated\]/,
+    /if \(!hydrated\)/,
   );
   assert.doesNotMatch(
     qaHarnessSource,
