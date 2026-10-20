@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useWallet } from '@vechain/vechain-kit';
 
@@ -33,13 +33,6 @@ type CaseDetails = {
   } | null;
 };
 
-type ReverseCandidate = {
-  inviteCode: string;
-  peerInviteCode: string;
-  signals: string[];
-  rewardAmountWei: string;
-};
-
 const API = '/api/admin/sybil/historical-paid';
 const CODE = /^[A-HJ-NP-Z2-9]{7}$/;
 function formatB3TR(wei: string | undefined): string {
@@ -51,7 +44,7 @@ function formatB3TR(wei: string | undefined): string {
 
 export default function HistoricalPaidSybilReviewPage() {
   const { account } = useWallet();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState('M89HCCW');
   const [info, setInfo] = useState<CaseDetails | null>(null);
   const [reason, setReason] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -59,45 +52,9 @@ export default function HistoricalPaidSybilReviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [candidates, setCandidates] = useState<ReverseCandidate[] | null>(null);
-  const [candidatesError, setCandidatesError] = useState('');
-  const [refresh, setRefresh] = useState(0);
 
-  // Automatically discover retrospective links when the operator opens
-  // this existing manual review page. No background database mutations.
-  useEffect(() => {
-    if (!account?.address) {
-      setCandidates(null);
-      setCandidatesError('');
-      return;
-    }
-    const controller = new AbortController();
-    setCandidates(null);
-    setCandidatesError('');
-    void (async () => {
-      try {
-        const response = await fetch(`${API}?candidates=1`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        const data = await response.json() as {
-          candidates?: ReverseCandidate[];
-          error?: string;
-        };
-        if (!response.ok) throw new Error(data.error ?? '역추적 조회 실패');
-        if (!controller.signal.aborted) setCandidates(data.candidates ?? []);
-      } catch (caught) {
-        if (!controller.signal.aborted) setCandidatesError(
-          caught instanceof Error ? caught.message : '역추적 조회 중 오류 발생',
-        );
-      }
-    })();
-    return () => controller.abort();
-  }, [account?.address, refresh]);
-
-  const load = async (nextCode = code) => {
-    const normalized = nextCode.trim().toUpperCase();
-    setCode(normalized);
+  const load = async () => {
+    const normalized = code.trim().toUpperCase();
     if (!CODE.test(normalized)) {
       setError('올바른 7자리 초대 코드를 입력하세요.');
       return;
@@ -165,7 +122,6 @@ export default function HistoricalPaidSybilReviewPage() {
       );
       setInfo(null); // do not permit a second submission from a stale snapshot
       setConfirmation('');
-      setRefresh((value) => value + 1);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '처리 중 오류 발생');
     } finally {
@@ -194,39 +150,6 @@ export default function HistoricalPaidSybilReviewPage() {
         <p role="status">운영자 지갑으로 로그인해 주세요.</p>
       ) : (
         <>
-          <section aria-label="과거 CLEAR 자동 역추적" style={{
-            border: '1px solid #888', borderRadius: 12, padding: 16, margin: '16px 0',
-          }}>
-            <h2>과거 CLEAR 자동 역추적 · 관리자 검토</h2>
-            <button type="button" disabled={submitting}
-              onClick={() => setRefresh((value) => value + 1)}>
-              후보 다시 확인
-            </button>
-            <p>
-              강한 동일 기기 전환 증거와 독립된 VTHO 자금 연결이 모두
-              확인된 과거 지급 유저만 표시합니다. 자동 차단이나 보상 변경은 없습니다.
-            </p>
-            {candidatesError && <p role="alert">{candidatesError}</p>}
-            {!candidatesError && candidates === null && <p role="status">검토 후보 확인 중…</p>}
-            {candidates?.length === 0 && <p role="status">현재 추가 검토할 후보가 없습니다.</p>}
-            {candidates?.map((candidate) => (
-              <div key={candidate.inviteCode} style={{
-                borderTop: '1px solid #bbb', padding: '10px 0',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                flexWrap: 'wrap', gap: 8,
-              }}>
-                <span>
-                  <strong>{candidate.inviteCode}</strong>
-                  {' · '}연결된 BLACK: {candidate.peerInviteCode}
-                  {' · '}기존 지급: {formatB3TR(candidate.rewardAmountWei)} B3TR
-                </span>
-                <button type="button" disabled={loading || submitting}
-                  onClick={() => void load(candidate.inviteCode)}>
-                  증거 상세 확인
-                </button>
-              </div>
-            ))}
-          </section>
           <div style={{ display: 'flex', gap: 8, margin: '18px 0' }}>
             <input aria-label="초대 코드" value={code} maxLength={7}
               onChange={(e) => setCode(e.target.value.toUpperCase())} />

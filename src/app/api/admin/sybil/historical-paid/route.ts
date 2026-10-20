@@ -156,86 +156,6 @@ async function readHistoricalCase(code: string, network: string) {
   };
 }
 
-/**
- * Read-only reverse lookup on the existing manual historical-paid review.
- * Only a paid/clear invitee linked by a HIGH immediate client switch AND
- * independent VTHO funding to an actively restricted sibling is surfaced.
- * No automatic verdict, reward adjustment, queue write, or new cron job.
- */
-async function readHistoricalCandidates(network: string) {
-  const scanLimit = 100;
-  const { data: switches, error: switchError } = await supabaseAdmin
-    .from('sybil_v2_evidence_records')
-    .select('invite_code,related_wallet')
-    .eq('network', network)
-    .eq('signal_code', 'SECURITY_CLIENT_SIBLING_IMMEDIATE_SWITCH')
-    .eq('evidence_family', 'SECURITY_IDENTITY')
-    .eq('strength', 'HIGH')
-    .not('related_wallet', 'is', null)
-    .limit(scanLimit + 1);
-  if (switchError) throw new Error('Historical reverse switch scan failed.');
-  if ((switches ?? []).length > scanLimit) {
-    throw new Error('Historical reverse scan requires pagination; results not complete.');
-  }
-  if (!switches?.length) return [];
-
-  const wallets = [...new Set(switches.map((row) => row.related_wallet)
-    .filter((wallet): wallet is string => typeof wallet === 'string'))];
-  const peerCodes = [...new Set(switches.map((row) => row.invite_code))];
-  if (!wallets.length) return [];
-
-  const [paid, funding] = await Promise.all([
-    supabaseAdmin.from('invitations')
-      .select('invite_code,invitee_wallet')
-      .eq('activation_network', network)
-      .eq('status', 'COMPLETED')
-      .eq('sybil_status', 'CLEAR')
-      .eq('reward_status', 'PAID')
-      .in('invitee_wallet', wallets)
-      .limit(scanLimit + 1),
-    supabaseAdmin.from('sybil_v2_evidence_records')
-      .select('invite_code,related_wallet')
-      .eq('network', network)
-      .eq('evidence_family', 'FUNDING')
-      .in('signal_code', ['FIRST_VTHO_FUNDER', 'RECENT_PREACTIVATION_VTHO_FUNDER'])
-      .in('invite_code', peerCodes)
-      .in('related_wallet', wallets)
-      .limit(scanLimit + 1),
-  ]);
-  if (paid.error || funding.error) {
-    throw new Error('Historical reverse funding lookup failed.');
-  }
-  if ((paid.data ?? []).length > scanLimit || (funding.data ?? []).length > scanLimit) {
-    throw new Error('Historical reverse scan requires pagination; results not complete.');
-  }
-  const fundedPairs = new Set((funding.data ?? [])
-    .map((row) => `${row.invite_code}:${row.related_wallet}`));
-  const linkedWallets = new Set((switches ?? [])
-    .filter((row) => fundedPairs.has(`${row.invite_code}:${row.related_wallet}`))
-    .map((row) => row.related_wallet));
-  const codes = [...new Set((paid.data ?? [])
-    .filter((row) => row.invitee_wallet && linkedWallets.has(row.invitee_wallet))
-    .map((row) => row.invite_code))];
-  // Full historical cases verify assessment, receipt, active restriction,
-  // same inviter, active invalidation and the existing operator's proof gate.
-  // A cap keeps this operator request bounded even under adversarial traffic.
-  if (codes.length > 20) {
-    throw new Error('Historical reverse candidates exceeded safe review batch.');
-  }
-  const cases = await Promise.all(codes.map((code) =>
-    readHistoricalCase(code, network)));
-  return cases.flatMap((review) =>
-    review?.canBlacklist && review.peer && review.receipt &&
-    review.invalidation?.status !== 'ACTIVE'
-      ? [{
-          inviteCode: review.invitation.invite_code,
-          peerInviteCode: review.peer.peerInviteCode,
-          signals: review.peer.signals,
-          rewardAmountWei: review.receipt.amount_wei,
-        }]
-      : []);
-}
-
 async function authorize(request: NextRequest) {
   const session = await requireWalletSession({ request });
   const pool = await readVeInviteRewardPoolStatus();
@@ -265,11 +185,6 @@ export async function GET(request: NextRequest) {
       { error: 'Verified VeInvite reward operator required.' },
       { status: 403, headers: NO_STORE },
     );
-    if (request.nextUrl.searchParams.get('candidates') === '1') {
-      const candidates = await readHistoricalCandidates(authority.network);
-      return NextResponse.json({ candidates, operator: authority.operator },
-        { headers: NO_STORE });
-    }
     const code = normalizeCode(request.nextUrl.searchParams.get('inviteCode'));
     if (!code) return NextResponse.json(
       { error: 'Valid 7-character invite code required.' },
