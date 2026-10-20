@@ -1,4 +1,5 @@
 import type { SupportedLocale } from './locales';
+import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
 
 export type RewardXPromotionCopy = {
   title: string;
@@ -292,18 +293,5 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verifying: 'Đang kiểm tra…',
     retry: 'Thử lại',
   },
-  hi: { ...EN, shareFollowupBody: 'X पर पोस्ट करने के बाद VeInvite पर लौटें, सूचनाओं में इनाम खोलें और बोनस सत्यापित करने के लिए सार्वजनिक पोस्ट का लिंक चिपकाएँ।', title: 'X प्रमोशन बोनस', verify: 'पोस्ट सत्यापित करें', verifying: 'जाँच जारी…', retry: 'फिर कोशिश करें' },
-  ar: { ...EN, shareFollowupBody: 'بعد النشر على X، عُد إلى VeInvite وافتح إيصال المكافأة في الإشعارات والصق رابط المنشور العام للتحقق من المكافأة.', title: 'مكافأة ترويج X', verify: 'تحقق من المنشور', verifying: 'جارٍ التحقق…', retry: 'حاول مجددًا' },
-  bn: { ...EN, shareFollowupBody: 'X-এ পোস্ট করার পর VeInvite-এ ফিরে আসুন, নোটিফিকেশনে পুরস্কারের রসিদ খুলুন এবং বোনাস যাচাই করতে পোস্টের লিংক দিন।', title: 'X প্রচার বোনাস', verify: 'পোস্ট যাচাই করুন', verifying: 'যাচাই চলছে…', retry: 'আবার চেষ্টা করুন' },
-  sv: { ...EN, shareFollowupBody: 'Efter inlägget på X: gå tillbaka till VeInvite, öppna belöningen i Notiser och klistra in den offentliga länken för att verifiera bonusen.', title: 'X-kampanjbonus', verify: 'Verifiera inlägg', verifying: 'Kontrollerar…', retry: 'Försök igen' },
-  ro: { ...EN, shareFollowupBody: 'După postarea pe X, revino în VeInvite, deschide recompensa din Notificări și lipește linkul public pentru verificarea bonusului.', title: 'Bonus promoțional X', verify: 'Verifică postarea', verifying: 'Se verifică…', retry: 'Încearcă din nou' },
-  ur: { ...EN, shareFollowupBody: 'X پر پوسٹ کرنے کے بعد VeInvite پر واپس آئیں، اطلاعات میں انعام کھولیں اور بونس کی تصدیق کے لیے پوسٹ کا لنک درج کریں۔', title: 'X پروموشن بونس', verify: 'پوسٹ کی تصدیق کریں', verifying: 'جانچ جاری…', retry: 'دوبارہ کوشش کریں' },
-  pcm: { ...EN, shareFollowupBody: 'After you post for X, come back VeInvite, open your reward for Notifications and paste the public post link to verify bonus.', title: 'X Promotion Bonus', verify: 'Check Post', verifying: 'Checking…', retry: 'Try again' },
-  arz: { ...EN, shareFollowupBody: 'بعد ما تنشر على X، ارجع لـ VeInvite وافتح إيصال المكافأة من الإشعارات وحط لينك البوست عشان تأكد البونص.', title: 'مكافأة ترويج X', verify: 'راجع البوست', verifying: 'بنراجع…', retry: 'جرّب تاني' },
-  mr: { ...EN, shareFollowupBody: 'X वर पोस्ट केल्यानंतर VeInvite वर परत या, सूचनांमध्ये बक्षीस उघडा आणि बोनस पडताळण्यासाठी सार्वजनिक पोस्टची लिंक द्या.', title: 'X प्रमोशन बोनस', verify: 'पोस्ट तपासा', verifying: 'तपासत आहे…', retry: 'पुन्हा प्रयत्न करा' },
-  te: { ...EN, shareFollowupBody: 'Xలో పోస్ట్ చేసిన తర్వాత VeInviteకి తిరిగి వచ్చి, నోటిఫికేషన్‌లలో రివార్డ్ తెరిచి బోనస్ కోసం పబ్లిక్ పోస్ట్ లింక్‌ను అతికించండి.', title: 'X ప్రమోషన్ బోనస్', verify: 'పోస్ట్‌ను ధృవీకరించండి', verifying: 'తనిఖీ చేస్తోంది…', retry: 'మళ్లీ ప్రయత్నించండి' },
-  sw: { ...EN, shareFollowupBody: 'Baada ya kuchapisha kwenye X, rudi VeInvite, fungua zawadi kwenye Arifa na ubandike kiungo cha chapisho la umma kuthibitisha bonasi.', title: 'Bonasi ya Promosheni ya X', verify: 'Thibitisha chapisho', verifying: 'Inakaguliwa…', retry: 'Jaribu tena' },
-  ha: { ...EN, shareFollowupBody: 'Bayan ka wallafa a X, koma VeInvite, buɗe ladan a Sanarwa, ka liƙa hanyar sakon jama\'a domin tabbatar da ƙarin lada.', title: 'Kyautar Tallan X', verify: 'Tabbatar da sakon', verifying: 'Ana dubawa…', retry: 'Sake gwadawa' },
-  el: { ...EN, shareFollowupBody: 'Μετά τη δημοσίευση στο X, γύρισε στο VeInvite, άνοιξε την ανταμοιβή στις Ειδοποιήσεις και επικόλλησε τον σύνδεσμο για έλεγχο του μπόνους.', title: 'Μπόνους προώθησης X', verify: 'Επαλήθευση ανάρτησης', verifying: 'Έλεγχος…', retry: 'Δοκιμή ξανά' },
-  cs: { ...EN, shareFollowupBody: 'Po zveřejnění na X se vraťte do VeInvite, otevřete odměnu v Oznámeních a vložte veřejný odkaz na příspěvek pro ověření bonusu.', title: 'Bonus za propagaci na X', verify: 'Ověřit příspěvek', verifying: 'Kontrola…', retry: 'Zkusit znovu' },
+  ...REWARD_X_PROMOTION_EXPANDED_COPY,
 };
