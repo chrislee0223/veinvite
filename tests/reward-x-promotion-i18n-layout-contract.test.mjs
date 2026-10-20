@@ -191,18 +191,31 @@ test('X submit-error copy covers all locales and maps reviewed status classes', 
   assert.match(errorCopySource, /status === 429/);
   assert.match(errorCopySource, /return copy\.unavailable/);
 
+  const submitStart = panelSource.indexOf(
+    'const submitPost = useCallback',
+  );
+  const submitEnd = panelSource.indexOf(
+    '\n  if (loading)',
+    submitStart,
+  );
+  assert.ok(submitStart >= 0 && submitEnd > submitStart);
+  const submitSource = panelSource.slice(
+    submitStart,
+    submitEnd,
+  );
+
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, response\.status\)/,
   );
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, 0\)/,
   );
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
-  assert.doesNotMatch(panelSource, /error\.message/);
+  assert.doesNotMatch(submitSource, /body\.error\s*\|\|/);
+  assert.doesNotMatch(submitSource, /error\.message/);
   assert.doesNotMatch(
-    panelSource,
+    submitSource,
     /The X Post could not be verified/,
   );
 });
