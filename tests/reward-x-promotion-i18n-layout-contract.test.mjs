@@ -22,6 +22,10 @@ const notificationQa = readFileSync(
   'tests/playwright/notification-locale-layout.spec.ts',
   'utf8',
 );
+const notificationQaPage = readFileSync(
+  'src/app/qa/notification-state/page.tsx',
+  'utf8',
+);
 
 test('X promotion body copy has no English-spread fallback', () => {
   assert.doesNotMatch(copy, /\.\.\.EN\b/);
@@ -126,4 +130,10 @@ test('X promotion paid notification is included in all-locale layout audit', () 
   assert.match(notificationQa, /for \(const locale of SUPPORTED_LOCALES\)/);
   assert.match(notificationQa, /width: 320/);
   assert.match(notificationQa, /width: 393/);
+});
+
+
+test('QA route exposes both X promotion notification and panel states', () => {
+  assert.match(notificationQaPage, /'NOTI-X-PROMOTION-PAID'/);
+  assert.match(notificationQaPage, /'NOTI-X-PROMOTION-PANEL'/);
 });
