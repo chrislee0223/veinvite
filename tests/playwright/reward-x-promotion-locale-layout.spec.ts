@@ -66,15 +66,19 @@ async function openPromotionPanel(
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  await expect(
-    page.locator('[data-qa-x-promotion-panel="true"]'),
-  ).toBeVisible({ timeout: 10_000 });
+  const qaRoot = page.locator('[data-qa-x-promotion-panel="true"]');
+  await expect(qaRoot).toBeVisible({ timeout: 45_000 });
+  await expect(qaRoot).toHaveAttribute(
+    'data-qa-x-promotion-hydrated',
+    'true',
+    { timeout: 45_000 },
+  );
   await expect(page.locator('.notificationReceiptView')).toBeVisible({
-    timeout: 10_000,
+    timeout: 20_000,
   });
 
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await expect(panel).toBeVisible({ timeout: 20_000 });
   await panel.scrollIntoViewIfNeeded();
 
   await page.evaluate(async () => {
@@ -330,15 +334,19 @@ async function openStandalonePromotionState({
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  await expect(
-    page.locator('[data-qa-x-promotion-panel="true"]'),
-  ).toBeVisible({ timeout: 10_000 });
+  const qaRoot = page.locator('[data-qa-x-promotion-panel="true"]');
+  await expect(qaRoot).toBeVisible({ timeout: 45_000 });
+  await expect(qaRoot).toHaveAttribute(
+    'data-qa-x-promotion-hydrated',
+    'true',
+    { timeout: 45_000 },
+  );
   await expect(page.locator('.notificationReceiptView')).toBeVisible({
-    timeout: 10_000,
+    timeout: 20_000,
   });
 
   const surface = page.locator(selector);
-  await expect(surface).toBeVisible({ timeout: 10_000 });
+  await expect(surface).toBeVisible({ timeout: 20_000 });
   await surface.scrollIntoViewIfNeeded();
 
   return surface.evaluate((node) => {
