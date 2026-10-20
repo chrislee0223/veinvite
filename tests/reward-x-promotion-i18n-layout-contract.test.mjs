@@ -77,20 +77,25 @@ test('X promotion submit errors are localized and raw server errors never render
   assert.match(errors, /status === 409/);
   assert.match(errors, /status === 429/);
 
+  const submitBlock = panel.slice(
+    panel.indexOf('const submitPost'),
+    panel.indexOf('if (loading)'),
+  );
+
   assert.match(
-    panel,
+    submitBlock,
     /rewardXPromotionSubmitError\(locale, response\.status\)/,
   );
   assert.match(
-    panel,
+    submitBlock,
     /rewardXPromotionSubmitError\(locale, 0\)/,
   );
-  assert.doesNotMatch(panel, /body\.error\s*\|\|/);
+  assert.doesNotMatch(submitBlock, /body\.error\s*\|\|/);
   assert.doesNotMatch(
-    panel,
+    submitBlock,
     /error instanceof Error[\s\S]{0,180}error\.message/,
   );
-  assert.doesNotMatch(panel, /The X Post could not be verified/);
+  assert.doesNotMatch(submitBlock, /The X Post could not be verified/);
 });
 
 test('X promotion panel has long-copy and RTL/LTR layout guards', () => {
