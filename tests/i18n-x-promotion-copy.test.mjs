@@ -268,6 +268,14 @@ test('X promotion browser QA uses a dedicated direct-render receipt state', () =
     /data-qa-x-promotion-panel="true"/,
   );
   assert.match(
+    harnessSource,
+    /data-qa-x-promotion-hydrated=\{hydrated \? 'true' : 'false'\}/,
+  );
+  assert.match(
+    harnessSource,
+    /hydrated \? \([\s\S]*<RewardReceiptView/,
+  );
+  assert.match(
     qaPageSource,
     /'NOTI-X-PROMOTION-PANEL'/,
   );
