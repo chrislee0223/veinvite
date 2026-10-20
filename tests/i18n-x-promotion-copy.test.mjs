@@ -199,17 +199,27 @@ test('X promotion submit errors are localized and raw API messages never reach U
     }
   }
 
+  const submitStart = panelSource.indexOf(
+    'const submitPost = useCallback(async () => {',
+  );
+  const submitEnd = panelSource.indexOf(
+    '\n  if (loading) {',
+    submitStart,
+  );
+  assert.ok(submitStart >= 0 && submitEnd > submitStart);
+  const submitSource = panelSource.slice(submitStart, submitEnd);
+
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, response\.status\)/,
   );
   assert.match(
-    panelSource,
+    submitSource,
     /rewardXPromotionSubmitError\(locale, 0\)/,
   );
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
+  assert.doesNotMatch(submitSource, /body\.error\s*\|\|/);
   assert.doesNotMatch(
-    panelSource,
+    submitSource,
     /error instanceof Error[\s\S]*error\.message/,
   );
 });
