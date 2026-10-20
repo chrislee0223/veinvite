@@ -22,8 +22,8 @@ const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
 );
-const qaNotificationHarnessSource = readFileSync(
-  'src/qa/QaNotificationStateHarness.tsx',
+const qaPromotionPreviewSource = readFileSync(
+  'src/qa/QaRewardXPromotionPreview.tsx',
   'utf8',
 );
 const promotionBrowserQaSource = readFileSync(
@@ -271,13 +271,17 @@ test('public X campaign template stays concise and friend-neutral', () => {
 });
 
 
-test('interactive X promotion browser QA waits for React hydration before clicking receipt rows', () => {
+test('X promotion browser QA renders the real panel from SSR preview states', () => {
   assert.match(
-    qaNotificationHarnessSource,
-    /data-qa-hydrated=\{hydrated \? 'true' : 'false'\}/,
+    qaPromotionPreviewSource,
+    /<RewardXPromotionPanel[\s\S]*qaPreview=\{previewForState\(state\)\}/,
   );
   assert.match(
     promotionBrowserQaSource,
-    /\[data-qa-hydrated="true"\]/,
+    /state=XPROMO-OPEN/,
+  );
+  assert.doesNotMatch(
+    promotionBrowserQaSource,
+    /data-qa-hydrated|\.click\(|\.fill\(/,
   );
 });
