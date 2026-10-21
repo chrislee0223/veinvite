@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { REWARD_X_PROMOTION_OAUTH_COPY } from '@/lib/i18n/rewardXPromotionOAuthCopy';
 import {
   LANGUAGE_STORAGE_KEY, isLocale, resolveBrowserLocale,
 } from '@/lib/i18n/locales';
@@ -29,27 +29,19 @@ export function useXPromotionOAuthReturnFeedback(
     const displayLocale = isLocale(savedLocale)
       ? savedLocale
       : resolveBrowserLocale(window.navigator.languages, 'en');
-    const korean = displayLocale === 'ko';
+    const copy = REWARD_X_PROMOTION_OAUTH_COPY[displayLocale];
 
     if (status === 'connected') {
-      showFeedback(
-        'success',
-        REWARD_X_PROMOTION_COPY[displayLocale].connectedX ??
-          REWARD_X_PROMOTION_COPY.en.connectedX ??
-          'X account connected.',
-      );
+      showFeedback('success', copy.connectedX);
+    } else if (status === 'conflict') {
+      showFeedback('info', copy.conflictBody);
+    } else if (status === 'private') {
+      showFeedback('info', copy.privateBody);
     } else if ([
-      'invalid', 'wallet', 'offer', 'provider', 'private',
-      'conflict', 'unavailable', 'error',
+      'invalid', 'wallet', 'offer', 'provider',
+      'unavailable', 'error',
     ].includes(status)) {
-      const warning = status === 'conflict'
-        ? (korean
-            ? '이 X 계정은 다른 지갑과 연결되어 있어요. 게시물 링크 제출 방식은 계속 사용할 수 있어요.'
-            : 'This X account cannot be linked to this wallet. Manual Post URL submission is still available.')
-        : (korean
-            ? 'X 계정을 연결하지 못했어요. 다시 시도하거나 게시물 링크를 직접 제출해 주세요.'
-            : 'X account connection did not complete. Retry or submit your public Post URL manually.');
-      showFeedback('info', warning);
+      showFeedback('info', copy.failedBody);
     }
   }, [showFeedback]);
 }
