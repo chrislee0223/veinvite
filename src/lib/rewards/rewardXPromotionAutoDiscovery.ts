@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { readBoundAuthorPosts } from '@/lib/rewards/rewardXPromotionAuthorTimeline';
 import {
   findVeInvitePromotionUrl,
   lookupXPromotionPost,
@@ -50,7 +51,7 @@ export type XPromotionDiscoveryResult = {
   ignored: number;
   failed: number;
   truncated: boolean;
-  status: 'DISABLED' | 'NO_OFFERS' | 'READY' | 'SEARCH_UNAVAILABLE' | 'QUERY_INCOMPLETE';
+  status: 'DISABLED' | 'NO_OFFERS' | 'READY' | 'SEARCH_UNAVAILABLE' | 'QUERY_INCOMPLETE' | 'BUDGET_LIMIT';
 };
 
 function mode(): Mode {
@@ -233,11 +234,70 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
   }
 
   const oldest = Math.min(...eligible.map((item) => Date.parse(item.opened_at!)));
-  // Recent Search covers seven days; cap the lower bound to that window and
-  // avoid end-user claims about full coverage if a response is incomplete.
-  const searchStart = new Date(Math.max(oldest - 60_000, now - 6 * 86_400_000)).toISOString();
-  const search = await searchRecentPosts(searchStart);
-  result.checked = true;
+  // Domain-wide search is kept for existing diagnostic/legacy behavior.
+  // The new author strategy requires OAuth-attested authors and an explicit
+  // shared daily read budget. It has no X calls without both settings.
+  const authorStrategy = currentMode === 'live' &&
+    process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author';
+  let search: { posts: SearchPost[]; truncated: boolean } | null = null;
+  let partial = false;
+  let budgetLimited = false;
+
+  if (authorStrategy) {
+    // An authenticated X author can have multiple offers; scan just once.
+    const work = new Map<string, { openedAt: string }>();
+    for (const offer of eligible) {
+      const authorId = boundAuthors.get(offer.recipient_wallet.toLowerCase());
+      if (!authorId) continue;
+      const prior = work.get(authorId);
+      if (!prior || Date.parse(offer.opened_at!) < Date.parse(prior.openedAt)) {
+        work.set(authorId, { openedAt: offer.opened_at! });
+      }
+    }
+    const authors = [...work.entries()];
+    // A fixed upper bound per cron, independent of user-generated demand.
+    // The shared per-day budget and per-author cooldown prevent repeated
+    // reads across parallel invocations.
+    const MAX_AUTHORS_PER_TICK = 4;
+    if (authors.length > MAX_AUTHORS_PER_TICK) partial = true;
+    // Rotate batches by UTC hour so persistent first authors do not starve
+    // newer users every time a cron invocation scans the list.
+    const offset = authors.length ? Math.floor(now / 3_600_000) % authors.length : 0;
+    const rotated = [...authors.slice(offset), ...authors.slice(0, offset)]
+      .slice(0, MAX_AUTHORS_PER_TICK);
+    const posts: SearchPost[] = [];
+    let checked = false;
+    for (const [authorId, { openedAt }] of rotated) {
+      const attempt = await readBoundAuthorPosts(authorId, openedAt);
+      if (attempt.status === 'BUDGET_LIMIT' || attempt.status === 'DISABLED') {
+        budgetLimited = true;
+        break;
+      }
+      if (attempt.status === 'COOLDOWN') continue;
+      if (attempt.status !== 'READY') {
+        partial = true;
+        result.failed += 1;
+        continue;
+      }
+      checked = true;
+      posts.push(...attempt.posts);
+      if (attempt.truncated) partial = true;
+    }
+    result.checked = checked;
+    if (!checked) {
+      result.status = budgetLimited ? 'BUDGET_LIMIT' : partial
+        ? 'SEARCH_UNAVAILABLE' : 'NO_OFFERS';
+      return result;
+    }
+    search = { posts, truncated: partial || budgetLimited };
+  } else {
+    // Retained for old eligibility tests and explicit legacy operation.
+    // Never use this broad strategy as the basis for a new URL-less cohort.
+    const searchStart = new Date(Math.max(oldest - 60_000, now - 6 * 86_400_000)).toISOString();
+    search = await searchRecentPosts(searchStart);
+    result.checked = true;
+  }
+
   if (!search) {
     result.status = 'SEARCH_UNAVAILABLE';
     result.failed = 1;

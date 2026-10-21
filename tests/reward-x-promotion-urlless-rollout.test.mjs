@@ -9,6 +9,8 @@ const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', imp
 test('manual URL retirement requires a separate live + time-bounded rollout gate', () => {
   assert.match(route, /VEINVITE_X_PROMOTION_URLLESS_START_AT/);
   assert.match(route, /VEINVITE_X_PROMOTION_DISCOVERY_MODE === 'live'/);
+  assert.match(route, /VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author'/);
+  assert.match(route, /VEINVITE_X_PROMOTION_DAILY_READ_CALLS/);
   assert.match(route, /xConnectAvailable &&/);
   assert.match(route, /Number\.isFinite\(urlLessStart\)/);
   assert.match(route, /Date\.parse\(opportunityRow\.opened_at\) >= urlLessStart/);
