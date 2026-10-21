@@ -1,6 +1,6 @@
 # VeInvite X share-bonus: guarded OAuth rollout
 
-**Status:** PR-only / disabled. Do not merge or activate before account-ownership, search-entitlement, and live-spend checks are reviewed. Basic referral rewards, 24-hour retention, payout worker, and the manual X Post URL submission remain authoritative.
+**Status (2026-10-21):** OAuth and disabled-by-default discovery code from PR #1189 are merged and deployed. Production OAuth configuration exists, but X search remains explicitly `off`; live search entitlement, account-link WebView handoff, and real 24-hour payout have not been tested. The existing manual X Post URL submission and B3TR payout path remain in operation.
 
 ## User flow
 
@@ -18,14 +18,16 @@ No user OAuth access token or refresh token is stored. The original Post remains
 - `X_OAUTH_CLIENT_SECRET` — only for a confidential X Web App client, configured as a sensitive secret. Omit if registered as an OAuth public client.
 - `X_OAUTH_STATE_SECRET` — independent unpredictable secret of at least 32 characters for signed OAuth flow cookies.
 - `X_OAUTH_REDIRECT_URI` — exact URL registered with X: `https://veinvite.vercel.app/api/rewards/x-promotion/x-connect/callback`.
-- `VEINVITE_X_PROMOTION_DISCOVERY_MODE` — **unset / `off` by default**. `probe` is read-only; `live` is only for approved deployment with X API spend limits and verified Post indexing.
+- `VEINVITE_X_PROMOTION_DISCOVERY_MODE` — **`off` in production**. `probe` is read-only but can consume X API credits when offers exist; `live` may record discovered Posts into the existing verified submission pipeline.
+- `VEINVITE_X_PROMOTION_URLLESS_START_AT` — **unset by default**. Explicit ISO-8601 start timestamp for a new URL-less rollout cohort. The URL input is hidden **only when both** discovery is `live`, valid OAuth settings exist, and the offer opened at or after this timestamp. Existing older receipts retain the manual URL submission fallback even after rollout.
+- Do not set the timestamp or enable `live` until real matched-post coverage, 24-hour verification, and budget bounds are independently confirmed.
 - Existing `X_API_BEARER_TOKEN` — currently production-scoped and provides only verified single-Post lookup readiness; **do not interpret single-Post readiness as a search entitlement**.
 
 Do not paste or print secrets, OAuth codes, access tokens, or callback cookies. Ensure redirect host, scheme and path exactly match the application origin; production must be HTTPS. Test within VeWorld WebView and a normal browser, as the wallet session and OAuth state cookie must survive the full same-browser redirect round trip.
 
 ## Cost and correctness blockers
 
-X officially bills by **resources returned**, not solely by calls. Post reads are currently listed at **$0.005 per Post** on https://docs.x.com/x-api/getting-started/pricing; verify the Developer Console before production. Discovery is currently capped at one page of 10 Posts per cron. Repeated searches can cost up to 10 × 96 × $0.005 = **$4.80/day**, excluding canonical post reads, if 10 Posts are returned at every 15-minute run. This is a theoretical **upper bound on returned results** for the broad search, not an approved budget or confirmed real bill. Broad domain matching is incomplete and can miss eligible Posts.
+X officially bills by **resources returned**, not solely by calls. Post reads are currently listed at **$0.005 per Post** on https://docs.x.com/x-api/getting-started/pricing; verify the Developer Console before production. Discovery is currently capped at one page of 10 Posts per cron. Repeated searches can cost up to 10 × 96 × $0.005 = **$4.80/day**, excluding canonical post reads, if 10 Posts are returned at every 15-minute run. This is a theoretical **upper bound on returned results** for the broad search, not an approved budget or confirmed real bill. Per-resource daily deduplication may reduce actual charges, but must not be treated as a hard cost ceiling. Broad domain matching is incomplete and can miss eligible Posts.
 
 **Before enabling `live`:**
 1. Verify X recent-search permission (read-only probe on real Posts), exact-domain+query-token indexing and freshness; confirm an acceptable financial cap.
@@ -40,5 +42,5 @@ If the X API cannot meet price/coverage requirements, leave automatic discovery 
 
 - The additive OAuth-proof table was installed first in the preview Supabase project and then in production using the reviewed migration. Production observed version: `20261021041230` (`reward_x_promotion_oauth_proofs`).
 - Verified production RLS ON; anonymous INSERT denied; authenticated SELECT denied; service-role INSERT allowed; immutable proof trigger exists; initial proof count 0.
-- This is a **database-only schema update**. Code changes are still in draft PR #1189, X OAuth configuration is absent, automatic discovery remains disabled and no existing user payout is changed.
+- This schema change was followed by PR #1189 (merged and deployed). OAuth configuration was provided directly in Vercel by the account holder. Automatic X discovery is still `off`, and no existing user payout was changed.
 - The independent OAuth-proof table is mandatory because a previously recorded X identity from a manually pasted public Post URL is **not account ownership proof**. Never use `reward_x_promotion_x_identities` alone to authorize automatic reward submission.
