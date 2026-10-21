@@ -156,6 +156,16 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     truncated: false, status: 'DISABLED',
   };
   if (currentMode === 'off') return result;
+  // Production must never perform unlimited paid domain-wide reads when an
+  // operator flips only the live switch. Both an author-only strategy and
+  // an explicit 1..20 shared daily read cap are required before any live scan.
+  if (currentMode === 'live' &&
+      (process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY !== 'author' ||
+       !/^(?:[1-9]|1[0-9]|20)$/u.test(
+         process.env.VEINVITE_X_PROMOTION_DAILY_READ_CALLS ?? '',
+       ))) {
+    return { ...result, status: 'DISABLED' };
+  }
 
   const { network } = getVeBetterNetworkConfig();
   const now = Date.now();
