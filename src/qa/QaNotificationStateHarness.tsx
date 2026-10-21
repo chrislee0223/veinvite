@@ -325,6 +325,13 @@ function fixtureForState(
         unreadCount: 1,
         open: true,
       };
+    case 'NOTI-X-PROMOTION-RECEIPT':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
+      };
     case 'NOTI-REWARD-PAID-POPUP':
       return {
         mode: 'history',
