@@ -33,6 +33,7 @@ type SearchPost = {
   created_at?: string;
   entities?: { urls?: { expanded_url?: string }[] };
   referenced_tweets?: { id?: string; type?: string }[];
+  referenced_posts?: { id?: string; type?: string }[];
 };
 type SearchPage = {
   data?: SearchPost[];
@@ -73,7 +74,8 @@ function originalPublicPost(post: SearchPost): boolean {
     POST_ID.test(post.author_id) &&
     typeof post.created_at === 'string' &&
     Number.isFinite(Date.parse(post.created_at)) &&
-    (!Array.isArray(post.referenced_tweets) || post.referenced_tweets.length === 0),
+    (!Array.isArray(post.referenced_tweets) || post.referenced_tweets.length === 0) &&
+    (!Array.isArray(post.referenced_posts) || post.referenced_posts.length === 0),
   );
 }
 
@@ -88,7 +90,7 @@ async function searchRecentPosts(startTime: string): Promise<{
   let next: string | undefined;
   for (let page = 0; page < MAX_SEARCH_PAGES; page += 1) {
     const url = new URL('https://api.x.com/2/tweets/search/recent');
-    url.searchParams.set('query', 'url:veinvite.vercel.app -is:retweet -is:reply');
+    url.searchParams.set('query', 'url:veinvite.vercel.app -is:retweet -is:reply -is:quote');
     url.searchParams.set('tweet.fields', 'created_at,author_id,entities,referenced_tweets');
     url.searchParams.set('sort_order', 'recency');
     url.searchParams.set('max_results', String(SEARCH_PAGE_SIZE));
