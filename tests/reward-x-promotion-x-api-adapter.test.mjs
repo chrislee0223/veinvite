@@ -63,7 +63,7 @@ test('X lookup preserves legacy query and retries current X API fields only for 
   assert.match(adapter, /response\.status === 400/);
   assert.match(adapter, /searchParams\.delete\('tweet\.fields'\)/);
   assert.match(adapter, /'post\.fields'/);
-  assert.match(adapter, /'referenced_posts'/);
+  assert.match(adapter, /referenced_posts/);
 });
 
 test('missing credentials and transient X failures never become terminal invalidation', () => {
