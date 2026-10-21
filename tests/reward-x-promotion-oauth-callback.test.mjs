@@ -25,7 +25,7 @@ function setup({
   sessionWallet = WALLET, stateOverride = null,
   privateAccount = false, existingAuthor = null,
   returnedAuthor = '1234567890', noSession = false,
-  insertConflict = false, offerWallet = WALLET,
+  insertConflict = false, proofConflict = false, proofAuthor = null, offerWallet = WALLET,
 } = {}) {
   const env = {
     NODE_ENV: 'production', X_OAUTH_CLIENT_ID: 'oauth-client',
@@ -47,13 +47,28 @@ function setup({
   const url = new URL(CALLBACK);
   url.searchParams.set('state', stateOverride ?? flow.state);
   url.searchParams.set('code', 'OAuth-code-from-X-12345');
-  const stats = { tokenCalls: 0, meCalls: 0, insertCount: 0 };
+  const stats = { tokenCalls: 0, meCalls: 0, insertCount: 0, proofWrites: 0 };
   const supabaseAdmin = {
     from(table) {
       if (table === 'reward_x_promotion_opportunities') {
         return {
           select() { return this; }, eq() { return this; },
           async maybeSingle() { return { data: { recipient_wallet: offerWallet, policy_version: 'x-promotion-additive-v2' }, error: null }; },
+        };
+      }
+      if (table === 'reward_x_promotion_oauth_proofs') {
+        return {
+          select() { return this; }, eq() { return this; },
+          async maybeSingle() {
+            return { data: proofAuthor ? { x_author_id: proofAuthor } : null, error: null };
+          },
+          async insert(value) {
+            stats.proofWrites++;
+            assert.equal(value.recipient_wallet, WALLET);
+            assert.equal(value.x_author_id, returnedAuthor);
+            assert.equal(value.proof_method, 'OAUTH2_PKCE');
+            return { error: proofConflict ? { code: '23505', message: 'proof conflict' } : null };
+          },
         };
       }
       assert.equal(table, 'reward_x_promotion_x_identities');
@@ -140,6 +155,7 @@ test('valid OAuth result immutably binds verified X author to wallet', async () 
   assert.equal(x.stats.tokenCalls, 1);
   assert.equal(x.stats.meCalls, 1);
   assert.equal(x.stats.insertCount, 1);
+  assert.equal(x.stats.proofWrites, 1);
 });
 
 test('state mismatch is rejected before any X API call', async () => {
@@ -179,6 +195,7 @@ test('existing matching wallet-author pair is idempotent', async () => {
   const x = setup({ existingAuthor: '1234567890' });
   assert.equal(status(await x.run()), 'connected');
   assert.equal(x.stats.insertCount, 0);
+  assert.equal(x.stats.proofWrites, 1);
 });
 
 test('another wallet already holding author id causes DB conflict', async () => {
@@ -191,4 +208,29 @@ test('opportunity owner mismatch aborts before OAuth token exchange', async () =
   const x = setup({ offerWallet: SECOND });
   assert.equal(status(await x.run()), 'offer');
   assert.equal(x.stats.tokenCalls, 0);
+});
+
+test('existing manual URL binding upgrades only after real provider OAuth', async () => {
+  const x = setup({ existingAuthor: '1234567890' });
+  assert.equal(status(await x.run()), 'connected');
+  assert.equal(x.stats.insertCount, 0);
+  assert.equal(x.stats.proofWrites, 1);
+});
+
+test('verified OAuth proof can be replayed idempotently but not rewritten', async () => {
+  const x = setup({ existingAuthor: '1234567890', proofAuthor: '1234567890' });
+  assert.equal(status(await x.run()), 'connected');
+  assert.equal(x.stats.proofWrites, 0);
+});
+
+test('stored OAuth proof for another X author fails closed', async () => {
+  const x = setup({ existingAuthor: '1234567890', proofAuthor: '9999999999' });
+  assert.equal(status(await x.run()), 'conflict');
+  assert.equal(x.stats.proofWrites, 0);
+});
+
+test('a conflicting OAuth proof cannot be silently overwritten', async () => {
+  const x = setup({ proofConflict: true });
+  assert.equal(status(await x.run()), 'conflict');
+  assert.equal(x.stats.proofWrites, 1);
 });
