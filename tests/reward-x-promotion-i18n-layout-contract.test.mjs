@@ -18,9 +18,13 @@ const supportedLocales = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map(
 );
 
 function localeRegistry(source) {
-  return [...source.matchAll(
+  const locales = [...source.matchAll(
     /(?:^|\n)\s*(?:'([^']+)'|([a-z]+)):\s*\{/g,
   )].map((match) => match[1] ?? match[2]);
+
+  if (/\ben:\s*EN\b/.test(source)) locales.push('en');
+
+  return locales;
 }
 
 test('X promotion state copy covers all 29 locales without English spread fallbacks', () => {
