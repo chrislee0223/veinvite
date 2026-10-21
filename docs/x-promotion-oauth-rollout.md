@@ -35,3 +35,10 @@ X officially bills by **resources returned**, not solely by calls. Post reads ar
 5. Pass complete CI, browser/mobile QA and real on-chain finality on the existing payout path before withdrawing manual URL submission.
 
 If the X API cannot meet price/coverage requirements, leave automatic discovery disabled and the manual option in place. A successful code build does not prove real X Post search entitlement.
+
+## Schema deployment (2026-10-21)
+
+- The additive OAuth-proof table was installed first in the preview Supabase project and then in production using the reviewed migration. Production observed version: `20261021041230` (`reward_x_promotion_oauth_proofs`).
+- Verified production RLS ON; anonymous INSERT denied; authenticated SELECT denied; service-role INSERT allowed; immutable proof trigger exists; initial proof count 0.
+- This is a **database-only schema update**. Code changes are still in draft PR #1189, X OAuth configuration is absent, automatic discovery remains disabled and no existing user payout is changed.
+- The independent OAuth-proof table is mandatory because a previously recorded X identity from a manually pasted public Post URL is **not account ownership proof**. Never use `reward_x_promotion_x_identities` alone to authorize automatic reward submission.
