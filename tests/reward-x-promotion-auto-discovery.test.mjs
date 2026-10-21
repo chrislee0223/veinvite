@@ -15,7 +15,7 @@ const compiled = ts.transpileModule(source, {
 function setup({
   mode = 'live', posts = [], apiStatus = 200, alternateStatus = null, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
-  boundAuthor = '9876543210', strategy = '',
+  boundAuthor = '9876543210', strategy = 'author',
   authorResult = null,
 } = {}) {
   const now = Date.now();
@@ -70,9 +70,11 @@ function setup({
     if (id === '@/lib/rewards/rewardXPromotionAuthorTimeline') {
       return { async readBoundAuthorPosts() {
         calls.author++;
-        return authorResult ?? {
-          status: 'READY', posts, truncated: false,
-        };
+        return authorResult ?? (
+          apiStatus === 200
+            ? { status: 'READY', posts, truncated: false }
+            : { status: 'UNAVAILABLE', posts: [], truncated: false }
+        );
       } };
     }
     if (id === '@/lib/supabaseServer') return { supabaseAdmin };
@@ -103,6 +105,7 @@ function setup({
     process: { env: {
       VEINVITE_X_PROMOTION_DISCOVERY_MODE: mode,
       VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY: strategy,
+      VEINVITE_X_PROMOTION_DAILY_READ_CALLS: '6',
       X_API_BEARER_TOKEN: 'fake-test-token',
     } },
     Date, Math, URL, Set, AbortController, setTimeout, clearTimeout,
@@ -219,10 +222,11 @@ test('mismatched bound X author is not treated as wallet owner', async () => {
   assert.equal(x.calls.submissions.length, 0);
 });
 
-test('domain-wide search has a strict 10-result cap per cron', async () => {
+test('OAuth-author strategy never incurs a broad paid domain search', async () => {
   const x = setup({ posts: [post()] });
   await x.run();
-  assert.equal(x.calls.api, 1);
+  assert.equal(x.calls.author, 1);
+  assert.equal(x.calls.api, 0);
 });
 
 test('quoted or referenced Post cannot receive automatic reward', async () => {
@@ -243,17 +247,18 @@ test('legacy manually submitted X identity without OAuth proof cannot auto quali
   assert.equal(x.calls.submissions.length, 0);
 });
 
-test('HTTP 400 field mismatch retries alternate X fields without bypassing canonical verification', async () => {
-  const x = setup({ apiStatus: 400, alternateStatus: 200, posts: [post()] });
+test('read-only domain probe retries field format on HTTP 400', async () => {
+  const x = setup({ mode: 'probe', apiStatus: 400, alternateStatus: 200, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'READY');
   assert.equal(x.calls.api, 2);
-  assert.equal(result.submitted, 1);
-  assert.equal(x.calls.submissions.length, 1);
+  assert.equal(result.matched, 1);
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
 });
 
 test('HTTP 400 from both provider field formats fails closed without payout or submission', async () => {
-  const x = setup({ apiStatus: 400, alternateStatus: 400, posts: [post()] });
+  const x = setup({ mode: 'probe', apiStatus: 400, alternateStatus: 400, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'SEARCH_UNAVAILABLE');
   assert.equal(x.calls.api, 2);
@@ -262,7 +267,7 @@ test('HTTP 400 from both provider field formats fails closed without payout or s
 });
 
 test('HTTP 429 never triggers field-format retry or a reward', async () => {
-  const x = setup({ apiStatus: 429, posts: [post()] });
+  const x = setup({ mode: 'probe', apiStatus: 429, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'SEARCH_UNAVAILABLE');
   assert.equal(x.calls.api, 1);
@@ -316,5 +321,14 @@ test('author timeline result truncation is diagnosed without false verification'
   const result = await x.run();
   assert.equal(result.status, 'QUERY_INCOMPLETE');
   assert.equal(result.truncated, true);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('live mode cannot run paid scans without author strategy', async () => {
+  const x = setup({ posts: [post()], strategy: '' });
+  const result = await x.run();
+  assert.equal(result.status, 'DISABLED');
+  assert.equal(x.calls.api, 0);
+  assert.equal(x.calls.author, 0);
   assert.equal(x.calls.submissions.length, 0);
 });

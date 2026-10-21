@@ -2,6 +2,11 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Reduce peak Webpack build memory on Vercel's 4-vCPU/8-GB machines.
+  // Avoid changing billable build-machine tier for this rollout.
+  experimental: {
+    webpackMemoryOptimizations: true,
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   // Demo rendering is a preview/development aid only. Even if a stale Vercel

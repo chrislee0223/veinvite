@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { runXPromotionSearchProbeOnce } from '@/lib/rewards/rewardXPromotionSearchProbe';
+import { runXAuthorTimelineSmokeOnce } from '@/lib/rewards/rewardXPromotionAuthorSmoke';
 import {
   runXPromotionAutoDiscovery,
   type XPromotionDiscoveryResult,
@@ -852,6 +853,19 @@ Promise<RewardXPromotionLifecycleResult> {
     }
   } catch (error) {
     console.warn('X promotion search diagnostic did not complete', {
+      message: error instanceof Error ? error.message : 'unknown',
+    });
+  }
+
+  // Single UTC-day probe for public author-timeline entitlement. This is
+  // independent of the existing provider search probe and of all rewards.
+  try {
+    const authorSmoke = await runXAuthorTimelineSmokeOnce();
+    if (authorSmoke.status !== 'SKIPPED' && authorSmoke.status !== 'ALREADY_RUN') {
+      console.info('X author timeline one-shot smoke', authorSmoke);
+    }
+  } catch (error) {
+    console.warn('X author timeline smoke did not complete', {
       message: error instanceof Error ? error.message : 'unknown',
     });
   }
