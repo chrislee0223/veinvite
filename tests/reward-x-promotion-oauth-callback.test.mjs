@@ -53,7 +53,7 @@ function setup({
       if (table === 'reward_x_promotion_opportunities') {
         return {
           select() { return this; }, eq() { return this; },
-          async maybeSingle() { return { data: { recipient_wallet: offerWallet }, error: null }; },
+          async maybeSingle() { return { data: { recipient_wallet: offerWallet, policy_version: 'x-promotion-additive-v2' }, error: null }; },
         };
       }
       assert.equal(table, 'reward_x_promotion_x_identities');
@@ -66,7 +66,7 @@ function setup({
           stats.insertCount++;
           assert.equal(_value.recipient_wallet, WALLET);
           assert.equal(_value.x_author_id, returnedAuthor);
-          assert.equal(_value.policy_version, 'x-promotion-oauth2-pkce-v1');
+          assert.equal(_value.policy_version, 'x-promotion-additive-v2');
           return { error: insertConflict ? { code: '23505', message: 'duplicate' } : null };
         },
       };
