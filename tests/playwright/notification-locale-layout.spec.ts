@@ -17,7 +17,8 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-HISTORY-OPEN',          // multiple cards, unread badge and Mark-all
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
-  'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-REWARD-PAID',          // core reward amount and receipt action
+  'NOTI-X-PROMOTION-PAID',    // localized +B3TR promotion-paid bell notice
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -71,6 +72,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy strong',
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
+      '.notificationExplorerLink',
       '.notificationReceiptView > p',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {

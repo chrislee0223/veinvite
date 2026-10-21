@@ -7,7 +7,7 @@ type RewardAdjustedCopy = {
 
 const COPY: Record<SupportedLocale, RewardAdjustedCopy> = {
   en: {
-    title: 'Referral reward adjustment',
+    title: 'Referral reward don adjust',
     body: 'This valid referral reward was applied to a previous reward adjustment, so no new B3TR was transferred. The successful referral is still recorded.',
   },
   ko: {

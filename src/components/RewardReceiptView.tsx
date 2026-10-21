@@ -2,7 +2,10 @@
 
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  getLocaleDirection,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 import type { RewardReceipt } from '@/lib/rewards/rewardReceipt';
 import { getVeChainExplorerTransactionUrl } from '@/lib/vechainExplorer';
 import { RewardXPromotionPanel } from './RewardXPromotionPanel';
@@ -29,6 +32,7 @@ export function RewardReceiptView({
 }) {
   const structure = NOTIFICATION_HISTORY_COPY[locale];
   const copy = REWARD_RECEIPT_COPY[locale];
+  const direction = getLocaleDirection(locale);
   const transactionUrl = receipt
     ? getVeChainExplorerTransactionUrl(
         receipt.txId,
@@ -38,7 +42,7 @@ export function RewardReceiptView({
 
 
   return (
-    <div className="notificationReceiptView">
+    <div className="notificationReceiptView" lang={locale} dir={direction}>
       {loading ? (
         <div className="notificationHistoryState" aria-busy="true">
           <span className="notificationHistorySpinner" aria-hidden="true" />
@@ -47,7 +51,7 @@ export function RewardReceiptView({
       ) : receipt ? (
         <>
           <section className="notificationReceiptHero">
-            <div className="notificationReceiptAmount">
+            <div className="notificationReceiptAmount" dir="ltr">
               <strong>{receipt.amountB3tr}</strong>
               <span>B3TR</span>
             </div>
@@ -56,11 +60,11 @@ export function RewardReceiptView({
           <dl className="notificationReceiptFacts">
             <div>
               <dt>{copy.round}</dt>
-              <dd>#{receipt.veBetterRoundId}</dd>
+              <dd dir="ltr">#{receipt.veBetterRoundId}</dd>
             </div>
             <div>
               <dt>{copy.invite}</dt>
-              <dd>{receipt.inviteCode}</dd>
+              <dd dir="ltr">{receipt.inviteCode}</dd>
             </div>
             <div>
               <dt>{copy.transaction}</dt>
@@ -106,19 +110,19 @@ export function RewardReceiptView({
         .notificationReceiptAmount{display:flex;align-items:baseline;gap:7px}
         .notificationReceiptAmount strong{color:#fff1b0;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
         .notificationReceiptAmount span{color:#d4b953;font-size:.64rem;font-weight:900;letter-spacing:.02em}
-        .notificationReceiptHero p{margin:0;color:#a8a197;font-size:.67rem;line-height:1.55}
+        .notificationReceiptHero p{margin:0;color:#a8a197;font-size:.67rem;line-height:1.55;overflow-wrap:break-word}
         .notificationReceiptFacts{margin:14px 0 0;overflow:hidden;border:1px solid rgba(255,255,255,.06);border-radius:13px;background:rgba(255,255,255,.018)}
-        .notificationReceiptFacts div{min-height:39px;padding:9px 11px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:14px}
+        .notificationReceiptFacts div{min-height:39px;padding:9px 11px;box-sizing:border-box;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
         .notificationReceiptFacts div+div{border-top:1px solid rgba(255,255,255,.05)}
-        .notificationReceiptFacts dt{color:#777168;font-size:.56rem;font-weight:800}
-        .notificationReceiptFacts dd{margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;overflow-wrap:anywhere;text-align:end}
-        .notificationExplorerLink{width:max-content;max-width:100%;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850}
-                .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important}
+        .notificationReceiptFacts dt{min-width:0;flex:1 1 45%;color:#777168;font-size:.56rem;font-weight:800;line-height:1.35;overflow-wrap:anywhere}
+        .notificationReceiptFacts dd{min-width:0;flex:1 1 55%;margin:0;color:#d9d2c7;font-size:.6rem;font-weight:850;line-height:1.35;overflow-wrap:anywhere;text-align:end;unicode-bidi:isolate}
+        .notificationExplorerLink{width:max-content;max-width:100%;min-width:0;margin-top:9px;display:inline-flex;align-items:center;gap:5px;color:#cdb45e;text-decoration:none;font-size:.59rem;font-weight:850;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+                .notificationReceiptError{margin:8px 0 0!important;color:#d48b93!important;font-size:.6rem!important;line-height:1.5;overflow-wrap:anywhere}
         .notificationHistoryState{height:100%;min-height:0;box-sizing:border-box;padding:36px 24px;display:grid;place-items:center;align-content:center;text-align:center}
         .notificationHistorySpinner{width:32px;height:32px;border:3px solid rgba(244,183,40,.16);border-top-color:#e6bd4c;border-radius:50%;animation:notificationHistorySpin .8s linear infinite}
         .notificationHistoryStateIcon{width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:rgba(255,110,120,.08);color:#ff8f9b;font-size:1.2rem;font-weight:950}
         .notificationHistoryState strong{margin-top:14px;color:#ddd8cf;font-size:.9rem}
-        .notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55}
+        .notificationHistoryState p{max-width:280px;margin:7px 0 0;color:#77726b;font-size:.66rem;line-height:1.55;overflow-wrap:break-word}
         .notificationExplorerLink:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         @keyframes notificationHistorySpin{to{transform:rotate(360deg)}}
         @media(max-width:560px){.notificationReceiptView{padding:16px 14px}.notificationReceiptAmount strong{font-size:1.75rem}}
