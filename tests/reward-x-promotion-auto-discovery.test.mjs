@@ -99,6 +99,11 @@ function setup({
     fetch: async (url) => {
       assert.match(String(url), /api\.x\.com\/2\/tweets\/search\/recent/);
       assert.match(String(url), /url%3Aveinvite\.vercel\.app/);
+      const query = new URL(String(url)).searchParams;
+      assert.equal(query.get('post.fields'), 'created_at,entities');
+      assert.equal(query.get('expansions'), 'author_id,referenced_posts');
+      assert.equal(query.has('tweet.fields'), false);
+      assert.equal(query.get('max_results'), '10');
       calls.api++;
       return {
         ok: apiStatus === 200, status: apiStatus,
