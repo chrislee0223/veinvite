@@ -175,7 +175,6 @@ export function HomeClient() {
   });
 
   useEffect(() => {
-    // Hardened wallet WebViews can deny storage even when JavaScript works.
     let saved: string | null = null;
     try {
       saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
