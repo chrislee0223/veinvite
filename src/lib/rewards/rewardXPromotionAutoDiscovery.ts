@@ -91,11 +91,11 @@ async function searchRecentPosts(startTime: string): Promise<{
   for (let page = 0; page < MAX_SEARCH_PAGES; page += 1) {
     const url = new URL('https://api.x.com/2/tweets/search/recent');
     url.searchParams.set('query', 'url:veinvite.vercel.app -is:retweet -is:reply -is:quote');
-    // X's current Recent Search contract uses post.fields (not tweet.fields).
-    // author_id is obtained from the author expansion; use both legacy and
-    // current reference names when validating response objects.
-    url.searchParams.set('post.fields', 'created_at,entities');
-    url.searchParams.set('expansions', 'author_id,referenced_posts');
+    // X's published Recent Search quickstart uses tweet.fields. Request
+    // author_id directly (not only via includes/users expansion), otherwise
+    // originalPublicPost safely rejects every result as unverified.
+    // Some X deployments use post.fields; retry that spelling on HTTP 400.
+    url.searchParams.set('tweet.fields', 'created_at,entities,author_id,referenced_tweets');
     url.searchParams.set('sort_order', 'recency');
     url.searchParams.set('max_results', String(SEARCH_PAGE_SIZE));
     url.searchParams.set('start_time', startTime);
@@ -105,11 +105,21 @@ async function searchRecentPosts(startTime: string): Promise<{
     const timer = setTimeout(() => controller.abort(), X_TIMEOUT_MS);
     let response: Response;
     try {
-      response = await fetch(url, {
+      const init: RequestInit = {
         headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
         signal: controller.signal,
         cache: 'no-store',
-      });
+      };
+      response = await fetch(url, init);
+      if (response.status === 400) {
+        // Only a malformed-request response triggers field-format fallback;
+        // never retry entitlement, rate-limit, or provider failures.
+        const alternate = new URL(url);
+        alternate.searchParams.delete('tweet.fields');
+        alternate.searchParams.set('post.fields', 'created_at,entities,author_id,referenced_posts');
+        alternate.searchParams.set('expansions', 'author_id,referenced_posts');
+        response = await fetch(alternate, init);
+      }
     } catch {
       return null;
     } finally {
