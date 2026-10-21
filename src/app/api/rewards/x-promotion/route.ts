@@ -297,12 +297,14 @@ export async function GET(
         .order('id', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabaseAdmin
-        .from('reward_x_promotion_oauth_proofs')
-        .select('x_author_id')
-        .eq('network', network)
-        .eq('recipient_wallet', wallet)
-        .maybeSingle(),
+      xConnectAvailable
+        ? supabaseAdmin
+            .from('reward_x_promotion_oauth_proofs')
+            .select('x_author_id')
+            .eq('network', network)
+            .eq('recipient_wallet', wallet)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     if (obligation.error || !obligation.data) {
