@@ -198,7 +198,7 @@ for (const locale of SUPPORTED_LOCALES) {
 for (const locale of HIGH_RISK_LOCALES) {
   test('X promotion constrained desktop receipt / ' + locale, async ({ page }) => {
     await page.route(
-      /\\/api\\/rewards\\/x-promotion(?:\\?.*)?$/,
+      /\/api\/rewards\/x-promotion(?:\?.*)?$/,
       async (route) => {
         await route.fulfill({
           status: 200,
