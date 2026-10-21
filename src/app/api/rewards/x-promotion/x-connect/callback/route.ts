@@ -66,10 +66,13 @@ export async function GET(request: NextRequest) {
     const { network } = getVeBetterNetworkConfig();
     const verifiedOffer = await supabaseAdmin
       .from('reward_x_promotion_opportunities')
-      .select('recipient_wallet')
+      .select('recipient_wallet,policy_version')
       .eq('invite_code', pending.inviteCode)
       .eq('network', network).maybeSingle();
-    if (verifiedOffer.error || verifiedOffer.data?.recipient_wallet !== pending.wallet) {
+    if (verifiedOffer.error || verifiedOffer.data?.recipient_wallet !== pending.wallet ||
+        typeof verifiedOffer.data.policy_version !== 'string' ||
+        verifiedOffer.data.policy_version.length < 1 ||
+        verifiedOffer.data.policy_version.length > 80) {
       return finish(request, 'offer');
     }
 
@@ -125,7 +128,7 @@ export async function GET(request: NextRequest) {
       .insert({
         network, recipient_wallet: pending.wallet,
         x_author_id: authorId,
-        policy_version: 'x-promotion-oauth2-pkce-v1',
+        policy_version: verifiedOffer.data.policy_version,
         first_verified_at: new Date().toISOString(),
       });
     if (inserted.error) {
