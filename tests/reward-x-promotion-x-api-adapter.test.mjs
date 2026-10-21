@@ -50,7 +50,7 @@ const migration = await readFile(
   'utf8',
 );
 
-test('X lookup uses the official v2 Post lookup endpoint and tweet fields', () => {
+test('X lookup preserves legacy query and retries current X API fields only for HTTP 400', () => {
   assert.match(
     adapter,
     /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/,
@@ -60,8 +60,10 @@ test('X lookup uses the official v2 Post lookup endpoint and tweet fields', () =
   assert.match(adapter, /'entities'/);
   assert.match(adapter, /'author_id'/);
   assert.match(adapter, /'referenced_tweets'/);
-  assert.doesNotMatch(adapter, /'post\.fields'/);
-  assert.doesNotMatch(adapter, /referenced_posts/);
+  assert.match(adapter, /response\.status === 400/);
+  assert.match(adapter, /searchParams\.delete\('tweet\.fields'\)/);
+  assert.match(adapter, /'post\.fields'/);
+  assert.match(adapter, /'referenced_posts'/);
 });
 
 test('missing credentials and transient X failures never become terminal invalidation', () => {
