@@ -79,7 +79,7 @@ function originalPublicPost(post: SearchPost): boolean {
   );
 }
 
-async function searchRecentPosts(startTime: string): Promise<{
+export async function searchRecentPosts(startTime: string): Promise<{
   posts: SearchPost[];
   truncated: boolean;
 } | null> {
