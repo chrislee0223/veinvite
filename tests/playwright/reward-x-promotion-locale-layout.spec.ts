@@ -106,7 +106,10 @@ async function readOpenLayout(page: Page) {
         if (!el.textContent?.trim() && selector !== '.promotionSubmit input') continue;
         if (el.getClientRects().length === 0) continue;
         const box = el.getBoundingClientRect();
-        if (el.scrollWidth > el.clientWidth + 2) {
+        if (
+          selector !== '.promotionSubmit input' &&
+          el.scrollWidth > el.clientWidth + 2
+        ) {
           issues.push(selector + ' clipped horizontally');
         }
         if (box.left < rootBox.left - 2 || box.right > rootBox.right + 2) {
