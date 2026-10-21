@@ -211,7 +211,7 @@ export const REWARD_X_PROMOTION_EXPANDED_COPY = {
     expiredBody: 'Lokacin gabatar da sakon tallan X ya ƙare.',
     releasedBody: 'An mayar da adadin tallan zuwa asusun lada.',
     preparingBody: 'Ana shirya damar tallan X ɗinka. Ka sake duba wannan rasidin lada nan ba da jimawa ba.',
-    shareFollowupBody: 'Bayan ka wallafa a X, koma VeInvite, buɗe ladan a Sanarwa, ka liƙa hanyar sakon jama\\'a domin tabbatar da ƙarin lada.',
+    shareFollowupBody: 'Bayan ka wallafa a X, koma VeInvite, buɗe ladan a Sanarwa, ka liƙa hanyar sakon jama\'a domin tabbatar da ƙarin lada.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Tabbatar da sakon',
     verifying: 'Ana dubawa…',
