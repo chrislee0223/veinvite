@@ -59,6 +59,7 @@ import {
 } from '@/lib/homeClientHelpers';
 import { TransferStatus } from './RewardTransferConfirmationLabel';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
+import { useXPromotionOAuthReturnFeedback } from '@/hooks/useXPromotionOAuthReturnFeedback';
 import { useHomeStartupLoader } from '@/hooks/useHomeStartupLoader';
 import {
   buildProductionSharePageUrl,
@@ -122,7 +123,6 @@ export function HomeClient() {
   const feedbackIdRef = useRef(0);
   const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
-  // Stop stale requests before wallet-change effects run.
   activeWalletRef.current = wallet;
   const evidenceSyncAttemptRef = useRef<Map<string, number>>(new Map());
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -161,6 +161,9 @@ export function HomeClient() {
     });
   }, []);
 
+
+  useXPromotionOAuthReturnFeedback(showFeedback);
+
   useRewardPaidTransientFeedback({
     wallet,
     locale,
@@ -172,13 +175,11 @@ export function HomeClient() {
   });
 
   useEffect(() => {
-    // Hardened wallet WebViews can deny storage even when JavaScript works.
     let saved: string | null = null;
     try {
       saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     } catch {
-      // Keep the browser locale; preferences cannot block Home startup.
-    }
+      }
     const initialLocale = isLocale(saved)
       ? saved
       : resolveBrowserLocale(window.navigator.languages, 'en');

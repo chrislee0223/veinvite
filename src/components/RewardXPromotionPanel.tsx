@@ -47,6 +47,8 @@ type Promotion = {
 type PromotionResponse = {
   newOffersEnabled?: boolean;
   promotionPending?: boolean;
+  xConnectAvailable?: boolean;
+  xConnected?: boolean;
   promotion?: Promotion | null;
   error?: string;
 };
@@ -433,6 +435,26 @@ export function RewardXPromotionPanel({
         </button>
       ) : null}
 
+      {promotion.state === 'OPEN' && state?.xConnectAvailable ? (
+        state.xConnected ? (
+          <p className="promotionConnectState" role="status">
+            {copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX}
+          </p>
+        ) : (
+          <button
+            type="button"
+            className="promotionConnect"
+            onClick={() => {
+              window.location.assign(
+                `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(inviteCode)}`,
+              );
+            }}
+          >
+            {copy.connectX ?? REWARD_X_PROMOTION_COPY.en.connectX}
+          </button>
+        )
+      ) : null}
+
       {canSubmit ? (
         <div className="promotionSubmit">
           <input
@@ -474,6 +496,9 @@ export function RewardXPromotionPanel({
         .promotionHeading span{flex:0 0 auto;color:#ffd04a;font-size:.68rem;font-weight:950;font-variant-numeric:tabular-nums}
         .promotionPanel p{margin:8px 0 0;color:#9f998f;font-size:.62rem;line-height:1.5}
         .promotionShare{width:100%;min-height:44px;margin-top:12px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.72rem;font-weight:950;cursor:pointer}
+        .promotionConnect{width:100%;min-height:42px;margin-top:10px;padding:9px 12px;border:1px solid rgba(255,205,80,.35);border-radius:11px;background:rgba(244,183,40,.10);color:#f1cf65;font:inherit;font-size:.7rem;font-weight:900;cursor:pointer}
+        .promotionConnectState{margin-top:10px;color:#a6d5a5!important}
+        .promotionConnect:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         .promotionSubmit{margin-top:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
         .promotionSubmit input{min-width:0;height:42px;box-sizing:border-box;padding:9px 10px;border:1px solid rgba(255,255,255,.1);border-radius:11px;background:rgba(0,0,0,.25);color:#eee8dd;font:inherit;font-size:.64rem;direction:ltr;text-align:left}
         .promotionSubmit button{min-height:42px;padding:8px 11px;border:1px solid rgba(255,205,80,.18);border-radius:11px;background:rgba(244,183,40,.08);color:#f1cf65;font:inherit;font-size:.64rem;font-weight:900;cursor:pointer}

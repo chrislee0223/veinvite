@@ -4,6 +4,8 @@ import {
 } from 'next/server';
 
 import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
+import { xOAuthConfig } from '@/lib/rewards/rewardXPromotionOAuth';
+import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
@@ -140,6 +142,8 @@ export async function GET(
       await requireWalletSession({ request });
     const wallet =
       session.walletAddress.toLowerCase();
+    const xConnectAvailable = Boolean(xOAuthConfig(request.nextUrl.origin));
+    const { network } = getVeBetterNetworkConfig();
 
     const runtime =
       await supabaseAdmin
@@ -257,6 +261,7 @@ export async function GET(
       obligation,
       submission,
       verification,
+      xIdentity,
     ] = await Promise.all([
       supabaseAdmin
         .from('reward_x_promotion_obligations')
@@ -292,6 +297,14 @@ export async function GET(
         .order('id', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      xConnectAvailable
+        ? supabaseAdmin
+            .from('reward_x_promotion_oauth_proofs')
+            .select('x_author_id')
+            .eq('network', network)
+            .eq('recipient_wallet', wallet)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     if (obligation.error || !obligation.data) {
@@ -303,6 +316,9 @@ export async function GET(
       throw new Error(
         `X promotion submission could not be loaded: ${submission.error.message}`,
       );
+    }
+    if (xIdentity.error) {
+      throw new Error('X identity state could not be loaded.');
     }
     if (verification.error) {
       throw new Error(
@@ -360,6 +376,8 @@ export async function GET(
     return NextResponse.json(
       {
         newOffersEnabled,
+        xConnectAvailable,
+        xConnected: Boolean(xIdentity.data),
         promotion: {
           inviteCode,
           state,

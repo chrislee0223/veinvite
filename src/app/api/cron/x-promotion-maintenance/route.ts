@@ -208,7 +208,7 @@ Promise<JobResult> {
       result.final.failed > 0
     ) {
       throw new Error(
-        `X promotion lifecycle candidate failures: opportunitySync=${JSON.stringify(opportunitySync).slice(0,1300)}; pendingFailed=${result.pending.failed}; finalFailed=${result.final.failed}`,
+        `X promotion lifecycle candidate failures: opportunitySync=${JSON.stringify(opportunitySync).slice(0,1300)}; pendingFailed=${result.pending.failed}; finalFailed=${result.final.failed}; discoveryStatus=${result.discovery.status}; discoveryFailed=${result.discovery.failed}`,
       );
     }
 
