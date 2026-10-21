@@ -23,7 +23,7 @@ const callbackCompiled = compile('app/api/rewards/x-promotion/x-connect/callback
 
 function setup({
   sessionWallet = WALLET, stateOverride = null,
-  privateAccount = false, existingAuthor = null,
+  privateAccount = false, missingPrivacy = false, existingAuthor = null,
   returnedAuthor = '1234567890', noSession = false,
   insertConflict = false, proofConflict = false, proofAuthor = null, offerWallet = WALLET,
 } = {}) {
@@ -127,7 +127,7 @@ function setup({
       assert.match(String(resource), /\/2\/users\/me\?/);
       stats.meCalls++;
       assert.equal(init.headers.Authorization, 'Bearer temporary-oauth-token');
-      return { ok: true, async json() { return { data: { id: returnedAuthor, protected: privateAccount } }; } };
+      return { ok: true, async json() { return { data: { id: returnedAuthor, ...(missingPrivacy ? {} : { protected: privateAccount }) } }; } };
     },
   });
   const request = {
@@ -233,4 +233,11 @@ test('a conflicting OAuth proof cannot be silently overwritten', async () => {
   const x = setup({ proofConflict: true });
   assert.equal(status(await x.run()), 'conflict');
   assert.equal(x.stats.proofWrites, 1);
+});
+
+test('X privacy status must be explicit, missing protected field fails closed', async () => {
+  const x = setup({ missingPrivacy: true });
+  assert.equal(status(await x.run()), 'private');
+  assert.equal(x.stats.insertCount, 0);
+  assert.equal(x.stats.proofWrites, 0);
 });
