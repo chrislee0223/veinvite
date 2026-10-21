@@ -15,10 +15,13 @@ const compiled = ts.transpileModule(source, {
 function setup({
   mode = 'live', posts = [], apiStatus = 200, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
+  boundAuthor = '9876543210',
 } = {}) {
   const now = Date.now();
   const opportunity = {
-    invite_code: 'ABCDEFG', share_token: 'aceceace-1234-4123-8123-123456789abc',
+    invite_code: 'ABCDEFG',
+    recipient_wallet: '0x1111111111111111111111111111111111111111',
+    share_token: 'aceceace-1234-4123-8123-123456789abc',
     opened_at: new Date(now + openedOffsetMinutes * 60_000).toISOString(),
     post_deadline_at: new Date(now + deadlineOffsetMinutes * 60_000).toISOString(),
     submission_grace_seconds: 3600,
@@ -31,6 +34,17 @@ function setup({
           select() { return this; }, eq() { return this; },
           gte() { return this; }, order() { return this; },
           async limit() { return { data: [opportunity], error: null }; },
+        };
+      }
+      if (name === 'reward_x_promotion_x_identities') {
+        return {
+          select() { return this; }, eq() { return this; },
+          async in() {
+            return { data: boundAuthor ? [{
+              recipient_wallet: opportunity.recipient_wallet,
+              x_author_id: boundAuthor,
+            }] : [], error: null };
+          },
         };
       }
       assert.equal(name, 'reward_x_promotion_post_submissions');
@@ -167,4 +181,25 @@ test('already-pending manual submission prevents duplicate auto submission', asy
   assert.equal(result.status, 'NO_OFFERS');
   assert.equal(x.calls.api, 0);
   assert.equal(x.calls.submissions.length, 0);
+});
+
+test('unknown X author cannot receive a live auto-submission', async () => {
+  const x = setup({ posts: [post()], boundAuthor: null });
+  const result = await x.run();
+  assert.equal(result.status, 'NO_OFFERS');
+  assert.equal(x.calls.api, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('mismatched bound X author is not treated as wallet owner', async () => {
+  const x = setup({ posts: [post()], boundAuthor: '1234509876' });
+  const result = await x.run();
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('domain-wide search has a strict 10-result cap per cron', async () => {
+  const x = setup({ posts: [post()] });
+  await x.run();
+  assert.equal(x.calls.api, 1);
 });
