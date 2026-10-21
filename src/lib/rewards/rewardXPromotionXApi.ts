@@ -24,6 +24,7 @@ type XPostData = {
     urls?: XUrlEntity[];
   };
   referenced_tweets?: XReferencedPost[];
+  referenced_posts?: XReferencedPost[];
 };
 
 export type XPromotionPostLookup =
@@ -197,7 +198,7 @@ export async function lookupXPromotionPost(
   let response: Response;
 
   try {
-    response = await fetch(endpoint, {
+    const init: RequestInit = {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${bearerToken}`,
@@ -205,7 +206,19 @@ export async function lookupXPromotionPost(
       },
       cache: 'no-store',
       signal: controller.signal,
-    });
+    };
+    response = await fetch(endpoint, init);
+    if (response.status === 400) {
+      // Some X API versions accept legacy tweet.fields, while the current
+      // documented contract uses post.fields + author/reference expansions.
+      // Only retry a malformed-field request; successful legacy lookups,
+      // missing Posts, auth errors, and rate limits keep their old behavior.
+      const currentEndpoint = new URL(endpoint);
+      currentEndpoint.searchParams.delete('tweet.fields');
+      currentEndpoint.searchParams.set('post.fields', 'created_at,entities');
+      currentEndpoint.searchParams.set('expansions', 'author_id,referenced_posts');
+      response = await fetch(currentEndpoint, init);
+    }
   } catch {
     return {
       status: 'RETRY',
@@ -295,7 +308,9 @@ export async function lookupXPromotionPost(
     createdAt: new Date(data.created_at).toISOString(),
     expandedUrls: safeExpandedUrls(data),
     isOriginalPost:
-      !Array.isArray(data.referenced_tweets) ||
-      data.referenced_tweets.length === 0,
+      (!Array.isArray(data.referenced_tweets) ||
+       data.referenced_tweets.length === 0) &&
+      (!Array.isArray(data.referenced_posts) ||
+       data.referenced_posts.length === 0),
   };
 }
