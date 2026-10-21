@@ -1,6 +1,10 @@
 import 'server-only';
 
 import {
+  runXPromotionAutoDiscovery,
+  type XPromotionDiscoveryResult,
+} from '@/lib/rewards/rewardXPromotionAutoDiscovery';
+import {
   findVeInvitePromotionUrl,
   lookupXPromotionPost,
 } from '@/lib/rewards/rewardXPromotionXApi';
@@ -46,6 +50,7 @@ export type RewardXPromotionLifecycleResult = {
   network: string;
   terminalSecurity: unknown;
   opportunitySync: unknown;
+  discovery: XPromotionDiscoveryResult;
   expiredBeforeVerification: unknown;
   pending: CandidateSummary;
   final: CandidateSummary;
@@ -836,6 +841,10 @@ Promise<RewardXPromotionLifecycleResult> {
       },
     );
 
+  // Discover Posts before expiring submission-grace opportunities.
+  // A failed/partial search is isolated and never authorizes a payout.
+  const discovery = await runXPromotionAutoDiscovery();
+
   const expiredBeforeVerification =
     await rpc(
       'expire_reward_x_promotion_opportunities_v1',
@@ -960,6 +969,7 @@ Promise<RewardXPromotionLifecycleResult> {
     network,
     terminalSecurity,
     opportunitySync,
+    discovery,
     expiredBeforeVerification,
     pending,
     final,
