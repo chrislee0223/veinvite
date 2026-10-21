@@ -19,7 +19,9 @@ No user OAuth access token or refresh token is stored. The original Post remains
 - `X_OAUTH_STATE_SECRET` — independent unpredictable secret of at least 32 characters for signed OAuth flow cookies.
 - `X_OAUTH_REDIRECT_URI` — exact URL registered with X: `https://veinvite.vercel.app/api/rewards/x-promotion/x-connect/callback`.
 - `VEINVITE_X_PROMOTION_DISCOVERY_MODE` — **`off` in production**. `probe` is read-only but can consume X API credits when offers exist; `live` may record discovered Posts into the existing verified submission pipeline.
-- `VEINVITE_X_PROMOTION_URLLESS_START_AT` — **unset by default**. Explicit ISO-8601 start timestamp for a new URL-less rollout cohort. The URL input is hidden **only when both** discovery is `live`, valid OAuth settings exist, and the offer opened at or after this timestamp. Existing older receipts retain the manual URL submission fallback even after rollout.
+- `VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY=author` — author-only public timeline reads, based on verified OAuth X IDs. This avoids domain-wide first-page misses and should be the only strategy for a new URL-less cohort.
+- `VEINVITE_X_PROMOTION_DAILY_READ_CALLS` — **unset by default**. Mandatory positive integer 1–20 before author discovery can read X. The shared atomic rate limiter caps paid user-timeline calls per 24-hour limiter window across Vercel functions; every author is also limited to one scan per hour. Each call reads at most 10 Posts (a one-time HTTP 400 field fallback may issue a second HTTP request). This is a call/results cap, **not a guaranteed monetary billing cap**. Verify external provider prices and credit balance.
+- `VEINVITE_X_PROMOTION_URLLESS_START_AT` — **unset by default**. Explicit ISO-8601 start timestamp for a new URL-less rollout cohort. The URL input is hidden **only when** discovery is `live`, strategy is `author`, a valid daily read cap is present, OAuth is configured, and the offer opened at or after the timestamp. Existing older receipts retain the manual URL submission fallback even after rollout.
 - Do not set the timestamp or enable `live` until real matched-post coverage, 24-hour verification, and budget bounds are independently confirmed.
 - Existing `X_API_BEARER_TOKEN` — currently production-scoped and provides only verified single-Post lookup readiness; **do not interpret single-Post readiness as a search entitlement**.
 
@@ -44,3 +46,10 @@ If the X API cannot meet price/coverage requirements, leave automatic discovery 
 - Verified production RLS ON; anonymous INSERT denied; authenticated SELECT denied; service-role INSERT allowed; immutable proof trigger exists; initial proof count 0.
 - This schema change was followed by PR #1189 (merged and deployed). OAuth configuration was provided directly in Vercel by the account holder. Automatic X discovery is still `off`, and no existing user payout was changed.
 - The independent OAuth-proof table is mandatory because a previously recorded X identity from a manually pasted public Post URL is **not account ownership proof**. Never use `reward_x_promotion_x_identities` alone to authorize automatic reward submission.
+
+## Author-timeline reliability notes (2026-10-22)
+
+- The original 10-result domain search could miss real VeInvite posts when unrelated authors filled its most recent page. The author-timeline path GET `/2/users/{oauthAuthorId}/tweets` filters by the exact, separately attested author and starts from the associated opportunity opening time.
+- Every candidate still undergoes an independent canonical X Post lookup plus the existing duplicate/24-hour verification process before any reward is paid. The author API never pays B3TR directly.
+- If an author has over 10 eligible posts, pagination is incomplete; `truncated` is reported and the system must not promise 100% coverage. Provider index delays, rate limits and expired offers remain possible; keep older manual submission working.
+- **Production must remain discovery `off` and URL-less start timestamp unset** until an operator separately approves recurring costs and validates an actual author timeline response with a bound X account. The previously authorized $1 one-off provider test is not authorization for recurring usage.
