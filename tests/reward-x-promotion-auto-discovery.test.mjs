@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 
 function setup({
-  mode = 'live', posts = [], apiStatus = 200, canonical = null, existing = [],
+  mode = 'live', posts = [], apiStatus = 200, alternateStatus = null, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
   boundAuthor = '9876543210',
 } = {}) {
@@ -100,13 +100,19 @@ function setup({
       assert.match(String(url), /api\.x\.com\/2\/tweets\/search\/recent/);
       assert.match(String(url), /url%3Aveinvite\.vercel\.app/);
       const query = new URL(String(url)).searchParams;
-      assert.equal(query.get('post.fields'), 'created_at,entities');
-      assert.equal(query.get('expansions'), 'author_id,referenced_posts');
-      assert.equal(query.has('tweet.fields'), false);
+      const isPrimary = query.has('tweet.fields');
+      if (isPrimary) {
+        assert.equal(query.get('tweet.fields'), 'created_at,entities,author_id,referenced_tweets');
+        assert.equal(query.has('post.fields'), false);
+      } else {
+        assert.equal(query.get('post.fields'), 'created_at,entities,author_id,referenced_posts');
+        assert.equal(query.get('expansions'), 'author_id,referenced_posts');
+      }
       assert.equal(query.get('max_results'), '10');
       calls.api++;
+      const status = isPrimary ? apiStatus : (alternateStatus ?? apiStatus);
       return {
-        ok: apiStatus === 200, status: apiStatus,
+        ok: status === 200, status,
         async json() { return { data: posts, meta: {} }; },
       };
     },
@@ -224,5 +230,40 @@ test('legacy manually submitted X identity without OAuth proof cannot auto quali
   const x = setup({ posts: [post()], boundAuthor: null });
   const outcome = await x.run();
   assert.equal(outcome.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('HTTP 400 field mismatch retries alternate X fields without bypassing canonical verification', async () => {
+  const x = setup({ apiStatus: 400, alternateStatus: 200, posts: [post()] });
+  const result = await x.run();
+  assert.equal(result.status, 'READY');
+  assert.equal(x.calls.api, 2);
+  assert.equal(result.submitted, 1);
+  assert.equal(x.calls.submissions.length, 1);
+});
+
+test('HTTP 400 from both provider field formats fails closed without payout or submission', async () => {
+  const x = setup({ apiStatus: 400, alternateStatus: 400, posts: [post()] });
+  const result = await x.run();
+  assert.equal(result.status, 'SEARCH_UNAVAILABLE');
+  assert.equal(x.calls.api, 2);
+  assert.equal(x.calls.submissions.length, 0);
+  assert.equal(x.calls.payout, 0);
+});
+
+test('HTTP 429 never triggers field-format retry or a reward', async () => {
+  const x = setup({ apiStatus: 429, posts: [post()] });
+  const result = await x.run();
+  assert.equal(result.status, 'SEARCH_UNAVAILABLE');
+  assert.equal(x.calls.api, 1);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('missing X author ID cannot be used as a linked-account proof', async () => {
+  const p = post();
+  delete p.author_id;
+  const x = setup({ posts: [p] });
+  const result = await x.run();
+  assert.equal(result.submitted, 0);
   assert.equal(x.calls.submissions.length, 0);
 });
