@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   if (!pending || !equalXState(pending.state, state) ||
       request.nextUrl.searchParams.has('error') ||
       code.length < 8 || code.length > 2048 ||
-      /[\\r\\n]/u.test(code)
+      /[\r\n]/u.test(code)
   ) return finish(request, 'invalid');
 
   try {
