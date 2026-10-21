@@ -109,7 +109,9 @@ export async function GET(request: NextRequest) {
     );
     const authorId = user?.data?.id;
     if (!authorId || !X_ID.test(authorId)) return finish(request, 'provider');
-    if (user?.data?.protected === true) return finish(request, 'private');
+    // Privacy is explicitly requested from X; if missing, never assume a
+    // protected or partial-profile account is suitable for a public campaign.
+    if (user.data?.protected !== false) return finish(request, 'private');
 
     const existing = await supabaseAdmin
       .from('reward_x_promotion_x_identities')
