@@ -49,6 +49,7 @@ type PromotionResponse = {
   promotionPending?: boolean;
   xConnectAvailable?: boolean;
   xConnected?: boolean;
+  xUrlLessEnabled?: boolean;
   promotion?: Promotion | null;
   error?: string;
 };
@@ -247,6 +248,7 @@ export function RewardXPromotionPanel({
   const promotionShareIntent = useMemo(() => {
     if (
       promotion?.state !== 'OPEN' ||
+      (state?.xUrlLessEnabled === true && state?.xConnected !== true) ||
       !promotion.shareToken ||
       !rewardShareUrl
     ) {
@@ -271,6 +273,8 @@ export function RewardXPromotionPanel({
     promotion,
     receiptAmountB3tr,
     rewardShareUrl,
+    state?.xUrlLessEnabled,
+    state?.xConnected,
   ]);
 
   const submitPost = useCallback(async () => {
@@ -386,12 +390,19 @@ export function RewardXPromotionPanel({
   const canSubmit =
     promotion.state === 'OPEN' ||
     promotion.state === 'SUBMISSION_GRACE';
+  const usesAuto = state?.xUrlLessEnabled === true;
 
   const body =
     promotion.state === 'OPEN'
-      ? copy.openBody
+      ? usesAuto
+        ? state?.xConnected
+          ? (copy.autoOpenBody ?? REWARD_X_PROMOTION_COPY.en.autoOpenBody)
+          : (copy.autoConnectBody ?? REWARD_X_PROMOTION_COPY.en.autoConnectBody)
+        : copy.openBody
       : promotion.state === 'SUBMISSION_GRACE'
-        ? copy.graceBody
+        ? usesAuto
+          ? (copy.autoGraceBody ?? REWARD_X_PROMOTION_COPY.en.autoGraceBody)
+          : copy.graceBody
         : promotion.state === 'VERIFYING'
           ? copy.verifyingBody
           : promotion.state === 'RETENTION'
@@ -438,7 +449,9 @@ export function RewardXPromotionPanel({
       {promotion.state === 'OPEN' && state?.xConnectAvailable ? (
         state.xConnected ? (
           <p className="promotionConnectState" role="status">
-            {copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX}
+            {usesAuto
+              ? (copy.autoConnectedX ?? REWARD_X_PROMOTION_COPY.en.autoConnectedX)
+              : (copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX)}
           </p>
         ) : (
           <button
@@ -455,7 +468,7 @@ export function RewardXPromotionPanel({
         )
       ) : null}
 
-      {canSubmit ? (
+      {canSubmit && !usesAuto ? (
         <div className="promotionSubmit">
           <input
             type="url"
