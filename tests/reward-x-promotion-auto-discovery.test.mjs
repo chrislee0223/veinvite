@@ -203,3 +203,12 @@ test('domain-wide search has a strict 10-result cap per cron', async () => {
   await x.run();
   assert.equal(x.calls.api, 1);
 });
+
+test('quoted or referenced Post cannot receive automatic reward', async () => {
+  const p = post();
+  p.referenced_posts = [{ id: '7777777', type: 'quoted' }];
+  const x = setup({ posts: [p] });
+  const result = await x.run();
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
