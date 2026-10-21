@@ -298,7 +298,7 @@ export async function GET(
         .limit(1)
         .maybeSingle(),
       supabaseAdmin
-        .from('reward_x_promotion_x_identities')
+        .from('reward_x_promotion_oauth_proofs')
         .select('x_author_id')
         .eq('network', network)
         .eq('recipient_wallet', wallet)
