@@ -195,11 +195,11 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
 
   // A public share token is not proof of X account ownership. Before OAuth
   // account binding is available, only authors already bound to this wallet
-  // by the authenticated manual submission path may be auto-submitted.
+  // by a completed and separately attested provider OAuth flow may be auto-submitted.
   const boundAuthors = new Map<string, string>();
   if (currentMode === 'live') {
     const { data: identities, error: identityError } = await supabaseAdmin
-      .from('reward_x_promotion_x_identities')
+      .from('reward_x_promotion_oauth_proofs')
       .select('recipient_wallet,x_author_id')
       .eq('network', network)
       .in('recipient_wallet', eligible.map((item) => item.recipient_wallet));
