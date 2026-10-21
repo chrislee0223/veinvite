@@ -32,8 +32,14 @@ const EXTRA_STATES = [
 ] as const;
 
 async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
+  await expect(
+    page.locator(
+      '[data-testid="qa-notification-stage"][data-hydrated="true"]',
+    ),
+  ).toBeVisible({ timeout: 30_000 });
+
   const panel = page.locator('.notificationHistoryPanel');
-  await expect(panel).toBeVisible();
+  await expect(panel).toBeVisible({ timeout: 30_000 });
   await page.evaluate(async () => {
     await Promise.race([
       document.fonts.ready,
