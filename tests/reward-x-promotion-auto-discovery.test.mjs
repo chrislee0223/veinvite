@@ -36,7 +36,7 @@ function setup({
           async limit() { return { data: [opportunity], error: null }; },
         };
       }
-      if (name === 'reward_x_promotion_x_identities') {
+      if (name === 'reward_x_promotion_oauth_proofs') {
         return {
           select() { return this; }, eq() { return this; },
           async in() {
@@ -210,5 +210,14 @@ test('quoted or referenced Post cannot receive automatic reward', async () => {
   const x = setup({ posts: [p] });
   const result = await x.run();
   assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('legacy manually submitted X identity without OAuth proof cannot auto qualify', async () => {
+  // This mock intentionally exposes zero provider OAuth proofs, even if a
+  // separate manual URL verification may have bound an author elsewhere.
+  const x = setup({ posts: [post()], boundAuthor: null });
+  const outcome = await x.run();
+  assert.equal(outcome.submitted, 0);
   assert.equal(x.calls.submissions.length, 0);
 });
