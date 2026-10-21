@@ -15,7 +15,8 @@ const compiled = ts.transpileModule(source, {
 function setup({
   mode = 'live', posts = [], apiStatus = 200, alternateStatus = null, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
-  boundAuthor = '9876543210',
+  boundAuthor = '9876543210', strategy = '',
+  authorResult = null,
 } = {}) {
   const now = Date.now();
   const opportunity = {
@@ -26,7 +27,7 @@ function setup({
     post_deadline_at: new Date(now + deadlineOffsetMinutes * 60_000).toISOString(),
     submission_grace_seconds: 3600,
   };
-  const calls = { api: 0, submissions: [], payout: 0 };
+  const calls = { api: 0, author: 0, submissions: [], payout: 0 };
   const supabaseAdmin = {
     from(name) {
       if (name === 'reward_x_promotion_opportunities') {
@@ -66,6 +67,14 @@ function setup({
   };
   const requireMock = (id) => {
     if (id === 'server-only') return {};
+    if (id === '@/lib/rewards/rewardXPromotionAuthorTimeline') {
+      return { async readBoundAuthorPosts() {
+        calls.author++;
+        return authorResult ?? {
+          status: 'READY', posts, truncated: false,
+        };
+      } };
+    }
     if (id === '@/lib/supabaseServer') return { supabaseAdmin };
     if (id === '@/lib/vebetter/network') {
       return { getVeBetterNetworkConfig: () => ({ network: 'mainnet' }) };
@@ -93,6 +102,7 @@ function setup({
     exports, require: requireMock, console: { warn() {}, error() {} },
     process: { env: {
       VEINVITE_X_PROMOTION_DISCOVERY_MODE: mode,
+      VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY: strategy,
       X_API_BEARER_TOKEN: 'fake-test-token',
     } },
     Date, Math, URL, Set, AbortController, setTimeout, clearTimeout,
@@ -265,5 +275,46 @@ test('missing X author ID cannot be used as a linked-account proof', async () =>
   const x = setup({ posts: [p] });
   const result = await x.run();
   assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('author strategy reads only a verified X author timeline, not a domain search', async () => {
+  const p = post();
+  const x = setup({ posts: [p], strategy: 'author' });
+  const result = await x.run();
+  assert.equal(result.status, 'READY');
+  assert.equal(result.submitted, 1);
+  assert.equal(x.calls.author, 1);
+  assert.equal(x.calls.api, 0);
+  assert.equal(x.calls.submissions.length, 1);
+});
+
+test('author strategy never queries unbound wallets or authors', async () => {
+  const x = setup({ posts: [post()], strategy: 'author', boundAuthor: null });
+  const result = await x.run();
+  assert.equal(result.status, 'NO_OFFERS');
+  assert.equal(x.calls.author, 0);
+  assert.equal(x.calls.api, 0);
+});
+
+test('author discovery daily budget block never falls back to broad paid search', async () => {
+  const x = setup({
+    posts: [post()], strategy: 'author',
+    authorResult: { status: 'BUDGET_LIMIT', posts: [], truncated: false },
+  });
+  const result = await x.run();
+  assert.equal(result.status, 'BUDGET_LIMIT');
+  assert.equal(x.calls.api, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('author timeline result truncation is diagnosed without false verification', async () => {
+  const x = setup({
+    posts: [], strategy: 'author',
+    authorResult: { status: 'READY', posts: [], truncated: true },
+  });
+  const result = await x.run();
+  assert.equal(result.status, 'QUERY_INCOMPLETE');
+  assert.equal(result.truncated, true);
   assert.equal(x.calls.submissions.length, 0);
 });
