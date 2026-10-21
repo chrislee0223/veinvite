@@ -247,17 +247,18 @@ test('legacy manually submitted X identity without OAuth proof cannot auto quali
   assert.equal(x.calls.submissions.length, 0);
 });
 
-test('HTTP 400 field mismatch retries alternate X fields without bypassing canonical verification', async () => {
-  const x = setup({ apiStatus: 400, alternateStatus: 200, posts: [post()] });
+test('read-only domain probe retries field format on HTTP 400', async () => {
+  const x = setup({ mode: 'probe', apiStatus: 400, alternateStatus: 200, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'READY');
   assert.equal(x.calls.api, 2);
-  assert.equal(result.submitted, 1);
-  assert.equal(x.calls.submissions.length, 1);
+  assert.equal(result.matched, 1);
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.submissions.length, 0);
 });
 
 test('HTTP 400 from both provider field formats fails closed without payout or submission', async () => {
-  const x = setup({ apiStatus: 400, alternateStatus: 400, posts: [post()] });
+  const x = setup({ mode: 'probe', apiStatus: 400, alternateStatus: 400, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'SEARCH_UNAVAILABLE');
   assert.equal(x.calls.api, 2);
@@ -266,7 +267,7 @@ test('HTTP 400 from both provider field formats fails closed without payout or s
 });
 
 test('HTTP 429 never triggers field-format retry or a reward', async () => {
-  const x = setup({ apiStatus: 429, posts: [post()] });
+  const x = setup({ mode: 'probe', apiStatus: 429, posts: [post()] });
   const result = await x.run();
   assert.equal(result.status, 'SEARCH_UNAVAILABLE');
   assert.equal(x.calls.api, 1);
