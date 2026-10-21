@@ -41,6 +41,14 @@ const HIGH_RISK_LOCALES = [
 const stateUrl = (locale: SupportedLocale) =>
   '/qa/notification-state?state=NOTI-X-PROMOTION-OPEN&locale=' + locale;
 
+async function waitForQaHydration(page: Page) {
+  await expect(
+    page.locator(
+      '[data-testid="qa-notification-stage"][data-hydrated="true"]',
+    ),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
 async function waitForStableLayout(page: Page) {
   await page.evaluate(async () => {
     await Promise.race([
@@ -56,8 +64,10 @@ async function waitForStableLayout(page: Page) {
 }
 
 async function readOpenLayout(page: Page) {
+  await waitForQaHydration(page);
+
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await expect(panel).toBeVisible({ timeout: 30_000 });
   await panel.scrollIntoViewIfNeeded();
   await waitForStableLayout(page);
 
@@ -332,9 +342,10 @@ for (const locale of HIGH_RISK_LOCALES) {
       timeout: 30_000,
     });
 
+    await waitForQaHydration(page);
     const input = page.locator('.promotionSubmit input');
     const button = page.locator('.promotionSubmit button');
-    await expect(input).toBeVisible();
+    await expect(input).toBeVisible({ timeout: 30_000 });
     await input.fill('https://x.com/qa/status/1234567890123456789');
     await button.click();
 
