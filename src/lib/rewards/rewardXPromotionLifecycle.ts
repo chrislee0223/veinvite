@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { runXPromotionSearchProbeOnce } from '@/lib/rewards/rewardXPromotionSearchProbe';
 import {
   runXPromotionAutoDiscovery,
   type XPromotionDiscoveryResult,
@@ -840,6 +841,20 @@ Promise<RewardXPromotionLifecycleResult> {
         p_limit: 50,
       },
     );
+
+  // Diagnostic only: day-gated, database rate-limited to one X Recent Search
+  // request (plus HTTP 400 syntax fallback), even with no real offers.
+  // Never changes submissions, X author proofs, or payout eligibility.
+  try {
+    const searchProbe = await runXPromotionSearchProbeOnce();
+    if (searchProbe.status !== 'SKIPPED' && searchProbe.status !== 'ALREADY_RUN') {
+      console.info('X promotion one-shot search probe', searchProbe);
+    }
+  } catch (error) {
+    console.warn('X promotion search diagnostic did not complete', {
+      message: error instanceof Error ? error.message : 'unknown',
+    });
+  }
 
   // Discover Posts before expiring submission-grace opportunities.
   // A failed/partial search is isolated and never authorizes a payout.
