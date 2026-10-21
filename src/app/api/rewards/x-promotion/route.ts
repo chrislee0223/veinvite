@@ -143,6 +143,15 @@ export async function GET(
     const wallet =
       session.walletAddress.toLowerCase();
     const xConnectAvailable = Boolean(xOAuthConfig(request.nextUrl.origin));
+    // URL-less flow is deliberately a separate rollout gate. Never switch
+    // existing offers or users to auto-only submission by changing the
+    // search worker mode alone.
+    const urlLessStart = Date.parse(
+      process.env.VEINVITE_X_PROMOTION_URLLESS_START_AT ?? '',
+    );
+    const urlLessConfigured = xConnectAvailable &&
+      process.env.VEINVITE_X_PROMOTION_DISCOVERY_MODE === 'live' &&
+      Number.isFinite(urlLessStart) && urlLessStart > 0;
     const { network } = getVeBetterNetworkConfig();
 
     const runtime =
@@ -378,6 +387,12 @@ export async function GET(
         newOffersEnabled,
         xConnectAvailable,
         xConnected: Boolean(xIdentity.data),
+        // Only newly opened offers may omit manual URL submission, and only
+        // after both explicit gates are enabled. Legacy receipts keep their
+        // existing path regardless of later rollout settings.
+        xUrlLessEnabled: urlLessConfigured &&
+          safeIso(opportunityRow.opened_at) !== null &&
+          Date.parse(opportunityRow.opened_at) >= urlLessStart,
         promotion: {
           inviteCode,
           state,
