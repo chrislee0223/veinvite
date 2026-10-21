@@ -22,7 +22,7 @@ export const REWARD_X_PROMOTION_SUBMIT_ERROR_COPY: Record<
   ko: {
     invalidPost: '올바른 공개 X 게시물 링크를 붙여 주세요.',
     walletAccess: '연결된 지갑을 확인한 뒤 다시 시도해 주세요.',
-    conflict: '이 게시물은 현재 프로모션에 사용할 수 없어요. 프로모션 상태를 확인하고 다른 대상 게시물로 다시 시도해 주세요.',
+    conflict: '이 게시물은 현재 프로모션에 사용할 수 없어요. 상태를 확인하고 다른 조건을 충족하는 게시물로 다시 시도해 주세요.',
     rateLimited: '확인 요청이 너무 많아요. 잠시 후 다시 시도해 주세요.',
     unavailable: '지금은 X 게시물을 확인할 수 없어요. 잠시 후 다시 시도해 주세요.',
   },
