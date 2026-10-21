@@ -196,6 +196,37 @@ for (const locale of SUPPORTED_LOCALES) {
 }
 
 for (const locale of HIGH_RISK_LOCALES) {
+  test('X promotion constrained desktop receipt / ' + locale, async ({ page }) => {
+    await page.route(
+      /\\/api\\/rewards\\/x-promotion(?:\\?.*)?$/,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(OPEN_PROMOTION),
+        });
+      },
+    );
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(stateUrl(locale), {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+
+    const report = await readOpenLayout(page);
+    expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
+    expect(report.amountDirection).toBe('ltr');
+    expect(report.shareAmountDirection).toBe('ltr');
+    expect(report.inputDirection).toBe('ltr');
+    expect(
+      report.issues,
+      JSON.stringify({ locale, viewport: 'desktop-receipt', report }),
+    ).toEqual([]);
+  });
+}
+
+for (const locale of HIGH_RISK_LOCALES) {
   test('X promotion standalone states / ' + locale, async ({ page }) => {
     let scenario: 'generic' | 'preparing' | 'error' = 'generic';
 
