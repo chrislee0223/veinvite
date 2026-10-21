@@ -149,8 +149,11 @@ export async function GET(
     const urlLessStart = Date.parse(
       process.env.VEINVITE_X_PROMOTION_URLLESS_START_AT ?? '',
     );
+    const dailyReads = process.env.VEINVITE_X_PROMOTION_DAILY_READ_CALLS ?? '';
     const urlLessConfigured = xConnectAvailable &&
       process.env.VEINVITE_X_PROMOTION_DISCOVERY_MODE === 'live' &&
+      process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author' &&
+      /^(?:[1-9]|1[0-9]|20)$/u.test(dailyReads) &&
       Number.isFinite(urlLessStart) && urlLessStart > 0;
     const { network } = getVeBetterNetworkConfig();
 
