@@ -10,15 +10,18 @@ import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 // The existing post-submit and verification RPCs remain the only authority for
 // eligibility. Discovery never creates an obligation or executes a payout.
 const MAX_OFFERS = 200;
-const MAX_SEARCH_PAGES = 3;
-const SEARCH_PAGE_SIZE = 100;
+// Domain-wide reads cost money. Bound the maximum billable search results.
+const MAX_SEARCH_PAGES = 1;
+const SEARCH_PAGE_SIZE = 10;
 const X_TIMEOUT_MS = 8_000;
+const WALLET = /^0x[0-9a-f]{40}$/iu;
 const POST_ID = /^[0-9]{1,32}$/u;
 const INVITE_CODE = /^[A-HJ-NP-Z2-9]{7}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 type Mode = 'off' | 'probe' | 'live';
 type Opportunity = {
   invite_code: string;
+  recipient_wallet: string;
   share_token: string;
   opened_at: string | null;
   post_deadline_at: string;
@@ -144,7 +147,7 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
   // window be enforced precisely in JS.
   const { data, error } = await supabaseAdmin
     .from('reward_x_promotion_opportunities')
-    .select('invite_code,share_token,opened_at,post_deadline_at,submission_grace_seconds')
+    .select('invite_code,recipient_wallet,share_token,opened_at,post_deadline_at,submission_grace_seconds')
     .eq('network', network)
     .gte('post_deadline_at', new Date(now - 86_400_000).toISOString())
     .order('post_deadline_at', { ascending: false })
@@ -157,7 +160,7 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
   const opportunities = ((data ?? []) as Opportunity[]).filter((item) => {
     const opened = Date.parse(item.opened_at ?? '');
     const deadline = Date.parse(item.post_deadline_at);
-    return INVITE_CODE.test(item.invite_code) && UUID.test(item.share_token) &&
+    return INVITE_CODE.test(item.invite_code) && WALLET.test(item.recipient_wallet) && UUID.test(item.share_token) &&
       Number.isFinite(opened) && Number.isFinite(deadline) &&
       opened <= now && deadline >= opened &&
       Number.isSafeInteger(item.submission_grace_seconds) &&
@@ -188,6 +191,31 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     return result;
   }
 
+  // A public share token is not proof of X account ownership. Before OAuth
+  // account binding is available, only authors already bound to this wallet
+  // by the authenticated manual submission path may be auto-submitted.
+  const boundAuthors = new Map<string, string>();
+  if (currentMode === 'live') {
+    const { data: identities, error: identityError } = await supabaseAdmin
+      .from('reward_x_promotion_x_identities')
+      .select('recipient_wallet,x_author_id')
+      .eq('network', network)
+      .in('recipient_wallet', eligible.map((item) => item.recipient_wallet));
+    if (identityError) throw new Error('X promotion discovery identity lookup failed.');
+    for (const identity of identities ?? []) {
+      if (typeof identity.recipient_wallet === 'string' &&
+          typeof identity.x_author_id === 'string' &&
+          WALLET.test(identity.recipient_wallet) && POST_ID.test(identity.x_author_id)) {
+        boundAuthors.set(identity.recipient_wallet.toLowerCase(), identity.x_author_id);
+      }
+    }
+    if (!boundAuthors.size) {
+      result.status = 'NO_OFFERS';
+      result.offers = 0;
+      return result;
+    }
+  }
+
   const oldest = Math.min(...eligible.map((item) => Date.parse(item.opened_at!)));
   // Recent Search covers seven days; cap the lower bound to that window and
   // avoid end-user claims about full coverage if a response is incomplete.
@@ -209,6 +237,10 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     const createdAt = Date.parse(post.created_at!);
     for (const opportunity of eligible) {
       if (alreadySubmitted.has(opportunity.invite_code)) continue;
+      if (currentMode === 'live' &&
+          boundAuthors.get(opportunity.recipient_wallet.toLowerCase()) !== post.author_id) {
+        continue;
+      }
       if (
         createdAt < Date.parse(opportunity.opened_at!) ||
         createdAt > Date.parse(opportunity.post_deadline_at)
@@ -264,6 +296,6 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
       }
     }
   }
-  if (result.truncated) result.failed += 1;
+  // Incomplete coverage is diagnostic; do not disturb legacy rewards.
   return result;
 }
