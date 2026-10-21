@@ -4,6 +4,12 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Vercel's standard 8 GB build failed with SIGKILL after webpack compilation.
+  // Next.js recommends this low-risk setting to reduce webpack peak memory.
+  // Keep TypeScript/build checks enabled and leave runtime behavior unchanged.
+  experimental: {
+    webpackMemoryOptimizations: true,
+  },
   // Demo rendering is a preview/development aid only. Even if a stale Vercel
   // project variable is accidentally left enabled, Production bundles must
   // compile the public demo flag to false. The demo completion API has its own
