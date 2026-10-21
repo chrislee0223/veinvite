@@ -6,9 +6,6 @@ import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
 import {
-  REWARD_X_PROMOTION_COPY,
-} from '../src/lib/i18n/rewardXPromotionCopy.ts';
-import {
   rewardReceiptShareLabel,
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
@@ -26,6 +23,8 @@ const expandedCopySource = readFileSync(
   'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
   'utf8',
 );
+const copyRegistrySource =
+  xCopySource + '\n' + expandedCopySource;
 const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
@@ -49,16 +48,59 @@ const BODY_KEYS = [
   'shareFollowupBody',
 ];
 
+function localeBlock(locale) {
+  if (locale === 'en') {
+    const match =
+      /const EN: RewardXPromotionCopy = \{([\s\S]*?)\n\};/.exec(
+        xCopySource,
+      );
+    assert.ok(match, 'missing English X promotion copy');
+    return match[1];
+  }
+
+  const safeLocale = locale.replace('-', '\\-');
+  const pattern = new RegExp(
+    '(?:^|\\n)\\s*(?:[\\x27\\x22]' +
+      safeLocale +
+      '[\\x27\\x22]|' +
+      safeLocale +
+      ')\\s*:\\s*\\{([\\s\\S]*?)\\n\\s*\\},',
+    'm',
+  );
+  const match = pattern.exec(copyRegistrySource);
+  assert.ok(match, 'missing X promotion copy: ' + locale);
+  return match[1];
+}
+
+function fieldValue(block, key) {
+  const line = block
+    .split('\n')
+    .find((candidate) =>
+      candidate.trimStart().startsWith(key + ':'),
+    );
+  assert.ok(line, 'missing field: ' + key);
+
+  const firstQuote = line.indexOf("'");
+  const lastQuote = line.lastIndexOf("'");
+  assert.ok(
+    firstQuote >= 0 && lastQuote > firstQuote,
+    'invalid quoted field: ' + key,
+  );
+
+  return line
+    .slice(firstQuote + 1, lastQuote)
+    .replace(/\\'/g, "'");
+}
+
 test('X promotion copy is complete and locally written for all supported locales', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
   assert.doesNotMatch(xCopySource, /\.\.\.EN\b/);
   assert.doesNotMatch(expandedCopySource, /\.\.\.EN\b/);
 
-  const english = REWARD_X_PROMOTION_COPY.en;
+  const englishBlock = localeBlock('en');
 
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok(copy, 'missing X promotion copy: ' + locale);
+    const block = localeBlock(locale);
 
     for (const key of [
       'title',
@@ -68,16 +110,18 @@ test('X promotion copy is complete and locally written for all supported locales
       'verifying',
       'retry',
     ]) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
-      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
+      const value = fieldValue(block, key);
+      assert.ok(
+        value.trim().length > 0,
+        locale + ' ' + key + ' is empty',
+      );
     }
 
     if (locale !== 'en') {
       for (const key of BODY_KEYS) {
         assert.notEqual(
-          copy[key],
-          english[key],
+          fieldValue(block, key),
+          fieldValue(englishBlock, key),
           locale + ' still falls back to English for ' + key,
         );
       }
@@ -87,15 +131,34 @@ test('X promotion copy is complete and locally written for all supported locales
 
 test('localized X promotion controls stay compact enough for wrapped mobile UI', () => {
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok([...copy.title].length <= 30, locale + ' title is unexpectedly long');
-    assert.ok([...copy.verify].length <= 28, locale + ' verify label is unexpectedly long');
-    assert.ok([...copy.verifying].length <= 24, locale + ' verifying label is unexpectedly long');
-    assert.ok([...copy.retry].length <= 24, locale + ' retry label is unexpectedly long');
+    const block = localeBlock(locale);
+
+    assert.ok(
+      [...fieldValue(block, 'title')].length <= 30,
+      locale + ' title is unexpectedly long',
+    );
+    assert.ok(
+      [...fieldValue(block, 'verify')].length <= 28,
+      locale + ' verify label is unexpectedly long',
+    );
+    assert.ok(
+      [...fieldValue(block, 'verifying')].length <= 24,
+      locale + ' verifying label is unexpectedly long',
+    );
+    assert.ok(
+      [...fieldValue(block, 'retry')].length <= 24,
+      locale + ' retry label is unexpectedly long',
+    );
 
     const shareLabel = rewardReceiptShareLabel(locale);
-    assert.ok(shareLabel.trim().length > 0, locale + ' X share label is empty');
-    assert.ok([...shareLabel].length <= 24, locale + ' X share label is unexpectedly long');
+    assert.ok(
+      shareLabel.trim().length > 0,
+      locale + ' X share label is empty',
+    );
+    assert.ok(
+      [...shareLabel].length <= 24,
+      locale + ' X share label is unexpectedly long',
+    );
   }
 });
 
@@ -115,13 +178,20 @@ test('public X post stays intentionally global while localized UI labels vary', 
       locale + ' changed the reviewed global X campaign post',
     );
 
-    const intent = new URL(rewardReceiptXIntentUrl({
-      locale,
-      amountB3tr: '193.91',
-      referralUrl: 'https://veinvite.vercel.app/s/AbCdEfGhIjKlMnOp',
-    }));
+    const intent = new URL(
+      rewardReceiptXIntentUrl({
+        locale,
+        amountB3tr: '193.91',
+        referralUrl:
+          'https://veinvite.vercel.app/s/AbCdEfGhIjKlMnOp',
+      }),
+    );
     const text = intent.searchParams.get('text') ?? '';
-    assert.ok(text.length < 280, locale + ' X intent exceeds 280 characters');
+
+    assert.ok(
+      text.length < 280,
+      locale + ' X intent exceeds 280 characters',
+    );
     assert.match(text, /@Veinvite/);
     assert.match(text, /#B3TR/);
     assert.match(text, /#VeBetterDAO/);
@@ -140,7 +210,10 @@ test('X promotion panel has long-copy and bidi layout guards', () => {
     '@media(max-width:430px)',
     'grid-template-columns:1fr',
   ]) {
-    assert.ok(panelSource.includes(expected), 'missing panel layout guard: ' + expected);
+    assert.ok(
+      panelSource.includes(expected),
+      'missing panel layout guard: ' + expected,
+    );
   }
 
   assert.match(
@@ -162,38 +235,99 @@ test('X promotion submission errors are localized for all supported locales', ()
       'unavailable',
     ]) {
       const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
-      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
+      assert.equal(
+        typeof value,
+        'string',
+        locale + ' ' + key + ' must be text',
+      );
+      assert.ok(
+        value.trim().length > 0,
+        locale + ' ' + key + ' is empty',
+      );
     }
 
     if (locale !== 'en') {
-      assert.notEqual(copy.invalidPost, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.invalidPost);
-      assert.notEqual(copy.walletAccess, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.walletAccess);
-      assert.notEqual(copy.conflict, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.conflict);
-      assert.notEqual(copy.rateLimited, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.rateLimited);
-      assert.notEqual(copy.unavailable, REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.unavailable);
+      assert.notEqual(
+        copy.invalidPost,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.invalidPost,
+      );
+      assert.notEqual(
+        copy.walletAccess,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.walletAccess,
+      );
+      assert.notEqual(
+        copy.conflict,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.conflict,
+      );
+      assert.notEqual(
+        copy.rateLimited,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.rateLimited,
+      );
+      assert.notEqual(
+        copy.unavailable,
+        REWARD_X_PROMOTION_SUBMIT_ERROR_COPY.en.unavailable,
+      );
     }
 
-    assert.equal(rewardXPromotionSubmitError(locale, 400), copy.invalidPost);
-    assert.equal(rewardXPromotionSubmitError(locale, 401), copy.walletAccess);
-    assert.equal(rewardXPromotionSubmitError(locale, 403), copy.walletAccess);
-    assert.equal(rewardXPromotionSubmitError(locale, 409), copy.conflict);
-    assert.equal(rewardXPromotionSubmitError(locale, 429), copy.rateLimited);
-    assert.equal(rewardXPromotionSubmitError(locale, 500), copy.unavailable);
-    assert.equal(rewardXPromotionSubmitError(locale, 0), copy.unavailable);
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 400),
+      copy.invalidPost,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 401),
+      copy.walletAccess,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 403),
+      copy.walletAccess,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 409),
+      copy.conflict,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 429),
+      copy.rateLimited,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 500),
+      copy.unavailable,
+    );
+    assert.equal(
+      rewardXPromotionSubmitError(locale, 0),
+      copy.unavailable,
+    );
   }
 
   assert.doesNotMatch(submitErrorSource, /\.\.\.EN\b/);
 });
 
 test('X promotion submit path never renders raw API or network error messages', () => {
-  const submitStart = panelSource.indexOf('const submitPost = useCallback');
-  const submitEnd = panelSource.indexOf('if (loading)', submitStart);
-  const submitSource = panelSource.slice(submitStart, submitEnd);
+  const submitStart =
+    panelSource.indexOf('const submitPost = useCallback');
+  const submitEnd =
+    panelSource.indexOf('if (loading)', submitStart);
+  const submitSource =
+    panelSource.slice(submitStart, submitEnd);
 
-  assert.match(submitSource, /rewardXPromotionSubmitError\(locale, response\.status\)/);
-  assert.match(submitSource, /rewardXPromotionSubmitError\(locale, 0\)/);
-  assert.doesNotMatch(submitSource, /body\.error\s*\|\|/);
-  assert.doesNotMatch(submitSource, /error instanceof Error[\s\S]*error\.message/);
-  assert.doesNotMatch(submitSource, /The X Post could not be verified\./);
+  assert.match(
+    submitSource,
+    /rewardXPromotionSubmitError\(locale, response\.status\)/,
+  );
+  assert.match(
+    submitSource,
+    /rewardXPromotionSubmitError\(locale, 0\)/,
+  );
+  assert.doesNotMatch(
+    submitSource,
+    /body\.error\s*\|\|/,
+  );
+  assert.doesNotMatch(
+    submitSource,
+    /error instanceof Error[\s\S]*error\.message/,
+  );
+  assert.doesNotMatch(
+    submitSource,
+    /The X Post could not be verified\./,
+  );
 });
