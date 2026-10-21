@@ -19,14 +19,6 @@ const supportedLocales = [
   ...localesSource.matchAll(/\{ locale: '([^']+)'/g),
 ].map((match) => match[1]);
 
-const localeBlocks = [
-  ...receiptSource.matchAll(
-    /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu,
-  ),
-]
-  .map((match) => match[1] || match[2])
-  .filter((locale) => supportedLocales.includes(locale));
-
 const REQUIRED_FIELDS = [
   'eyebrow',
   'title',
@@ -40,6 +32,40 @@ const REQUIRED_FIELDS = [
   'error',
 ];
 
+function readLocaleBlocks(source) {
+  const result = new Map();
+  let locale = null;
+  let lines = [];
+
+  for (const line of source.split('\n')) {
+    const start = line.match(
+      /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/,
+    );
+
+    if (start) {
+      const candidate = start[1] || start[2];
+      if (supportedLocales.includes(candidate)) {
+        locale = candidate;
+        lines = [];
+        continue;
+      }
+    }
+
+    if (!locale) continue;
+
+    if (/^\s{2}\},?\s*$/.test(line)) {
+      result.set(locale, lines.join('\n'));
+      locale = null;
+      lines = [];
+      continue;
+    }
+
+    lines.push(line);
+  }
+
+  return result;
+}
+
 test('reward receipt copy is complete for every supported locale', () => {
   assert.equal(supportedLocales.length, 29);
   assert.match(
@@ -47,25 +73,13 @@ test('reward receipt copy is complete for every supported locale', () => {
     /Record<SupportedLocale,\s*RewardReceiptCopy>/,
   );
 
-  const direct = new Set(localeBlocks);
-  assert.equal(direct.size, supportedLocales.length);
+  const blocks = readLocaleBlocks(receiptSource);
+  assert.equal(blocks.size, supportedLocales.length);
 
   for (const locale of supportedLocales) {
-    assert.ok(direct.has(locale), 'missing receipt locale: ' + locale);
+    const block = blocks.get(locale);
+    assert.ok(block, 'missing receipt locale: ' + locale);
 
-    const escaped = locale.replace('-', '\\-');
-    const block = receiptSource.match(
-      new RegExp(
-        '(?:^|\\n)\\s*(?:\\\'' +
-          escaped +
-          '\\'|' +
-          escaped +
-          '):\\s*\\{([\\s\\S]*?)\\n\\s*\\},',
-        'm',
-      ),
-    )?.[1];
-
-    assert.ok(block, 'missing receipt block: ' + locale);
     for (const field of REQUIRED_FIELDS) {
       assert.match(
         block,
