@@ -39,4 +39,11 @@ export default async function globalSetup(): Promise<void> {
   await warm('/qa/render?scenario=invite-landing-ko-mobile&locale=en');
   await warm('/qa/state?state=LEGAL-REQUIRED&locale=en');
   await warm('/qa/network-slot-visual', 90_000);
+  // Compile the direct notification/X-promotion QA route before parallel
+  // workers begin. Without this, Next.js dev-mode hydration can lag behind
+  // DOMContentLoaded and produce false "element not found" layout failures.
+  await warm(
+    '/qa/notification-state?state=NOTI-X-PROMOTION-OPEN&locale=en',
+    120_000,
+  );
 }
