@@ -117,23 +117,51 @@ export async function GET(request: NextRequest) {
       .eq('network', network)
       .eq('recipient_wallet', pending.wallet).maybeSingle();
     if (existing.error) throw new Error('X account binding lookup failed.');
-    if (existing.data) return finish(
-      request, existing.data.x_author_id === authorId ? 'connected' : 'conflict',
+    if (existing.data?.x_author_id !== undefined && existing.data.x_author_id !== authorId) {
+      return finish(request, 'conflict');
+    }
+
+    if (!existing.data) {
+      // Existing manual-URL identity binding may be present already. Its
+      // presence alone is NOT OAuth proof; first create or verify the identity.
+      const inserted = await supabaseAdmin
+        .from('reward_x_promotion_x_identities')
+        .insert({
+          network, recipient_wallet: pending.wallet,
+          x_author_id: authorId,
+          policy_version: verifiedOffer.data.policy_version,
+          first_verified_at: new Date().toISOString(),
+        });
+      if (inserted.error) {
+        if (inserted.error.code === '23505') return finish(request, 'conflict');
+        throw new Error('X account binding insert failed.');
+      }
+    }
+
+    // Only a completed provider OAuth flow can write this separate proof.
+    // An unverified user-submitted URL must NEVER qualify for live discovery.
+    const proof = await supabaseAdmin
+      .from('reward_x_promotion_oauth_proofs')
+      .select('x_author_id')
+      .eq('network', network)
+      .eq('recipient_wallet', pending.wallet)
+      .maybeSingle();
+    if (proof.error) throw new Error('X OAuth proof lookup failed.');
+    if (proof.data) return finish(
+      request, proof.data.x_author_id === authorId ? 'connected' : 'conflict',
     );
 
-    // Immutable, unique (network,wallet) and unique (network,X author).
-    // Concurrent callbacks racing with another wallet fail closed.
-    const inserted = await supabaseAdmin
-      .from('reward_x_promotion_x_identities')
+    const attested = await supabaseAdmin
+      .from('reward_x_promotion_oauth_proofs')
       .insert({
-        network, recipient_wallet: pending.wallet,
+        network,
+        recipient_wallet: pending.wallet,
         x_author_id: authorId,
-        policy_version: verifiedOffer.data.policy_version,
-        first_verified_at: new Date().toISOString(),
+        proof_method: 'OAUTH2_PKCE',
       });
-    if (inserted.error) {
-      if (inserted.error.code === '23505') return finish(request, 'conflict');
-      throw new Error('X account binding insert failed.');
+    if (attested.error) {
+      if (attested.error.code === '23505') return finish(request, 'conflict');
+      throw new Error('X OAuth proof persistence failed.');
     }
     return finish(request, 'connected');
   } catch (error) {
