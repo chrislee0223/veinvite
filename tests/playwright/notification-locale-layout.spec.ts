@@ -71,6 +71,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy strong',
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
+      '.notificationExplorerLink',
       '.notificationReceiptView > p',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
