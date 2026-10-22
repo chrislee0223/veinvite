@@ -113,6 +113,12 @@ async function openQaState(
     waitUntil: 'domcontentloaded',
     timeout: 30_000,
   });
+  // The QA route runs against a Next.js dev server in CI. On a cold browser
+  // worker the app/page chunks can take several seconds to compile and load,
+  // so wait for the real client harness before measuring the promotion UI.
+  await expect(
+    page.getByTestId('qa-x-promotion-panel'),
+  ).toBeVisible({ timeout: 30_000 });
   await waitForFonts(page);
 }
 
@@ -121,7 +127,7 @@ async function verifyPromotionPanel(
   locale: SupportedLocale,
 ) {
   const panel = page.locator('.promotionPanel');
-  await expect(panel).toBeVisible({ timeout: 10_000 });
+  await expect(panel).toBeVisible({ timeout: 15_000 });
   await panel.scrollIntoViewIfNeeded();
 
   const report = await panel.evaluate((node) => {
@@ -291,7 +297,7 @@ async function verifyStandaloneSurface(
   locale: SupportedLocale,
 ) {
   const surface = page.locator(selector);
-  await expect(surface).toBeVisible({ timeout: 10_000 });
+  await expect(surface).toBeVisible({ timeout: 15_000 });
   await surface.scrollIntoViewIfNeeded();
 
   const report = await surface.evaluate((node) => {
