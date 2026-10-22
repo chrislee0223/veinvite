@@ -573,12 +573,22 @@ export function QaNotificationStateHarness({
         <div
           data-testid="qa-x-promotion-layout"
           style={{
-            width: 'min(100%, 400px)',
-            maxHeight: 'min(760px, 90dvh)',
+            position: embedded ? 'fixed' : 'relative',
+            top: embedded ? '72px' : undefined,
+            right: embedded ? '12px' : undefined,
+            bottom: embedded ? '12px' : undefined,
+            zIndex: embedded ? 80 : undefined,
+            width: embedded
+              ? 'min(calc(100% - 24px), 400px)'
+              : 'min(100%, 400px)',
+            maxHeight: embedded
+              ? 'calc(100% - 84px)'
+              : 'min(760px, 90dvh)',
             overflow: 'hidden',
             border: '1px solid rgba(255,255,255,.08)',
             borderRadius: '18px',
             background: '#11110f',
+            boxShadow: '0 22px 60px rgba(0,0,0,.45)',
           }}
         >
           <RewardReceiptView
