@@ -8,6 +8,8 @@ const locales = read('src/lib/i18n/locales.ts');
 const copy = read('src/lib/i18n/rewardXPromotionCopy.ts');
 const expanded = read('src/lib/i18n/rewardXPromotionExpandedCopy.ts');
 const auto = read('src/lib/i18n/rewardXPromotionAutoCopy.ts');
+const autoCore = read('src/lib/i18n/rewardXPromotionAutoCopyCore.ts');
+const autoExpanded = read('src/lib/i18n/rewardXPromotionAutoCopyExpanded.ts');
 const submitErrors = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
 const share = read('src/lib/rewards/rewardReceiptShare.ts');
@@ -33,7 +35,10 @@ test('X promotion localization covers all 29 supported locales without English b
   assert.equal(new Set(supportedLocales).size, 29);
 
   assert.deepEqual(
-    [...new Set(localeKeys(auto))].sort(),
+    [...new Set([
+      ...localeKeys(autoCore),
+      ...localeKeys(autoExpanded),
+    ])].sort(),
     [...supportedLocales].sort(),
   );
   assert.deepEqual(
@@ -53,6 +58,10 @@ test('X promotion localization covers all 29 supported locales without English b
   assert.match(copy, /REWARD_X_PROMOTION_EXPANDED_COPY/);
   assert.match(copy, /REWARD_X_PROMOTION_AUTO_COPY/);
   assert.match(
+    auto,
+    /REWARD_X_PROMOTION_AUTO_CORE_COPY[\s\S]*REWARD_X_PROMOTION_AUTO_EXPANDED_COPY/,
+  );
+  assert.match(
     copy,
     /\.\.\.copy,[\s\S]*\.\.\.REWARD_X_PROMOTION_AUTO_COPY\[locale\]/,
   );
@@ -63,6 +72,8 @@ test('X promotion translation source files stay below the codebase large-file gu
     ['copy', copy],
     ['expanded', expanded],
     ['auto', auto],
+    ['autoCore', autoCore],
+    ['autoExpanded', autoExpanded],
     ['submitErrors', submitErrors],
   ]) {
     assert.ok(
