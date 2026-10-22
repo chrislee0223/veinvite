@@ -1,5 +1,6 @@
 import type { SupportedLocale } from './locales';
-import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
+import { REWARD_X_PROMOTION_EXPANDED_COPY_A } from './rewardXPromotionExpandedCopyA';
+import { REWARD_X_PROMOTION_EXPANDED_COPY_B } from './rewardXPromotionExpandedCopyB';
 import { REWARD_X_PROMOTION_CORE_AUTO_COPY } from './rewardXPromotionCoreAutoCopy';
 
 export type RewardXPromotionCopy = {
@@ -335,5 +336,6 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verifying: 'Đang kiểm tra…',
     retry: 'Thử lại',
   },
-  ...REWARD_X_PROMOTION_EXPANDED_COPY,
+  ...REWARD_X_PROMOTION_EXPANDED_COPY_A,
+  ...REWARD_X_PROMOTION_EXPANDED_COPY_B,
 };
