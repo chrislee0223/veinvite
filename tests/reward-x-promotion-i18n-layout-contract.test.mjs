@@ -94,7 +94,15 @@ test('core auto-discovery pack covers every previously incomplete locale', () =>
     'tr', 'nl', 'pt', 'ru', 'id', 'vi',
   ];
   for (const locale of coreLocales) {
-    assert.match(coreAuto, new RegExp("'" + locale.replace('-', '\\-') + "'|'?" + locale.replace('-', '\\-') + "'?"));
+    const escaped = locale.replace('-', '\\-');
+    const key = locale.includes('-')
+      ? "'" + escaped + "'"
+      : escaped;
+    assert.match(
+      coreAuto,
+      new RegExp('(?:^|\\n)\\s*' + key + '\\s*:', 'm'),
+      'missing core auto copy for ' + locale,
+    );
   }
   for (const field of [
     'connectX',
