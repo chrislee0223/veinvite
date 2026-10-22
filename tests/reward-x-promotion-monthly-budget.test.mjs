@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 const file = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const helper = file('src/lib/rewards/rewardXPromotionApiBudget.ts');
-const migration = file('supabase/migrations/20261022093000_add_x_promotion_monthly_api_budget_v1.sql');
+const migration = file('supabase/migrations/20261022014231_add_x_promotion_monthly_api_budget_v1.sql');
 const timeline = file('src/lib/rewards/rewardXPromotionAuthorTimeline.ts');
 const lookup = file('src/lib/rewards/rewardXPromotionXApi.ts');
 const oauth = file('src/app/api/rewards/x-promotion/x-connect/callback/route.ts');
