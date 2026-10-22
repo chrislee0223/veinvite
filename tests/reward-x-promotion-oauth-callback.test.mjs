@@ -105,6 +105,9 @@ function setup({
         },
       };
       if (id === '@/lib/rewards/rewardXPromotionOAuth') return oauth;
+      if (id === '@/lib/rewards/rewardXPromotionApiBudget') return {
+        async reserveXApiReadBudget(kind) { assert.equal(kind,'OAUTH_USER'); return true; },
+      };
       if (id === '@/lib/vebetter/network') return {
         getVeBetterNetworkConfig: () => ({ network: 'mainnet' }),
       };
