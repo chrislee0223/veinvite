@@ -28,7 +28,8 @@ type RuntimeCheckStatus =
   | 'X_API_AUTH_FAILED'
   | 'X_API_RATE_LIMITED'
   | 'X_API_UNAVAILABLE'
-  | 'X_API_RESPONSE_INVALID';
+  | 'X_API_RESPONSE_INVALID'
+  | 'X_API_BUDGET_EXHAUSTED';
 
 export type RewardXPromotionExternalReadinessResult = {
   network: string;
