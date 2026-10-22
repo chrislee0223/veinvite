@@ -92,16 +92,12 @@ const ERROR_KEYS = [
   'unavailable',
 ];
 
-function escapeRegex(value) {
-  return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
-}
-
 function localeBlock(source, locale) {
   const label = locale.includes('-')
     ? "'" + locale + "'"
     : locale;
   const re = new RegExp(
-    '(?:^|\\n)\\s{2}' + escapeRegex(label) + ':\\s*\\{',
+    '(?:^|\\n)\\s{2}' + label + ':\\s*\\{',
   );
   const match = re.exec(source);
   assert.ok(match, 'missing locale block: ' + locale);
@@ -122,7 +118,7 @@ function assertKeys(block, locale, keys) {
   for (const key of keys) {
     assert.match(
       block,
-      new RegExp('\\b' + escapeRegex(key) + ':'),
+      new RegExp('\\b' + key + ':'),
       locale + ' missing ' + key,
     );
   }
