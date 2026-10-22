@@ -28,6 +28,9 @@ function setup({
     } },
     require(id) {
       if (id === 'server-only') return {};
+      if (id === '@/lib/rewards/rewardXPromotionApiBudget') return {
+        async reserveXApiReadBudget(kind) { assert.equal(kind,'TIMELINE'); return true; },
+      };
       if (id === '@/lib/rateLimitServer') return {
         async enforceRateLimits(checks) {
           const check = checks[0];
