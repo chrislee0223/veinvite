@@ -4,6 +4,8 @@ const MAX_ERROR_LENGTH = 2000;
 // Cron heartbeat writes are idempotent; bound the transport wait so a
 // database outage cannot consume an entire Vercel Function execution.
 const CRON_HEARTBEAT_TIMEOUT_MS = 8_000;
+// Retry only the idempotent START marker, never a cadence claim or a payout.
+const CRON_START_TRANSIENT_RETRY_DELAY_MS = 250;
 
 function normalizeCronError(error: unknown) {
   const message =
@@ -16,24 +18,60 @@ function normalizeCronError(error: unknown) {
   return message.slice(0, MAX_ERROR_LENGTH);
 }
 
+function isTransientHeartbeatStartWriteError(
+  error: { message?: string } | null,
+): boolean {
+  // A write may have committed before the client timed out. Repeating the
+  // *same* START marker is safe; lease claims and other writes are not retried.
+  return (
+    /TimeoutError|operation was aborted due to timeout|fetch failed/i.test(
+      error?.message ?? '',
+    )
+  );
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
 async function upsertCronJobState(
   jobName: string,
   values: Record<string, unknown>,
+  retryTransientStart = false,
 ) {
+  // Preserve identical values/timestamps across attempts so the retry does
+  // not create a second logical start event.
   const now = new Date().toISOString();
-  const { error } = await supabaseAdmin
-    .from('cron_job_states')
-    .upsert(
-      {
-        job_name: jobName,
-        updated_at: now,
-        ...values,
-      },
-      {
-        onConflict: 'job_name',
-      },
-    )
-    .abortSignal(AbortSignal.timeout(CRON_HEARTBEAT_TIMEOUT_MS));
+  const payload = {
+    job_name: jobName,
+    updated_at: now,
+    ...values,
+  };
+  const write = () =>
+    supabaseAdmin
+      .from('cron_job_states')
+      .upsert(payload, { onConflict: 'job_name' })
+      .abortSignal(
+        AbortSignal.timeout(CRON_HEARTBEAT_TIMEOUT_MS),
+      );
+
+  let { error } = await write();
+
+  if (
+    retryTransientStart &&
+    isTransientHeartbeatStartWriteError(error)
+  ) {
+    await wait(CRON_START_TRANSIENT_RETRY_DELAY_MS);
+    ({ error } = await write());
+    if (!error) {
+      console.info(
+        'Cron START heartbeat recovered after transient transport error:',
+        jobName,
+      );
+    }
+  }
 
   if (error) {
     throw new Error(
@@ -45,9 +83,11 @@ async function upsertCronJobState(
 export async function markCronJobStarted(
   jobName: string,
 ) {
-  await upsertCronJobState(jobName, {
-    last_started_at: new Date().toISOString(),
-  });
+  await upsertCronJobState(
+    jobName,
+    { last_started_at: new Date().toISOString() },
+    true,
+  );
 }
 
 export async function markCronJobSucceeded(

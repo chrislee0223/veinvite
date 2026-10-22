@@ -68,7 +68,7 @@ test('minute vote watcher fails closed instead of cascading DB lock and reward c
 test('cron lease claims and server-side rate limits abort unhealthy PostgREST promptly', () => {
   assert.match(heartbeat, /'try_claim_cron_job'/);
   assert.equal(
-    (heartbeat.match(/\.abortSignal\(AbortSignal\.timeout\(CRON_HEARTBEAT_TIMEOUT_MS\)\)/g) ?? []).length,
+    (heartbeat.match(/\.abortSignal\(\s*AbortSignal\.timeout\(CRON_HEARTBEAT_TIMEOUT_MS\),?\s*\)/g) ?? []).length,
     2,
     'both idempotent heartbeat and lease claim requests need the transport budget',
   );
