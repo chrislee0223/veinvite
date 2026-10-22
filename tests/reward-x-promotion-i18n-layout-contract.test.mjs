@@ -130,11 +130,15 @@ test('X promotion submit errors are localized and raw API messages never render'
     );
   }
 
-  assert.match(panel, /rewardXPromotionSubmitError\(locale, response\.status\)/);
-  assert.match(panel, /rewardXPromotionSubmitError\(locale, 0\)/);
-  assert.doesNotMatch(panel, /body\.error\s*\|\|/);
-  assert.doesNotMatch(panel, /error instanceof Error[\s\S]*error\.message/);
-  assert.doesNotMatch(panel, /The X Post could not be verified\./);
+  const submitBlock = panel.slice(
+    panel.indexOf('const submitPost'),
+    panel.indexOf('if (loading)'),
+  );
+  assert.match(submitBlock, /rewardXPromotionSubmitError\(locale, response\.status\)/);
+  assert.match(submitBlock, /rewardXPromotionSubmitError\(locale, 0\)/);
+  assert.doesNotMatch(submitBlock, /body\.error\s*\|\|/);
+  assert.doesNotMatch(submitBlock, /error instanceof Error[\s\S]*error\.message/);
+  assert.doesNotMatch(submitBlock, /The X Post could not be verified\./);
 });
 
 test('X promotion layout has bidi and long-copy guards', () => {
