@@ -26,6 +26,10 @@ import {
 
 export const maxDuration = 300;
 
+const EXTERNAL_READINESS_JOB_NAME = 'x-promotion-external-readiness';
+// A 15-minute continuous paid Post lookup exhausts a $5/month budget even
+// when there are no active offers. At most one readiness lookup per 6 hours.
+const EXTERNAL_READINESS_INTERVAL_SECONDS = 6 * 60 * 60;
 const LIFECYCLE_JOB_NAME =
   'x-promotion-lifecycle';
 const PAYOUT_JOB_NAME =
@@ -124,25 +128,36 @@ async function claimJob(
 async function runExternalReadinessJob():
 Promise<JobResult> {
   try {
-    const result =
-      await runRewardXPromotionExternalReadinessCheck();
-
-    return {
+    const claimed = await tryClaimCronJob(
+      EXTERNAL_READINESS_JOB_NAME,
+      EXTERNAL_READINESS_INTERVAL_SECONDS,
+      10 * 60,
+    );
+    if (!claimed) return {
       ok: true,
-      skipped: false,
-      result,
+      skipped: true,
+      reason: 'NOT_DUE_OR_ALREADY_RUNNING',
     };
   } catch (error) {
-    console.error(
-      'X promotion external readiness check failed:',
-      error,
-    );
+    console.error('X promotion readiness lease unavailable', error);
+    return { ok: false, skipped: false, error: 'External readiness lease failed.' };
+  }
 
+  try {
+    await markCronJobStarted(EXTERNAL_READINESS_JOB_NAME);
+    const result = await runRewardXPromotionExternalReadinessCheck();
+    await markCronJobSucceeded(EXTERNAL_READINESS_JOB_NAME);
+    return { ok: true, skipped: false, result };
+  } catch (error) {
+    console.error('X promotion external readiness check failed:', error);
+    try { await markCronJobFailed(EXTERNAL_READINESS_JOB_NAME, error); }
+    catch (heartbeatError) {
+      console.error('X promotion readiness failure heartbeat failed', heartbeatError);
+    }
     return {
       ok: false,
       skipped: false,
-      error:
-        'X promotion external readiness check failed.',
+      error: 'X promotion external readiness check failed.',
     };
   }
 }
