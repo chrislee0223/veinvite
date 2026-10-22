@@ -390,12 +390,12 @@ export function RewardXPromotionPanel({
     promotion.state === 'OPEN'
       ? usesAuto
         ? state?.xConnected
-          ? (copy.autoOpenBody ?? REWARD_X_PROMOTION_COPY.en.autoOpenBody)
-          : (copy.autoConnectBody ?? REWARD_X_PROMOTION_COPY.en.autoConnectBody)
+          ? (copy.autoOpenBody ?? copy.openBody)
+          : (copy.autoConnectBody ?? copy.openBody)
         : copy.openBody
       : promotion.state === 'SUBMISSION_GRACE'
         ? usesAuto
-          ? (copy.autoGraceBody ?? REWARD_X_PROMOTION_COPY.en.autoGraceBody)
+          ? (copy.autoGraceBody ?? copy.graceBody)
           : copy.graceBody
         : promotion.state === 'VERIFYING'
           ? copy.verifyingBody
@@ -445,8 +445,8 @@ export function RewardXPromotionPanel({
         state.xConnected ? (
           <p className="promotionConnectState" role="status">
             {usesAuto
-              ? (copy.autoConnectedX ?? REWARD_X_PROMOTION_COPY.en.autoConnectedX)
-              : (copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX)}
+              ? (copy.autoConnectedX ?? copy.connectedX ?? copy.verifyingBody)
+              : (copy.connectedX ?? copy.verifyingBody)}
           </p>
         ) : (
           <button
@@ -458,7 +458,7 @@ export function RewardXPromotionPanel({
               );
             }}
           >
-            {copy.connectX ?? REWARD_X_PROMOTION_COPY.en.connectX}
+            {copy.connectX ?? copy.verify}
           </button>
         )
       ) : null}
