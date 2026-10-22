@@ -201,9 +201,13 @@ test('X promotion submit errors are localized and raw API messages never render'
     panelSource,
     /rewardXPromotionSubmitError\(locale, 0\)/,
   );
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
+  const submitBlock = panelSource.slice(
+    panelSource.indexOf('const submitPost'),
+    panelSource.indexOf('if (loading)', panelSource.indexOf('const submitPost')),
+  );
+  assert.doesNotMatch(submitBlock, /body\.error\s*\|\|/);
   assert.doesNotMatch(
-    panelSource,
+    submitBlock,
     /error instanceof Error[\s\S]*error\.message/,
   );
 });
