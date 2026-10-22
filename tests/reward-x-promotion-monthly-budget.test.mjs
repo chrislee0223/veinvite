@@ -59,7 +59,7 @@ test('Post verification and OAuth User reads share the same $5 allowance', async
 });
 
 test('DB rejects over budget, malformed RPC response, or database outage; no provider calls', async () => {
-  for (const config of [{dbData:false},{dbData:undefined},{dbError:{code:'500'}}]) {
+  for (const config of [{dbData:false},{dbData:null},{dbError:{code:'500'}}]) {
     const x=scenario(config);
     assert.equal(await x.reserve('TIMELINE'), false);
     assert.equal(x.calls.length,1);
