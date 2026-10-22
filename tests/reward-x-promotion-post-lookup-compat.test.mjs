@@ -23,7 +23,7 @@ function setup({ legacyStatus = 200, modernStatus = 200, references = [], field 
     exports, URL, AbortController, Date, Array, Set, Buffer,
     setTimeout, clearTimeout,
     process: { env: { X_API_BEARER_TOKEN: 'test-only' } },
-    require(id) { if (id === 'server-only') return {}; throw new Error(id); },
+    require(id) { if (id === 'server-only') return {}; if(id==='@/lib/rewards/rewardXPromotionApiBudget') return { async reserveXApiReadBudget(kind){ assert.equal(kind,'POST_LOOKUP');return true; } };throw new Error(id); },
     fetch: async (value, options) => {
       const url = new URL(value);
       urls.push(url);

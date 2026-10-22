@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { reserveXApiReadBudget } from '@/lib/rewards/rewardXPromotionApiBudget';
+
 const X_POST_ID_PATTERN = /^[0-9]{1,32}$/u;
 const REFERRAL_KEY_PATTERN = /^(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{22,64})$/u;
 const PROMOTION_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -47,7 +49,8 @@ export type XPromotionPostLookup =
         | 'X_API_AUTH_FAILED'
         | 'X_API_RATE_LIMITED'
         | 'X_API_UNAVAILABLE'
-        | 'X_API_RESPONSE_INVALID';
+        | 'X_API_RESPONSE_INVALID'
+        | 'X_API_BUDGET_EXHAUSTED';
       // Safe diagnostic only. Never includes credentials, response bodies,
       // headers, or Post content.
       httpStatus?: number;
@@ -174,6 +177,12 @@ export async function lookupXPromotionPost(
       status: 'RETRY',
       reason: 'X_API_NOT_CONFIGURED',
     };
+  }
+
+  // Every Post lookup (initial, final, manual, or external readiness) shares
+  // the same monthly ceiling. Budget is reserved pessimistically per call.
+  if (!await reserveXApiReadBudget('POST_LOOKUP')) {
+    return { status: 'RETRY', reason: 'X_API_BUDGET_EXHAUSTED' };
   }
 
   const endpoint =

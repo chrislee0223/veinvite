@@ -253,3 +253,4 @@
 20261018013814 retire_unused_paid_sibling_review_objects
 20261019102337 fix_x_promotion_lifecycle_privileges
 20261021041230 reward_x_promotion_oauth_proofs
+20261022014231 add_x_promotion_monthly_api_budget_v1

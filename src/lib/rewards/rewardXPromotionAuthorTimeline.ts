@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { enforceRateLimits } from '@/lib/rateLimitServer';
+import { reserveXApiReadBudget } from '@/lib/rewards/rewardXPromotionApiBudget';
 
 const AUTHOR_ID = /^[0-9]{1,19}$/u;
 const MAX_POSTS_PER_READ = 10;
@@ -62,6 +63,8 @@ export async function readBoundAuthorPosts(
     windowSeconds: 86400,
   }]);
   if (budget) return empty(budget.status === 429 ? 'BUDGET_LIMIT' : 'UNAVAILABLE');
+  // Reserve a worst-case $0.06 for up to ten Posts and an expanded User.
+  if (!await reserveXApiReadBudget('TIMELINE')) return empty('BUDGET_LIMIT');
 
   // On each successful rate-limit claim, at most one page of ten public
   // Posts is read. 400 field-format fallback can make one extra HTTP request
