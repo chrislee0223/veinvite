@@ -16,6 +16,9 @@ import {
 import {
   runRewardXPromotionExternalReadinessCheck,
 } from '@/lib/rewards/rewardXPromotionExternalReadiness';
+import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
+import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readRewardXPromotionPayoutRuntimeReadiness } from '@/lib/rewards/rewardXPromotionPayoutRuntime';
 import {
   runRewardXPromotionLifecycleMaintenance,
 } from '@/lib/rewards/rewardXPromotionLifecycle';
@@ -125,6 +128,48 @@ async function claimJob(
   );
 }
 
+// SQL split/offer guards require a provider-readiness record younger than
+// 20 minutes. Preserve that safety contract with explicit, expiring CACHE
+// records between real provider probes. Never extend beyond 6 hours from
+// the last non-cached X read, or when payout runtime itself is not ready.
+async function refreshCachedExternalReadiness(): Promise<boolean> {
+  if (!readRewardXPromotionPayoutRuntimeReadiness().ready) return false;
+  const { network } = getVeBetterNetworkConfig();
+  const previous = await supabaseAdmin
+    .from('reward_x_promotion_external_runtime_checks')
+    .select('status,probe_post_id,checked_at,details')
+    .eq('network', network)
+    .order('checked_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (previous.error) throw new Error('Could not load external readiness cache.');
+  const check = previous.data;
+  if (!check || !['READY', 'POST_NOT_FOUND'].includes(check.status)) return false;
+  const details = check.details && typeof check.details === 'object' &&
+    !Array.isArray(check.details)
+    ? check.details as Record<string, unknown> : {};
+  const actual = typeof details.providerCheckedAt === 'string'
+    ? details.providerCheckedAt : check.checked_at;
+  const ageMs = Date.now() - Date.parse(actual);
+  if (!Number.isFinite(ageMs) || ageMs < 0 ||
+      ageMs >= EXTERNAL_READINESS_INTERVAL_SECONDS * 1000) return false;
+  const { error } = await supabaseAdmin
+    .from('reward_x_promotion_external_runtime_checks')
+    .insert({
+      network,
+      status: check.status,
+      probe_post_id: check.probe_post_id,
+      checked_at: new Date().toISOString(),
+      details: {
+        cached: true,
+        providerCheckedAt: actual,
+        reason: 'RATE_LIMITED_PROVIDER_PROBE',
+      },
+    });
+  if (error) throw new Error('Failed to refresh cached X readiness.');
+  return true;
+}
+
 async function runExternalReadinessJob():
 Promise<JobResult> {
   try {
@@ -133,11 +178,14 @@ Promise<JobResult> {
       EXTERNAL_READINESS_INTERVAL_SECONDS,
       10 * 60,
     );
-    if (!claimed) return {
-      ok: true,
-      skipped: true,
-      reason: 'NOT_DUE_OR_ALREADY_RUNNING',
-    };
+    if (!claimed) {
+      const cacheRefreshed = await refreshCachedExternalReadiness();
+      return {
+        ok: true,
+        skipped: true,
+        reason: cacheRefreshed ? 'CACHED_PROVIDER_READINESS' : 'NOT_DUE_OR_ALREADY_RUNNING',
+      };
+    }
   } catch (error) {
     console.error('X promotion readiness lease unavailable', error);
     return { ok: false, skipped: false, error: 'External readiness lease failed.' };
