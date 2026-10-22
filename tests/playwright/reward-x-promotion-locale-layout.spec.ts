@@ -219,12 +219,33 @@ async function inspectPanel(page: Page) {
         : null,
       inputDirection: input ? getComputedStyle(input).direction : null,
       connectDirection: connect ? getComputedStyle(connect).direction : null,
-      inputBox: input?.getBoundingClientRect().toJSON() ?? null,
-      buttonBox:
-        root
-          .querySelector<HTMLElement>('.promotionSubmit button')
-          ?.getBoundingClientRect()
-          .toJSON() ?? null,
+      inputBox: input
+        ? (() => {
+            const rect = input.getBoundingClientRect();
+            return {
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height,
+            };
+          })()
+        : null,
+      buttonBox: (() => {
+        const button =
+          root.querySelector<HTMLElement>('.promotionSubmit button');
+        if (!button) return null;
+        const rect = button.getBoundingClientRect();
+        return {
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        };
+      })(),
     };
   });
 }
@@ -272,9 +293,20 @@ for (const viewport of [
 }
 
 test('automatic X connection layout / high-risk locales', async ({ page }) => {
+  let state = automaticState(false);
+  await page.route(
+    /\/api\/rewards\/x-promotion(?:\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(state),
+      });
+    },
+  );
+
   for (const locale of HIGH_RISK_LOCALES) {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-    await installState(page, automaticState(false));
+    state = automaticState(false);
     await openPanel(page, locale, 320, 568);
 
     const connect = page.locator('.promotionConnect');
@@ -291,8 +323,7 @@ test('automatic X connection layout / high-risk locales', async ({ page }) => {
       JSON.stringify({ locale, disconnected }),
     ).toEqual([]);
 
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-    await installState(page, automaticState(true));
+    state = automaticState(true);
     await openPanel(page, locale, 320, 568);
 
     await expect(page.locator('.promotionConnectState')).toBeVisible();
