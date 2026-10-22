@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { reserveXApiReadBudget } from '@/lib/rewards/rewardXPromotionApiBudget';
 import {
   equalXState, readXConnectState, xOAuthConfig, X_OAUTH_COOKIE,
 } from '@/lib/rewards/rewardXPromotionOAuth';
@@ -99,6 +100,10 @@ export async function GET(request: NextRequest) {
     });
     if (!token?.access_token || token.token_type?.toLowerCase() !== 'bearer') {
       return finish(request, 'provider');
+    }
+    // Reserve at most one billable User resource before querying /users/me.
+    if (!await reserveXApiReadBudget('OAUTH_USER')) {
+      return finish(request, 'unavailable');
     }
     // The OAuth access token is ephemeral and is never stored in logs,
     // cookies, or the database. Only the verified X user id is retained.
