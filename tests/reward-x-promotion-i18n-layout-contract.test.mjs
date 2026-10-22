@@ -15,6 +15,7 @@ const panel = read('src/components/RewardXPromotionPanel.tsx');
 const receipt = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const preview = read('src/components/NotificationUiPreview.tsx');
+const qaPage = read('src/app/qa/notification-state/page.tsx');
 
 const supported = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map(
   (match) => match[1],
@@ -167,4 +168,6 @@ test('QA exposes a direct X promotion layout state without receipt-click depende
   assert.match(qaHarness, /data-testid="qa-x-promotion-layout"/);
   assert.match(qaHarness, /<RewardReceiptView/);
   assert.match(preview, /NOTI-X-PROMOTION-LAYOUT/);
+  assert.match(qaPage, /'NOTI-X-PROMOTION-PAID'/);
+  assert.match(qaPage, /'NOTI-X-PROMOTION-LAYOUT'/);
 });
