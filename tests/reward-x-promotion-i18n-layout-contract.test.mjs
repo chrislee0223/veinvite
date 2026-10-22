@@ -6,7 +6,9 @@ const read = (path) => readFileSync(path, 'utf8');
 
 const locales = read('src/lib/i18n/locales.ts');
 const copy = read('src/lib/i18n/rewardXPromotionCopy.ts');
-const expanded = read('src/lib/i18n/rewardXPromotionExpandedCopy.ts');
+const expandedA = read('src/lib/i18n/rewardXPromotionExpandedCopyA.ts');
+const expandedB = read('src/lib/i18n/rewardXPromotionExpandedCopyB.ts');
+const expanded = expandedA + '\n' + expandedB;
 const coreAuto = read('src/lib/i18n/rewardXPromotionCoreAutoCopy.ts');
 const submitErrors = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
@@ -22,7 +24,8 @@ test('X promotion localization covers all 29 locales without English fallback sp
   assert.equal(supported.length, 29);
   assert.equal(new Set(supported).size, 29);
   assert.doesNotMatch(copy, /\.\.\.EN\b/);
-  assert.match(copy, /\.\.\.REWARD_X_PROMOTION_EXPANDED_COPY/);
+  assert.match(copy, /\.\.\.REWARD_X_PROMOTION_EXPANDED_COPY_A/);
+  assert.match(copy, /\.\.\.REWARD_X_PROMOTION_EXPANDED_COPY_B/);
   assert.match(copy, /REWARD_X_PROMOTION_CORE_AUTO_COPY/);
 
   for (const field of [
