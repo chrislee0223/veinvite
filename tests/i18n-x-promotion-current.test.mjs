@@ -45,6 +45,23 @@ test('X promotion copy covers all 29 locales without English spread fallback', (
   }
 });
 
+test('automatic X discovery copy has one source of truth', () => {
+  for (const field of [
+    'connectX',
+    'connectedX',
+    'autoConnectBody',
+    'autoOpenBody',
+    'autoGraceBody',
+    'autoConnectedX',
+  ]) {
+    assert.doesNotMatch(
+      baseCopy,
+      new RegExp('\\b' + field + '\\??:', 'u'),
+      'duplicate auto field remains in base copy: ' + field,
+    );
+  }
+});
+
 test('automatic X discovery copy is complete for every supported locale', () => {
   const fields = [
     'connectX',
