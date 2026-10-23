@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
 const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const expandedCopy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopy.ts', import.meta.url), 'utf8');
 const locales = readFileSync(new URL('../src/lib/i18n/locales.ts', import.meta.url), 'utf8');
 
 test('X sharing keeps the existing no-expired-bonus protection', () => {
@@ -28,8 +29,16 @@ test('share-followup translations cover all 29 registered app locales', () => {
   assert.match(copy, /shareFollowupBody: string/);
   assert.match(copy, /return to VeInvite\. Open your reward in Notifications/);
   assert.match(copy, /X에 게시한 뒤 VeInvite로 돌아와/);
+  const combinedCopy = copy + '\n' + expandedCopy;
   for (const locale of registered) {
-    assert.match(copy, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale: ' + locale);
+    assert.match(
+      combinedCopy,
+      new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'),
+      'missing locale: ' + locale,
+    );
   }
-  assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 30);
+  assert.equal(
+    (combinedCopy.match(/shareFollowupBody:/g) ?? []).length,
+    30,
+  );
 });
