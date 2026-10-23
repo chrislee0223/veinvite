@@ -1,8 +1,6 @@
 import { SUPPORTED_LOCALES, type SupportedLocale } from './locales';
-import {
-  REWARD_X_PROMOTION_AUTO_COPY,
-  REWARD_X_PROMOTION_SHARE_FOLLOWUP_COPY,
-} from './rewardXPromotionAutoCopy';
+import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
+import { REWARD_X_PROMOTION_SHARE_FOLLOWUP_COPY } from './rewardXPromotionShareFollowupCopy';
 import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
 
 export type RewardXPromotionCopy = {
