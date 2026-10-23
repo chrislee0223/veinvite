@@ -18,6 +18,10 @@ const autoCopy = readFileSync(
   new URL('../src/lib/i18n/rewardXPromotionAutoCopy.ts', import.meta.url),
   'utf8',
 );
+const expandedAutoCopy = readFileSync(
+  new URL('../src/lib/i18n/rewardXPromotionExpandedAutoCopy.ts', import.meta.url),
+  'utf8',
+);
 const locales = readFileSync(
   new URL('../src/lib/i18n/locales.ts', import.meta.url),
   'utf8',
@@ -66,6 +70,7 @@ test('manual and automatic follow-up translations cover all 29 registered locale
   assert.equal(registered.length, 29);
 
   const coreSources = baseCopy + '\n' + expandedCopy;
+  const autoSources = autoCopy + '\n' + expandedAutoCopy;
   assert.match(baseCopy, /shareFollowupBody: string/);
   assert.match(baseCopy, /return to VeInvite\. Open your reward in Notifications/);
   assert.match(baseCopy, /X에 게시한 뒤 VeInvite로 돌아와/);
@@ -86,12 +91,13 @@ test('manual and automatic follow-up translations cover all 29 registered locale
       'missing core X promotion locale: ' + locale,
     );
     assert.match(
-      autoCopy,
+      autoSources,
       localePattern,
       'missing automatic X promotion locale: ' + locale,
     );
   }
 
   assert.doesNotMatch(coreSources, /\.\.\.EN\b/);
+  assert.doesNotMatch(autoSources, /\.\.\.EN\b/);
 });
 
