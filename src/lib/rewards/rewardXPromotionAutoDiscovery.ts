@@ -337,13 +337,13 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     let checked = false;
     for (const [authorId, { openedAt, inviteCodes }] of rotated) {
       const attempt = await readBoundAuthorPosts(authorId, openedAt);
-      // A completed scheduling attempt moves this author to the back even
-      // when X is unavailable or the provider's author cooldown applies.
-      // It never confirms a Post or authorizes payment.
+      // A provider attempt moves this author to the back. A COOLDOWN
+      // means no X timeline read happened, so never claim this Post was
+      // scanned (or advance its checkpoint); budget failures also stay
+      // unmarked. This does not affect verification or payout eligibility.
       if (fairScanEnabled &&
           (attempt.status === 'READY' ||
-           attempt.status === 'UNAVAILABLE' ||
-           attempt.status === 'COOLDOWN')) {
+           attempt.status === 'UNAVAILABLE')) {
         const { error: updateError } = await supabaseAdmin
           .from('reward_x_promotion_scan_requests')
           .update({ last_checked_at: new Date().toISOString() })

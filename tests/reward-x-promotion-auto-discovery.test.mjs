@@ -417,3 +417,30 @@ test('unscanned connected users are automatically checked ahead of recently atte
   assert.equal(x.calls.hintsUpdated.length,3);
   assert.equal(x.calls.payout,0);
 });
+
+
+test('author cooldown cannot falsely advance an automatic scan checkpoint', async () => {
+  const prior = new Date(Date.now() - 3_600_000).toISOString();
+  const x = setup({
+    fairEnabled: true,
+    hints: [{ invite_code: 'ABCDEFG', last_checked_at: prior }],
+    authorResult: { status: 'COOLDOWN', posts: [], truncated: false },
+  });
+  const result = await x.run();
+  assert.equal(result.checked, false);
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.hintsUpdated.length, 0);
+  assert.equal(x.calls.checkpointsInserted.length, 0);
+  assert.equal(x.calls.payout, 0);
+});
+
+test('provider-unavailable author attempt still rotates without authorizing rewards', async () => {
+  const x = setup({
+    fairEnabled: true,
+    authorResult: { status: 'UNAVAILABLE', posts: [], truncated: false },
+  });
+  const result = await x.run();
+  assert.equal(result.submitted, 0);
+  assert.equal(x.calls.hintsUpdated.length, 1);
+  assert.equal(x.calls.payout, 0);
+});
