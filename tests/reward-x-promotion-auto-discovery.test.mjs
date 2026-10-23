@@ -16,7 +16,7 @@ function setup({
   mode = 'live', posts = [], apiStatus = 200, alternateStatus = null, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
   boundAuthor = '9876543210', strategy = 'author',
-  authorResult = null, hintEnabled = false, hints = [],
+  authorResult = null, hintEnabled = false, hints = [], additionalOffers = [],
 } = {}) {
   const now = Date.now();
   const opportunity = {
@@ -27,7 +27,7 @@ function setup({
     post_deadline_at: new Date(now + deadlineOffsetMinutes * 60_000).toISOString(),
     submission_grace_seconds: 3600,
   };
-  const calls = { api: 0, author: 0, submissions: [], payout: 0, hintsRead: 0, hintsUpdated: [] };
+  const calls = { api: 0, author: 0, authorIds: [], submissions: [], payout: 0, hintsRead: 0, hintsUpdated: [] };
   const supabaseAdmin = {
     from(name) {
       if (name === 'reward_x_promotion_scan_requests') {
@@ -47,17 +47,20 @@ function setup({
         return {
           select() { return this; }, eq() { return this; },
           gte() { return this; }, order() { return this; },
-          async limit() { return { data: [opportunity], error: null }; },
+          async limit() { return { data: [opportunity, ...additionalOffers], error: null }; },
         };
       }
       if (name === 'reward_x_promotion_oauth_proofs') {
         return {
           select() { return this; }, eq() { return this; },
           async in() {
-            return { data: boundAuthor ? [{
-              recipient_wallet: opportunity.recipient_wallet,
-              x_author_id: boundAuthor,
-            }] : [], error: null };
+            return { data: [
+              ...(boundAuthor ? [{ recipient_wallet: opportunity.recipient_wallet, x_author_id: boundAuthor }] : []),
+              ...additionalOffers.map((item, index) => ({
+                recipient_wallet: item.recipient_wallet,
+                x_author_id: String(9876543220 + index),
+              })),
+            ], error: null };
           },
         };
       }
@@ -81,8 +84,9 @@ function setup({
   const requireMock = (id) => {
     if (id === 'server-only') return {};
     if (id === '@/lib/rewards/rewardXPromotionAuthorTimeline') {
-      return { async readBoundAuthorPosts() {
+      return { async readBoundAuthorPosts(authorId) {
         calls.author++;
+        calls.authorIds.push(authorId);
         return authorResult ?? (
           apiStatus === 200
             ? { status: 'READY', posts, truncated: false }
@@ -378,4 +382,31 @@ test('legacy discovery never reads the new scan queue when rollout is disabled',
   const x = setup({ hintEnabled: false });
   await x.run();
   assert.equal(x.calls.hintsRead, 0);
+});
+
+test('unscanned posted user is checked ahead of previously scanned and passive users', async () => {
+  const now=Date.now();
+  const create=(code, walletDigit, deadlineOffset) => ({
+    invite_code:code,
+    recipient_wallet:'0x'+walletDigit.repeat(40),
+    share_token:'aceceace-1234-4123-8123-123456789abc',
+    opened_at:new Date(now-5*60_000).toISOString(),
+    post_deadline_at:new Date(now+deadlineOffset*60_000).toISOString(),
+    submission_grace_seconds:900,
+  });
+  const b=create('BCDEFGH','2',20);
+  const c=create('CDEFGHJ','3',10);
+  const checked=new Date(now-60*60_000).toISOString();
+  const x=setup({
+    hintEnabled:true, additionalOffers:[b,c],
+    hints:[
+      {invite_code:'ABCDEFG',requested_at:checked,last_checked_at:checked},
+      {invite_code:'BCDEFGH',requested_at:checked,last_checked_at:null},
+    ],
+  });
+  const result=await x.run();
+  assert.equal(result.status,'READY');
+  assert.deepEqual(x.calls.authorIds, ['9876543220','9876543210','9876543221']);
+  assert.equal(x.calls.hintsUpdated.length,2);
+  assert.equal(x.calls.payout,0);
 });
