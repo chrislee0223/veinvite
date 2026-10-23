@@ -16,7 +16,7 @@ function setup({
   mode = 'live', posts = [], apiStatus = 200, alternateStatus = null, canonical = null, existing = [],
   openedOffsetMinutes = -5, deadlineOffsetMinutes = 55,
   boundAuthor = '9876543210', strategy = 'author',
-  authorResult = null,
+  authorResult = null, hintEnabled = false, hints = [],
 } = {}) {
   const now = Date.now();
   const opportunity = {
@@ -27,9 +27,22 @@ function setup({
     post_deadline_at: new Date(now + deadlineOffsetMinutes * 60_000).toISOString(),
     submission_grace_seconds: 3600,
   };
-  const calls = { api: 0, author: 0, submissions: [], payout: 0 };
+  const calls = { api: 0, author: 0, submissions: [], payout: 0, hintsRead: 0, hintsUpdated: [] };
   const supabaseAdmin = {
     from(name) {
+      if (name === 'reward_x_promotion_scan_requests') {
+        calls.hintsRead++;
+        return {
+          select() { return this; }, eq() { return this; },
+          async in() { return { data: hints, error: null }; },
+          update(data) {
+            return { async in(_key, codes) {
+              calls.hintsUpdated.push({ data, codes });
+              return { error: null };
+            } };
+          },
+        };
+      }
       if (name === 'reward_x_promotion_opportunities') {
         return {
           select() { return this; }, eq() { return this; },
@@ -106,6 +119,7 @@ function setup({
       VEINVITE_X_PROMOTION_DISCOVERY_MODE: mode,
       VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY: strategy,
       VEINVITE_X_PROMOTION_DAILY_READ_CALLS: '6',
+      VEINVITE_X_PROMOTION_SCAN_HINT_ENABLED: hintEnabled ? 'true' : 'false',
       X_API_BEARER_TOKEN: 'fake-test-token',
     } },
     Date, Math, URL, Set, AbortController, setTimeout, clearTimeout,
@@ -331,4 +345,37 @@ test('live mode cannot run paid scans without author strategy', async () => {
   assert.equal(x.calls.api, 0);
   assert.equal(x.calls.author, 0);
   assert.equal(x.calls.submissions.length, 0);
+});
+
+test('unverified posted hint is only a scan scheduling request', async () => {
+  const p = post();
+  const x = setup({
+    posts: [p], hintEnabled: true,
+    hints: [{ invite_code: 'ABCDEFG', requested_at: new Date().toISOString(), last_checked_at: null }],
+  });
+  const result = await x.run();
+  assert.equal(result.submitted, 1);
+  assert.equal(x.calls.hintsRead, 1);
+  assert.equal(x.calls.hintsUpdated.length, 1);
+  assert.equal(x.calls.hintsUpdated[0].codes[0], 'ABCDEFG');
+  assert.equal(x.calls.hintsUpdated[0].data.last_checked_at.length > 0, true);
+  assert.equal(x.calls.payout, 0);
+});
+
+test('blocked author lookup does not mark X posted hint as checked', async () => {
+  const x = setup({
+    hintEnabled: true,
+    hints: [{ invite_code: 'ABCDEFG', requested_at: new Date().toISOString(), last_checked_at: null }],
+    authorResult: { status:'BUDGET_LIMIT', posts: [], truncated:false },
+  });
+  const result = await x.run();
+  assert.equal(result.status, 'BUDGET_LIMIT');
+  assert.equal(x.calls.hintsUpdated.length, 0);
+  assert.equal(x.calls.submissions.length, 0);
+});
+
+test('legacy discovery never reads the new scan queue when rollout is disabled', async () => {
+  const x = setup({ hintEnabled: false });
+  await x.run();
+  assert.equal(x.calls.hintsRead, 0);
 });
