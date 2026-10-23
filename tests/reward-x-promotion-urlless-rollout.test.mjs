@@ -2,9 +2,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-const route = readFileSync(new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url), 'utf8');
-const panel = readFileSync(new URL('../src/components/RewardXPromotionPanel.tsx', import.meta.url), 'utf8');
-const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const route = readFileSync(
+  new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url),
+  'utf8',
+);
+const panel = readFileSync(
+  new URL('../src/components/RewardXPromotionPanel.tsx', import.meta.url),
+  'utf8',
+);
+const autoCopy = readFileSync(
+  new URL('../src/lib/i18n/rewardXPromotionAutoCopy.ts', import.meta.url),
+  'utf8',
+);
 
 test('manual URL retirement requires a separate live + time-bounded rollout gate', () => {
   assert.match(route, /VEINVITE_X_PROMOTION_URLLESS_START_AT/);
@@ -29,11 +38,29 @@ test('existing URL submit path remains available for legacy and disabled cohorts
   assert.match(panel, /canSubmit && !usesAuto/);
 });
 
-test('auto-only instructions explain public X connection, detection and 24-hour retention', () => {
-  for (const field of ['autoConnectBody', 'autoOpenBody', 'autoGraceBody', 'autoConnectedX']) {
-    assert.match(copy, new RegExp(field + ':'));
+test('automatic instructions are complete and no longer fall back to English at render time', () => {
+  for (const field of [
+    'connectX',
+    'connectedX',
+    'autoConnectBody',
+    'autoOpenBody',
+    'autoGraceBody',
+    'autoConnectedX',
+    'autoShareFollowupBody',
+  ]) {
+    assert.match(autoCopy, new RegExp(field + ':'));
   }
-  assert.match(copy, /No Post URL is needed/);
-  assert.match(copy, /24 hours/);
-  assert.match(copy, /게시물 URL을 따로 제출할 필요가 없어요/);
+
+  assert.match(autoCopy, /No post URL is needed/);
+  assert.match(autoCopy, /24 hours/);
+  assert.match(autoCopy, /게시물 URL을 따로 제출할 필요가 없어요/);
+
+  assert.doesNotMatch(
+    panel,
+    /REWARD_X_PROMOTION_COPY\.en\.(?:auto|connect)/,
+  );
+  assert.match(panel, /copy\.autoOpenBody/);
+  assert.match(panel, /copy\.autoGraceBody/);
+  assert.match(panel, /copy\.autoConnectedX/);
+  assert.match(panel, /copy\.connectX/);
 });
