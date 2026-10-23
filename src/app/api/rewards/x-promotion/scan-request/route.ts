@@ -21,9 +21,15 @@ export async function POST(request: NextRequest) {
   if (!origin || origin !== request.nextUrl.origin) {
     return response('Invalid request origin.', 403);
   }
+  const cohortStartedAt = Date.parse(
+    process.env.VEINVITE_X_PROMOTION_URLLESS_START_AT ?? '',
+  );
+  const dailyReads = process.env.VEINVITE_X_PROMOTION_DAILY_READ_CALLS ?? '';
   if (process.env.VEINVITE_X_PROMOTION_SCAN_HINT_ENABLED !== 'true' ||
       process.env.VEINVITE_X_PROMOTION_DISCOVERY_MODE !== 'live' ||
-      process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY !== 'author') {
+      process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY !== 'author' ||
+      !/^(?:[1-9]|1[0-9]|20)$/u.test(dailyReads) ||
+      !Number.isFinite(cohortStartedAt) || cohortStartedAt <= 0) {
     return response('Scan requests are not available.', 503);
   }
   let raw: unknown;
@@ -59,7 +65,8 @@ export async function POST(request: NextRequest) {
     if (!item || item.recipient_wallet !== wallet ||
         !oauth.data?.x_author_id ||
         Date.parse(item.post_deadline_at) <= Date.now() ||
-        Date.parse(item.opened_at) >= Date.now()) {
+        Date.parse(item.opened_at) >= Date.now() ||
+        Date.parse(item.opened_at) < cohortStartedAt) {
       return response('No active, connected X promotion found.', 409);
     }
     const obligation = await supabaseAdmin.from('reward_x_promotion_obligations')
