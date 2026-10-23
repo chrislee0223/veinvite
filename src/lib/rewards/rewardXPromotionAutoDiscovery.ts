@@ -211,7 +211,42 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
   const alreadySubmitted = new Set(
     (existing ?? []).map((row) => row.invite_code as string),
   );
-  const eligible = opportunities.filter((item) => !alreadySubmitted.has(item.invite_code));
+  let eligible = opportunities.filter((item) => !alreadySubmitted.has(item.invite_code));
+  const scanHints = new Map<string, { requested_at: string; last_checked_at: string | null }>();
+  const hintsEnabled = currentMode === 'live' &&
+    process.env.VEINVITE_X_PROMOTION_SCAN_HINT_ENABLED === 'true';
+  if (hintsEnabled && eligible.length) {
+    const { data: hints, error: hintsError } = await supabaseAdmin
+      .from('reward_x_promotion_scan_requests')
+      .select('invite_code,requested_at,last_checked_at')
+      .eq('network', network)
+      .in('invite_code', eligible.map((item) => item.invite_code));
+    if (hintsError) throw new Error('Scan hint queue could not be loaded.');
+    for (const hint of hints ?? []) {
+      if (typeof hint.invite_code === 'string') {
+        scanHints.set(hint.invite_code, {
+          requested_at: String(hint.requested_at),
+          last_checked_at: hint.last_checked_at ? String(hint.last_checked_at) : null,
+        });
+      }
+    }
+    // A user signal is an untrusted scheduling hint, NEVER Post proof.
+    // Unchecked signaled users run first; among previously checked users,
+    // the least recently scanned runs first. Deadline is a stable tie-break.
+    eligible = [...eligible].sort((a, b) => {
+      const ah = scanHints.get(a.invite_code);
+      const bh = scanHints.get(b.invite_code);
+      const priority = (h: typeof ah) => h ? (h.last_checked_at ? 1 : 0) : 2;
+      const tier = priority(ah) - priority(bh);
+      if (tier) return tier;
+      if (ah?.last_checked_at && bh?.last_checked_at) {
+        const age = Date.parse(ah.last_checked_at) - Date.parse(bh.last_checked_at);
+        if (Number.isFinite(age) && age) return age;
+      }
+      const deadline = Date.parse(a.post_deadline_at) - Date.parse(b.post_deadline_at);
+      return deadline || a.invite_code.localeCompare(b.invite_code);
+    });
+  }
   result.offers = eligible.length;
   if (!eligible.length) {
     result.status = 'NO_OFFERS';
@@ -255,13 +290,18 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
 
   if (authorStrategy) {
     // An authenticated X author can have multiple offers; scan just once.
-    const work = new Map<string, { openedAt: string }>();
+    const work = new Map<string, { openedAt: string; inviteCodes: string[] }>();
     for (const offer of eligible) {
       const authorId = boundAuthors.get(offer.recipient_wallet.toLowerCase());
       if (!authorId) continue;
       const prior = work.get(authorId);
-      if (!prior || Date.parse(offer.opened_at!) < Date.parse(prior.openedAt)) {
-        work.set(authorId, { openedAt: offer.opened_at! });
+      if (prior) {
+        prior.inviteCodes.push(offer.invite_code);
+        if (Date.parse(offer.opened_at!) < Date.parse(prior.openedAt)) {
+          prior.openedAt = offer.opened_at!;
+        }
+      } else {
+        work.set(authorId, { openedAt: offer.opened_at!, inviteCodes: [offer.invite_code] });
       }
     }
     const authors = [...work.entries()];
@@ -270,15 +310,29 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     // reads across parallel invocations.
     const MAX_AUTHORS_PER_TICK = 4;
     if (authors.length > MAX_AUTHORS_PER_TICK) partial = true;
-    // Rotate batches by UTC hour so persistent first authors do not starve
-    // newer users every time a cron invocation scans the list.
-    const offset = authors.length ? Math.floor(now / 3_600_000) % authors.length : 0;
+    // When hints are enabled, the queue's oldest unchecked/last checked
+    // scheduling wins. Otherwise retain the legacy hourly rotation.
+    const offset = !hintsEnabled && authors.length
+      ? Math.floor(now / 3_600_000) % authors.length : 0;
     const rotated = [...authors.slice(offset), ...authors.slice(0, offset)]
       .slice(0, MAX_AUTHORS_PER_TICK);
     const posts: SearchPost[] = [];
     let checked = false;
-    for (const [authorId, { openedAt }] of rotated) {
+    for (const [authorId, { openedAt, inviteCodes }] of rotated) {
       const attempt = await readBoundAuthorPosts(authorId, openedAt);
+      // A scan attempt does not mark a Post valid. This timestamp only moves
+      // an already-checked author behind unchecked users on the next cron.
+      if (hintsEnabled &&
+          (attempt.status === 'READY' || attempt.status === 'UNAVAILABLE')) {
+        const queuedCodes = inviteCodes.filter((code) => scanHints.has(code));
+        if (queuedCodes.length) {
+          const { error: updateError } = await supabaseAdmin
+            .from('reward_x_promotion_scan_requests')
+            .update({ last_checked_at: new Date().toISOString() })
+            .in('invite_code', queuedCodes);
+          if (updateError) console.warn('X discovery scan hint checkpoint unavailable');
+        }
+      }
       if (attempt.status === 'BUDGET_LIMIT' || attempt.status === 'DISABLED') {
         budgetLimited = true;
         break;
