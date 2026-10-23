@@ -123,6 +123,10 @@ async function openPromotionPanel(
     },
   );
 
+  await expect(
+    page.locator('[data-qa-notification-ready="true"]'),
+  ).toBeAttached({ timeout: 10_000 });
+
   const history = page.locator('.notificationHistoryPanel');
   await expect(history).toBeVisible();
 
