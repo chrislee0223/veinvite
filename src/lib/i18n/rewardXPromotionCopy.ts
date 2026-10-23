@@ -21,6 +21,7 @@ export type RewardXPromotionCopy = {
   connectedX?: string;
   autoConnectBody?: string;
   autoOpenBody?: string;
+  autoShareFollowupBody?: string;
   autoGraceBody?: string;
   autoConnectedX?: string;
 };
@@ -46,6 +47,7 @@ const EN: RewardXPromotionCopy = {
   connectedX: 'X account connected. You can still submit the Post link while automatic checks are being tested.',
   autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No Post URL is needed.',
   autoOpenBody: 'Share to X within 24 hours. VeInvite will look for the Post automatically. Keep it public for at least 24 hours; the bonus is paid only after verification.',
+  autoShareFollowupBody: 'Once you publish on X, no URL submission or confirmation is needed. Keep the Post public for at least 24 hours; VeInvite checks it automatically and pays the bonus only after verification.',
   autoGraceBody: 'The sharing window has ended. VeInvite is checking Posts shared before the deadline automatically. Keep your Post public until the 24-hour verification finishes.',
   autoConnectedX: 'X account connected. Your public Post will be checked automatically; no link submission is needed.',
 };
@@ -73,6 +75,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     connectedX: 'X 계정이 연결되었어요. 자동 검증이 준비되기 전까지는 게시물 링크를 제출할 수 있어요.',
     autoConnectBody: '먼저 공개 X 계정을 연결해 주세요. 그런 다음 24시간 안에 공유하면 게시물 URL을 따로 제출할 필요가 없어요.',
     autoOpenBody: '24시간 안에 X에 공유해 주세요. VeInvite가 공개 게시물을 자동으로 찾고 확인해요. 24시간 이상 공개 상태를 유지하면 검증 후 추가 보상이 지급돼요.',
+    autoShareFollowupBody: 'X에 게시했다면 더 누르거나 URL을 제출할 필요가 없어요. 게시물을 24시간 이상 공개 상태로 유지해 주세요. VeInvite가 자동 확인 후 조건을 충족하면 추가 보상을 지급해요.',
     autoGraceBody: '공유 가능 시간이 끝났어요. VeInvite가 기한 내 게시물을 자동 확인 중이에요. 24시간 검증이 완료될 때까지 게시물을 공개 상태로 유지해 주세요.',
     autoConnectedX: 'X 계정이 연결되었어요. 게시물은 자동 확인되므로 URL을 제출하지 않아도 돼요.',
   },
