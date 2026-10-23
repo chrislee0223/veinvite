@@ -20,13 +20,13 @@ test('manual URL retirement requires a separate live + time-bounded rollout gate
 test('URL-less mode requires account link before publishing a qualifying share', () => {
   assert.match(panel, /state\?\.xUrlLessEnabled === true && state\?\.xConnected !== true/);
   assert.match(panel, /state\?\.xUrlLessEnabled === true/);
-  assert.match(panel, /canSubmit && !usesAuto/);
+  assert.match(panel, /canSubmit && \(!usesAuto \|\| promotion\.state === 'SUBMISSION_GRACE'\)/);
   assert.match(panel, /\/api\/rewards\/x-promotion\/x-connect\/start/);
 });
 
 test('existing URL submit path remains available for legacy and disabled cohorts', () => {
   assert.match(panel, /\/api\/rewards\/x-promotion\/submit/);
-  assert.match(panel, /canSubmit && !usesAuto/);
+  assert.match(panel, /canSubmit && \(!usesAuto \|\| promotion\.state === 'SUBMISSION_GRACE'\)/);
 });
 
 test('auto-only instructions explain public X connection, detection and 24-hour retention', () => {
@@ -36,4 +36,13 @@ test('auto-only instructions explain public X connection, detection and 24-hour 
   assert.match(copy, /No Post URL is needed/);
   assert.match(copy, /24 hours/);
   assert.match(copy, /게시물 URL을 따로 제출할 필요가 없어요/);
+});
+
+test('opt-in posted hint adds no mandatory URL submission for current OPEN receipts', () => {
+  assert.match(panel, /promotion\.state === 'OPEN' && usesAuto/);
+  assert.match(panel, /state\?\.xConnected && state\.xScanHintEnabled/);
+  assert.match(panel, /state\.xScanQueued/);
+  assert.match(panel, /\/api\/rewards\/x-promotion\/scan-request/);
+  assert.match(route, /xScanHintEnabled: scanHintsConfigured && urlLessConfigured/);
+  assert.match(route, /xScanQueued: Boolean\(scanHint\.data\)/);
 });
