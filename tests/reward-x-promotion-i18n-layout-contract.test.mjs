@@ -119,3 +119,12 @@ test('X promotion layout explicitly protects long and RTL translations', () => {
     /className="promotionSubmit"[\s\S]*<input[\s\S]*dir="ltr"/,
   );
 });
+
+
+test('interactive QA waits for React hydration before clicking receipt rows', () => {
+  const harness = read('src/qa/QaNotificationStateHarness.tsx');
+  const browserAudit = read('tests/playwright/reward-x-promotion-locale-layout.spec.ts');
+  assert.match(harness, /data-qa-notification-ready/);
+  assert.match(harness, /setHydrated\(true\)/);
+  assert.match(browserAudit, /data-qa-notification-ready="true"/);
+});
