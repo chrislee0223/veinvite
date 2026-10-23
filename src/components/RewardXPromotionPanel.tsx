@@ -50,6 +50,8 @@ type PromotionResponse = {
   xConnectAvailable?: boolean;
   xConnected?: boolean;
   xUrlLessEnabled?: boolean;
+  xScanHintEnabled?: boolean;
+  xScanQueued?: boolean;
   promotion?: Promotion | null;
   error?: string;
 };
@@ -107,6 +109,8 @@ export function RewardXPromotionPanel({
     useState(false);
   const [submitError, setSubmitError] =
     useState('');
+  const [queueing, setQueueing] = useState(false);
+  const [scanError, setScanError] = useState('');
   const requestSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -155,6 +159,7 @@ export function RewardXPromotionPanel({
     setLoadError(false);
     setPostUrl('');
     setSubmitError('');
+    setScanError('');
     void load();
     return () => {
       // A prior invite's response must not revive its share token/status
@@ -326,6 +331,31 @@ export function RewardXPromotionPanel({
     }
   }, [inviteCode, load, postUrl, submitting]);
 
+  const queueScan = async () => {
+    if (queueing || state?.xScanQueued) return;
+    setQueueing(true);
+    setScanError('');
+    try {
+      const response = await fetch('/api/rewards/x-promotion/scan-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteCode }),
+      });
+      const body = await response.json() as { queued?: boolean; error?: string };
+      if (response.status === 401 || response.status === 403) {
+        notifyRewardClaimSessionInvalid();
+      }
+      if (!response.ok || body.queued !== true) {
+        throw new Error(body.error || 'Could not queue the X scan.');
+      }
+      await load();
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : 'Could not queue the X scan.');
+    } finally {
+      setQueueing(false);
+    }
+  };
+
   if (loading) {
     return null;
   }
@@ -468,7 +498,27 @@ export function RewardXPromotionPanel({
         )
       ) : null}
 
-      {canSubmit && !usesAuto ? (
+      {promotion.state === 'OPEN' && usesAuto &&
+        state?.xConnected && state.xScanHintEnabled ? (
+        state.xScanQueued ? (
+          <p className="promotionConnectState" role="status">
+            {copy.autoScanQueued ?? REWARD_X_PROMOTION_COPY.en.autoScanQueued}
+          </p>
+        ) : (
+          <button type="button" className="promotionConnect"
+            disabled={queueing} onClick={() => void queueScan()}>
+            {queueing
+              ? (copy.autoScanQueueing ?? REWARD_X_PROMOTION_COPY.en.autoScanQueueing)
+              : (copy.autoScanButton ?? REWARD_X_PROMOTION_COPY.en.autoScanButton)}
+          </button>
+        )
+      ) : null}
+
+      {scanError ? (
+        <p className="promotionError" role="alert">{scanError}</p>
+      ) : null}
+
+      {canSubmit && (!usesAuto || promotion.state === 'SUBMISSION_GRACE') ? (
         <div className="promotionSubmit">
           <input
             type="url"
