@@ -183,6 +183,9 @@ export function formatRewardShareAmount(value: string): string {
     : roundedWhole.toString();
 }
 
+// Public X campaign posts intentionally use one global English template
+// so discovery tags, searchability, and the reviewed 280-character layout
+// stay consistent. In-app share controls remain localized.
 export function rewardReceiptShareText({
   locale: _locale,
   amountB3tr,
