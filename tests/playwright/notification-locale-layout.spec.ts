@@ -39,6 +39,14 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
   ).toBeVisible({ timeout: 30_000 });
 
   const panel = page.locator('.notificationHistoryPanel');
+  if (!(await panel.isVisible())) {
+    const bell = page.locator('.notificationHistoryBell');
+    await expect(bell).toBeVisible({ timeout: 10_000 });
+    const expanded = await bell.getAttribute('aria-expanded');
+    if (expanded !== 'true') {
+      await bell.click();
+    }
+  }
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await page.evaluate(async () => {
     await Promise.race([
