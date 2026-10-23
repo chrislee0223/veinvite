@@ -1,5 +1,8 @@
 import { SUPPORTED_LOCALES, type SupportedLocale } from './locales';
-import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
+import {
+  REWARD_X_PROMOTION_AUTO_COPY,
+  type RewardXPromotionAutoCopy,
+} from './rewardXPromotionAutoCopy';
 import { REWARD_X_PROMOTION_EXPANDED_CORE_COPY } from './rewardXPromotionExpandedCoreCopy';
 
 export type RewardXPromotionBaseCopy = {
@@ -23,7 +26,7 @@ export type RewardXPromotionBaseCopy = {
 
 export type RewardXPromotionCopy =
   RewardXPromotionBaseCopy &
-  import('./rewardXPromotionAutoCopy').RewardXPromotionAutoCopy;
+  RewardXPromotionAutoCopy;
 
 const EN: RewardXPromotionBaseCopy = {
   title: 'X Promotion Bonus',
@@ -37,17 +40,11 @@ const EN: RewardXPromotionBaseCopy = {
   expiredBody: 'The X promotion submission window has expired.',
   releasedBody: 'This promotion amount was released back to the reward pool.',
   preparingBody: 'Your X promotion opportunity is being prepared. Check this reward receipt again shortly.',
-    shareFollowupBody: 'After posting on X, return to VeInvite. Open your reward in Notifications and paste the public Post URL to verify your bonus.',
+  shareFollowupBody: 'After posting on X, return to VeInvite. Open your reward in Notifications and paste the public Post URL to verify your bonus.',
   postUrlPlaceholder: 'https://x.com/.../status/...',
   verify: 'Verify Post',
   verifying: 'Checking…',
   retry: 'Try again',
-  connectX: 'Connect X account',
-  connectedX: 'X account connected. You can still submit the Post link while automatic checks are being tested.',
-  autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No Post URL is needed.',
-  autoOpenBody: 'Share to X within 24 hours. VeInvite will look for the Post automatically. Keep it public for at least 24 hours; the bonus is paid only after verification.',
-  autoGraceBody: 'The sharing window has ended. VeInvite is checking Posts shared before the deadline automatically. Keep your Post public until the 24-hour verification finishes.',
-  autoConnectedX: 'X account connected. Your public Post will be checked automatically; no link submission is needed.',
 };
 
 const REWARD_X_PROMOTION_BASE_COPY: Record<SupportedLocale, RewardXPromotionBaseCopy> = {
