@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import {
   SUPPORTED_LOCALES,
@@ -69,7 +69,7 @@ async function openReceiptPromotion(
   width: number,
   responseBody: unknown,
 ) {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await page.unroute('**/api/rewards/x-promotion?*').catch(() => {});
   await page.route(
     '**/api/rewards/x-promotion?*',
     async (route) => {
@@ -115,7 +115,7 @@ async function openReceiptPromotion(
 }
 
 async function inspectPromotionPanel(
-  panel: ReturnType<Page['locator']>,
+  panel: Locator,
 ) {
   return panel.evaluate((node) => {
     const root = node as HTMLElement;
