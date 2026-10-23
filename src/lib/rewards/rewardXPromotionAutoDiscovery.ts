@@ -320,10 +320,14 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     let checked = false;
     for (const [authorId, { openedAt, inviteCodes }] of rotated) {
       const attempt = await readBoundAuthorPosts(authorId, openedAt);
-      // A scan attempt does not mark a Post valid. This timestamp only moves
-      // an already-checked author behind unchecked users on the next cron.
+      // This checkpoint is scheduling-only, never proof that a Post exists.
+      // A per-author COOLDOWN is also a completed scheduling attempt: moving
+      // it behind other unscanned users prevents the same first four authors
+      // from blocking the queue on every 15-minute cron.
       if (hintsEnabled &&
-          (attempt.status === 'READY' || attempt.status === 'UNAVAILABLE')) {
+          (attempt.status === 'READY' ||
+           attempt.status === 'UNAVAILABLE' ||
+           attempt.status === 'COOLDOWN')) {
         const queuedCodes = inviteCodes.filter((code) => scanHints.has(code));
         if (queuedCodes.length) {
           const { error: updateError } = await supabaseAdmin
