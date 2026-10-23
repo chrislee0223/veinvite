@@ -1,6 +1,5 @@
 import { SUPPORTED_LOCALES, type SupportedLocale } from './locales';
 import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
-import { REWARD_X_PROMOTION_SHARE_FOLLOWUP_COPY } from './rewardXPromotionShareFollowupCopy';
 import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
 
 export type RewardXPromotionCopy = {
@@ -337,8 +336,6 @@ export const REWARD_X_PROMOTION_COPY: Record<
     {
       ...BASE_REWARD_X_PROMOTION_COPY[locale],
       ...REWARD_X_PROMOTION_AUTO_COPY[locale],
-      shareFollowupBody:
-        REWARD_X_PROMOTION_SHARE_FOLLOWUP_COPY[locale],
     },
   ]),
 ) as Record<SupportedLocale, RewardXPromotionCopy>;
