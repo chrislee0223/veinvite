@@ -150,6 +150,8 @@ export async function GET(
       process.env.VEINVITE_X_PROMOTION_URLLESS_START_AT ?? '',
     );
     const dailyReads = process.env.VEINVITE_X_PROMOTION_DAILY_READ_CALLS ?? '';
+    const scanHintsConfigured =
+      process.env.VEINVITE_X_PROMOTION_SCAN_HINT_ENABLED === 'true';
     const urlLessConfigured = xConnectAvailable &&
       process.env.VEINVITE_X_PROMOTION_DISCOVERY_MODE === 'live' &&
       process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author' &&
@@ -274,6 +276,7 @@ export async function GET(
       submission,
       verification,
       xIdentity,
+      scanHint,
     ] = await Promise.all([
       supabaseAdmin
         .from('reward_x_promotion_obligations')
@@ -317,6 +320,10 @@ export async function GET(
             .eq('recipient_wallet', wallet)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
+      scanHintsConfigured
+        ? supabaseAdmin.from('reward_x_promotion_scan_requests')
+            .select('requested_at').eq('invite_code', inviteCode).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     if (obligation.error || !obligation.data) {
@@ -336,6 +343,9 @@ export async function GET(
       throw new Error(
         `X promotion verification could not be loaded: ${verification.error.message}`,
       );
+    }
+    if (scanHint.error) {
+      throw new Error('X scan request status could not be loaded.');
     }
 
     const obligationRow =
@@ -390,6 +400,9 @@ export async function GET(
         newOffersEnabled,
         xConnectAvailable,
         xConnected: Boolean(xIdentity.data),
+        xScanHintEnabled: scanHintsConfigured && urlLessConfigured &&
+          Date.parse(opportunityRow.opened_at) >= urlLessStart,
+        xScanQueued: Boolean(scanHint.data),
         // Only newly opened offers may omit manual URL submission, and only
         // after both explicit gates are enabled. Legacy receipts keep their
         // existing path regardless of later rollout settings.
