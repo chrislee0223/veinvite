@@ -19,11 +19,10 @@ const expandedLocales = new Set([
 ]);
 
 function hasLocale(source, locale) {
-  const escaped = locale.replaceAll('-', '\\-');
-  return new RegExp(
-    '(?:^|\\n)\\s*(?:\\'' + escaped + '\\'|' + escaped + '):\\s*\\{',
-    'mu',
-  ).test(source);
+  return (
+    source.includes("  " + locale + ": {") ||
+    source.includes("  '" + locale + "': {")
+  );
 }
 
 test('X promotion copy covers all 29 locales without English spread fallback', () => {
