@@ -8,8 +8,13 @@ import {
   useState,
 } from 'react';
 
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  getLocaleDirection,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
+import { rewardXPromotionSubmitError } from '@/lib/i18n/rewardXPromotionSubmitErrorCopy';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
@@ -95,6 +100,8 @@ export function RewardXPromotionPanel({
   onRewardShare?: (intentUrl: string) => void;
 }) {
   const copy = REWARD_X_PROMOTION_COPY[locale];
+  const autoCopy = REWARD_X_PROMOTION_AUTO_COPY[locale];
+  const direction = getLocaleDirection(locale);
   const [state, setState] =
     useState<PromotionResponse | null>(null);
   const [loading, setLoading] =
@@ -299,32 +306,27 @@ export function RewardXPromotionPanel({
           }),
         },
       );
-      const body =
-        (await response.json()) as PromotionSubmitResponse;
-
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
       }
 
       if (!response.ok && response.status !== 202) {
-        throw new Error(
-          body.error ||
-          'The X Post could not be verified.',
+        setSubmitError(
+          rewardXPromotionSubmitError(locale, response.status),
         );
+        return;
       }
 
       setPostUrl('');
       await load();
-    } catch (error) {
+    } catch {
       setSubmitError(
-        error instanceof Error
-          ? error.message
-          : 'The X Post could not be verified.',
+        rewardXPromotionSubmitError(locale, 0),
       );
     } finally {
       setSubmitting(false);
     }
-  }, [inviteCode, load, postUrl, submitting]);
+  }, [inviteCode, load, locale, postUrl, submitting]);
 
   if (loading) {
     return null;
@@ -332,7 +334,7 @@ export function RewardXPromotionPanel({
 
   if (loadError) {
     return (
-      <div className="promotionStatus">
+      <div className="promotionStatus" lang={locale} dir={direction}>
         <span>{copy.title}</span>
         <button
           type="button"
@@ -355,7 +357,7 @@ export function RewardXPromotionPanel({
   if (!promotion) {
     if (state?.promotionPending === true) {
       return (
-        <div className="promotionPreparing">
+        <div className="promotionPreparing" lang={locale} dir={direction}>
           {copy.preparingBody}
           <style jsx>{`
             .promotionPreparing{margin-top:14px;padding:11px 12px;border:1px solid rgba(255,205,80,.12);border-radius:12px;background:rgba(255,205,80,.03);color:#a9a196;font-size:.62rem;line-height:1.5}
@@ -370,6 +372,8 @@ export function RewardXPromotionPanel({
       <button
         type="button"
         className="genericShare"
+        lang={locale}
+        dir={direction}
         aria-label={rewardReceiptShareLabel(locale)}
         onClick={() =>
           openIntent(
@@ -396,12 +400,12 @@ export function RewardXPromotionPanel({
     promotion.state === 'OPEN'
       ? usesAuto
         ? state?.xConnected
-          ? (copy.autoOpenBody ?? REWARD_X_PROMOTION_COPY.en.autoOpenBody)
-          : (copy.autoConnectBody ?? REWARD_X_PROMOTION_COPY.en.autoConnectBody)
+          ? autoCopy.autoOpenBody
+          : autoCopy.autoConnectBody
         : copy.openBody
       : promotion.state === 'SUBMISSION_GRACE'
         ? usesAuto
-          ? (copy.autoGraceBody ?? REWARD_X_PROMOTION_COPY.en.autoGraceBody)
+          ? autoCopy.autoGraceBody
           : copy.graceBody
         : promotion.state === 'VERIFYING'
           ? copy.verifyingBody
@@ -418,10 +422,10 @@ export function RewardXPromotionPanel({
                     : copy.expiredBody;
 
   return (
-    <section className="promotionPanel">
+    <section className="promotionPanel" lang={locale} dir={direction}>
       <div className="promotionHeading">
         <strong>{copy.title}</strong>
-        <span>+{promotion.amountB3tr} B3TR</span>
+        <span dir="ltr">+{promotion.amountB3tr} B3TR</span>
       </div>
       <p>{body}</p>
 
@@ -442,7 +446,8 @@ export function RewardXPromotionPanel({
             );
           }}
         >
-          {rewardReceiptShareLabel(locale)} · +{promotion.amountB3tr} B3TR
+          <span>{rewardReceiptShareLabel(locale)}</span>
+          <b dir="ltr">+{promotion.amountB3tr} B3TR</b>
         </button>
       ) : null}
 
@@ -450,8 +455,8 @@ export function RewardXPromotionPanel({
         state.xConnected ? (
           <p className="promotionConnectState" role="status">
             {usesAuto
-              ? (copy.autoConnectedX ?? REWARD_X_PROMOTION_COPY.en.autoConnectedX)
-              : (copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX)}
+              ? autoCopy.autoConnectedX
+              : autoCopy.connectedX}
           </p>
         ) : (
           <button
@@ -463,7 +468,7 @@ export function RewardXPromotionPanel({
               );
             }}
           >
-            {copy.connectX ?? REWARD_X_PROMOTION_COPY.en.connectX}
+            {autoCopy.connectX}
           </button>
         )
       ) : null}
@@ -472,6 +477,7 @@ export function RewardXPromotionPanel({
         <div className="promotionSubmit">
           <input
             type="url"
+            dir="ltr"
             value={postUrl}
             placeholder={copy.postUrlPlaceholder}
             autoCapitalize="none"
