@@ -7,6 +7,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const locales = read('src/lib/i18n/locales.ts');
 const mainCopy = read('src/lib/i18n/rewardXPromotionCopy.ts');
 const expandedCopy = read('src/lib/i18n/rewardXPromotionExpandedCopy.ts');
+const autoCopy = read('src/lib/i18n/rewardXPromotionAutoCopy.ts');
 const submitErrors = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
 const receipt = read('src/components/RewardReceiptView.tsx');
@@ -49,6 +50,15 @@ const errorFields = [
   'unavailable',
 ];
 
+const autoFields = [
+  'connectX',
+  'connectedX',
+  'autoConnectBody',
+  'autoOpenBody',
+  'autoGraceBody',
+  'autoConnectedX',
+];
+
 function localeBlock(source, locale) {
   const matcher = new RegExp(
     "(?:^|\\n)\\s*(?:'" + locale + "'|" + locale + "):\\s*\\{([\\s\\S]*?)\\n\\s*\\},",
@@ -86,6 +96,36 @@ test('X promotion copy removes English fallback bodies and covers all 29 locales
       'missing primary X promotion locale: ' + locale,
     );
   }
+});
+
+test('X auto-discovery and X-account copy is localized for all 29 locales', () => {
+  const declared = [
+    ...autoCopy.matchAll(/^\s*(?:'([^']+)'|([a-z-]+)):\s*\{/gmu),
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter((locale) => supportedLocales.includes(locale));
+
+  assert.deepEqual(
+    [...new Set(declared)].sort(),
+    [...supportedLocales].sort(),
+  );
+  assert.equal(declared.length, supportedLocales.length);
+
+  for (const locale of supportedLocales) {
+    const block = localeBlock(autoCopy, locale);
+    assert.ok(block, 'missing auto X locale: ' + locale);
+    for (const field of autoFields) {
+      assert.match(
+        block,
+        new RegExp('\\b' + field + '\\s*:'),
+        locale + ' is missing auto copy ' + field,
+      );
+    }
+  }
+
+  assert.doesNotMatch(autoCopy, /\.\.\.EN\b/);
+  assert.match(panel, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]/);
+  assert.doesNotMatch(panel, /REWARD_X_PROMOTION_COPY\.en\.auto/);
 });
 
 test('localized submit errors cover every supported locale and status family', () => {
