@@ -49,6 +49,16 @@ const AUTO_KEYS = [
   'autoOpenBody',
   'autoGraceBody',
   'autoConnectedX',
+  'autoShareFollowupBody',
+];
+
+const AUTO_LOCALIZED_BODY_KEYS = [
+  'connectedX',
+  'autoConnectBody',
+  'autoOpenBody',
+  'autoGraceBody',
+  'autoConnectedX',
+  'autoShareFollowupBody',
 ];
 
 test('X promotion copy is complete for all 29 supported locales', () => {
@@ -90,7 +100,7 @@ test('automatic X verification copy is deliberate for every locale', () => {
     assert.ok(copy, 'missing automatic X copy: ' + locale);
 
     if (locale !== 'en') {
-      for (const key of AUTO_KEYS) {
+      for (const key of AUTO_LOCALIZED_BODY_KEYS) {
         assert.notEqual(
           copy[key],
           english[key],
