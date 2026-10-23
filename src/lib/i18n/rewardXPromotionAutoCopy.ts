@@ -246,39 +246,3 @@ export const REWARD_X_PROMOTION_AUTO_COPY: Record<
     autoConnectedX: 'Účet X je připojený. Veřejný příspěvek bude zkontrolován automaticky; odkaz není nutné odesílat.',
   },
 };
-
-
-export const REWARD_X_PROMOTION_SHARE_FOLLOWUP_COPY: Record<
-  SupportedLocale,
-  string
-> = {
-  en: 'After posting on X, return to VeInvite. The post is checked automatically; submit a public link only if manual verification is requested.',
-  ko: 'X에 게시한 뒤 VeInvite로 돌아오세요. 게시물은 자동으로 확인되며, 수동 확인을 요청받은 경우에만 공개 링크를 제출하면 돼요.',
-  zh: '在 X 发帖后返回 VeInvite。系统会自动检查帖文；只有提示需要人工验证时才提交公开链接。',
-  hi: 'X पर पोस्ट करने के बाद VeInvite पर लौटें। पोस्ट अपने-आप जाँची जाएगी; सार्वजनिक लिंक केवल तब दें जब मैन्युअल जाँच के लिए कहा जाए।',
-  es: 'Después de publicar en X, vuelve a VeInvite. El post se comprobará automáticamente; envía el enlace público solo si se solicita una verificación manual.',
-  ja: 'Xに投稿したらVeInviteへ戻ってください。ポストは自動確認されます。手動確認を求められた場合だけ公開リンクを送信してください。',
-  it: 'Dopo aver pubblicato su X, torna su VeInvite. Il post verrà controllato automaticamente; invia il link pubblico solo se viene richiesta una verifica manuale.',
-  tr: 'X’te paylaşım yaptıktan sonra VeInvite’a dön. Gönderi otomatik kontrol edilir; yalnızca manuel doğrulama istenirse herkese açık bağlantıyı gönder.',
-  nl: 'Ga na het plaatsen op X terug naar VeInvite. De post wordt automatisch gecontroleerd; stuur de openbare link alleen als handmatige verificatie wordt gevraagd.',
-  de: 'Kehre nach dem Posten auf X zu VeInvite zurück. Der Post wird automatisch geprüft; reiche den öffentlichen Link nur ein, wenn eine manuelle Prüfung angefordert wird.',
-  fr: 'Après avoir publié sur X, revenez sur VeInvite. Le post sera vérifié automatiquement; envoyez le lien public uniquement si une vérification manuelle est demandée.',
-  ar: 'بعد النشر على X، عُد إلى VeInvite. سيتم التحقق من المنشور تلقائيًا؛ أرسل الرابط العام فقط إذا طُلب تحقق يدوي.',
-  bn: 'X-এ পোস্ট করার পর VeInvite-এ ফিরে আসুন। পোস্টটি স্বয়ংক্রিয়ভাবে যাচাই হবে; শুধু ম্যানুয়াল যাচাই চাইলে পাবলিক লিংক দিন।',
-  pt: 'Depois de publicar no X, volte ao VeInvite. A publicação será verificada automaticamente; envie o link público apenas se for solicitada uma verificação manual.',
-  ru: 'После публикации в X вернитесь в VeInvite. Пост будет проверен автоматически; отправляйте публичную ссылку только если потребуется ручная проверка.',
-  id: 'Setelah memposting di X, kembali ke VeInvite. Post akan diperiksa otomatis; kirim tautan publik hanya jika verifikasi manual diminta.',
-  vi: 'Sau khi đăng lên X, hãy quay lại VeInvite. Bài đăng sẽ được kiểm tra tự động; chỉ gửi liên kết công khai khi được yêu cầu xác minh thủ công.',
-  'zh-tw': '在 X 發文後回到 VeInvite。系統會自動檢查貼文；只有提示需要人工驗證時才提交公開連結。',
-  sv: 'Gå tillbaka till VeInvite efter att du har publicerat på X. Inlägget kontrolleras automatiskt; skicka bara den offentliga länken om manuell kontroll begärs.',
-  ro: 'După publicarea pe X, revino în VeInvite. Postarea va fi verificată automat; trimite linkul public doar dacă se solicită verificare manuală.',
-  ur: 'X پر پوسٹ کرنے کے بعد VeInvite پر واپس آئیں۔ پوسٹ خود چیک ہوگی؛ عوامی لنک صرف اس وقت دیں جب دستی تصدیق مانگی جائے۔',
-  pcm: 'After you post for X, come back VeInvite. VeInvite go check di post automatically; submit public link only if dem ask for manual check.',
-  arz: 'بعد ما تنشر على X، ارجع لـ VeInvite. البوست هيتراجع تلقائي؛ حط اللينك العام بس لو اتطلبت مراجعة يدوية.',
-  mr: 'X वर पोस्ट केल्यानंतर VeInvite वर परत या. पोस्ट आपोआप तपासली जाईल; मॅन्युअल पडताळणी मागितल्यासच सार्वजनिक लिंक द्या.',
-  te: 'Xలో పోస్ట్ చేసిన తర్వాత VeInviteకి తిరిగి రండి. పోస్ట్ ఆటోమేటిక్‌గా తనిఖీ అవుతుంది; మాన్యువల్ ధృవీకరణ కోరినప్పుడు మాత్రమే పబ్లిక్ లింక్ ఇవ్వండి.',
-  sw: 'Baada ya kuchapisha kwenye X, rudi VeInvite. Chapisho litakaguliwa kiotomatiki; tuma kiungo cha umma tu ukiombwa ukaguzi wa mkono.',
-  ha: 'Bayan ka wallafa a X, koma VeInvite. Za a duba saƙon ta atomatik; ka tura mahaɗin jama’a ne kawai idan an nemi dubawar hannu.',
-  el: 'Μετά τη δημοσίευση στο X, γύρισε στο VeInvite. Η ανάρτηση θα ελεγχθεί αυτόματα· υπόβαλε τον δημόσιο σύνδεσμο μόνο αν ζητηθεί χειροκίνητος έλεγχος.',
-  cs: 'Po zveřejnění na X se vrať do VeInvite. Příspěvek bude zkontrolován automaticky; veřejný odkaz odešli jen tehdy, pokud bude vyžádána ruční kontrola.',
-};
