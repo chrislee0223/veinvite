@@ -378,3 +378,109 @@ test('X promotion errors stay localized and contained', async ({ page }) => {
     await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
   }
 });
+
+
+async function auditStandaloneSurface(
+  page: Page,
+  locale: SupportedLocale,
+  selector: '.genericShare' | '.promotionPreparing' | '.promotionStatus',
+) {
+  const surface = page.locator(selector);
+  await expect(surface).toBeVisible({ timeout: 10_000 });
+  await surface.scrollIntoViewIfNeeded();
+
+  const report = await surface.evaluate((node) => {
+    const el = node as HTMLElement;
+    const receipt = el.closest<HTMLElement>('.notificationReceiptView');
+    const receiptBox = receipt?.getBoundingClientRect() ?? null;
+    const box = el.getBoundingClientRect();
+    const issues: string[] = [];
+
+    if (el.scrollWidth > el.clientWidth + 2) {
+      issues.push(
+        'standalone surface clipped: ' +
+          el.scrollWidth +
+          '>' +
+          el.clientWidth,
+      );
+    }
+
+    if (
+      receiptBox &&
+      (box.left < receiptBox.left - 2 ||
+        box.right > receiptBox.right + 2)
+    ) {
+      issues.push('standalone surface outside receipt');
+    }
+
+    for (const child of el.querySelectorAll<HTMLElement>('span,button')) {
+      if (!child.textContent?.trim() || child.getClientRects().length === 0) {
+        continue;
+      }
+      const childBox = child.getBoundingClientRect();
+      if (child.scrollWidth > child.clientWidth + 2) {
+        issues.push(
+          'standalone child clipped: ' +
+            (child.textContent ?? '').slice(0, 48),
+        );
+      }
+      if (
+        childBox.left < box.left - 2 ||
+        childBox.right > box.right + 2
+      ) {
+        issues.push('standalone child outside surface');
+      }
+    }
+
+    const viewportOverflow =
+      Math.max(
+        document.documentElement.scrollWidth,
+        document.body.scrollWidth,
+      ) - window.innerWidth;
+    if (viewportOverflow > 1) {
+      issues.push('viewport horizontal overflow: ' + viewportOverflow);
+    }
+
+    return {
+      issues,
+      direction: getComputedStyle(el).direction,
+    };
+  });
+
+  expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
+  expect(report.issues, JSON.stringify({ locale, selector, report })).toEqual([]);
+}
+
+test('X promotion standalone states fit risky locales', async ({ page }) => {
+  for (const locale of HIGH_RISK_LOCALES) {
+    await routePromotionState(page, {
+      newOffersEnabled: true,
+      promotionPending: false,
+      promotion: null,
+    });
+    await openReceipt(page, locale, NARROW);
+    await auditStandaloneSurface(page, locale, '.genericShare');
+    await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
+
+    await routePromotionState(page, {
+      newOffersEnabled: true,
+      promotionPending: true,
+      promotion: null,
+    });
+    await openReceipt(page, locale, NARROW);
+    await auditStandaloneSurface(page, locale, '.promotionPreparing');
+    await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
+
+    await routePromotionState(
+      page,
+      { error: 'INTERNAL ENGLISH ERROR MUST NOT RENDER' },
+      503,
+    );
+    await openReceipt(page, locale, NARROW);
+    await auditStandaloneSurface(page, locale, '.promotionStatus');
+    await expect(page.locator('.promotionStatus')).not.toContainText(
+      'INTERNAL ENGLISH ERROR MUST NOT RENDER',
+    );
+    await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
+  }
+});
