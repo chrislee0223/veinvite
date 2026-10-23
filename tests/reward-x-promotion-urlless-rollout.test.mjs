@@ -5,6 +5,7 @@ import { test } from 'node:test';
 const route = readFileSync(new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../src/components/RewardXPromotionPanel.tsx', import.meta.url), 'utf8');
 const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
 
 test('manual URL retirement requires a separate live + time-bounded rollout gate', () => {
   assert.match(route, /VEINVITE_X_PROMOTION_URLLESS_START_AT/);
@@ -36,4 +37,25 @@ test('auto-only instructions explain public X connection, detection and 24-hour 
   assert.match(copy, /No Post URL is needed/);
   assert.match(copy, /24 hours/);
   assert.match(copy, /게시물 URL을 따로 제출할 필요가 없어요/);
+});
+
+test('automatic cohort reward popup never requires a URL or a return to VeInvite', () => {
+  assert.match(popup, /xUrlLessEnabled\\?: boolean/);
+  assert.match(popup, /xConnected\\?: boolean/);
+  assert.match(popup, /const usesAuto = body\\.xUrlLessEnabled === true/);
+  assert.match(popup, /!usesAuto \\|\\| body\\.xConnected === true/);
+  assert.match(popup, /autoShareFollowup = usesAuto/);
+  assert.match(popup, /text: autoShareFollowup/);
+  assert.match(popup, /REWARD_X_PROMOTION_COPY\\[locale\\]\\.autoOpenBody/);
+  assert.match(popup, /: REWARD_X_PROMOTION_COPY\\[locale\\]\\.shareFollowupBody/);
+  assert.doesNotMatch(popup, /scan-request|I posted on X|X에 게시했어요/u);
+});
+
+test('manual verification remains confined to historical offers, not automatic cohorts', () => {
+  assert.match(panel, /canSubmit && !usesAuto/);
+  assert.match(panel, /state\\?\\.xUrlLessEnabled === true/);
+  assert.match(route, /Date\\.parse\\(opportunityRow\\.opened_at\\) >= urlLessStart/);
+  assert.match(popup, /!usesAuto \\|\\| body\\.xConnected === true/);
+  assert.match(copy, /shareFollowupBody:/);
+  assert.match(copy, /autoOpenBody:/);
 });
