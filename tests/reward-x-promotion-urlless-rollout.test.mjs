@@ -40,22 +40,22 @@ test('auto-only instructions explain public X connection, detection and 24-hour 
 });
 
 test('automatic cohort reward popup never requires a URL or a return to VeInvite', () => {
-  assert.match(popup, /xUrlLessEnabled\\?: boolean/);
-  assert.match(popup, /xConnected\\?: boolean/);
-  assert.match(popup, /const usesAuto = body\\.xUrlLessEnabled === true/);
-  assert.match(popup, /!usesAuto \\|\\| body\\.xConnected === true/);
+  assert.match(popup, /xUrlLessEnabled\?: boolean/);
+  assert.match(popup, /xConnected\?: boolean/);
+  assert.match(popup, /const usesAuto = body\.xUrlLessEnabled === true/);
+  assert.match(popup, /!usesAuto \|\| body\.xConnected === true/);
   assert.match(popup, /autoShareFollowup = usesAuto/);
   assert.match(popup, /text: autoShareFollowup/);
-  assert.match(popup, /REWARD_X_PROMOTION_COPY\\[locale\\]\\.autoOpenBody/);
-  assert.match(popup, /: REWARD_X_PROMOTION_COPY\\[locale\\]\\.shareFollowupBody/);
+  assert.match(popup, /REWARD_X_PROMOTION_COPY\[locale\]\.autoOpenBody/);
+  assert.match(popup, /: REWARD_X_PROMOTION_COPY\[locale\]\.shareFollowupBody/);
   assert.doesNotMatch(popup, /scan-request|I posted on X|X에 게시했어요/u);
 });
 
 test('manual verification remains confined to historical offers, not automatic cohorts', () => {
   assert.match(panel, /canSubmit && !usesAuto/);
-  assert.match(panel, /state\\?\\.xUrlLessEnabled === true/);
-  assert.match(route, /Date\\.parse\\(opportunityRow\\.opened_at\\) >= urlLessStart/);
-  assert.match(popup, /!usesAuto \\|\\| body\\.xConnected === true/);
+  assert.match(panel, /state\?\.xUrlLessEnabled === true/);
+  assert.match(route, /Date\.parse\(opportunityRow\.opened_at\) >= urlLessStart/);
+  assert.match(popup, /!usesAuto \|\| body\.xConnected === true/);
   assert.match(copy, /shareFollowupBody:/);
   assert.match(copy, /autoOpenBody:/);
 });
