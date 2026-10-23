@@ -493,14 +493,26 @@ function fixtureForState(
 function QaNotificationStage({
   children,
   embedded = false,
+  ready = false,
 }: {
   children: React.ReactNode;
   embedded?: boolean;
+  ready?: boolean;
 }) {
-  if (embedded) return <>{children}</>;
+  if (embedded) {
+    return (
+      <div
+        data-qa-notification-ready={ready ? 'true' : 'false'}
+        style={{ display: 'contents' }}
+      >
+        {children}
+      </div>
+    );
+  }
 
   return (
     <main
+      data-qa-notification-ready={ready ? 'true' : 'false'}
       style={{
         minHeight: '100dvh',
         boxSizing: 'border-box',
@@ -533,6 +545,12 @@ export function QaNotificationStateHarness({
   locale: SupportedLocale;
   embedded?: boolean;
 }) {
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   const seed = useMemo(
     () => fixtureForState(stateId),
     [stateId],
@@ -567,7 +585,7 @@ export function QaNotificationStateHarness({
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
-      <QaNotificationStage embedded={embedded}>
+      <QaNotificationStage embedded={embedded} ready={hydrated}>
         <TransientSnackbar
           locale={locale}
           feedback={{
@@ -601,7 +619,7 @@ export function QaNotificationStateHarness({
   }
 
   return (
-    <QaNotificationStage embedded={embedded}>
+    <QaNotificationStage embedded={embedded} ready={hydrated}>
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
