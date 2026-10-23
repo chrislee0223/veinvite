@@ -18,6 +18,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-X-PROMOTION-PAID',     // localized +10 B3TR paid history
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -31,8 +32,22 @@ const EXTRA_STATES = [
 ] as const;
 
 async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
+  await expect(
+    page.locator(
+      '[data-testid="qa-notification-stage"][data-hydrated="true"]',
+    ),
+  ).toBeVisible({ timeout: 30_000 });
+
   const panel = page.locator('.notificationHistoryPanel');
-  await expect(panel).toBeVisible();
+  if (!(await panel.isVisible())) {
+    const bell = page.locator('.notificationHistoryBell');
+    await expect(bell).toBeVisible({ timeout: 10_000 });
+    const expanded = await bell.getAttribute('aria-expanded');
+    if (expanded !== 'true') {
+      await bell.click();
+    }
+  }
+  await expect(panel).toBeVisible({ timeout: 30_000 });
   await page.evaluate(async () => {
     await Promise.race([
       document.fonts.ready,
