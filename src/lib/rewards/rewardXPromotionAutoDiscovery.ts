@@ -249,36 +249,110 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
   // shared daily read budget. It has no X calls without both settings.
   const authorStrategy = currentMode === 'live' &&
     process.env.VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author';
+  // Autonomous rotation is opt-in, and never requests extra paid X reads.
+  // These records are internal scheduling checkpoints, not user-submitted
+  // evidence or an eligibility/payout decision.
+  const fairScanEnabled = authorStrategy &&
+    process.env.VEINVITE_X_PROMOTION_FAIR_SCAN_ENABLED === 'true';
+  const lastChecked = new Map<string, string | null>();
+  if (fairScanEnabled) {
+    const connected = eligible.filter((item) =>
+      boundAuthors.has(item.recipient_wallet.toLowerCase()));
+    const { data: checkpoints, error: readError } = await supabaseAdmin
+      .from('reward_x_promotion_scan_requests')
+      .select('invite_code,last_checked_at')
+      .eq('network', network)
+      .in('invite_code', connected.map((item) => item.invite_code));
+    if (readError) throw new Error('X discovery scheduling checkpoints unavailable.');
+    for (const row of checkpoints ?? []) {
+      if (typeof row.invite_code === 'string') {
+        lastChecked.set(row.invite_code,
+          typeof row.last_checked_at === 'string' ? row.last_checked_at : null);
+      }
+    }
+    const missing = connected.filter((item) => !lastChecked.has(item.invite_code));
+    if (missing.length) {
+      const { error: createError } = await supabaseAdmin
+        .from('reward_x_promotion_scan_requests')
+        .upsert(missing.map((item) => ({
+          invite_code: item.invite_code,
+          network,
+          recipient_wallet: item.recipient_wallet.toLowerCase(),
+        })), { onConflict: 'invite_code', ignoreDuplicates: true });
+      if (createError) throw new Error('X discovery scheduling checkpoint initialization failed.');
+      for (const item of missing) lastChecked.set(item.invite_code, null);
+    }
+  }
   let search: { posts: SearchPost[]; truncated: boolean } | null = null;
   let partial = false;
   let budgetLimited = false;
 
   if (authorStrategy) {
     // An authenticated X author can have multiple offers; scan just once.
-    const work = new Map<string, { openedAt: string }>();
+    const work = new Map<string, {
+      openedAt: string; deadlineAt: string; inviteCodes: string[];
+    }>();
     for (const offer of eligible) {
       const authorId = boundAuthors.get(offer.recipient_wallet.toLowerCase());
       if (!authorId) continue;
       const prior = work.get(authorId);
-      if (!prior || Date.parse(offer.opened_at!) < Date.parse(prior.openedAt)) {
-        work.set(authorId, { openedAt: offer.opened_at! });
+      if (prior) {
+        prior.inviteCodes.push(offer.invite_code);
+        if (Date.parse(offer.opened_at!) < Date.parse(prior.openedAt)) {
+          prior.openedAt = offer.opened_at!;
+        }
+        if (Date.parse(offer.post_deadline_at) < Date.parse(prior.deadlineAt)) {
+          prior.deadlineAt = offer.post_deadline_at;
+        }
+      } else {
+        work.set(authorId, {
+          openedAt: offer.opened_at!,
+          deadlineAt: offer.post_deadline_at,
+          inviteCodes: [offer.invite_code],
+        });
       }
     }
     const authors = [...work.entries()];
-    // A fixed upper bound per cron, independent of user-generated demand.
-    // The shared per-day budget and per-author cooldown prevent repeated
-    // reads across parallel invocations.
     const MAX_AUTHORS_PER_TICK = 4;
     if (authors.length > MAX_AUTHORS_PER_TICK) partial = true;
-    // Rotate batches by UTC hour so persistent first authors do not starve
-    // newer users every time a cron invocation scans the list.
-    const offset = authors.length ? Math.floor(now / 3_600_000) % authors.length : 0;
+    const lastAttemptTime = (codes: string[]) => Math.min(
+      ...codes.map((code) => {
+        const stamp = Date.parse(lastChecked.get(code) ?? '');
+        return Number.isFinite(stamp) ? stamp : -1;
+      }),
+    );
+    if (fairScanEnabled) {
+      // Never attempted authors first, then least-recently-attempted authors.
+      // One X author is one search, even when multiple offers share it.
+      authors.sort(([idA, a], [idB, b]) =>
+        lastAttemptTime(a.inviteCodes) - lastAttemptTime(b.inviteCodes) ||
+        Date.parse(a.deadlineAt) - Date.parse(b.deadlineAt) ||
+        idA.localeCompare(idB));
+    }
+    const offset = !fairScanEnabled && authors.length
+      ? Math.floor(now / 3_600_000) % authors.length : 0;
     const rotated = [...authors.slice(offset), ...authors.slice(0, offset)]
       .slice(0, MAX_AUTHORS_PER_TICK);
     const posts: SearchPost[] = [];
     let checked = false;
-    for (const [authorId, { openedAt }] of rotated) {
+    for (const [authorId, { openedAt, inviteCodes }] of rotated) {
       const attempt = await readBoundAuthorPosts(authorId, openedAt);
+      // A completed scheduling attempt moves this author to the back even
+      // when X is unavailable or the provider's author cooldown applies.
+      // It never confirms a Post or authorizes payment.
+      if (fairScanEnabled &&
+          (attempt.status === 'READY' ||
+           attempt.status === 'UNAVAILABLE' ||
+           attempt.status === 'COOLDOWN')) {
+        const { error: updateError } = await supabaseAdmin
+          .from('reward_x_promotion_scan_requests')
+          .update({ last_checked_at: new Date().toISOString() })
+          .eq('network', network)
+          .in('invite_code', inviteCodes);
+        if (updateError) {
+          throw new Error('X discovery scheduling checkpoint update failed.');
+        }
+      }
       if (attempt.status === 'BUDGET_LIMIT' || attempt.status === 'DISABLED') {
         budgetLimited = true;
         break;

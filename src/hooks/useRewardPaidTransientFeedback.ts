@@ -39,6 +39,8 @@ const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
 type RewardXPromotionPopupState = {
   newOffersEnabled?: boolean;
   promotionPending?: boolean;
+  xUrlLessEnabled?: boolean;
+  xConnected?: boolean;
   promotion?: {
     state?: string;
     amountB3tr?: string;
@@ -187,6 +189,7 @@ export function useRewardPaidTransientFeedback({
       let shareIntentUrl = '';
       let shareLabel = '';
       let shareDeadlineMs: number | null = null;
+      let autoShareFollowup = false;
 
       try {
         const response = await fetch(
@@ -220,25 +223,32 @@ export function useRewardPaidTransientFeedback({
           Number.isFinite(Date.parse(promotion.postDeadlineAt)) &&
           Date.now() < Date.parse(promotion.postDeadlineAt)
         ) {
-          shareDeadlineMs = Date.parse(promotion.postDeadlineAt);
-          const promotionUrl =
-            rewardXPromotionShareUrl({
-              referralUrl,
-              shareToken:
-                promotion.shareToken,
-            });
-
-          if (promotionUrl) {
-            shareIntentUrl =
-              rewardReceiptXIntentUrl({
-                locale,
-                amountB3tr:
-                  payload.amountB3tr,
-                referralUrl:
-                  promotionUrl,
+          const usesAuto = body.xUrlLessEnabled === true;
+          // Author-targeted auto discovery needs an authenticated account.
+          // A generic share before OAuth cannot qualify for the +10 bonus.
+          // The reward receipt panel owns the one-time X connection action.
+          if (!usesAuto || body.xConnected === true) {
+            shareDeadlineMs = Date.parse(promotion.postDeadlineAt);
+            autoShareFollowup = usesAuto;
+            const promotionUrl =
+              rewardXPromotionShareUrl({
+                referralUrl,
+                shareToken:
+                  promotion.shareToken,
               });
-            shareLabel =
-              `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
+
+            if (promotionUrl) {
+              shareIntentUrl =
+                rewardReceiptXIntentUrl({
+                  locale,
+                  amountB3tr:
+                    payload.amountB3tr,
+                  referralUrl:
+                    promotionUrl,
+                });
+              shareLabel =
+                `${rewardReceiptShareLabel(locale)} · +${promotion.amountB3tr} B3TR`;
+            }
           }
         } else if (
           promotion === null &&
@@ -295,14 +305,20 @@ export function useRewardPaidTransientFeedback({
               'noopener,noreferrer',
             );
             if (shareDeadlineMs !== null) {
-              // Opening an X composer is not the post submission step.
-              // Keep the reward unacknowledged and explain the required
-              // public Post URL verification in the user's language.
+              // Opening an X composer does not prove publication.
+              // Legacy offers still require a Post URL; for newly enabled
+              // author-scanned offers we only remind users to keep the Post
+              // public, without requesting any additional user action.
               setFeedback((visible) =>
                 visible?.kind === 'reward' && visible.id === feedbackId
                   ? {
                       ...visible,
-                      text: REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                      text: autoShareFollowup
+                        ? (REWARD_X_PROMOTION_COPY[locale].autoShareFollowupBody ??
+                           REWARD_X_PROMOTION_COPY[locale].autoOpenBody ??
+                           REWARD_X_PROMOTION_COPY.en.autoShareFollowupBody ??
+                           '')
+                        : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
                     }
                   : visible,
               );
