@@ -310,12 +310,22 @@ export async function runXPromotionAutoDiscovery(): Promise<XPromotionDiscoveryR
     // reads across parallel invocations.
     const MAX_AUTHORS_PER_TICK = 4;
     if (authors.length > MAX_AUTHORS_PER_TICK) partial = true;
-    // When hints are enabled, the queue's oldest unchecked/last checked
-    // scheduling wins. Otherwise retain the legacy hourly rotation.
-    const offset = !hintsEnabled && authors.length
-      ? Math.floor(now / 3_600_000) % authors.length : 0;
-    const rotated = [...authors.slice(offset), ...authors.slice(0, offset)]
-      .slice(0, MAX_AUTHORS_PER_TICK);
+    // Prioritize requested checks. Rotate passive accounts every 15 minutes,
+    // too: a permanently cooled-down first author must never starve passive
+    // accounts when there is spare capacity after requested checks.
+    const signaled = hintsEnabled
+      ? authors.filter(([, work]) =>
+          work.inviteCodes.some((code) => scanHints.has(code)))
+      : [];
+    const passive = hintsEnabled
+      ? authors.filter(([, work]) =>
+          !work.inviteCodes.some((code) => scanHints.has(code)))
+      : authors;
+    const offset = passive.length ? Math.floor(
+      now / (hintsEnabled ? 900_000 : 3_600_000),
+    ) % passive.length : 0;
+    const passiveRotated = [...passive.slice(offset), ...passive.slice(0, offset)];
+    const rotated = [...signaled, ...passiveRotated].slice(0, MAX_AUTHORS_PER_TICK);
     const posts: SearchPost[] = [];
     let checked = false;
     for (const [authorId, { openedAt, inviteCodes }] of rotated) {
