@@ -1,0 +1,39 @@
+name: QA I18n X Promotion Validation
+
+on:
+  push:
+    branches:
+      - qa-i18n-x-promo-current-flow-20261023
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Localization completeness
+        run: npm run test:i18n
+
+      - name: X promotion multilingual regressions
+        run: >
+          node --experimental-strip-types --test
+          tests/reward-x-promotion-i18n-current-flow.test.mjs
+          tests/reward-x-promotion-share-followup.test.mjs
+          tests/reward-x-promotion-urlless-rollout.test.mjs
