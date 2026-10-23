@@ -23,9 +23,6 @@ export type RewardXPromotionCopy = {
   autoOpenBody?: string;
   autoGraceBody?: string;
   autoConnectedX?: string;
-  autoScanButton?: string;
-  autoScanQueueing?: string;
-  autoScanQueued?: string;
 };
 
 const EN: RewardXPromotionCopy = {
@@ -51,9 +48,6 @@ const EN: RewardXPromotionCopy = {
   autoOpenBody: 'Share to X within 24 hours. VeInvite will look for the Post automatically. Keep it public for at least 24 hours; the bonus is paid only after verification.',
   autoGraceBody: 'The sharing window has ended. VeInvite is checking Posts shared before the deadline automatically. Keep your Post public until the 24-hour verification finishes.',
   autoConnectedX: 'X account connected. Your public Post will be checked automatically; no link submission is needed.',
-  autoScanButton: 'I posted on X · Prioritize my check',
-  autoScanQueueing: 'Adding to verification queue…',
-  autoScanQueued: 'Verification requested. This does not confirm your Post; VeInvite will check it on X.',
 };
 
 export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCopy> = {
@@ -81,9 +75,6 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     autoOpenBody: '24시간 안에 X에 공유해 주세요. VeInvite가 공개 게시물을 자동으로 찾고 확인해요. 24시간 이상 공개 상태를 유지하면 검증 후 추가 보상이 지급돼요.',
     autoGraceBody: '공유 가능 시간이 끝났어요. VeInvite가 기한 내 게시물을 자동 확인 중이에요. 24시간 검증이 완료될 때까지 게시물을 공개 상태로 유지해 주세요.',
     autoConnectedX: 'X 계정이 연결되었어요. 게시물은 자동 확인되므로 URL을 제출하지 않아도 돼요.',
-    autoScanButton: 'X에 게시했어요 · 우선 확인 요청',
-    autoScanQueueing: '검증 대기열에 등록 중…',
-    autoScanQueued: '검색 요청이 등록됐어요. X 게시물 검증을 통과해야 보상이 지급돼요.',
   },
   zh: {
     connectX: '连接 X 账号',
