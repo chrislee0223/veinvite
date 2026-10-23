@@ -26,6 +26,7 @@ export type RewardXPromotionCopy = {
   autoOpenBody?: string;
   autoGraceBody?: string;
   autoConnectedX?: string;
+  autoShareFollowupBody?: string;
 };
 
 const EN: RewardXPromotionCopy = {
