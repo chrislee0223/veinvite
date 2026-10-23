@@ -16,6 +16,8 @@ function setup({enabled=true,origin=true,connected=true,held=true,owner=WALLET,d
     VEINVITE_X_PROMOTION_SCAN_HINT_ENABLED: enabled?'true':'false',
     VEINVITE_X_PROMOTION_DISCOVERY_MODE:'live',
     VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY:'author',
+    VEINVITE_X_PROMOTION_DAILY_READ_CALLS: '3',
+    VEINVITE_X_PROMOTION_URLLESS_START_AT: new Date(Date.now() - 2 * 3600_000).toISOString(),
   };
   const supabaseAdmin={from(name) {
     const query={
