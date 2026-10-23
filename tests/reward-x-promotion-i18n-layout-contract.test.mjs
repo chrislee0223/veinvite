@@ -8,6 +8,7 @@ const locales = read('src/lib/i18n/locales.ts');
 const baseCopy = read('src/lib/i18n/rewardXPromotionCopy.ts');
 const expandedCopy = read('src/lib/i18n/rewardXPromotionExpandedCoreCopy.ts');
 const autoCopy = read('src/lib/i18n/rewardXPromotionAutoCopy.ts');
+const expandedAutoCopy = read('src/lib/i18n/rewardXPromotionExpandedAutoCopy.ts');
 const errorCopy = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
 const popup = read('src/hooks/useRewardPaidTransientFeedback.ts');
@@ -30,13 +31,15 @@ test('X promotion localized copy covers every supported locale without English o
   assert.equal(registered.length, 29);
 
   const core = baseCopy + '\n' + expandedCopy;
+  const automatic = autoCopy + '\n' + expandedAutoCopy;
   for (const locale of registered) {
     assert.match(core, localePattern(locale), 'missing core locale: ' + locale);
-    assert.match(autoCopy, localePattern(locale), 'missing auto locale: ' + locale);
+    assert.match(automatic, localePattern(locale), 'missing auto locale: ' + locale);
     assert.match(errorCopy, localePattern(locale), 'missing error locale: ' + locale);
   }
 
   assert.doesNotMatch(core, /\.\.\.EN\b/);
+  assert.doesNotMatch(automatic, /\.\.\.EN\b/);
   assert.match(baseCopy, /Record<SupportedLocale, RewardXPromotionBaseCopy>/);
   assert.match(autoCopy, /Record<[\s\S]*SupportedLocale,[\s\S]*RewardXPromotionAutoCopy/);
   assert.match(errorCopy, /Record<[\s\S]*SupportedLocale,[\s\S]*RewardXPromotionSubmitErrorCopy/);
