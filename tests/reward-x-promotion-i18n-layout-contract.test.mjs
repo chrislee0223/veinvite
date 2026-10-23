@@ -8,6 +8,7 @@ const locales = read('src/lib/i18n/locales.ts');
 const mainCopy = read('src/lib/i18n/rewardXPromotionCopy.ts');
 const expandedCopy = read('src/lib/i18n/rewardXPromotionExpandedCopy.ts');
 const autoCopy = read('src/lib/i18n/rewardXPromotionAutoCopy.ts');
+const autoExpandedCopy = read('src/lib/i18n/rewardXPromotionAutoExpandedCopy.ts');
 const submitErrors = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
 const receipt = read('src/components/RewardReceiptView.tsx');
@@ -101,6 +102,7 @@ test('X promotion copy removes English fallback bodies and covers all 29 locales
 test('X auto-discovery and X-account copy is localized for all 29 locales', () => {
   const declared = [
     ...autoCopy.matchAll(/^\s*(?:'([^']+)'|([a-z-]+)):\s*\{/gmu),
+    ...autoExpandedCopy.matchAll(/^\s*(?:'([^']+)'|([a-z-]+)):\s*\{/gmu),
   ]
     .map((match) => match[1] ?? match[2])
     .filter((locale) => supportedLocales.includes(locale));
@@ -110,9 +112,13 @@ test('X auto-discovery and X-account copy is localized for all 29 locales', () =
     [...supportedLocales].sort(),
   );
   assert.equal(declared.length, supportedLocales.length);
+  assert.match(autoCopy, /\.\.\.REWARD_X_PROMOTION_AUTO_EXPANDED_COPY/);
 
   for (const locale of supportedLocales) {
-    const block = localeBlock(autoCopy, locale);
+    const source = expandedLocales.includes(locale)
+      ? autoExpandedCopy
+      : autoCopy;
+    const block = localeBlock(source, locale);
     assert.ok(block, 'missing auto X locale: ' + locale);
     for (const field of autoFields) {
       assert.match(
@@ -124,6 +130,7 @@ test('X auto-discovery and X-account copy is localized for all 29 locales', () =
   }
 
   assert.doesNotMatch(autoCopy, /\.\.\.EN\b/);
+  assert.doesNotMatch(autoExpandedCopy, /\.\.\.EN\b/);
   assert.match(panel, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]/);
   assert.doesNotMatch(panel, /REWARD_X_PROMOTION_COPY\.en\.auto/);
 });
