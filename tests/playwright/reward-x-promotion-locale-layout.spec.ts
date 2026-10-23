@@ -381,3 +381,102 @@ for (const locale of HIGH_RISK_LOCALES) {
     expect(report.viewportOverflow).toBeLessThanOrEqual(1);
   });
 }
+
+
+for (const locale of HIGH_RISK_LOCALES) {
+  test('X auto-discovery locale layout / ' + locale, async ({ page }) => {
+    let scenario: 'connect' | 'connected' | 'grace' = 'connect';
+
+    await page.route(
+      /\/api\/rewards\/x-promotion(?:\?.*)?$/,
+      async (route) => {
+        const promotion = {
+          ...OPEN_PROMOTION.promotion,
+          state: scenario === 'grace' ? 'SUBMISSION_GRACE' : 'OPEN',
+        };
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...OPEN_PROMOTION,
+            xConnectAvailable: true,
+            xUrlLessEnabled: true,
+            xConnected: scenario !== 'connect',
+            promotion,
+          }),
+        });
+      },
+    );
+
+    await page.setViewportSize({ width: 320, height: 740 });
+
+    for (const current of [
+      { mode: 'connect', selector: '.promotionConnect' },
+      { mode: 'connected', selector: '.promotionConnectState' },
+      { mode: 'grace', selector: '.promotionPanel p' },
+    ] as const) {
+      scenario = current.mode;
+      await page.goto(stateUrl(locale), {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+
+      await waitForQaHydration(page);
+      const panel = page.locator('.promotionPanel');
+      await expect(panel).toBeVisible({ timeout: 30_000 });
+      await panel.scrollIntoViewIfNeeded();
+      await waitForStableLayout(page);
+
+      const target = page.locator(current.selector).first();
+      await expect(target).toBeVisible({ timeout: 10_000 });
+
+      const report = await panel.evaluate((node, selector) => {
+        const root = node as HTMLElement;
+        const rootBox = root.getBoundingClientRect();
+        const target = root.querySelector<HTMLElement>(selector);
+        const targetBox = target?.getBoundingClientRect() ?? null;
+        const issues: string[] = [];
+
+        if (root.scrollWidth > root.clientWidth + 2) {
+          issues.push('auto panel overflows horizontally');
+        }
+        if (
+          target &&
+          target.scrollWidth > target.clientWidth + 2
+        ) {
+          issues.push(selector + ' clipped horizontally');
+        }
+        if (
+          targetBox &&
+          (targetBox.left < rootBox.left - 2 ||
+            targetBox.right > rootBox.right + 2)
+        ) {
+          issues.push(selector + ' outside panel');
+        }
+
+        const viewportOverflow =
+          Math.max(
+            document.documentElement.scrollWidth,
+            document.body.scrollWidth,
+          ) - window.innerWidth;
+        if (viewportOverflow > 1) {
+          issues.push('viewport overflows horizontally: ' + viewportOverflow);
+        }
+
+        return {
+          issues,
+          direction: getComputedStyle(root).direction,
+        };
+      }, current.selector);
+
+      expect(report.direction).toBe(
+        isRtlLocale(locale) ? 'rtl' : 'ltr',
+      );
+      expect(
+        report.issues,
+        JSON.stringify({ locale, scenario: current.mode, report }),
+      ).toEqual([]);
+    }
+  });
+}
