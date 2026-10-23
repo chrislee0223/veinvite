@@ -11,6 +11,7 @@ const autoCopy = read('src/lib/i18n/rewardXPromotionAutoCopy.ts');
 const autoExpandedCopy = read('src/lib/i18n/rewardXPromotionAutoExpandedCopy.ts');
 const submitErrors = read('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts');
 const panel = read('src/components/RewardXPromotionPanel.tsx');
+const oauthFeedback = read('src/hooks/useXPromotionOAuthReturnFeedback.ts');
 const receipt = read('src/components/RewardReceiptView.tsx');
 const qaHarness = read('src/qa/QaNotificationStateHarness.tsx');
 const qaPage = read('src/app/qa/notification-state/page.tsx');
@@ -58,6 +59,8 @@ const autoFields = [
   'autoOpenBody',
   'autoGraceBody',
   'autoConnectedX',
+  'connectConflict',
+  'connectFailed',
 ];
 
 function localeBlock(source, locale) {
@@ -133,6 +136,11 @@ test('X auto-discovery and X-account copy is localized for all 29 locales', () =
   assert.doesNotMatch(autoExpandedCopy, /\.\.\.EN\b/);
   assert.match(panel, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]/);
   assert.doesNotMatch(panel, /REWARD_X_PROMOTION_COPY\.en\.auto/);
+  assert.match(oauthFeedback, /REWARD_X_PROMOTION_AUTO_COPY\[displayLocale\]/);
+  assert.match(oauthFeedback, /copy\.connectConflict/);
+  assert.match(oauthFeedback, /copy\.connectFailed/);
+  assert.doesNotMatch(oauthFeedback, /displayLocale === 'ko'/);
+  assert.doesNotMatch(oauthFeedback, /X account connection did not complete/);
 });
 
 test('localized submit errors cover every supported locale and status family', () => {
