@@ -1,0 +1,33 @@
+name: Temporary patched dependency lock refresh
+on:
+  push:
+    branches:
+      - fix/next-sentry-security-20261023
+    paths:
+      - .github/workflows/security-dependency-refresh-once.yml
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Update only the two critical advisory dependencies and lock file
+        run: |
+          npm install next@16.4.1 @sentry/nextjs@10.76.2 --save-exact --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --stat -- package.json package-lock.json
+      - name: Commit the reproducible lock update to this isolated security branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix(deps): patch critical Next.js and Sentry advisories"
+          git push origin HEAD:fix/next-sentry-security-20261023
