@@ -13,7 +13,7 @@ export function QaRewardXPromotionHarness({
       style={{
         minHeight: '100dvh',
         boxSizing: 'border-box',
-        padding: '24px',
+        padding: '14px',
         background: '#080807',
         color: '#fff',
       }}
@@ -21,7 +21,8 @@ export function QaRewardXPromotionHarness({
       <div
         data-qa-x-promotion-shell
         style={{
-          width: 'min(400px, calc(100vw - 28px))',
+          width: '100%',
+          maxWidth: '400px',
           boxSizing: 'border-box',
           margin: '0 auto',
           padding: '16px',
