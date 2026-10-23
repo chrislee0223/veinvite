@@ -76,8 +76,11 @@ test('automatic X discovery copy is complete for every supported locale', () => 
     assert.equal(hasLocale(autoCopy, locale), true, 'missing auto copy: ' + locale);
   }
 
+  const autoMap = autoCopy.slice(
+    autoCopy.indexOf('export const REWARD_X_PROMOTION_AUTO_COPY'),
+  );
   for (const field of fields) {
-    const matches = autoCopy.match(new RegExp('\\b' + field + ':', 'gu')) ?? [];
+    const matches = autoMap.match(new RegExp('\\b' + field + ':', 'gu')) ?? [];
     assert.equal(matches.length, 29, 'incomplete auto field: ' + field);
   }
 });
@@ -95,8 +98,11 @@ test('X promotion submit errors are localized for every supported locale', () =>
     assert.equal(hasLocale(submitErrors, locale), true, 'missing submit errors: ' + locale);
   }
 
+  const errorMap = submitErrors.slice(
+    submitErrors.indexOf('export const REWARD_X_PROMOTION_SUBMIT_ERROR_COPY'),
+  );
   for (const field of fields) {
-    const matches = submitErrors.match(new RegExp('\\b' + field + ':', 'gu')) ?? [];
+    const matches = errorMap.match(new RegExp('\\b' + field + ':', 'gu')) ?? [];
     assert.equal(matches.length, 29, 'incomplete submit error field: ' + field);
   }
 });
