@@ -65,6 +65,25 @@ async function openRewardReceipt(
     .first();
 
   await expect(receiptRow).toBeVisible({ timeout: 15_000 });
+
+  // The notification center injects its interactive styles during hydration.
+  // Reuse the same hydration signal as the established notification layout QA
+  // before clicking the receipt row, otherwise an SSR-visible button can be
+  // clicked before React has attached its event handler.
+  const scrollSurface = page.locator('.notificationHistoryScroll');
+  if (await scrollSurface.count()) {
+    await expect(scrollSurface).toHaveCSS('overflow-y', 'auto', {
+      timeout: 5_000,
+    });
+  }
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve()),
+      ),
+    );
+  });
+
   await receiptRow.click();
 
   const receipt = page.locator('.notificationReceiptView');
