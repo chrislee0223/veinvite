@@ -349,6 +349,20 @@ jobs:
       - name: Wallet auth cryptographic regression gate
         run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs tests/wallet-auth-server-certificate-contract.test.mjs
 
+      - name: QA-only X i18n typecheck
+        run: npm run typecheck
+
+      - name: QA-only localization completeness
+        run: npm run test:i18n
+
+      - name: QA-only X promotion regressions
+        run: >
+          node --experimental-strip-types --test
+          tests/reward-x-promotion-i18n-layout-contract.test.mjs
+          tests/reward-x-promotion-i18n-current-flow.test.mjs
+          tests/reward-x-promotion-share-followup.test.mjs
+          tests/reward-x-promotion-urlless-rollout.test.mjs
+
       - name: Dependency security gate
         shell: bash
         run: |
