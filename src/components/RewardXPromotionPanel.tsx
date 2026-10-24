@@ -128,10 +128,7 @@ export function RewardXPromotionPanel({
       }
 
       if (!response.ok) {
-        throw new Error(
-          body.error ||
-          'X promotion state unavailable.',
-        );
+        throw new Error('X promotion state unavailable.');
       }
 
       setState(body);
