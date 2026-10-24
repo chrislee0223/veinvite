@@ -77,6 +77,10 @@ const QA_FRIEND =
   '0x0000000000000000000000000000000000000b01';
 const QA_REWARD_WEI = '262970000000000000000';
 const QA_REWARD_INVITE_CODE = 'QA-NOTI-22';
+const QA_NOTIFICATION_NOW_MS = Date.parse(
+  '2026-10-24T00:00:00.000Z',
+);
+
 const QA_REWARD_RECEIPT: RewardReceipt = {
   id: 'qa-receipt-1',
   receiptVersion: 'v1',
@@ -97,7 +101,9 @@ const QA_REWARD_RECEIPT: RewardReceipt = {
 };
 
 function minutesAgo(minutes: number): string {
-  return new Date(Date.now() - minutes * 60_000).toISOString();
+  return new Date(
+    QA_NOTIFICATION_NOW_MS - minutes * 60_000,
+  ).toISOString();
 }
 
 function historyItem({
@@ -555,6 +561,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -564,6 +575,20 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (!hydrated) {
+    const pending = (
+      <div
+        data-qa-notification-ready="false"
+        aria-hidden="true"
+      />
+    );
+    return (
+      <QaNotificationStage embedded={embedded}>
+        {pending}
+      </QaNotificationStage>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
