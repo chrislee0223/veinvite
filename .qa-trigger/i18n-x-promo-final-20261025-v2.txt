@@ -1,0 +1,2 @@
+QA-only rebuild trigger after TypeScript locale-field fix for PR #1221.
+Do not merge this QA branch.
