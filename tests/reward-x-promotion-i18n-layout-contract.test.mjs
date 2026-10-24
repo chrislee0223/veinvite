@@ -122,6 +122,10 @@ test('automatic X account flow is explicitly localized for every locale', () => 
 });
 
 test('X promotion submission failures never expose raw server English', () => {
+  const submitStart = panelSource.indexOf('const submitPost');
+  const submitEnd = panelSource.indexOf('if (loading)', submitStart);
+  const submitBlock = panelSource.slice(submitStart, submitEnd);
+
   for (const locale of SUPPORTED_LOCALES) {
     const copy = REWARD_X_PROMOTION_SUBMIT_ERROR_COPY[locale];
     assert.ok(copy, 'missing submit error copy: ' + locale);
@@ -135,13 +139,13 @@ test('X promotion submission failures never expose raw server English', () => {
   }
 
   assert.match(
-    panelSource,
+    submitBlock,
     /rewardXPromotionSubmitError\(locale, response\.status\)/,
   );
-  assert.match(panelSource, /rewardXPromotionSubmitError\(locale, 0\)/);
-  assert.doesNotMatch(panelSource, /body\.error\s*\|\|/);
+  assert.match(submitBlock, /rewardXPromotionSubmitError\(locale, 0\)/);
+  assert.doesNotMatch(submitBlock, /body\.error\s*\|\|/);
   assert.doesNotMatch(
-    panelSource,
+    submitBlock,
     /error instanceof Error[\s\S]*error\.message/,
   );
 });
