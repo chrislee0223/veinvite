@@ -1,5 +1,16 @@
 import type { RewardXPromotionCopy } from './rewardXPromotionCopy';
 
+type RewardXPromotionBaseCopy = Omit<
+  RewardXPromotionCopy,
+  | 'connectX'
+  | 'connectedX'
+  | 'autoConnectBody'
+  | 'autoOpenBody'
+  | 'autoShareFollowupBody'
+  | 'autoGraceBody'
+  | 'autoConnectedX'
+>;
+
 export const REWARD_X_PROMOTION_EXPANDED_COPY = {
   hi: {
     title: 'X प्रमोशन बोनस',
@@ -268,5 +279,5 @@ export const REWARD_X_PROMOTION_EXPANDED_COPY = {
   | 'ha'
   | 'el'
   | 'cs',
-  RewardXPromotionCopy
+  RewardXPromotionBaseCopy
 >;
