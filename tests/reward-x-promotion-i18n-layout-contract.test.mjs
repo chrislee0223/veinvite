@@ -124,3 +124,39 @@ test('automatic X mode never falls back to legacy manual connected-account copy'
     /copy\.autoConnectedX \?\? copy\.connectedX/,
   );
 });
+
+
+test('X OAuth return feedback is localized and never advertises obsolete manual URL fallback', () => {
+  const oauthCopy = read('src/lib/i18n/rewardXPromotionOAuthCopy.ts');
+  const oauthHook = read('src/hooks/useXPromotionOAuthReturnFeedback.ts');
+
+  const oauthRegistry = oauthCopy.slice(
+    oauthCopy.indexOf('export const REWARD_X_PROMOTION_OAUTH_COPY'),
+  );
+  const oauthLocales = new Set(
+    Array.from(
+      oauthRegistry.matchAll(/^\s{2}(?:'([^']+)'|([a-z]+)):\s*\{/gmu),
+      (match) => match[1] ?? match[2],
+    ),
+  );
+  assert.deepEqual(
+    [...oauthLocales].sort(),
+    [...SUPPORTED_LOCALES].sort(),
+  );
+
+  assert.match(
+    oauthHook,
+    /REWARD_X_PROMOTION_UI_FALLBACK_COPY\[displayLocale\]\.connectedX/,
+  );
+  assert.match(
+    oauthHook,
+    /REWARD_X_PROMOTION_OAUTH_COPY\[displayLocale\]\.conflict/,
+  );
+  assert.match(
+    oauthHook,
+    /REWARD_X_PROMOTION_OAUTH_COPY\[displayLocale\]\.failed/,
+  );
+  assert.doesNotMatch(oauthHook, /const korean =/);
+  assert.doesNotMatch(oauthHook, /Manual Post URL submission/);
+  assert.doesNotMatch(oauthHook, /게시물 링크를 직접 제출/);
+});
