@@ -196,6 +196,10 @@ test('reward receipt copy covers every supported locale with a strict SupportedL
     /import type \{ Locale \}/,
   );
 
+  const receiptRegistry = rewardReceiptCopy.slice(
+    rewardReceiptCopy.indexOf('export const REWARD_RECEIPT_COPY'),
+  );
+
   for (const field of [
     'eyebrow',
     'title',
@@ -209,7 +213,7 @@ test('reward receipt copy covers every supported locale with a strict SupportedL
     'error',
   ]) {
     assert.equal(
-      (rewardReceiptCopy.match(new RegExp('\\b' + field + ':', 'g')) ?? [])
+      (receiptRegistry.match(new RegExp('\\b' + field + ':', 'g')) ?? [])
         .length,
       supportedLocales.length,
       field + ' must exist for every reward receipt locale',
