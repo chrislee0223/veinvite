@@ -1,0 +1,79 @@
+name: X readiness deep QA and security diagnosis (temporary)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-x-readiness-deep-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+  SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+  VERCEL_ENV: preview
+  VECHAIN_NETWORK: testnet
+  NEXT_PUBLIC_NETWORK_TYPE: test
+
+jobs:
+  reward-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Full reward regression suite
+        run: npm run test:rewards
+      - name: Internationalization regression suite
+        run: npm run test:i18n
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+
+  diagnose-dependency-risk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Audit installed baseline without weakening CI policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --json > /tmp/baseline-audit.json || true
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const x=JSON.parse(fs.readFileSync("/tmp/baseline-audit.json","utf8"));
+            const high=Object.entries(x.vulnerabilities || {})
+              .filter(([,v])=>["high","critical"].includes(v.severity))
+              .map(([name,v])=>({name,severity:v.severity,isDirect:v.isDirect,via:(v.via||[]).filter(z=>typeof z==="object").map(z=>({title:z.title,url:z.url})),fix:v.fixAvailable}));
+            console.log("BASELINE VULNERABILITIES",JSON.stringify({totals:x.metadata?.vulnerabilities,high},null,2));
+          '
+      - name: Investigate candidate wallet SDK patch strictly in ephemeral CI workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund @vechain/vechain-kit@2.14.0
+          npm audit --json > /tmp/candidate-audit.json || true
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const x=JSON.parse(fs.readFileSync("/tmp/candidate-audit.json","utf8"));
+            const high=Object.entries(x.vulnerabilities || {})
+              .filter(([,v])=>["high","critical"].includes(v.severity))
+              .map(([name,v])=>({name,severity:v.severity,isDirect:v.isDirect}));
+            console.log("CANDIDATE VULNERABILITIES",JSON.stringify({totals:x.metadata?.vulnerabilities,high},null,2));
+          '
+          git diff --stat -- package.json package-lock.json
+          echo 'Investigation only: neither candidate changes nor audit exceptions are committed.'
