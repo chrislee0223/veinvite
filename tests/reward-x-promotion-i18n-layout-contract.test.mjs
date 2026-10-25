@@ -141,7 +141,7 @@ test('X OAuth return feedback is localized and never advertises obsolete manual 
   );
   assert.deepEqual(
     [...oauthLocales].sort(),
-    [...SUPPORTED_LOCALES].sort(),
+    [...supportedLocales].sort(),
   );
 
   assert.match(
