@@ -68,3 +68,63 @@ jobs:
             package.json
             package-lock.json
           retention-days: 1
+
+  assess-direct-dappkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Search actual code imports and inspect removal scenario
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n --include='*.ts' --include='*.tsx' --include='*.mjs' "@vechain/dapp-kit-react" src scripts tests; then
+            echo 'DIRECT_DAPPKIT_IMPORT_IN_USE: do not remove it.'
+            exit 0
+          fi
+          echo 'NO_DIRECT_DAPPKIT_IMPORTS'
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --json > /tmp/baseline-dappkit.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          if (!Object.hasOwn(pkg.dependencies,'@vechain/dapp-kit-react')) process.exit(5);
+          delete pkg.dependencies['@vechain/dapp-kit-react'];
+          fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit --json > /tmp/no-direct-dappkit.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('/tmp/baseline-dappkit.json','utf8'));
+          const b=JSON.parse(fs.readFileSync('/tmp/no-direct-dappkit.json','utf8'));
+          console.log('NO_DIRECT_DAPPKIT_BASELINE',JSON.stringify(a.metadata.vulnerabilities));
+          console.log('NO_DIRECT_DAPPKIT_CANDIDATE',JSON.stringify(b.metadata.vulnerabilities));
+          console.log('NO_DIRECT_DAPPKIT_REMOVED_HIGH',JSON.stringify(Object.keys(a.vulnerabilities).filter(k=>!b.vulnerabilities[k]&&a.vulnerabilities[k].severity==='high')));
+          NODE
+          git diff --stat -- package.json package-lock.json
+      - name: Run real wallet, referral, reward, build checks for removed dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- package.json; then
+            npm ci --no-audit --no-fund
+            npm run typecheck
+            node --test tests/wallet-*.test.mjs
+            npm run test:rewards
+            npm run build
+          else
+            echo 'Dependency still referenced; no removal candidate.'
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: no-direct-dappkit-candidate
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 1
