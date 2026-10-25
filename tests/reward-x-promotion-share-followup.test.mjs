@@ -36,3 +36,15 @@ test('share-followup translations cover all 29 registered app locales', () => {
   }
   assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 30);
 });
+
+
+test('automatic share follow-up never falls back to English for another locale', () => {
+  assert.match(
+    popup,
+    /REWARD_X_PROMOTION_UI_FALLBACK_COPY\[locale\]\.autoBody/,
+  );
+  assert.doesNotMatch(
+    popup,
+    /REWARD_X_PROMOTION_COPY\.en\.autoShareFollowupBody/,
+  );
+});
