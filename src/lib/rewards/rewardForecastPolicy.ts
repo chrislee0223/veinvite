@@ -1,4 +1,4 @@
-export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.2-boost-bank';
+export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.3-sybil-clean';
 
 const BPS = 10_000n;
 const BOOTSTRAP_BASE_RECIPIENTS = 6;
