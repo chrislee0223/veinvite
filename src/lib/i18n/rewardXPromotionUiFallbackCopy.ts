@@ -33,7 +33,7 @@ export const REWARD_X_PROMOTION_UI_FALLBACK_COPY: Record<
     autoGraceBody: "分享时间已结束。请让符合条件的帖文继续保持公开，直到 VeInvite 完成 24 小时自动检查。",
     submitError: "目前无法验证这篇 X 帖文。请检查链接后稍后重试。",
   },
-  "zh-tw": {
+  'zh-tw': {
     connectX: "連接 X 帳號",
     connectedX: "X 帳號已連接，可自動檢查公開貼文。",
     autoBody: "請在 24 小時內分享到 X，並讓貼文至少保持公開 24 小時。VeInvite 會自動檢查，不需要提交貼文連結。",
