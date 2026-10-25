@@ -82,7 +82,23 @@ test('all paid X Post/User app paths call budget reservation before fetch', () =
   assert.match(oauth,/reserveXApiReadBudget\('OAUTH_USER'\)/);
 });
 
-test('provider readiness cannot spend on every 15 minute cron', () => {
-  assert.match(cron,/EXTERNAL_READINESS_INTERVAL_SECONDS = 6 \* 60 \* 60/);
-  assert.match(cron,/tryClaimCronJob\([\s\S]*EXTERNAL_READINESS_INTERVAL_SECONDS/);
+test('provider readiness re-probes early without losing the six-hour cache cap or $5 budget guard', () => {
+  assert.match(
+    cron,
+    /EXTERNAL_READINESS_PROBE_INTERVAL_SECONDS = 5 \* 60 \* 60 \+ 30 \* 60/,
+  );
+  assert.match(
+    cron,
+    /EXTERNAL_READINESS_CACHE_MAX_AGE_SECONDS = 6 \* 60 \* 60/,
+  );
+  assert.match(
+    cron,
+    /tryClaimCronJob\([\s\S]*EXTERNAL_READINESS_PROBE_INTERVAL_SECONDS/,
+  );
+  assert.match(cron, /ageMs >= EXTERNAL_READINESS_CACHE_MAX_AGE_SECONDS \* 1000/);
+  assert.match(lookup, /reserveXApiReadBudget\('POST_LOOKUP'\)/);
+  // This probe alone stays well below the atomic $5 monthly limit.
+  // Other discovery and OAuth reads share the same database-enforced ceiling.
+  const maximumMonthlyProbes = Math.ceil((31 * 24 * 60) / (5 * 60 + 30));
+  assert.ok(maximumMonthlyProbes * 15 < 5_000);
 });

@@ -80,6 +80,10 @@ export type XPromotionLiveness = {
   payoutEnabled: boolean;
   externalVerificationReady: boolean;
   runtimeReady: boolean;
+  // Safe operational diagnostics only; no credentials, posts, or wallets.
+  runtimeProbeStatus?: string;
+  runtimeProbeState?: 'READY' | 'EXPIRED' | 'UNAVAILABLE';
+  runtimeProbeAgeSeconds?: number | null;
 };
 
 // Read-only X bonus backlog flags. Keep raw wallet/post identifiers out of

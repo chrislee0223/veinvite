@@ -30,9 +30,12 @@ import {
 export const maxDuration = 300;
 
 const EXTERNAL_READINESS_JOB_NAME = 'x-promotion-external-readiness';
-// A 15-minute continuous paid Post lookup exhausts a $5/month budget even
-// when there are no active offers. At most one readiness lookup per 6 hours.
-const EXTERNAL_READINESS_INTERVAL_SECONDS = 6 * 60 * 60;
+// The provider probe must run before its evidence expires: the 15-minute
+// maintenance cadence can slip by one tick at an exact 6-hour boundary.
+// Probe after 5h30m, leaving 30 minutes of headroom, while retaining the
+// hard 6-hour cap on cached evidence and the existing monthly X API budget.
+const EXTERNAL_READINESS_PROBE_INTERVAL_SECONDS = 5 * 60 * 60 + 30 * 60;
+const EXTERNAL_READINESS_CACHE_MAX_AGE_SECONDS = 6 * 60 * 60;
 const LIFECYCLE_JOB_NAME =
   'x-promotion-lifecycle';
 const PAYOUT_JOB_NAME =
@@ -152,7 +155,7 @@ async function refreshCachedExternalReadiness(): Promise<boolean> {
     ? details.providerCheckedAt : check.checked_at;
   const ageMs = Date.now() - Date.parse(actual);
   if (!Number.isFinite(ageMs) || ageMs < 0 ||
-      ageMs >= EXTERNAL_READINESS_INTERVAL_SECONDS * 1000) return false;
+      ageMs >= EXTERNAL_READINESS_CACHE_MAX_AGE_SECONDS * 1000) return false;
   const { error } = await supabaseAdmin
     .from('reward_x_promotion_external_runtime_checks')
     .insert({
@@ -163,7 +166,8 @@ async function refreshCachedExternalReadiness(): Promise<boolean> {
       details: {
         cached: true,
         providerCheckedAt: actual,
-        reason: 'RATE_LIMITED_PROVIDER_PROBE',
+        // Scheduled cooldown is not evidence of an X HTTP 429 response.
+        reason: 'SCHEDULED_PROBE_COOLDOWN_CACHE',
       },
     });
   if (error) throw new Error('Failed to refresh cached X readiness.');
@@ -175,7 +179,7 @@ Promise<JobResult> {
   try {
     const claimed = await tryClaimCronJob(
       EXTERNAL_READINESS_JOB_NAME,
-      EXTERNAL_READINESS_INTERVAL_SECONDS,
+      EXTERNAL_READINESS_PROBE_INTERVAL_SECONDS,
       10 * 60,
     );
     if (!claimed) {

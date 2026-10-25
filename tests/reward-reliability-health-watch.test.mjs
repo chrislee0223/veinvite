@@ -36,6 +36,8 @@ function harness() {
     externalVerificationReady: true,
     runtimeReady: true,
   };
+  let xProbeStatus = 'READY';
+  let xProbeCheckedAt = new Date(now).toISOString();
   let xPipeline = {
     pendingPostStalled: false,
     finalCheckStalled: false,
@@ -116,7 +118,11 @@ function harness() {
         assert.equal(args.p_network, 'mainnet');
         assert.equal(args.p_max_age_seconds, 1200);
         return wrap(() => ({
-          data: { ready: xPromotion.runtimeReady },
+          data: {
+            ready: xPromotion.runtimeReady,
+            status: xProbeStatus,
+            checkedAt: xProbeCheckedAt,
+          },
           error: null,
         }));
       }
@@ -184,6 +190,10 @@ function harness() {
     setHolds: (counts) => { held = counts; },
     setScanFailures: (counts) => { scanFailures = counts; },
     setXPromotion: (state) => { xPromotion = { ...xPromotion, ...state }; },
+    setXProbe: (status, checkedAt = new Date().toISOString()) => {
+      xProbeStatus = status;
+      xProbeCheckedAt = checkedAt;
+    },
     setXPipeline: (state) => { xPipeline = { ...xPipeline, ...state }; },
     setPaused: (value) => { paused = value; },
     setDbError: (value) => { dbError = value; },
@@ -319,6 +329,27 @@ test('X promotion cron stalls and gate/runtime divergence are observed with safe
     Array.from(intentionallyInactive.body.activeAlerts),
     [],
   );
+});
+
+test('X runtime alert identifies expired evidence vs actual provider failures without muting outages', async () => {
+  const expired = harness();
+  expired.setXPromotion({ runtimeReady: false });
+  expired.setXProbe('READY', new Date(Date.now() - 21 * 60_000).toISOString());
+  const expiry = await expired.GET(expired.request);
+  assert.equal(expiry.status, 503);
+  assert.equal(expiry.body.xPromotion.runtimeProbeState, 'EXPIRED');
+  assert.equal(expiry.body.xPromotion.runtimeProbeStatus, 'READY');
+  assert.ok(expiry.body.xPromotion.runtimeProbeAgeSeconds >= 20 * 60);
+  assert.equal(expiry.body.activeAlerts.includes('X_PROMOTION_GATE_ON_WHILE_RUNTIME_NOT_READY'), true);
+
+  const failed = harness();
+  failed.setXPromotion({ runtimeReady: false });
+  failed.setXProbe('X_API_RATE_LIMITED');
+  const outage = await failed.GET(failed.request);
+  assert.equal(outage.status, 503);
+  assert.equal(outage.body.xPromotion.runtimeProbeState, 'UNAVAILABLE');
+  assert.equal(outage.body.xPromotion.runtimeProbeStatus, 'X_API_RATE_LIMITED');
+  assert.equal(outage.body.activeAlerts.includes('X_PROMOTION_GATE_ON_WHILE_RUNTIME_NOT_READY'), true);
 });
 
 test('watchdog fails closed on DB errors and does not expose data to unauthenticated callers', async () => {

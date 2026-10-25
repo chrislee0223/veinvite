@@ -1,0 +1,61 @@
+name: Wallet Provider Runtime Compatibility
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/components/VeChainProvider.tsx'
+      - 'src/components/WalletControl.tsx'
+      - 'src/components/WalletSessionGate.tsx'
+      - 'src/hooks/useWalletAuthentication.ts'
+      - 'tests/playwright/wallet-provider-runtime-smoke.spec.ts'
+      - 'tests/wallet-auth-certificate-roundtrip.test.mjs'
+      - '.github/workflows/wallet-provider-runtime-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wallet-provider-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+# No production keys, RPC signer, paid X endpoints or real user sessions.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+  SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+  VERCEL_ENV: preview
+  VECHAIN_NETWORK: testnet
+  NEXT_PUBLIC_NETWORK_TYPE: test
+  VEINVITE_WALLET_RUNTIME_QA: 'true'
+
+jobs:
+  wallet-ui-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install reviewed dependency graph
+        run: npm ci --no-fund
+      - name: Cryptographically signed testnet auth and session round-trip (mock DB only)
+        run: node --experimental-strip-types --test tests/wallet-auth-certificate-roundtrip.test.mjs
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Isolated wallet provider and VeWorld selection smoke
+        run: npx playwright test tests/playwright/wallet-provider-runtime-smoke.spec.ts --workers=1 --timeout=180000
+      - name: Upload test details on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-provider-runtime-${{ github.run_id }}
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
