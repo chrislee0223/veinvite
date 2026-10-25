@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -50,6 +51,9 @@ type Promotion = {
 type PromotionResponse = {
   newOffersEnabled?: boolean;
   promotionPending?: boolean;
+  xConnectAvailable?: boolean;
+  xConnected?: boolean;
+  xUrlLessEnabled?: boolean;
   promotion?: Promotion | null;
   error?: string;
 };
@@ -99,8 +103,12 @@ export function RewardXPromotionPanel({
     useState(false);
   const [submitError, setSubmitError] =
     useState('');
+  const requestSequenceRef = useRef(0);
 
   const load = useCallback(async () => {
+    // State requests can overlap (timers, focus, manual verification). The
+    // most recently started request alone may update this receipt's UI.
+    const requestSequence = ++requestSequenceRef.current;
     try {
       const response = await fetch(
         `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
@@ -111,20 +119,29 @@ export function RewardXPromotionPanel({
       const body =
         (await response.json()) as PromotionResponse;
 
+      if (requestSequence !== requestSequenceRef.current) return;
+
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
       }
 
       if (!response.ok) {
-        throw new Error('X promotion state unavailable.');
+        throw new Error(
+          body.error ||
+          'X promotion state unavailable.',
+        );
       }
 
       setState(body);
       setLoadError(false);
     } catch {
-      setLoadError(true);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoadError(true);
+      }
     } finally {
-      setLoading(false);
+      if (requestSequence === requestSequenceRef.current) {
+        setLoading(false);
+      }
     }
   }, [inviteCode]);
 
@@ -135,6 +152,11 @@ export function RewardXPromotionPanel({
     setPostUrl('');
     setSubmitError('');
     void load();
+    return () => {
+      // A prior invite's response must not revive its share token/status
+      // after the panel is unmounted or its invite identity changes.
+      requestSequenceRef.current += 1;
+    };
   }, [load]);
 
   const promotion = state?.promotion ?? null;
@@ -157,6 +179,41 @@ export function RewardXPromotionPanel({
 
     return () => window.clearInterval(timer);
   }, [load, poll]);
+
+  // An open receipt may stay mounted past the 24-hour post deadline.
+  // Refresh at each state boundary rather than polling every 30 seconds for
+  // a full day or showing an already-expired share button indefinitely.
+  useEffect(() => {
+    if (
+      !promotion ||
+      !['OPEN', 'SUBMISSION_GRACE'].includes(promotion.state)
+    ) {
+      return;
+    }
+
+    const postDeadline = Date.parse(promotion.postDeadlineAt);
+    if (!Number.isFinite(postDeadline)) return;
+
+    const transitionAt =
+      promotion.state === 'OPEN'
+        ? postDeadline
+        : postDeadline + promotion.submissionGraceSeconds * 1000;
+    const delayMs = Math.max(
+      1_000,
+      Math.min(transitionAt - Date.now() + 1_000, 86_401_000),
+    );
+    const timer = window.setTimeout(
+      () => void load(),
+      delayMs,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [
+    load,
+    promotion?.state,
+    promotion?.postDeadlineAt,
+    promotion?.submissionGraceSeconds,
+  ]);
 
   const genericShareIntent = useMemo(() => {
     if (
@@ -187,6 +244,7 @@ export function RewardXPromotionPanel({
   const promotionShareIntent = useMemo(() => {
     if (
       promotion?.state !== 'OPEN' ||
+      (state?.xUrlLessEnabled === true && state?.xConnected !== true) ||
       !promotion.shareToken ||
       !rewardShareUrl
     ) {
@@ -211,6 +269,8 @@ export function RewardXPromotionPanel({
     promotion,
     receiptAmountB3tr,
     rewardShareUrl,
+    state?.xUrlLessEnabled,
+    state?.xConnected,
   ]);
 
   const submitPost = useCallback(async () => {
@@ -328,12 +388,19 @@ export function RewardXPromotionPanel({
   const canSubmit =
     promotion.state === 'OPEN' ||
     promotion.state === 'SUBMISSION_GRACE';
+  const usesAuto = state?.xUrlLessEnabled === true;
 
   const body =
     promotion.state === 'OPEN'
-      ? copy.openBody
+      ? usesAuto
+        ? state?.xConnected
+          ? (copy.autoOpenBody ?? REWARD_X_PROMOTION_COPY.en.autoOpenBody)
+          : (copy.autoConnectBody ?? REWARD_X_PROMOTION_COPY.en.autoConnectBody)
+        : copy.openBody
       : promotion.state === 'SUBMISSION_GRACE'
-        ? copy.graceBody
+        ? usesAuto
+          ? (copy.autoGraceBody ?? REWARD_X_PROMOTION_COPY.en.autoGraceBody)
+          : copy.graceBody
         : promotion.state === 'VERIFYING'
           ? copy.verifyingBody
           : promotion.state === 'RETENTION'
@@ -360,19 +427,47 @@ export function RewardXPromotionPanel({
         <button
           type="button"
           className="promotionShare"
-          onClick={() =>
+          onClick={() => {
+            // Backgrounded tabs can delay expiry timers. Recheck against
+            // the immutable server-issued deadline on the actual click.
+            if (Date.now() >= Date.parse(promotion.postDeadlineAt)) {
+              void load();
+              return;
+            }
             openIntent(
               promotionShareIntent,
               onRewardShare,
-            )
-          }
+            );
+          }}
         >
           <span>{rewardReceiptShareLabel(locale)}</span>
           <b dir="ltr">+{promotion.amountB3tr} B3TR</b>
         </button>
       ) : null}
 
-      {canSubmit ? (
+      {promotion.state === 'OPEN' && state?.xConnectAvailable ? (
+        state.xConnected ? (
+          <p className="promotionConnectState" role="status">
+            {usesAuto
+              ? (copy.autoConnectedX ?? REWARD_X_PROMOTION_COPY.en.autoConnectedX)
+              : (copy.connectedX ?? REWARD_X_PROMOTION_COPY.en.connectedX)}
+          </p>
+        ) : (
+          <button
+            type="button"
+            className="promotionConnect"
+            onClick={() => {
+              window.location.assign(
+                `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(inviteCode)}`,
+              );
+            }}
+          >
+            {copy.connectX ?? REWARD_X_PROMOTION_COPY.en.connectX}
+          </button>
+        )
+      ) : null}
+
+      {canSubmit && !usesAuto ? (
         <div className="promotionSubmit">
           <input
             type="url"
@@ -415,15 +510,16 @@ export function RewardXPromotionPanel({
         .promotionPanel p{min-width:0;margin:8px 0 0;color:#9f998f;font-size:.62rem;line-height:1.55;overflow-wrap:break-word}
         .promotionShare{width:100%;min-width:0;min-height:44px;margin-top:12px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.72rem;font-weight:950;line-height:1.35;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:3px 6px;white-space:normal;text-align:center;overflow-wrap:anywhere}
         .promotionShare b{font:inherit;font-weight:950;white-space:nowrap;unicode-bidi:isolate}
+        .promotionConnect{width:100%;min-width:0;min-height:42px;margin-top:10px;padding:9px 12px;border:1px solid rgba(255,205,80,.35);border-radius:11px;background:rgba(244,183,40,.10);color:#f1cf65;font:inherit;font-size:.7rem;font-weight:900;line-height:1.35;white-space:normal;overflow-wrap:anywhere;text-align:center;cursor:pointer}
+        .promotionConnectState{margin-top:10px;color:#a6d5a5!important;overflow-wrap:anywhere}
+        .promotionConnect:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         .promotionSubmit{min-width:0;margin-top:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
         .promotionSubmit input{min-width:0;width:100%;height:42px;box-sizing:border-box;padding:9px 10px;border:1px solid rgba(255,255,255,.1);border-radius:11px;background:rgba(0,0,0,.25);color:#eee8dd;font:inherit;font-size:.64rem;direction:ltr;text-align:left}
-        .promotionSubmit button{min-width:0;min-height:42px;padding:8px 11px;border:1px solid rgba(255,205,80,.18);border-radius:11px;background:rgba(244,183,40,.08);color:#f1cf65;font:inherit;font-size:.64rem;font-weight:900;line-height:1.3;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:center}
+        .promotionSubmit button{min-width:0;min-height:42px;padding:8px 11px;border:1px solid rgba(255,205,80,.18);border-radius:11px;background:rgba(244,183,40,.08);color:#f1cf65;font:inherit;font-size:.64rem;font-weight:900;line-height:1.3;white-space:normal;overflow-wrap:anywhere;text-align:center;cursor:pointer}
         .promotionSubmit button:disabled{opacity:.45;cursor:not-allowed}
         .promotionError{color:#d48b93!important;overflow-wrap:anywhere}
         .promotionPanel:is([lang='ar'],[lang='arz'],[lang='ur'],[lang='hi'],[lang='bn'],[lang='mr'],[lang='te']) .promotionHeading strong{font-size:.74rem;line-height:1.55}
         .promotionPanel:is([lang='ar'],[lang='arz'],[lang='ur'],[lang='hi'],[lang='bn'],[lang='mr'],[lang='te']) p{font-size:.66rem;line-height:1.62}
-        .promotionPanel:is([lang='ar'],[lang='arz'],[lang='ur'],[lang='hi'],[lang='bn'],[lang='mr'],[lang='te']) .promotionSubmit button{font-size:.68rem;line-height:1.5}
-        .promotionPanel[lang='ur'] .promotionHeading strong{line-height:1.68}
         .promotionPanel[lang='ur'] p{line-height:1.72}
         .promotionShare:focus-visible,.promotionSubmit input:focus-visible,.promotionSubmit button:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
         @media(max-width:430px){.promotionSubmit{grid-template-columns:1fr}.promotionSubmit button{width:100%}}
