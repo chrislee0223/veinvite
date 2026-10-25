@@ -7,12 +7,21 @@ import { expect, test } from '@playwright/test';
 // Never select a wallet, request signatures, perform on-chain transactions,
 // submit a reward claim, or enable the live payout/X verifier in this test.
 test('wallet SDK initializes and opens the VeWorld selector without signing', async ({ page }) => {
+  // This heavy real-provider smoke runs in a dedicated, single-worker GitHub
+  // job. Parallelizing it with 639 layout cases competes for the Next dev
+  // compiler and produces false page-navigation timeouts.
+  test.skip(
+    process.env.VEINVITE_WALLET_RUNTIME_QA !== 'true',
+    'Wallet provider smoke runs in the dedicated isolated QA job.',
+  );
+  test.setTimeout(180_000);
+
   const runtimeErrors: string[] = [];
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
 
   const response = await page.goto('/', {
     waitUntil: 'domcontentloaded',
-    timeout: 90_000,
+    timeout: 120_000,
   });
   expect(response?.ok(), 'anonymous home route must be loadable').toBe(true);
 
