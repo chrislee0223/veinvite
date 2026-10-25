@@ -5,7 +5,10 @@ import test from 'node:test';
 const localesSource = readFileSync('src/lib/i18n/locales.ts', 'utf8');
 const copySource = readFileSync('src/lib/i18n/rewardXPromotionCopy.ts', 'utf8');
 const expandedSource = readFileSync('src/lib/i18n/rewardXPromotionExpandedCopy.ts', 'utf8');
-const autoSource = readFileSync('src/lib/i18n/rewardXPromotionAutoCopy.ts', 'utf8');
+const autoSource = [
+  readFileSync('src/lib/i18n/rewardXPromotionAutoCopyCore.ts', 'utf8'),
+  readFileSync('src/lib/i18n/rewardXPromotionAutoCopyExpanded.ts', 'utf8'),
+].join('\n');
 const errorSource = readFileSync('src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts', 'utf8');
 const panelSource = readFileSync('src/components/RewardXPromotionPanel.tsx', 'utf8');
 const shareSource = readFileSync('src/lib/rewards/rewardReceiptShare.ts', 'utf8');
