@@ -1,0 +1,70 @@
+name: Dependency remediation research (temporary)
+on:
+  pull_request:
+permissions:
+  contents: read
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+  SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+  VERCEL_ENV: preview
+  VECHAIN_NETWORK: testnet
+  NEXT_PUBLIC_NETWORK_TYPE: test
+jobs:
+  nonbreaking-remediation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Inspect pinned baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --json > /tmp/baseline.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const audit=JSON.parse(fs.readFileSync('/tmp/baseline.json','utf8'));
+          console.log('BASE_TOTALS',JSON.stringify(audit.metadata.vulnerabilities));
+          console.log('BASE_DIRECT',JSON.stringify(Object.entries(audit.vulnerabilities||{}).filter(([k,v])=>v.isDirect).map(([name,v])=>({name,severity:v.severity,fixAvailable:v.fixAvailable}))));
+          console.log('BASE_ADVISORIES',JSON.stringify([...new Map(Object.entries(audit.vulnerabilities||{}).flatMap(([pkg,v])=>v.via.filter(x=>typeof x==='object').map(x=>[x.url,{name:x.name,via:pkg,severity:x.severity,range:x.range,url:x.url}]))).entries()].map(x=>x[1])));
+          NODE
+      - name: Apply safe npm audit fix without force in disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit fix --package-lock-only --ignore-scripts --no-fund > /tmp/fix.log 2>&1 || true
+          echo 'SAFE_FIX_SUMMARY'
+          tail -12 /tmp/fix.log
+          git diff --stat -- package.json package-lock.json
+          npm audit --json > /tmp/fixed.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const before=JSON.parse(fs.readFileSync('/tmp/baseline.json','utf8'));
+          const after=JSON.parse(fs.readFileSync('/tmp/fixed.json','utf8'));
+          console.log('SAFE_FIX_TOTALS',JSON.stringify(after.metadata.vulnerabilities));
+          const vb=before.vulnerabilities||{},va=after.vulnerabilities||{};
+          console.log('SAFE_FIX_DIFFERENCE',JSON.stringify({removed:Object.keys(vb).filter(x=>!va[x]),added:Object.keys(va).filter(x=>!vb[x])}));
+          console.log('SAFE_FIX_HIGH',JSON.stringify(Object.entries(va).filter(([k,v])=>['high','critical'].includes(v.severity)).map(([name,v])=>({name,severity:v.severity,fixAvailable:v.fixAvailable}))));
+          NODE
+      - name: Verify safe candidate if lockfile changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then echo 'NO_PATCH'; exit 0; fi
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run test:rewards
+          npm run build
+      - name: Export candidate lockfile for controlled review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safe-npm-audit-fix-candidate
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 1
