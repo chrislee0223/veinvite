@@ -81,6 +81,11 @@ test('X promotion submission errors have localized status buckets for all suppor
     (errorCopy.match(/^\s*(?:'[a-z-]+'|[a-z]+):\s*\{/gmu) ?? []).length;
   assert.equal(localeCount, 29);
 
+  const localeMap = errorCopy.slice(
+    errorCopy.indexOf('> = {') + 5,
+    errorCopy.indexOf('\n};\n\nexport function rewardXPromotionSubmitError'),
+  );
+
   for (const key of [
     'invalidPost',
     'walletAccess',
@@ -89,7 +94,7 @@ test('X promotion submission errors have localized status buckets for all suppor
     'unavailable',
   ]) {
     const occurrences =
-      (errorCopy.match(new RegExp('\\b' + key + ':', 'g')) ?? []).length;
+      (localeMap.match(new RegExp('\\b' + key + ':', 'g')) ?? []).length;
     assert.equal(
       occurrences,
       29,
