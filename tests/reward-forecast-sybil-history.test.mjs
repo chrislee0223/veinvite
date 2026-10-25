@@ -5,12 +5,15 @@ import { pendingAgeWeights } from '../src/lib/rewards/rewardForecastPendingWeigh
 
 const migration = await readFile(new URL('../supabase/migrations/20261025113000_reward_forecast_sybil_clean_history.sql', import.meta.url), 'utf8');
 
-test('history groups by actual funding round, excluding active Sybil invalidations', () => {
-  assert.match(migration, /from public\.reward_receipts receipt/);
-  assert.match(migration, /group by receipt\.vebetter_round_id/);
+test('history fills zero-recipient completed VeBetter rounds and excludes Sybil invalidations', () => {
+  assert.match(migration, /with completed_funding_rounds as/);
+  assert.match(migration, /a\.vebetter_round_id < \(/);
+  assert.match(migration, /max\(latest\.vebetter_round_id\)/);
+  assert.match(migration, /left join public\.reward_receipts receipt/);
+  assert.match(migration, /group by funding\.vebetter_round_id/);
   assert.match(migration, /assessment\.state = 'CLEAR'/);
   assert.match(migration, /invalidation\.status = 'ACTIVE'/);
-  assert.match(migration, /allocation\.app_id = p_app_id/);
+  assert.match(migration, /a\.app_id = p_app_id/);
   assert.doesNotMatch(migration, /from public\.reward_rounds rr/);
 });
 
