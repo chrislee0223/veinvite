@@ -349,6 +349,33 @@ jobs:
       - name: Wallet auth cryptographic regression gate
         run: node --experimental-strip-types --test tests/wallet-auth-typed-data-crypto.test.mjs tests/wallet-auth-server-certificate-contract.test.mjs
 
+      # QA-only validation for PR #1227. These source checks run before
+      # the repository-wide dependency audit so unrelated advisories cannot
+      # hide multilingual TypeScript/i18n/build regressions. The mandatory
+      # security gate below remains unchanged and still fails closed.
+      - name: QA-only X i18n typecheck
+        run: npm run typecheck
+
+      - name: QA-only localization completeness
+        run: npm run test:i18n
+
+      - name: QA-only X promotion regressions
+        run: >
+          node --experimental-strip-types --test
+          tests/reward-x-promotion-i18n-layout-contract.test.mjs
+          tests/reward-x-promotion-share-followup.test.mjs
+          tests/reward-x-promotion-urlless-rollout.test.mjs
+          tests/reward-receipt-share.test.mjs
+          tests/i18n-notification-reward-center.test.mjs
+
+      - name: QA-only Production build
+        env:
+          NEXT_PUBLIC_SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_DSN: https://ci-public-key@o0.ingest.sentry.io/1
+          SENTRY_ENVIRONMENT: ci
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ci
+        run: npm run build
+
       - name: Dependency security gate
         shell: bash
         run: |
