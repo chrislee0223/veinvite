@@ -1,4 +1,5 @@
 import type { SupportedLocale } from './locales';
+import { REWARD_X_PROMOTION_MANUAL_COPY } from './rewardXPromotionManualCopy';
 
 export type RewardXPromotionCopy = {
   title: string;
@@ -52,7 +53,7 @@ const EN: RewardXPromotionCopy = {
   autoConnectedX: 'X account connected. Your public Post will be checked automatically; no link submission is needed.',
 };
 
-export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCopy> = {
+const REWARD_X_PROMOTION_BASE_COPY: Record<SupportedLocale, RewardXPromotionCopy> = {
   en: EN,
   ko: {
     title: 'X 프로모션 보너스',
@@ -338,3 +339,23 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
   el: { ...EN, shareFollowupBody: 'Μετά τη δημοσίευση στο X, γύρισε στο VeInvite, άνοιξε την ανταμοιβή στις Ειδοποιήσεις και επικόλλησε τον σύνδεσμο για έλεγχο του μπόνους.', title: 'Μπόνους προώθησης X', verify: 'Επαλήθευση ανάρτησης', verifying: 'Έλεγχος…', retry: 'Δοκιμή ξανά' },
   cs: { ...EN, shareFollowupBody: 'Po zveřejnění na X se vraťte do VeInvite, otevřete odměnu v Oznámeních a vložte veřejný odkaz na příspěvek pro ověření bonusu.', title: 'Bonus za propagaci na X', verify: 'Ověřit příspěvek', verifying: 'Kontrola…', retry: 'Zkusit znovu' },
 };
+
+export const REWARD_X_PROMOTION_COPY =
+  Object.fromEntries(
+    Object.entries(REWARD_X_PROMOTION_BASE_COPY).map(
+      ([locale, copy]) => [
+        locale,
+        {
+          ...copy,
+          ...(
+            REWARD_X_PROMOTION_MANUAL_COPY[
+              locale as SupportedLocale
+            ] ?? {}
+          ),
+        },
+      ],
+    ),
+  ) as Record<
+    SupportedLocale,
+    RewardXPromotionCopy
+  >;
