@@ -443,7 +443,7 @@ export function RewardXPromotionPanel({
         state.xConnected ? (
           <p className="promotionConnectState" role="status">
             {usesAuto
-              ? (copy.autoConnectedX ?? copy.connectedX ?? uiFallback.connectedX)
+              ? (copy.autoConnectedX ?? uiFallback.connectedX)
               : (copy.connectedX ?? uiFallback.connectedX)}
           </p>
         ) : (
