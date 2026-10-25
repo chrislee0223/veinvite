@@ -26,7 +26,6 @@ import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy'
 import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
 import {
   isRtlLocale,
-  type Locale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import type {
@@ -331,7 +330,7 @@ export function InviteNotificationHistoryCenter({
   onRewardShare,
   allowProgrammaticOpen = false,
 }: {
-  locale: Locale;
+  locale: SupportedLocale;
   items: InviteNotificationHistoryItem[];
   unreadCount: number;
   markAllAvailable: boolean;
@@ -351,11 +350,11 @@ export function InviteNotificationHistoryCenter({
   onRewardShare?: (intentUrl: string) => void;
   allowProgrammaticOpen?: boolean;
 }) {
-  const supportedLocale = locale as SupportedLocale;
+  const supportedLocale = locale;
   const structure = NOTIFICATION_HISTORY_COPY[supportedLocale];
   const metaCopy = NOTIFICATION_META_COPY[supportedLocale];
   const notificationCopy = NOTIFICATION_COPY[supportedLocale];
-  const receiptCopy = REWARD_RECEIPT_COPY[locale];
+  const receiptCopy = REWARD_RECEIPT_COPY[supportedLocale];
   const rtl = isRtlLocale(supportedLocale);
   const bellRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);

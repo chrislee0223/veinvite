@@ -10,7 +10,7 @@ import {
 import { InviteNotificationHistoryCenter } from './InviteNotificationHistoryCenter';
 import { useVisiblePeriodicRefresh } from '@/hooks/useVisiblePeriodicRefresh';
 import { useWalletLauncher } from './WalletControl';
-import type { Locale } from '@/lib/i18n/locales';
+import type { SupportedLocale } from '@/lib/i18n/locales';
 import type {
   InviteNotificationHistoryItem,
   InviteNotificationHistoryResponse,
@@ -294,7 +294,7 @@ export function InAppInviteNotifications({
   locale,
   rewardShareUrl = '',
 }: {
-  locale: Locale;
+  locale: SupportedLocale;
   rewardShareUrl?: string;
 }) {
   const { wallet, isWalletModalOpen } = useWalletLauncher();

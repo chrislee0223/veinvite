@@ -18,6 +18,7 @@ const paidSync = read('src/components/PaidActivationLiveSync.tsx');
 const paidToast = read('src/lib/notifications/rewardPaidToast.ts');
 const rewardShare = read('src/lib/rewards/rewardReceiptShare.ts');
 const rewardPaidCopy = read('src/lib/i18n/rewardPaidNotificationCopy.ts');
+const rewardReceiptCopy = read('src/lib/i18n/rewardReceiptCopy.ts');
 const rewardAdjustedCopy = read('src/lib/i18n/rewardAdjustedCopy.ts');
 const rewardReceiptView = read('src/components/RewardReceiptView.tsx');
 const rewardXPromotionPanel = read('src/components/RewardXPromotionPanel.tsx');
@@ -165,6 +166,57 @@ test('reward adjustment and paid copy cover every supported locale', () => {
     assert.deepEqual(
       [...new Set(translatedLocales)].sort(),
       [...supportedLocales].sort(),
+    );
+  }
+});
+
+test('reward receipt copy covers every supported locale with a strict SupportedLocale contract', () => {
+  const supportedLocales = [
+    ...locales.matchAll(/\{ locale: '([^']+)'/gmu),
+  ].map((match) => match[1]);
+
+  const translatedLocales = [
+    ...rewardReceiptCopy.matchAll(
+      /^\s*(?:'([^']+)'|([a-z]+)):\s*\{/gmu,
+    ),
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter((locale) => supportedLocales.includes(locale));
+
+  assert.deepEqual(
+    [...new Set(translatedLocales)].sort(),
+    [...supportedLocales].sort(),
+  );
+  assert.match(
+    rewardReceiptCopy,
+    /Record<SupportedLocale, RewardReceiptCopy>/,
+  );
+  assert.doesNotMatch(
+    rewardReceiptCopy,
+    /import type \{ Locale \}/,
+  );
+
+  const receiptRegistry = rewardReceiptCopy.slice(
+    rewardReceiptCopy.indexOf('export const REWARD_RECEIPT_COPY'),
+  );
+
+  for (const field of [
+    'eyebrow',
+    'title',
+    'description',
+    'round',
+    'invite',
+    'transaction',
+    'viewTransaction',
+    'acknowledge',
+    'acknowledging',
+    'error',
+  ]) {
+    assert.equal(
+      (receiptRegistry.match(new RegExp('\\b' + field + ':', 'g')) ?? [])
+        .length,
+      supportedLocales.length,
+      field + ' must exist for every reward receipt locale',
     );
   }
 });

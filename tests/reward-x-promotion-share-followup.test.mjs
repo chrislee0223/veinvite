@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
-const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const copy = [
+  readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8'),
+  readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopy.ts', import.meta.url), 'utf8'),
+].join('\n');
 const locales = readFileSync(new URL('../src/lib/i18n/locales.ts', import.meta.url), 'utf8');
 
 test('X sharing keeps the existing no-expired-bonus protection', () => {
@@ -32,4 +35,16 @@ test('share-followup translations cover all 29 registered app locales', () => {
     assert.match(copy, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale: ' + locale);
   }
   assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 30);
+});
+
+
+test('automatic share follow-up never falls back to English for another locale', () => {
+  assert.match(
+    popup,
+    /REWARD_X_PROMOTION_UI_FALLBACK_COPY\[locale\]\.autoBody/,
+  );
+  assert.doesNotMatch(
+    popup,
+    /REWARD_X_PROMOTION_COPY\.en\.autoShareFollowupBody/,
+  );
 });

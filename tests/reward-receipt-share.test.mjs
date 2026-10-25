@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -6,6 +7,11 @@ import {
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
 } from '../src/lib/rewards/rewardReceiptShare.ts';
+
+const source = readFileSync(
+  new URL('../src/lib/rewards/rewardReceiptShare.ts', import.meta.url),
+  'utf8',
+);
 
 test('reward X share copy keeps the agreed readable global layout', () => {
   const text = rewardReceiptShareText({
@@ -53,4 +59,10 @@ test('reward X intent contains one referral URL and the discovery tags', () => {
   assert.match(text, /#VeBetterDAO/);
   assert.match(text, /#VeChain #Web3 #Crypto$/);
   assert.ok(text.length < 280);
+});
+
+test('reward share locale registry contains only the live localized button label', () => {
+  assert.doesNotMatch(source, /\breceived:\s/);
+  assert.doesNotMatch(source, /\binvite:\s/);
+  assert.doesNotMatch(source, /Invite your friends|친구를 초대|朋友|友だち/i);
 });
