@@ -1,5 +1,6 @@
 import type { SupportedLocale } from './locales';
-import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
+import { REWARD_X_PROMOTION_AUTO_CORE_COPY } from './rewardXPromotionAutoCoreCopy';
+import { REWARD_X_PROMOTION_AUTO_EXPANDED_COPY } from './rewardXPromotionAutoExpandedCopy';
 import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
 
 export type RewardXPromotionCopy = {
@@ -80,7 +81,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     autoShareFollowupBody: 'X에 게시했다면 더 누르거나 URL을 제출할 필요가 없어요. 게시물을 24시간 이상 공개 상태로 유지해 주세요. VeInvite가 자동 확인 후 조건을 충족하면 추가 보상을 지급해요.',
     autoGraceBody: '공유 가능 시간이 끝났어요. VeInvite가 기한 내 게시물을 자동 확인 중이에요. 24시간 검증이 완료될 때까지 게시물을 공개 상태로 유지해 주세요.',
     autoConnectedX: 'X 계정이 연결되었어요. 게시물은 자동 확인되므로 URL을 제출하지 않아도 돼요.',
-    ...REWARD_X_PROMOTION_AUTO_COPY.ko,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.ko,
   },
   zh: {
     connectX: '连接 X 账号',
@@ -101,7 +102,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: '验证帖文',
     verifying: '检查中…',
     retry: '重试',
-    ...REWARD_X_PROMOTION_AUTO_COPY.zh,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.zh,
   },
   'zh-tw': {
     title: 'X 推廣獎勵',
@@ -120,7 +121,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: '驗證貼文',
     verifying: '檢查中…',
     retry: '重試',
-    ...REWARD_X_PROMOTION_AUTO_COPY.zh-tw,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.zh-tw,
   },
   ja: {
     connectX: 'Xアカウントを連携',
@@ -141,7 +142,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'ポストを確認',
     verifying: '確認中…',
     retry: '再試行',
-    ...REWARD_X_PROMOTION_AUTO_COPY.ja,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.ja,
   },
   es: {
     connectX: 'Conectar cuenta de X',
@@ -162,7 +163,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Verificar publicación',
     verifying: 'Comprobando…',
     retry: 'Reintentar',
-    ...REWARD_X_PROMOTION_AUTO_COPY.es,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.es,
   },
   de: {
     title: 'X-Promotionsbonus',
@@ -181,7 +182,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Post prüfen',
     verifying: 'Wird geprüft…',
     retry: 'Erneut versuchen',
-    ...REWARD_X_PROMOTION_AUTO_COPY.de,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.de,
   },
   fr: {
     title: 'Bonus de promotion X',
@@ -200,7 +201,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Vérifier le post',
     verifying: 'Vérification…',
     retry: 'Réessayer',
-    ...REWARD_X_PROMOTION_AUTO_COPY.fr,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.fr,
   },
   it: {
     title: 'Bonus promozione X',
@@ -219,7 +220,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Verifica post',
     verifying: 'Verifica…',
     retry: 'Riprova',
-    ...REWARD_X_PROMOTION_AUTO_COPY.it,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.it,
   },
   tr: {
     connectX: 'X hesabını bağla',
@@ -240,7 +241,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Gönderiyi doğrula',
     verifying: 'Kontrol ediliyor…',
     retry: 'Tekrar dene',
-    ...REWARD_X_PROMOTION_AUTO_COPY.tr,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.tr,
   },
   nl: {
     title: 'X-promotiebonus',
@@ -259,7 +260,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Post verifiëren',
     verifying: 'Controleren…',
     retry: 'Opnieuw',
-    ...REWARD_X_PROMOTION_AUTO_COPY.nl,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.nl,
   },
   pt: {
     title: 'Bônus de promoção no X',
@@ -278,7 +279,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Verificar post',
     verifying: 'Verificando…',
     retry: 'Tentar novamente',
-    ...REWARD_X_PROMOTION_AUTO_COPY.pt,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.pt,
   },
   ru: {
     title: 'Бонус за продвижение в X',
@@ -297,7 +298,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Проверить пост',
     verifying: 'Проверка…',
     retry: 'Повторить',
-    ...REWARD_X_PROMOTION_AUTO_COPY.ru,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.ru,
   },
   id: {
     title: 'Bonus Promosi X',
@@ -316,7 +317,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Verifikasi Post',
     verifying: 'Memeriksa…',
     retry: 'Coba lagi',
-    ...REWARD_X_PROMOTION_AUTO_COPY.id,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.id,
   },
   vi: {
     connectX: 'Kết nối tài khoản X',
@@ -337,62 +338,62 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     verify: 'Xác minh bài đăng',
     verifying: 'Đang kiểm tra…',
     retry: 'Thử lại',
-    ...REWARD_X_PROMOTION_AUTO_COPY.vi,
+    ...REWARD_X_PROMOTION_AUTO_CORE_COPY.vi,
   },
   hi: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.hi,
-    ...REWARD_X_PROMOTION_AUTO_COPY.hi,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.hi,
   },
   ar: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.ar,
-    ...REWARD_X_PROMOTION_AUTO_COPY.ar,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.ar,
   },
   bn: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.bn,
-    ...REWARD_X_PROMOTION_AUTO_COPY.bn,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.bn,
   },
   sv: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.sv,
-    ...REWARD_X_PROMOTION_AUTO_COPY.sv,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.sv,
   },
   ro: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.ro,
-    ...REWARD_X_PROMOTION_AUTO_COPY.ro,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.ro,
   },
   ur: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.ur,
-    ...REWARD_X_PROMOTION_AUTO_COPY.ur,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.ur,
   },
   pcm: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.pcm,
-    ...REWARD_X_PROMOTION_AUTO_COPY.pcm,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.pcm,
   },
   arz: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.arz,
-    ...REWARD_X_PROMOTION_AUTO_COPY.arz,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.arz,
   },
   mr: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.mr,
-    ...REWARD_X_PROMOTION_AUTO_COPY.mr,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.mr,
   },
   te: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.te,
-    ...REWARD_X_PROMOTION_AUTO_COPY.te,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.te,
   },
   sw: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.sw,
-    ...REWARD_X_PROMOTION_AUTO_COPY.sw,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.sw,
   },
   ha: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.ha,
-    ...REWARD_X_PROMOTION_AUTO_COPY.ha,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.ha,
   },
   el: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.el,
-    ...REWARD_X_PROMOTION_AUTO_COPY.el,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.el,
   },
   cs: {
     ...REWARD_X_PROMOTION_EXPANDED_COPY.cs,
-    ...REWARD_X_PROMOTION_AUTO_COPY.cs,
+    ...REWARD_X_PROMOTION_AUTO_EXPANDED_COPY.cs,
   },
 };
