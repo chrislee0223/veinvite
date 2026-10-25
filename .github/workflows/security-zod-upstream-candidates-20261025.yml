@@ -1,0 +1,91 @@
+name: Temporary wallet dependency security candidates (research only)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-wallet-zod-candidates-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+  SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+  VERCEL_ENV: preview
+  VECHAIN_NETWORK: testnet
+  NEXT_PUBLIC_NETWORK_TYPE: test
+
+jobs:
+  isolate-candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [zod4-global, vechain-sdk-update, zod4-plus-sdk-update]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install existing pinned baseline
+        run: npm ci --no-audit --no-fund
+      - name: Inspect upstream SDK versions
+        run: |
+          npm view @vechain/vechain-kit version
+          npm view @vechain/dapp-kit-react version
+      - name: Create isolated proposed dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.candidate }}" in
+            zod4-global)
+              npm pkg set 'overrides.zod=4.6.6'
+              ;;
+            vechain-sdk-update)
+              npm install --package-lock-only --ignore-scripts --no-audit --no-fund @vechain/vechain-kit@2.14.0
+              ;;
+            zod4-plus-sdk-update)
+              npm install --package-lock-only --ignore-scripts --no-audit --no-fund @vechain/vechain-kit@2.14.0
+              npm pkg set 'overrides.zod=4.6.6'
+              ;;
+          esac
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --stat -- package.json package-lock.json
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          const zod=Object.entries(lock.packages||{}).filter(([path])=>path.endsWith('/zod'));
+          const vv=Object.entries(lock.packages||{}).filter(([path])=>path.endsWith('/@vechain/vechain-kit')||path.endsWith('/@vechain/dapp-kit-react'));
+          console.log('CANDIDATE_ZOD_VERSIONS',JSON.stringify(zod.map(([path,x])=>({path,version:x.version}))));
+          console.log('CANDIDATE_VECHAIN_VERSIONS',JSON.stringify(vv.map(([path,x])=>({path,version:x.version}))));
+          NODE
+      - name: Security audit for candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --json > /tmp/security-candidate-audit.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('/tmp/security-candidate-audit.json','utf8'));
+          console.log('CANDIDATE_SECURITY_COUNTS',JSON.stringify(a.metadata.vulnerabilities));
+          console.log('HIGH_NAMES',JSON.stringify(Object.entries(a.vulnerabilities||{}).filter(([name,v])=>['high','critical'].includes(v.severity)).map(([name])=>name)));
+          NODE
+      - name: Install candidate packages
+        run: npm ci --no-audit --no-fund
+      - name: Test wallet session behavior and security
+        run: |
+          node --test tests/wallet-*.test.mjs
+          node --test tests/security-client-identity-gate.test.mjs tests/security-client-retention-gate.test.mjs
+      - name: Full reward regression suite
+        run: npm run test:rewards
+      - name: Typecheck and preview build
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Report that this experiment makes no repository changes
+        if: always()
+        run: echo 'All changes are local to the CI runner; no commit, secrets, migration, or deployment occurred.'
