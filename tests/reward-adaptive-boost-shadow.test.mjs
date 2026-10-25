@@ -21,7 +21,7 @@ test('uses a capped independent reserve boost without changing the live quote', 
   assert.equal(s.requiresAuditedCohortRelease, true);
   assert.equal(s.candidateExtraReleaseWei, b3tr(277));
   assert.equal(s.currentlyPayablePerInviteWei, b3tr(277));
-  assert.equal(s.simulatedAfterReleasePerInviteWei, b3tr(346) + '250000000000000');
+  assert.equal(s.simulatedAfterReleasePerInviteWei, (34625n*10n**16n).toString());
   assert.equal(s.bankLeftAfterCandidateWei, b3tr(737));
 });
 
