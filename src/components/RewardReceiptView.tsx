@@ -47,7 +47,7 @@ export function RewardReceiptView({
       ) : receipt ? (
         <>
           <section className="notificationReceiptHero">
-            <div className="notificationReceiptAmount" dir="ltr">
+            <div className="notificationReceiptAmount">
               <strong>{receipt.amountB3tr}</strong>
               <span>B3TR</span>
             </div>
@@ -56,11 +56,11 @@ export function RewardReceiptView({
           <dl className="notificationReceiptFacts">
             <div>
               <dt>{copy.round}</dt>
-              <dd dir="ltr">#{receipt.veBetterRoundId}</dd>
+              <dd>#{receipt.veBetterRoundId}</dd>
             </div>
             <div>
               <dt>{copy.invite}</dt>
-              <dd dir="ltr">{receipt.inviteCode}</dd>
+              <dd>{receipt.inviteCode}</dd>
             </div>
             <div>
               <dt>{copy.transaction}</dt>
@@ -80,6 +80,7 @@ export function RewardReceiptView({
           ) : null}
 
           <RewardXPromotionPanel
+            key={`x-promotion-receipt:${receipt.id}`}
             locale={locale}
             inviteCode={receipt.inviteCode}
             receiptAmountB3tr={receipt.amountB3tr}
