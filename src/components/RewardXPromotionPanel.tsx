@@ -8,8 +8,12 @@ import {
   useState,
 } from 'react';
 
-import type { SupportedLocale } from '@/lib/i18n/locales';
+import {
+  getLocaleDirection,
+  type SupportedLocale,
+} from '@/lib/i18n/locales';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { rewardXPromotionSubmitError } from '@/lib/i18n/rewardXPromotionSubmitErrorCopy';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
@@ -54,15 +58,6 @@ type PromotionResponse = {
   error?: string;
 };
 
-type PromotionSubmitResponse = {
-  verification?: {
-    state?: string;
-    retryable?: boolean;
-    reason?: string;
-  };
-  error?: string;
-};
-
 function openIntent(
   intentUrl: string,
   onRewardShare?: (intentUrl: string) => void,
@@ -95,6 +90,7 @@ export function RewardXPromotionPanel({
   onRewardShare?: (intentUrl: string) => void;
 }) {
   const copy = REWARD_X_PROMOTION_COPY[locale];
+  const direction = getLocaleDirection(locale);
   const [state, setState] =
     useState<PromotionResponse | null>(null);
   const [loading, setLoading] =
@@ -299,32 +295,27 @@ export function RewardXPromotionPanel({
           }),
         },
       );
-      const body =
-        (await response.json()) as PromotionSubmitResponse;
-
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
       }
 
       if (!response.ok && response.status !== 202) {
-        throw new Error(
-          body.error ||
-          'The X Post could not be verified.',
+        setSubmitError(
+          rewardXPromotionSubmitError(locale, response.status),
         );
+        return;
       }
 
       setPostUrl('');
       await load();
-    } catch (error) {
+    } catch {
       setSubmitError(
-        error instanceof Error
-          ? error.message
-          : 'The X Post could not be verified.',
+        rewardXPromotionSubmitError(locale, 0),
       );
     } finally {
       setSubmitting(false);
     }
-  }, [inviteCode, load, postUrl, submitting]);
+  }, [inviteCode, load, locale, postUrl, submitting]);
 
   if (loading) {
     return null;
