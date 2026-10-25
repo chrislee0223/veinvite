@@ -70,7 +70,9 @@ test('X promotion UI copy is complete for every supported locale', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
 
   const registryLocales = Array.from(
-    copySource.matchAll(/(?:^|\n)\s*(?:'([^']+)'|([a-z]+)):\s*\{/g),
+    copySource.matchAll(
+      /(?:^|\n)\s*(?:'([^']+)'|([a-z]+)):\s*(?:\{|EN,)/g,
+    ),
     (match) => match[1] || match[2],
   ).filter((locale) => SUPPORTED_LOCALES.includes(locale));
 
