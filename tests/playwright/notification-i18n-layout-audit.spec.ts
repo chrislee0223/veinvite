@@ -50,7 +50,7 @@ for (const locale of SUPPORTED_LOCALES) {
         }
         const target = selector.includes('transient')
           ? '.feedbackText,.rewardFeedbackBody strong,.rewardFeedbackAmount,.rewardShareButton,.rewardConfirmButton'
-          : '.notificationHistoryTitle,.notificationHistoryBody,.notificationHistoryTime,.notificationHistoryMarkAll,.notificationHistoryHeading h3,.notificationHistoryMeta b,.notificationReceiptAction';
+          : '.notificationHistoryTitle,.notificationHistoryBody,.notificationHistoryTime,.notificationHistoryMarkAll,.notificationHistoryHeading h3,.notificationHistoryMeta b,.notificationReceiptAction,.notificationExplorerLink';
         for (const el of Array.from(root.querySelectorAll<HTMLElement>(target))) {
           if (!el.textContent?.trim() || el.getClientRects().length === 0) continue;
           const cs = getComputedStyle(el), rect = el.getBoundingClientRect();
