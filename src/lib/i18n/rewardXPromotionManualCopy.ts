@@ -1,7 +1,9 @@
 import type { SupportedLocale } from './locales';
 import type { RewardXPromotionCopy } from './rewardXPromotionCopy';
 
-export const REWARD_X_PROMOTION_MANUAL_COPY = {
+export const REWARD_X_PROMOTION_MANUAL_COPY: Partial<
+  Record<SupportedLocale, RewardXPromotionCopy>
+> = {
   hi: {
     title: 'X प्रमोशन बोनस',
     openBody: '24 घंटे के भीतर X पर शेयर करें, फिर नीचे सार्वजनिक पोस्ट का लिंक पेस्ट करें। 24 घंटे की जाँच के समय वही पोस्ट सार्वजनिक रहनी चाहिए।',
@@ -282,6 +284,4 @@ export const REWARD_X_PROMOTION_MANUAL_COPY = {
     connectX: 'Připojit účet X',
     connectedX: 'Účet X je připojený. Odkaz na příspěvek můžeš dál odeslat, dokud nebude automatická kontrola připravená.',
   },
-} satisfies Partial<
-  Record<SupportedLocale, RewardXPromotionCopy>
->;
+};
