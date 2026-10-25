@@ -5,6 +5,7 @@ import {
 } from '@/lib/rewards/rewardForecastPolicy';
 import { readVeInviteRewardPoolStatus } from '@/lib/rewards/onchainPool';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { pendingAgeWeights } from '@/lib/rewards/rewardForecastPendingWeights';
 
 const INTEGER_PATTERN = /^\d+$/;
 const ALLOCATION_HISTORY_LIMIT = 8;
@@ -151,20 +152,6 @@ async function readForecastHistory(input: {
       readCount(value, `rewardRecipientHistory[${index}]`),
     ),
   };
-}
-
-function pendingAgeWeights(createdAt: string, nowMs: number): {
-  expectedBps: number;
-  stressBps: number;
-  bucket: 'fresh' | 'aging' | 'stale' | 'old';
-} {
-  const createdMs = Date.parse(createdAt);
-  if (Number.isNaN(createdMs)) return { expectedBps: 50, stressBps: 150, bucket: 'old' };
-  const ageHours = Math.max(0, (nowMs - createdMs) / 3_600_000);
-  if (ageHours <= 24) return { expectedBps: 500, stressBps: 1_000, bucket: 'fresh' };
-  if (ageHours <= 72) return { expectedBps: 300, stressBps: 700, bucket: 'aging' };
-  if (ageHours <= 168) return { expectedBps: 150, stressBps: 400, bucket: 'stale' };
-  return { expectedBps: 50, stressBps: 150, bucket: 'old' };
 }
 
 async function readForecastPipeline(input: {
