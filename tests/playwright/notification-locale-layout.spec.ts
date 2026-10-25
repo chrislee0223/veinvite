@@ -73,6 +73,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
       '.notificationReceiptView > p',
+      '.notificationExplorerLink',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
       const value = el.textContent?.trim() ?? '';
