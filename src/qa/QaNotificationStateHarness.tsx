@@ -555,6 +555,11 @@ export function QaNotificationStateHarness({
   const [hasMore, setHasMore] = useState(
     Boolean(seed.hasMore),
   );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setOpen(seed.open);
@@ -567,7 +572,12 @@ export function QaNotificationStateHarness({
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (
-      <QaNotificationStage embedded={embedded}>
+      <>
+        <span
+          hidden
+          data-qa-notification-hydrated={hydrated ? 'true' : 'false'}
+        />
+        <QaNotificationStage embedded={embedded}>
         <TransientSnackbar
           locale={locale}
           feedback={{
@@ -596,12 +606,18 @@ export function QaNotificationStateHarness({
           closeLabel={NOTIFICATION_COPY[locale].closeAria}
           onDismiss={() => {}}
         />
-      </QaNotificationStage>
+        </QaNotificationStage>
+      </>
     );
   }
 
   return (
-    <QaNotificationStage embedded={embedded}>
+    <>
+      <span
+        hidden
+        data-qa-notification-hydrated={hydrated ? 'true' : 'false'}
+      />
+      <QaNotificationStage embedded={embedded}>
       <InviteNotificationHistoryCenter
         locale={locale}
         items={items}
@@ -657,6 +673,7 @@ export function QaNotificationStateHarness({
         onRewardShare={seed.onRewardShare}
         allowProgrammaticOpen
       />
-    </QaNotificationStage>
+      </QaNotificationStage>
+    </>
   );
 }
