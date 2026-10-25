@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -6,6 +7,11 @@ import {
   rewardReceiptShareText,
   rewardReceiptXIntentUrl,
 } from '../src/lib/rewards/rewardReceiptShare.ts';
+
+const source = readFileSync(
+  new URL('../src/lib/rewards/rewardReceiptShare.ts', import.meta.url),
+  'utf8',
+);
 
 test('reward X share copy keeps the agreed readable global layout', () => {
   const text = rewardReceiptShareText({
