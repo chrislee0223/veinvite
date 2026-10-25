@@ -595,6 +595,8 @@ export function QaNotificationStateHarness({
           <RewardReceiptView
             locale={locale}
             receipt={QA_REWARD_RECEIPT}
+            loading={false}
+            error=""
             rewardShareUrl={
               'https://veinvite.vercel.app/s/qa-reward-share-preview'
             }
