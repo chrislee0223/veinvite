@@ -1,5 +1,6 @@
 import type { SupportedLocale } from './locales';
 import { REWARD_X_PROMOTION_EXPANDED_COPY } from './rewardXPromotionExpandedCopy';
+import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
 
 export type RewardXPromotionCopy = {
   title: string;
@@ -14,9 +15,17 @@ export type RewardXPromotionCopy = {
   releasedBody: string;
   preparingBody: string;
   postUrlPlaceholder: string;
+  shareFollowupBody: string;
   verify: string;
   verifying: string;
   retry: string;
+  connectX?: string;
+  connectedX?: string;
+  autoConnectBody?: string;
+  autoOpenBody?: string;
+  autoShareFollowupBody?: string;
+  autoGraceBody?: string;
+  autoConnectedX?: string;
 };
 
 const EN: RewardXPromotionCopy = {
@@ -31,17 +40,25 @@ const EN: RewardXPromotionCopy = {
   expiredBody: 'The X promotion submission window has expired.',
   releasedBody: 'This promotion amount was released back to the reward pool.',
   preparingBody: 'Your X promotion opportunity is being prepared. Check this reward receipt again shortly.',
+    shareFollowupBody: 'After posting on X, return to VeInvite. Open your reward in Notifications and paste the public Post URL to verify your bonus.',
   postUrlPlaceholder: 'https://x.com/.../status/...',
   verify: 'Verify Post',
   verifying: 'Checking…',
   retry: 'Try again',
+  connectX: 'Connect X account',
+  connectedX: 'X account connected. You can still submit the Post link while automatic checks are being tested.',
+  autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No Post URL is needed.',
+  autoOpenBody: 'Share to X within 24 hours. VeInvite will look for the Post automatically. Keep it public for at least 24 hours; the bonus is paid only after verification.',
+  autoShareFollowupBody: 'Once you publish on X, no URL submission or confirmation is needed. Keep the Post public for at least 24 hours; VeInvite checks it automatically and pays the bonus only after verification.',
+  autoGraceBody: 'The sharing window has ended. VeInvite is checking Posts shared before the deadline automatically. Keep your Post public until the 24-hour verification finishes.',
+  autoConnectedX: 'X account connected. Your public Post will be checked automatically; no link submission is needed.',
 };
 
-export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCopy> = {
+const BASE_REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCopy> = {
   en: EN,
   ko: {
     title: 'X 프로모션 보너스',
-    openBody: '24시간 안에 X에 공유한 뒤 공개 게시물 링크를 아래에 붙여 주세요. 24시간 확인 시점에도 같은 게시물이 공개 상태여야 해요.',
+    openBody: '24시간 안에 X에 공유한 뒤 공개 게시물 링크를 아래에 붙여 주세요. 같은 게시물이 24시간 확인 시점에도 공개 상태여야 해요.',
     graceBody: '공유 가능 시간은 끝났어요. 시간 안에 이미 게시했다면 지금 그 게시물 링크를 붙여 주세요.',
     verifyingBody: 'X 게시물을 확인 중이에요. 프로모션 보상은 그대로 확보되어 있어요.',
     retentionBody: '게시물이 확인됐어요. 24시간 확인이 끝날 때까지 같은 게시물을 공개 상태로 유지해 주세요.',
@@ -51,12 +68,22 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'X 프로모션 게시물 제출 시간이 만료됐어요.',
     releasedBody: '프로모션 보상 금액이 보상 풀로 돌아갔어요.',
     preparingBody: 'X 프로모션 기회를 준비 중이에요. 잠시 후 이 보상 내역을 다시 확인해 주세요.',
+    shareFollowupBody: 'X에 게시한 뒤 VeInvite로 돌아와 알림의 지급 완료 내역을 열고, 게시물 링크를 제출해 추가 보상을 인증하세요.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: '게시물 확인',
     verifying: '확인 중…',
     retry: '다시 확인',
+    connectX: 'X 계정 연결',
+    connectedX: 'X 계정이 연결되었어요. 자동 검증이 준비되기 전까지는 게시물 링크를 제출할 수 있어요.',
+    autoConnectBody: '먼저 공개 X 계정을 연결해 주세요. 그런 다음 24시간 안에 공유하면 게시물 URL을 따로 제출할 필요가 없어요.',
+    autoOpenBody: '24시간 안에 X에 공유해 주세요. VeInvite가 공개 게시물을 자동으로 찾고 확인해요. 24시간 이상 공개 상태를 유지하면 검증 후 추가 보상이 지급돼요.',
+    autoShareFollowupBody: 'X에 게시했다면 더 누르거나 URL을 제출할 필요가 없어요. 게시물을 24시간 이상 공개 상태로 유지해 주세요. VeInvite가 자동 확인 후 조건을 충족하면 추가 보상을 지급해요.',
+    autoGraceBody: '공유 가능 시간이 끝났어요. VeInvite가 기한 내 게시물을 자동 확인 중이에요. 24시간 검증이 완료될 때까지 게시물을 공개 상태로 유지해 주세요.',
+    autoConnectedX: 'X 계정이 연결되었어요. 게시물은 자동 확인되므로 URL을 제출하지 않아도 돼요.',
   },
   zh: {
+    connectX: '连接 X 账号',
+    connectedX: 'X 账号已连接。自动验证启用前仍可提交帖子链接。',
     title: 'X 推广奖励',
     openBody: '请在 24 小时内分享到 X，然后粘贴公开帖文链接。24 小时复核时同一帖文仍需保持公开。',
     graceBody: '分享时间已结束。如果你已按时发帖，请现在粘贴该帖文链接。',
@@ -68,6 +95,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'X 推广帖文提交时间已过期。',
     releasedBody: '该推广金额已退回奖励池。',
     preparingBody: '正在准备 X 推广机会，请稍后再次查看此奖励记录。',
+    shareFollowupBody: '在 X 发帖后返回 VeInvite，打开通知中的奖励记录，粘贴公开帖文链接以验证奖励。',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: '验证帖文',
     verifying: '检查中…',
@@ -85,12 +113,15 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'X 推廣貼文提交時間已過期。',
     releasedBody: '該推廣金額已退回獎勵池。',
     preparingBody: '正在準備 X 推廣機會，請稍後再次查看此獎勵紀錄。',
+    shareFollowupBody: '在 X 發文後返回 VeInvite，開啟通知中的獎勵紀錄，貼上公開貼文連結以驗證獎勵。',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: '驗證貼文',
     verifying: '檢查中…',
     retry: '重試',
   },
   ja: {
+    connectX: 'Xアカウントを連携',
+    connectedX: 'Xアカウントを連携しました。自動確認が有効になるまでは投稿URLを提出できます。',
     title: 'Xプロモーションボーナス',
     openBody: '24時間以内にXへ投稿し、公開ポストのリンクを貼ってください。24時間後の確認時にも同じポストが公開されている必要があります。',
     graceBody: '共有時間は終了しました。時間内に投稿済みなら、そのポストのリンクを貼ってください。',
@@ -102,12 +133,15 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Xプロモーションの投稿受付時間が終了しました。',
     releasedBody: 'このプロモーション分は報酬プールに戻されました。',
     preparingBody: 'Xプロモーションの機会を準備しています。少し後にこの報酬履歴を再確認してください。',
+    shareFollowupBody: 'Xに投稿後VeInviteに戻り、通知の報酬履歴を開いて公開ポストのURLを貼り付け、追加報酬を認証してください。',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'ポストを確認',
     verifying: '確認中…',
     retry: '再試行',
   },
   es: {
+    connectX: 'Conectar cuenta de X',
+    connectedX: 'Cuenta de X conectada. Aún puedes enviar el enlace de tu publicación.',
     title: 'Bono de promoción en X',
     openBody: 'Comparte en X dentro de 24 horas y pega abajo el enlace público. La misma publicación debe seguir pública en la comprobación de 24 horas.',
     graceBody: 'El plazo para compartir terminó. Si publicaste a tiempo, pega ahora el enlace.',
@@ -119,6 +153,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'El plazo para enviar la publicación ha vencido.',
     releasedBody: 'Este importe promocional volvió al fondo de recompensas.',
     preparingBody: 'Estamos preparando tu oportunidad de promoción en X. Vuelve a revisar este recibo en breve.',
+    shareFollowupBody: 'Tras publicar en X, vuelve a VeInvite, abre la recompensa en Notificaciones y pega la URL pública para verificar el bono.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Verificar publicación',
     verifying: 'Comprobando…',
@@ -136,6 +171,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Das Einreichungsfenster für den X-Post ist abgelaufen.',
     releasedBody: 'Der Promotionsbetrag wurde in den Belohnungspool zurückgegeben.',
     preparingBody: 'Deine X-Promotion wird vorbereitet. Prüfe diesen Beleg in Kürze erneut.',
+    shareFollowupBody: 'Kehre nach dem Post auf X zu VeInvite zurück, öffne den Beleg in Benachrichtigungen und füge die öffentliche Post-URL zur Bonusprüfung ein.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Post prüfen',
     verifying: 'Wird geprüft…',
@@ -153,6 +189,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Le délai d’envoi du post X a expiré.',
     releasedBody: 'Ce montant promotionnel a été reversé au pool de récompenses.',
     preparingBody: 'Votre opportunité de promotion X est en préparation. Revenez bientôt sur ce reçu.',
+    shareFollowupBody: 'Après publication sur X, revenez sur VeInvite, ouvrez le reçu dans les notifications et collez l’URL publique du post pour valider le bonus.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Vérifier le post',
     verifying: 'Vérification…',
@@ -170,12 +207,15 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Il termine per inviare il post X è scaduto.',
     releasedBody: 'L’importo promozionale è tornato al pool premi.',
     preparingBody: 'Stiamo preparando la tua opportunità promozionale X. Ricontrolla presto questa ricevuta.',
+    shareFollowupBody: 'Dopo aver pubblicato su X, torna su VeInvite, apri la ricevuta nelle notifiche e incolla l’URL pubblico per verificare il bonus.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Verifica post',
     verifying: 'Verifica…',
     retry: 'Riprova',
   },
   tr: {
+    connectX: 'X hesabını bağla',
+    connectedX: 'X hesabın bağlandı. Otomatik kontrol başlamadan önce gönderi bağlantısını yine de iletebilirsin.',
     title: 'X Promosyon Bonusu',
     openBody: '24 saat içinde X’te paylaş ve ardından herkese açık gönderi bağlantısını aşağıya yapıştır. Aynı gönderi 24 saatlik kontrolde de açık olmalı.',
     graceBody: 'Paylaşım süresi bitti. Zamanında gönderdiysen bağlantıyı şimdi yapıştır.',
@@ -187,6 +227,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'X gönderisi gönderme süresi doldu.',
     releasedBody: 'Promosyon tutarı ödül havuzuna geri bırakıldı.',
     preparingBody: 'X promosyon fırsatın hazırlanıyor. Bu ödül kaydını biraz sonra tekrar kontrol et.',
+    shareFollowupBody: 'X\'te paylaşım yaptıktan sonra VeInvite\'a dön, Bildirimler\'den ödül kaydını aç ve bonusu doğrulamak için gönderi bağlantısını yapıştır.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Gönderiyi doğrula',
     verifying: 'Kontrol ediliyor…',
@@ -204,6 +245,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'De termijn om de X-Post in te dienen is verstreken.',
     releasedBody: 'Dit promotiebedrag is teruggezet in de beloningspool.',
     preparingBody: 'Je X-promotiekans wordt voorbereid. Controleer deze beloning straks opnieuw.',
+    shareFollowupBody: 'Ga na het plaatsen op X terug naar VeInvite, open de beloning via Meldingen en plak de openbare post-URL om je bonus te verifiëren.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Post verifiëren',
     verifying: 'Controleren…',
@@ -221,6 +263,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'O prazo para enviar o post no X expirou.',
     releasedBody: 'O valor promocional voltou para o pool de recompensas.',
     preparingBody: 'Sua oportunidade de promoção no X está sendo preparada. Confira este recibo novamente em breve.',
+    shareFollowupBody: 'Após publicar no X, volte ao VeInvite, abra o comprovante nas notificações e cole o URL público para verificar o bônus.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Verificar post',
     verifying: 'Verificando…',
@@ -238,6 +281,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Срок отправки поста X истек.',
     releasedBody: 'Сумма бонуса возвращена в пул вознаграждений.',
     preparingBody: 'Ваша возможность продвижения в X готовится. Проверьте эту квитанцию чуть позже.',
+    shareFollowupBody: 'После публикации в X вернитесь в VeInvite, откройте награду в уведомлениях и вставьте ссылку на пост для проверки бонуса.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Проверить пост',
     verifying: 'Проверка…',
@@ -255,12 +299,15 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Waktu pengiriman Post X sudah berakhir.',
     releasedBody: 'Nilai promosi dikembalikan ke pool hadiah.',
     preparingBody: 'Kesempatan promosi X sedang disiapkan. Cek kembali riwayat hadiah ini sebentar lagi.',
+    shareFollowupBody: 'Setelah memposting di X, kembali ke VeInvite, buka hadiah di Notifikasi, lalu tempel URL postingan publik untuk verifikasi bonus.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Verifikasi Post',
     verifying: 'Memeriksa…',
     retry: 'Coba lagi',
   },
   vi: {
+    connectX: 'Kết nối tài khoản X',
+    connectedX: 'Đã kết nối tài khoản X. Bạn vẫn có thể gửi liên kết bài đăng trong khi chờ xác minh tự động.',
     title: 'Thưởng quảng bá X',
     openBody: 'Chia sẻ trên X trong vòng 24 giờ rồi dán liên kết bài đăng công khai bên dưới. Bài đăng đó vẫn phải công khai khi kiểm tra sau 24 giờ.',
     graceBody: 'Thời gian chia sẻ đã kết thúc. Nếu bạn đã đăng đúng hạn, hãy dán liên kết ngay bây giờ.',
@@ -272,6 +319,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     expiredBody: 'Thời hạn gửi bài đăng X đã hết.',
     releasedBody: 'Khoản quảng bá này đã được trả lại quỹ thưởng.',
     preparingBody: 'Cơ hội quảng bá X đang được chuẩn bị. Hãy kiểm tra lại biên nhận này sau.',
+    shareFollowupBody: 'Sau khi đăng lên X, quay lại VeInvite, mở biên nhận thưởng trong Thông báo và dán liên kết bài đăng công khai để xác minh thưởng thêm.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
     verify: 'Xác minh bài đăng',
     verifying: 'Đang kiểm tra…',
@@ -279,3 +327,13 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
   },
   ...REWARD_X_PROMOTION_EXPANDED_COPY,
 };
+
+export const REWARD_X_PROMOTION_COPY = Object.fromEntries(
+  Object.entries(BASE_REWARD_X_PROMOTION_COPY).map(([locale, copy]) => [
+    locale,
+    {
+      ...copy,
+      ...REWARD_X_PROMOTION_AUTO_COPY[locale as SupportedLocale],
+    },
+  ]),
+) as Record<SupportedLocale, RewardXPromotionCopy>;
