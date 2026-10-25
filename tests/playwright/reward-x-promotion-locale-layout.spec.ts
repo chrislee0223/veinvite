@@ -77,6 +77,7 @@ async function openPromotionPanel(
   locale: SupportedLocale,
   width: number,
   height: number,
+  promotionResponse: unknown = OPEN_PROMOTION,
 ) {
   await page.unroute(/\/api\/rewards\/x-promotion(?:\?.*)?$/);
   await page.route(
@@ -85,7 +86,7 @@ async function openPromotionPanel(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(OPEN_PROMOTION),
+        body: JSON.stringify(promotionResponse),
       });
     },
   );
@@ -158,6 +159,8 @@ async function openPromotionPanel(
       '.promotionShare span',
       '.promotionShare b',
       '.promotionSubmit button',
+      '.promotionConnect',
+      '.promotionConnectState',
     ];
 
     for (const selector of selectors) {
@@ -212,14 +215,16 @@ async function openPromotionPanel(
         getComputedStyle(
           root.querySelector<HTMLElement>('.promotionHeading span')!,
         ).direction,
-      shareAmountDirection:
-        getComputedStyle(
-          root.querySelector<HTMLElement>('.promotionShare b')!,
-        ).direction,
-      inputDirection:
-        getComputedStyle(
-          root.querySelector<HTMLElement>('.promotionSubmit input')!,
-        ).direction,
+      shareAmountDirection: root.querySelector<HTMLElement>('.promotionShare b')
+        ? getComputedStyle(
+            root.querySelector<HTMLElement>('.promotionShare b')!,
+          ).direction
+        : null,
+      inputDirection: root.querySelector<HTMLElement>('.promotionSubmit input')
+        ? getComputedStyle(
+            root.querySelector<HTMLElement>('.promotionSubmit input')!,
+          ).direction
+        : null,
       inputTop: input?.top ?? null,
       inputBottom: input?.bottom ?? null,
       buttonTop: button?.top ?? null,
@@ -527,3 +532,53 @@ for (const locale of STANDALONE_RISK_LOCALES) {
   );
 }
 
+
+
+const AUTO_LAYOUT_LOCALES = ['ar', 'ur', 'de', 'te'] as const;
+
+for (const locale of AUTO_LAYOUT_LOCALES) {
+  test(
+    'X automatic promotion connect states / ' + locale,
+    async ({ page }) => {
+      test.setTimeout(120_000);
+
+      for (const connected of [false, true]) {
+        const report = await openPromotionPanel(
+          page,
+          locale,
+          320,
+          568,
+          {
+            ...OPEN_PROMOTION,
+            xConnectAvailable: true,
+            xConnected: connected,
+            xUrlLessEnabled: true,
+          },
+        );
+
+        expect(report.direction).toBe(
+          isRtlLocale(locale) ? 'rtl' : 'ltr',
+        );
+        expect(report.amountDirection).toBe('ltr');
+        expect(report.inputDirection).toBeNull();
+        if (connected) {
+          expect(report.shareAmountDirection).toBe('ltr');
+        } else {
+          expect(report.shareAmountDirection).toBeNull();
+        }
+        expect(
+          report.issues,
+          JSON.stringify({ locale, connected, report }),
+        ).toEqual([]);
+
+        if (connected) {
+          await expect(page.locator('.promotionConnectState')).toBeVisible();
+          await expect(page.locator('.promotionSubmit')).toHaveCount(0);
+        } else {
+          await expect(page.locator('.promotionConnect')).toBeVisible();
+          await expect(page.locator('.promotionSubmit')).toHaveCount(0);
+        }
+      }
+    },
+  );
+}
