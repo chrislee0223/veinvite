@@ -5,6 +5,9 @@ import { test } from 'node:test';
 const route = readFileSync(new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../src/components/RewardXPromotionPanel.tsx', import.meta.url), 'utf8');
 const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const autoCoreCopy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionAutoCoreCopy.ts', import.meta.url), 'utf8');
+const autoExpandedCopy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionAutoExpandedCopy.ts', import.meta.url), 'utf8');
+const allAutoCopy = copy + '\n' + autoCoreCopy + '\n' + autoExpandedCopy;
 const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
 
 test('manual URL retirement requires a separate live + time-bounded rollout gate', () => {
@@ -32,11 +35,11 @@ test('existing URL submit path remains available for legacy and disabled cohorts
 
 test('auto-only instructions explain public X connection, detection and 24-hour retention', () => {
   for (const field of ['autoConnectBody', 'autoOpenBody', 'autoGraceBody', 'autoConnectedX']) {
-    assert.match(copy, new RegExp(field + ':'));
+    assert.match(allAutoCopy, new RegExp(field + ':'));
   }
-  assert.match(copy, /No Post URL is needed/);
-  assert.match(copy, /24 hours/);
-  assert.match(copy, /게시물 URL을 따로 제출할 필요가 없어요/);
+  assert.match(allAutoCopy, /No post URL is needed/i);
+  assert.match(allAutoCopy, /24 hours/);
+  assert.match(allAutoCopy, /게시물 URL을 따로 제출할 필요가 없어요/);
 });
 
 test('automatic cohort reward popup never requires a URL or a return to VeInvite', () => {
@@ -47,8 +50,8 @@ test('automatic cohort reward popup never requires a URL or a return to VeInvite
   assert.match(popup, /autoShareFollowup = usesAuto/);
   assert.match(popup, /text: autoShareFollowup/);
   assert.match(popup, /REWARD_X_PROMOTION_COPY\[locale\]\.autoShareFollowupBody/);
-  assert.match(copy, /autoShareFollowupBody:/);
-  assert.match(copy, /X에 게시했다면 더 누르거나 URL을 제출할 필요가 없어요/);
+  assert.match(allAutoCopy, /autoShareFollowupBody:/);
+  assert.match(allAutoCopy, /X에 게시한 뒤에는 URL 제출이나 추가 확인이 필요 없어요/);
   assert.match(popup, /REWARD_X_PROMOTION_COPY\[locale\]\.autoOpenBody/);
   assert.match(popup, /: REWARD_X_PROMOTION_COPY\[locale\]\.shareFollowupBody/);
   assert.doesNotMatch(popup, /scan-request|I posted on X|X에 게시했어요/u);
@@ -60,5 +63,5 @@ test('manual verification remains confined to historical offers, not automatic c
   assert.match(route, /Date\.parse\(opportunityRow\.opened_at\) >= urlLessStart/);
   assert.match(popup, /!usesAuto \|\| body\.xConnected === true/);
   assert.match(copy, /shareFollowupBody:/);
-  assert.match(copy, /autoOpenBody:/);
+  assert.match(allAutoCopy, /autoOpenBody:/);
 });
