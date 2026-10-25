@@ -10,6 +10,7 @@ on:
       - 'src/components/WalletSessionGate.tsx'
       - 'src/hooks/useWalletAuthentication.ts'
       - 'tests/playwright/wallet-provider-runtime-smoke.spec.ts'
+      - 'tests/wallet-auth-certificate-roundtrip.test.mjs'
       - '.github/workflows/wallet-provider-runtime-qa.yml'
 
 permissions:
@@ -42,6 +43,8 @@ jobs:
           cache: npm
       - name: Install reviewed dependency graph
         run: npm ci --no-fund
+      - name: Cryptographically signed testnet auth and session round-trip (mock DB only)
+        run: node --experimental-strip-types --test tests/wallet-auth-certificate-roundtrip.test.mjs
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
       - name: Isolated wallet provider and VeWorld selection smoke
