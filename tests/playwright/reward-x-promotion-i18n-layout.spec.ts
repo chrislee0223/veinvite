@@ -77,9 +77,20 @@ async function openRealXPromotionPanel(
     },
   );
 
-  const receiptAction = page.locator('.notificationReceiptAction').first();
-  await expect(receiptAction).toBeVisible({ timeout: 10_000 });
-  await receiptAction.click();
+  await expect(
+    page.locator('[data-qa-notification-hydrated]'),
+  ).toHaveAttribute(
+    'data-qa-notification-hydrated',
+    'true',
+    { timeout: 10_000 },
+  );
+
+  const receiptRow = page
+    .locator('.notificationHistoryRow')
+    .filter({ has: page.locator('.notificationReceiptAction') })
+    .first();
+  await expect(receiptRow).toBeVisible({ timeout: 10_000 });
+  await receiptRow.click();
 
   const receipt = page.locator('.notificationReceiptView');
   await expect(receipt).toBeVisible({ timeout: 10_000 });
