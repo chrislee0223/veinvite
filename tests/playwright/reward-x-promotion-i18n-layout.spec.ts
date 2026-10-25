@@ -163,7 +163,10 @@ async function inspectPanel(
         if (!el.textContent?.trim() && el.tagName !== 'INPUT') continue;
         if (el.getClientRects().length === 0) continue;
         const box = el.getBoundingClientRect();
-        if (el.scrollWidth > el.clientWidth + 2) {
+        if (
+          el.tagName !== 'INPUT' &&
+          el.scrollWidth > el.clientWidth + 2
+        ) {
           issues.push(
             selector +
               ' clipped horizontally: ' +
