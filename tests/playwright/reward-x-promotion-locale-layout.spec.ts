@@ -86,9 +86,20 @@ async function openPanel(
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
-  const row = page.locator('.notificationHistoryRow').first();
-  await expect(row).toBeVisible();
+  await expect(
+    page.locator('[data-qa-notification-ready="true"]'),
+  ).toBeVisible({ timeout: 10_000 });
+
+  const row = page
+    .locator('button.notificationHistoryRow')
+    .filter({ has: page.locator('.notificationReceiptAction') })
+    .first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
   await row.click();
+
+  await expect(page.locator('.notificationReceiptView')).toBeVisible({
+    timeout: 10_000,
+  });
 
   const panel = page.locator('.promotionPanel');
   await expect(panel).toBeVisible({ timeout: 10_000 });
