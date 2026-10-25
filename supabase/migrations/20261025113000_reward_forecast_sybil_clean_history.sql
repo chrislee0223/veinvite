@@ -78,6 +78,12 @@ begin
     left join public.reward_receipts receipt
       on receipt.vebetter_round_id = funding.vebetter_round_id
      and receipt.network = p_network
+     and exists (
+       select 1 from public.reward_rounds payout_round
+       where payout_round.id = receipt.round_id
+         and payout_round.network = p_network
+         and payout_round.app_id = p_app_id
+     )
     left join public.sybil_v2_referral_assessments assessment
       on assessment.network = receipt.network
      and assessment.invite_code = receipt.invite_code
