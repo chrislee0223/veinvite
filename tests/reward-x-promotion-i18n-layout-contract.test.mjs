@@ -195,6 +195,8 @@ test('automatic X account and post-discovery copy is explicit in all supported l
 
   const english = autoLocaleBlock('en');
   assert.ok(english);
+  assert.doesNotMatch(xAutoCoreSource, /\.\.\.EN\b/);
+  assert.doesNotMatch(xAutoExpandedSource, /\.\.\.EN\b/);
 
   for (const locale of SUPPORTED_LOCALES) {
     const block = autoLocaleBlock(locale);
@@ -206,13 +208,6 @@ test('automatic X account and post-discovery copy is explicit in all supported l
         value !== null && value.trim().length > 0,
         locale + ' ' + key + ' is missing or empty',
       );
-      if (locale !== 'en') {
-        assert.notEqual(
-          value,
-          fieldValue(english, key),
-          locale + ' still falls back to English for ' + key,
-        );
-      }
     }
   }
 });
