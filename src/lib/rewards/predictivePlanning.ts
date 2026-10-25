@@ -4,6 +4,7 @@ import {
   type RewardPipelineSnapshot,
 } from '@/lib/rewards/predictivePolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readRewardFundingHistory } from '@/lib/rewards/rewardFundingHistory';
 
 const INTEGER_PATTERN = /^\d+$/;
 const SIGNED_INTEGER_PATTERN = /^-?\d+$/;
@@ -236,6 +237,12 @@ export async function readPredictiveRewardPlanning(input: {
     'cohortReservedWei',
   );
 
+  // Match the Sybil-clean, completed-cohort history used by the public
+  // forecast. Read errors fail closed before creating immutable liabilities.
+  const completedRewardRoundRecipientCounts = latestAllocation && rewardCohortRoundId
+    ? (await readRewardFundingHistory({ network: input.network, appId: input.appId }))
+        .completedRewardRoundRecipientCounts
+    : [];
   const forecast = latestAllocation && rewardCohortRoundId
     ? calculatePredictiveRewardPolicy({
         latestAllocationWei: latestAllocation.rewardsAllocationWei,
@@ -245,6 +252,7 @@ export async function readPredictiveRewardPlanning(input: {
         observedPoolBalanceWei: input.observedPoolBalanceWei,
         reservedExistingWei,
         pipeline,
+        completedRewardRoundRecipientCounts,
       })
     : null;
 
