@@ -55,7 +55,7 @@ const OPEN_MANUAL: PromotionFixture = {
   xConnected: false,
   xUrlLessEnabled: false,
   promotion: {
-    inviteCode: 'qa-reward-invite-code',
+    inviteCode: 'QA-NOTI-22',
     state: 'OPEN',
     amountWei: '10000000000000000000',
     amountB3tr: '10',
