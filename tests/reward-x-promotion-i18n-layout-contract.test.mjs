@@ -68,6 +68,10 @@ test('automatic X verification and submit-error UI has a localized fallback for 
     [...supportedLocales].sort(),
   );
 
+  const registry = uiFallback.slice(
+    uiFallback.indexOf('export const REWARD_X_PROMOTION_UI_FALLBACK_COPY'),
+  );
+
   for (const field of [
     'connectX',
     'connectedX',
@@ -75,7 +79,7 @@ test('automatic X verification and submit-error UI has a localized fallback for 
     'autoGraceBody',
     'submitError',
   ]) {
-    const count = (uiFallback.match(new RegExp('\\b' + field + ':', 'g')) ?? []).length;
+    const count = (registry.match(new RegExp('\\b' + field + ':', 'g')) ?? []).length;
     assert.equal(count, supportedLocales.length);
   }
 });
