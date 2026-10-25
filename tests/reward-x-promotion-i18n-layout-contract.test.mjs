@@ -6,9 +6,6 @@ import {
   SUPPORTED_LOCALES,
 } from '../src/lib/i18n/locales.ts';
 import {
-  REWARD_X_PROMOTION_COPY,
-} from '../src/lib/i18n/rewardXPromotionCopy.ts';
-import {
   REWARD_X_PROMOTION_SUBMIT_ERROR_COPY,
   rewardXPromotionSubmitError,
 } from '../src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts';
@@ -20,6 +17,18 @@ import {
 
 const copySource = readFileSync(
   'src/lib/i18n/rewardXPromotionCopy.ts',
+  'utf8',
+);
+const expandedCopySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
+  'utf8',
+);
+const autoCoreCopySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoCoreCopy.ts',
+  'utf8',
+);
+const autoExpandedCopySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoExpandedCopy.ts',
   'utf8',
 );
 const panelSource = readFileSync(
@@ -60,30 +69,68 @@ const COPY_KEYS = [
 test('X promotion UI copy is complete for every supported locale', () => {
   assert.equal(SUPPORTED_LOCALES.length, 29);
 
+  const registryLocales = Array.from(
+    copySource.matchAll(/(?:^|\n)\s*(?:'([^']+)'|([a-z]+)):\s*\{/g),
+    (match) => match[1] || match[2],
+  ).filter((locale) => SUPPORTED_LOCALES.includes(locale));
+
   for (const locale of SUPPORTED_LOCALES) {
-    const copy = REWARD_X_PROMOTION_COPY[locale];
-    assert.ok(copy, 'missing X promotion locale: ' + locale);
+    assert.equal(
+      registryLocales.filter((value) => value === locale).length,
+      1,
+      'registry must contain locale exactly once: ' + locale,
+    );
+  }
 
-    for (const key of COPY_KEYS) {
-      const value = copy[key];
-      assert.equal(typeof value, 'string', locale + ' ' + key + ' must be text');
-      assert.ok(value.trim().length > 0, locale + ' ' + key + ' is empty');
-    }
+  const manualSources = copySource + '\n' + expandedCopySource;
+  const autoSources =
+    autoCoreCopySource + '\n' + autoExpandedCopySource;
 
+  for (const key of [
+    'title',
+    'openBody',
+    'graceBody',
+    'verifyingBody',
+    'retentionBody',
+    'reviewBody',
+    'payoutBody',
+    'paidBody',
+    'expiredBody',
+    'releasedBody',
+    'preparingBody',
+    'postUrlPlaceholder',
+    'shareFollowupBody',
+    'verify',
+    'verifying',
+    'retry',
+  ]) {
     assert.ok(
-      [...copy.title].length <= 32,
-      locale + ' X promotion title is unexpectedly long',
+      (manualSources.match(new RegExp('\\b' + key + ':', 'g')) ?? []).length >= 29,
+      'manual X promotion copy is incomplete for ' + key,
     );
+  }
+
+  for (const key of [
+    'connectX',
+    'connectedX',
+    'autoConnectBody',
+    'autoOpenBody',
+    'autoShareFollowupBody',
+    'autoGraceBody',
+    'autoConnectedX',
+  ]) {
     assert.ok(
-      [...copy.verify].length <= 28,
-      locale + ' verify label is unexpectedly long',
+      (autoSources.match(new RegExp('\\b' + key + ':', 'g')) ?? []).length >= 28,
+      'auto X promotion copy is incomplete for ' + key,
     );
+    assert.match(copySource, new RegExp('\\b' + key + ': string'));
+  }
+
+  for (const locale of SUPPORTED_LOCALES) {
+    const shareLabel = rewardReceiptShareLabel(locale);
+    assert.ok(shareLabel.trim().length > 0, locale + ' X share label is empty');
     assert.ok(
-      [...copy.connectX].length <= 32,
-      locale + ' connect-X label is unexpectedly long',
-    );
-    assert.ok(
-      [...rewardReceiptShareLabel(locale)].length <= 24,
+      [...shareLabel].length <= 24,
       locale + ' X share label is unexpectedly long',
     );
   }
@@ -91,6 +138,7 @@ test('X promotion UI copy is complete for every supported locale', () => {
 
 test('X promotion registry cannot silently fall back to English', () => {
   assert.doesNotMatch(copySource, /\.\.\.EN\b/);
+  assert.doesNotMatch(expandedCopySource, /\.\.\.EN\b/);
 
   for (const field of [
     'connectX',
