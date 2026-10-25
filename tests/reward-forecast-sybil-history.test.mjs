@@ -10,6 +10,8 @@ test('history fills zero-recipient completed VeBetter rounds and excludes Sybil 
   assert.match(migration, /a\.vebetter_round_id < \(/);
   assert.match(migration, /max\(latest\.vebetter_round_id\)/);
   assert.match(migration, /left join public\.reward_receipts receipt/);
+  assert.match(migration, /from public\.reward_rounds payout_round/);
+  assert.match(migration, /payout_round\.app_id = p_app_id/);
   assert.match(migration, /group by funding\.vebetter_round_id/);
   assert.match(migration, /assessment\.state = 'CLEAR'/);
   assert.match(migration, /invalidation\.status = 'ACTIVE'/);
