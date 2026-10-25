@@ -113,3 +113,14 @@ test('X promotion panel has mobile, RTL and long-copy layout guards', () => {
     /className="promotionShare"[\s\S]*<span>\{rewardReceiptShareLabel\(locale\)\}<\/span>[\s\S]*<b dir="ltr">/,
   );
 });
+
+test('automatic X mode never falls back to legacy manual connected-account copy', () => {
+  assert.match(
+    panel,
+    /usesAuto[\s\S]*copy\.autoConnectedX \?\? uiFallback\.connectedX/,
+  );
+  assert.doesNotMatch(
+    panel,
+    /copy\.autoConnectedX \?\? copy\.connectedX/,
+  );
+});
