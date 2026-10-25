@@ -1,0 +1,83 @@
+name: Apply reviewed safe audit lockfile (temporary)
+on:
+  push:
+    branches:
+      - security/audit-remediation-20261025
+permissions:
+  contents: write
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://bpppslplhmppxzvdkwxs.supabase.co
+  SUPABASE_SECRET_KEY: ci-placeholder-not-a-real-key
+  VERCEL_ENV: preview
+  VECHAIN_NETWORK: testnet
+  NEXT_PUBLIC_NETWORK_TYPE: test
+jobs:
+  apply-safe-patch:
+    if: github.repository == 'chrislee0223/veinvite' && github.ref == 'refs/heads/security/audit-remediation-20261025'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact security branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/audit-remediation-20261025
+          persist-credentials: true
+      - name: Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Download previously tested lockfile candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: safe-npm-audit-fix-candidate
+          run-id: 40146954556
+          github-token: ${{ github.token }}
+          path: /tmp/reviewed-candidate
+      - name: Verify artifact identity and apply only lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp /tmp/reviewed-candidate/package.json package.json
+          test -s /tmp/reviewed-candidate/package-lock.json
+          cp /tmp/reviewed-candidate/package-lock.json package-lock.json
+          git diff --check
+          if git diff --quiet -- package-lock.json; then
+            echo 'ALREADY_APPLIED'; exit 0
+          fi
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          if (lock.packages[''].dependencies['@vechain/vechain-kit']!=='2.13.0' ||
+              pkg.dependencies['@vechain/vechain-kit']!=='2.13.0') throw Error('WALLET_SDK_VERSION_CHANGED');
+          if (lock.packages[''].dependencies['@vechain/dapp-kit-react']!=='2.3.3') throw Error('DAPP_KIT_VERSION_CHANGED');
+          console.log('Wallet SDK versions preserved; only reviewed lockfile is staged.');
+          NODE
+      - name: Independently verify current audit and no regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then exit 0; fi
+          npm ci --no-fund --no-audit
+          npm audit --json > /tmp/after.json || true
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const audit=JSON.parse(fs.readFileSync('/tmp/after.json','utf8'));
+          const {high,critical}=audit.metadata.vulnerabilities;
+          console.log('REVIEWED_LOCK_AUDIT',JSON.stringify(audit.metadata.vulnerabilities));
+          if (critical!==0 || high>24) throw Error('SECURITY_REGRESSION');
+          NODE
+          npm run typecheck
+          npm run test:rewards
+          npm run build
+      - name: Commit ONLY package-lock.json to security branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package-lock.json
+          git commit -m 'fix(security): apply tested nonbreaking lockfile audit updates'
+          git push origin HEAD:security/audit-remediation-20261025
