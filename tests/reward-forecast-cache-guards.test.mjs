@@ -11,7 +11,7 @@ import {
 } from '../src/lib/rewards/rewardForecastCacheGuards.ts';
 
 const NOW = Date.parse('2026-10-11T12:00:00Z');
-const MODEL = 'reward-forecast-v2.2-boost-bank';
+const MODEL = 'reward-forecast-v2.3-sybil-clean';
 const oldTimestamp = (ageMs) => new Date(NOW - ageMs).toISOString();
 const stored = (override = {}) => ({
   savedAt: NOW - 30_000,
