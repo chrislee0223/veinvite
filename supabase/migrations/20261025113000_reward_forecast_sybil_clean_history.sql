@@ -48,43 +48,51 @@ begin
     limit p_allocation_limit
   ) a;
 
-  -- Forecast-only: leave on-chain payouts and historical receipts untouched.
-  -- Learn from validated referrals grouped by VeBetter funding round,
-  -- rather than treating each reward-round settlement as a one-person week.
-  select coalesce(jsonb_agg(r.valid_recipients order by r.vebetter_round_id desc), '[]'::jsonb)
-  into v_recipient_counts
-  from (
-    select
-      receipt.vebetter_round_id,
-      count(*)::integer as valid_recipients
-    from public.reward_receipts receipt
-    where receipt.network = p_network
-      and receipt.vebetter_round_id is not null
-      and exists (
-        select 1
-        from public.vebetter_round_allocations allocation
-        where allocation.network = receipt.network
-          and allocation.vebetter_round_id = receipt.vebetter_round_id
-          and allocation.app_id = p_app_id
+  -- Forecast-only: receipts and previously paid transfers remain immutable.
+  -- Fill zero-recipient completed funding rounds as genuine observed zeros.
+  -- Exclude the latest funded allocation, whose participant cohort is still
+  -- in progress and may legitimately have no payment yet.
+  with completed_funding_rounds as (
+    select a.vebetter_round_id
+    from public.vebetter_round_allocations a
+    where a.network = p_network
+      and a.app_id = p_app_id
+      and a.vebetter_round_id < (
+        select max(latest.vebetter_round_id)
+        from public.vebetter_round_allocations latest
+        where latest.network = p_network
+          and latest.app_id = p_app_id
       )
-      and exists (
-        select 1
-        from public.sybil_v2_referral_assessments assessment
-        where assessment.network = receipt.network
-          and assessment.invite_code = receipt.invite_code
-          and assessment.state = 'CLEAR'
-      )
-      and not exists (
-        select 1
-        from public.sybil_v2_referral_invalidations invalidation
-        where invalidation.network = receipt.network
-          and invalidation.invite_code = receipt.invite_code
-          and invalidation.status = 'ACTIVE'
-      )
-    group by receipt.vebetter_round_id
-    order by receipt.vebetter_round_id desc
+    group by a.vebetter_round_id
+    order by a.vebetter_round_id desc
     limit p_recipient_limit
-  ) r;
+  ),
+  valid_by_round as (
+    select
+      funding.vebetter_round_id,
+      count(receipt.id) filter (
+        where assessment.state = 'CLEAR'
+          and invalidation.id is null
+      )::integer as valid_recipients
+    from completed_funding_rounds funding
+    left join public.reward_receipts receipt
+      on receipt.vebetter_round_id = funding.vebetter_round_id
+     and receipt.network = p_network
+    left join public.sybil_v2_referral_assessments assessment
+      on assessment.network = receipt.network
+     and assessment.invite_code = receipt.invite_code
+    left join public.sybil_v2_referral_invalidations invalidation
+      on invalidation.network = receipt.network
+     and invalidation.invite_code = receipt.invite_code
+     and invalidation.status = 'ACTIVE'
+    group by funding.vebetter_round_id
+  )
+  select coalesce(
+    jsonb_agg(r.valid_recipients order by r.vebetter_round_id desc),
+    '[]'::jsonb
+  )
+  into v_recipient_counts
+  from valid_by_round r;
 
   return jsonb_build_object(
     'allocationWeiNewestFirst', v_allocations,
