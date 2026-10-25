@@ -39,6 +39,14 @@ const shareSource = readFileSync(
   'src/lib/rewards/rewardReceiptShare.ts',
   'utf8',
 );
+const qaHarnessSource = readFileSync(
+  'src/qa/QaNotificationStateHarness.tsx',
+  'utf8',
+);
+const qaPageSource = readFileSync(
+  'src/app/qa/notification-state/page.tsx',
+  'utf8',
+);
 
 const COPY_KEYS = [
   'title',
@@ -255,4 +263,11 @@ test('public X campaign text stays global while app share labels stay localized'
     assert.match(text, /#B3TR/);
     assert.match(text, /#VeBetterDAO/);
   }
+});
+
+
+test('direct X promotion browser QA state is reachable through the QA route', () => {
+  assert.match(qaHarnessSource, /'NOTI-X-PROMOTION-PANEL'/);
+  assert.match(qaHarnessSource, /data-qa-x-promotion-panel/);
+  assert.match(qaPageSource, /'NOTI-X-PROMOTION-PANEL'/);
 });
