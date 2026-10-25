@@ -1,4 +1,6 @@
-export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.4-adaptive-history-3';
+import { calculateRecipientDemandFloor } from './recipientDemandFloor.ts';
+
+export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.5-auto-history-floor';
 
 const BPS = 10_000n;
 const BOOTSTRAP_BASE_RECIPIENTS = 6;
@@ -34,6 +36,7 @@ export type RewardForecastPolicy = {
   projectedAllocationHighWei: string;
   allocationSampleCount: number;
   recipientHistoryRoundCount: number;
+  historyRecipientFloor: number;
   expectedRecipients: number;
   recipientLow: number;
   recipientHigh: number;
@@ -111,6 +114,7 @@ function pipelineWeightedBps(
 
 function completionTimeStressRecipientFloor(
   pipeline: RewardForecastPipeline,
+  historyRecipientFloor: number,
 ): number {
   // Completion-time reservations intentionally exclude unaccepted invitations,
   // because they have no verified cohort yet. Mirror the fixed-reservation
@@ -139,7 +143,7 @@ function completionTimeStressRecipientFloor(
   );
 
   return Math.max(
-    COMPLETION_TIME_MIN_STRESS_RECIPIENTS,
+    Math.max(COMPLETION_TIME_MIN_STRESS_RECIPIENTS, historyRecipientFloor),
     pipeline.queuedEligibleCount,
     expectedCompletions,
     stressWithGrowth + COMPLETION_TIME_STRESS_EXTRA_RECIPIENTS,
@@ -245,7 +249,12 @@ export function calculateRewardForecastPolicy(input: {
     ceilDiv(stressWeightedBps * 12_500n, BPS * BPS),
     'pipelineStressRecipients',
   );
-  const completionTimeStressFloor = completionTimeStressRecipientFloor(pipeline);
+  const historyRecipientFloor = calculateRecipientDemandFloor(
+    input.completedRewardRoundRecipientCounts.slice(0, 8),
+  );
+  const completionTimeStressFloor = completionTimeStressRecipientFloor(
+    pipeline, historyRecipientFloor,
+  );
 
   const recipientHistory = input.completedRewardRoundRecipientCounts.slice(0, 8);
   const historyAverage = historicalRecipientAverage(recipientHistory);
@@ -289,6 +298,7 @@ export function calculateRewardForecastPolicy(input: {
     projectedAllocationHighWei: pricingCapacity.toString(),
     allocationSampleCount,
     recipientHistoryRoundCount: recipientHistory.length,
+    historyRecipientFloor,
     expectedRecipients,
     recipientLow,
     recipientHigh,

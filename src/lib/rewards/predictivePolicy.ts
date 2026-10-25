@@ -1,5 +1,7 @@
+import { calculateRecipientDemandFloor } from './recipientDemandFloor.ts';
+
 export const PREDICTIVE_REWARD_ALGORITHM_VERSION =
-  'predictive-reserve-v4-adaptive-history-3';
+  'predictive-reserve-v5-auto-history-floor';
 
 const BPS = 10_000;
 const STRESS_GROWTH_BPS = 12_500;
@@ -23,6 +25,7 @@ export type PredictiveRewardPolicy = {
   pipeline: RewardPipelineSnapshot;
   expectedCompletions: number;
   stressCompletions: number;
+  historyRecipientFloor: number;
   latestAllocationWei: string;
   fundingAdjustmentWei: string;
   reserveNetFlowWei: string;
@@ -172,6 +175,7 @@ export function calculatePredictiveRewardPolicy(input: {
   observedPoolBalanceWei: string;
   reservedExistingWei: string;
   pipeline: RewardPipelineSnapshot;
+  completedRewardRoundRecipientCounts?: number[];
 }): PredictiveRewardPolicy {
   const latestAllocation = parseWei(
     input.latestAllocationWei,
@@ -238,13 +242,16 @@ export function calculatePredictiveRewardPolicy(input: {
     BigInt(BPS) * BigInt(BPS),
   );
 
+  const historyRecipientFloor = calculateRecipientDemandFloor(
+    input.completedRewardRoundRecipientCounts ?? [],
+  );
   const queued = BigInt(pipeline.queuedEligibleCount);
   const expectedCompletionsBig =
     expectedBase > queued ? expectedBase : queued;
   const stressBase =
     stressWithGrowth + BigInt(STRESS_EXTRA_RECIPIENTS);
   const stressCompletionsBig = [
-    BigInt(MIN_STRESS_RECIPIENTS),
+    BigInt(Math.max(MIN_STRESS_RECIPIENTS, historyRecipientFloor)),
     queued,
     expectedCompletionsBig,
     stressBase,
@@ -279,6 +286,7 @@ export function calculatePredictiveRewardPolicy(input: {
       stressCompletionsBig,
       'stressCompletions',
     ),
+    historyRecipientFloor,
     latestAllocationWei: latestAllocation.toString(),
     fundingAdjustmentWei: fundingAdjustment.toString(),
     reserveNetFlowWei: reserveNetFlow.toString(),

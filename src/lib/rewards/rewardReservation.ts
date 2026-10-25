@@ -473,6 +473,7 @@ async function reserveCandidate({
       pricingBasisWei: planning.forecast.pricingBasisWei,
       expectedCompletions: planning.forecast.expectedCompletions,
       stressCompletions: planning.forecast.stressCompletions,
+      historyRecipientFloor: planning.forecast.historyRecipientFloor,
       pipeline: planning.forecast.pipeline,
       lateCompletionProtection: lateQuote
         ? {
