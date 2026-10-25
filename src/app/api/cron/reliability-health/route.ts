@@ -152,10 +152,30 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
     throw new Error('X promotion external runtime readiness could not be read.');
   }
 
-  const runtimeReady = (runtime as Record<string, unknown>).ready;
+  const runtimeRecord = runtime as Record<string, unknown>;
+  const runtimeReady = runtimeRecord.ready;
   if (typeof runtimeReady !== 'boolean') {
     throw new Error('X promotion external runtime readiness is malformed.');
   }
+  const runtimeProbeStatus =
+    typeof runtimeRecord.status === 'string' &&
+    /^[A-Z0-9_]{1,64}$/u.test(runtimeRecord.status)
+      ? runtimeRecord.status
+      : 'UNKNOWN';
+  const checkedAtMs = typeof runtimeRecord.checkedAt === 'string'
+    ? Date.parse(runtimeRecord.checkedAt)
+    : NaN;
+  const runtimeProbeAgeSeconds = Number.isFinite(checkedAtMs)
+    ? Math.max(0, Math.floor((Date.now() - checkedAtMs) / 1000))
+    : null;
+  // Keep the safety-critical alert unchanged, but tell a cached-probe expiry
+  // apart from an actual failed provider/runtime check in operator telemetry.
+  const runtimeProbeState =
+    runtimeReady
+      ? 'READY'
+      : ['READY', 'POST_NOT_FOUND'].includes(runtimeProbeStatus)
+        ? 'EXPIRED'
+        : 'UNAVAILABLE';
 
   return {
     liveEnabled: config.reward_x_promotion_enabled === true,
@@ -163,6 +183,9 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
     externalVerificationReady:
       config.reward_x_promotion_external_verification_ready === true,
     runtimeReady,
+    runtimeProbeStatus,
+    runtimeProbeState,
+    runtimeProbeAgeSeconds,
   };
 }
 
