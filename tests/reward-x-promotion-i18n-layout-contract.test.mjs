@@ -20,6 +20,18 @@ const xExpandedSource = readFileSync(
   'src/lib/i18n/rewardXPromotionExpandedCopy.ts',
   'utf8',
 );
+const xAutoCoreSource = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoCoreCopy.ts',
+  'utf8',
+);
+const xAutoExpandedSource = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoExpandedCopy.ts',
+  'utf8',
+);
+const xAutoRegistrySource = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoCopy.ts',
+  'utf8',
+);
 const panelSource = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
@@ -52,6 +64,7 @@ const BODY_KEYS = [
   'expiredBody',
   'releasedBody',
   'preparingBody',
+  'shareFollowupBody',
 ];
 
 const ALL_COPY_KEYS = [
@@ -69,6 +82,16 @@ const SUBMIT_ERROR_KEYS = [
   'conflict',
   'rateLimited',
   'unavailable',
+];
+
+const AUTO_COPY_KEYS = [
+  'connectX',
+  'connectedX',
+  'autoConnectBody',
+  'autoOpenBody',
+  'autoShareFollowupBody',
+  'autoGraceBody',
+  'autoConnectedX',
 ];
 
 function escapeRegExp(value) {
@@ -99,6 +122,14 @@ function xLocaleBlock(locale) {
   return (
     directLocaleBlock(xCopySource, locale) ??
     directLocaleBlock(xExpandedSource, locale)
+  );
+}
+
+
+function autoLocaleBlock(locale) {
+  return (
+    directLocaleBlock(xAutoCoreSource, locale) ??
+    directLocaleBlock(xAutoExpandedSource, locale)
   );
 }
 
@@ -143,6 +174,41 @@ test('X promotion copy is complete and locally written for all supported locales
       for (const key of BODY_KEYS) {
         assert.notEqual(
           fieldValue(block, key),
+          fieldValue(english, key),
+          locale + ' still falls back to English for ' + key,
+        );
+      }
+    }
+  }
+});
+
+
+test('automatic X account and post-discovery copy is explicit in all supported locales', () => {
+  assert.match(
+    xAutoRegistrySource,
+    /\.\.\.REWARD_X_PROMOTION_AUTO_CORE_COPY/,
+  );
+  assert.match(
+    xAutoRegistrySource,
+    /\.\.\.REWARD_X_PROMOTION_AUTO_EXPANDED_COPY/,
+  );
+
+  const english = autoLocaleBlock('en');
+  assert.ok(english);
+
+  for (const locale of SUPPORTED_LOCALES) {
+    const block = autoLocaleBlock(locale);
+    assert.ok(block, 'missing automatic X copy: ' + locale);
+
+    for (const key of AUTO_COPY_KEYS) {
+      const value = fieldValue(block, key);
+      assert.ok(
+        value !== null && value.trim().length > 0,
+        locale + ' ' + key + ' is missing or empty',
+      );
+      if (locale !== 'en') {
+        assert.notEqual(
+          value,
           fieldValue(english, key),
           locale + ' still falls back to English for ' + key,
         );
