@@ -11,7 +11,7 @@ test('default OFF; old source sweep v1; payout pricing unchanged',()=>{
  assert.match(sql,/reward_boost_reserve_adaptive_v2_enabled boolean not null default false/);
  assert.match(source,/REWARD_BOOST_RESERVE_POLICY_VERSION =\s*'reward-boost-reserve-v1'/);
  assert.match(source,/REWARD_BOOST_RESERVE_DESTINATION_POLICY_VERSION =\s*'reward-boost-reserve-v2-adaptive'/);
- assert.match(pricing,/const MIN_STRESS_RECIPIENTS = 4/);
+ assert.match(pricing,/const MIN_STRESS_RECIPIENTS = 3/);
 });
 test('immutable existing cohort plan returns unchanged BEFORE adaptive release',()=>{
  const p=sql.indexOf('select * into v_existing');

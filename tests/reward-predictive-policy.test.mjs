@@ -33,9 +33,9 @@ test('uses a conservative minimum denominator before users complete', () => {
 
   assert.equal(result.algorithmVersion, PREDICTIVE_REWARD_ALGORITHM_VERSION);
   assert.equal(result.expectedCompletions, 0);
-  assert.equal(result.stressCompletions, 4);
-  assert.equal(result.rewardPerInviteWei, '2000');
-  assert.equal(result.maxImmediatelyPayableCount, '4');
+  assert.equal(result.stressCompletions, 3);
+  assert.equal(result.rewardPerInviteWei, '2666');
+  assert.equal(result.maxImmediatelyPayableCount, '3');
 });
 
 test('VOT3-ready users carry the agreed 90 percent expected completion weight', () => {
@@ -80,7 +80,7 @@ test('an audited cohort promotion increases this cohort actual pricing basis', (
 
   assert.equal(result.designatedBudgetWei, '12000');
   assert.equal(result.pricingBasisWei, '12000');
-  assert.equal(result.rewardPerInviteWei, '3000');
+  assert.equal(result.rewardPerInviteWei, '4000');
 });
 
 test('global unsettled liabilities cap physical pricing capacity', () => {
@@ -91,7 +91,7 @@ test('global unsettled liabilities cap physical pricing capacity', () => {
 
   assert.equal(result.availablePoolWei, '6000');
   assert.equal(result.pricingBasisWei, '6000');
-  assert.equal(result.rewardPerInviteWei, '1500');
+  assert.equal(result.rewardPerInviteWei, '2000');
 });
 
 test('existing reservations from the same cohort reduce its remaining budget', () => {
@@ -102,7 +102,7 @@ test('existing reservations from the same cohort reduce its remaining budget', (
 
   assert.equal(result.cohortAvailableBudgetWei, '6000');
   assert.equal(result.availablePoolWei, '6000');
-  assert.equal(result.rewardPerInviteWei, '1500');
+  assert.equal(result.rewardPerInviteWei, '2000');
 });
 
 test('does not invent a reward with no designated funding or no available pool', () => {
@@ -147,7 +147,7 @@ test('an audited reserve inflow increases this cohort pricing basis', () => {
   assert.equal(result.reserveNetFlowWei, '4000');
   assert.equal(result.designatedBudgetWei, '12000');
   assert.equal(result.pricingBasisWei, '12000');
-  assert.equal(result.rewardPerInviteWei, '3000');
+  assert.equal(result.rewardPerInviteWei, '4000');
 });
 
 test('a reserve source sweep reduces only the source cohort logical budget', () => {
@@ -158,7 +158,7 @@ test('a reserve source sweep reduces only the source cohort logical budget', () 
   assert.equal(result.reserveNetFlowWei, '-2000');
   assert.equal(result.designatedBudgetWei, '6000');
   assert.equal(result.pricingBasisWei, '6000');
-  assert.equal(result.rewardPerInviteWei, '1500');
+  assert.equal(result.rewardPerInviteWei, '2000');
 });
 
 test('reserve net flow defaults to zero for pre-ledger production snapshots', () => {

@@ -1,9 +1,11 @@
 export const PREDICTIVE_REWARD_ALGORITHM_VERSION =
-  'predictive-reserve-v3-boost-bank';
+  'predictive-reserve-v4-adaptive-history-3';
 
 const BPS = 10_000;
 const STRESS_GROWTH_BPS = 12_500;
-const MIN_STRESS_RECIPIENTS = 4;
+// History-informed safety floor: preserve three funded completion slots,
+// then add demand-driven stress slots for later valid recipients.
+const MIN_STRESS_RECIPIENTS = 3;
 const STRESS_EXTRA_RECIPIENTS = 2;
 
 export type RewardPipelineSnapshot = {
