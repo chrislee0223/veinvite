@@ -54,6 +54,12 @@ function createPlanningHarness(rawCohortWei) {
   context.exports = context.module.exports;
   context.require = (name) => {
     if (name === '@/lib/supabaseServer') return { supabaseAdmin };
+    if (name === '@/lib/rewards/rewardFundingHistory') {
+      return { readRewardFundingHistory: async () => ({
+        recentAllocationWeiNewestFirst: [allocationWei],
+        completedRewardRoundRecipientCounts: [5, 3, 0, 1, 3, 3, 2],
+      }) };
+    }
     if (name === '@/lib/rewards/predictivePolicy') {
       return {
         calculatePredictiveRewardPolicy: (input) => {
@@ -97,6 +103,7 @@ test('planning uses snapshot numeric-as-text exactly; no additional numeric RPC'
   assert.equal(planning.cohortReservedWei, EXACT_COMMITTED_WEI);
   assert.equal(harness.policyInputs.length, 1);
   assert.equal(harness.policyInputs[0].cohortReservedWei, EXACT_COMMITTED_WEI);
+  assert.deepEqual(Array.from(harness.policyInputs[0].completedRewardRoundRecipientCounts), [5, 3, 0, 1, 3, 3, 2]);
   assert.deepEqual(harness.calls, [
     'read_reward_cohort_planning_snapshot',
     'read_sybil_v2_cleared_unreserved_count',
