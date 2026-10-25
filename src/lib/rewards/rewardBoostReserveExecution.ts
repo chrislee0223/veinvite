@@ -14,6 +14,10 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 export const REWARD_BOOST_RESERVE_POLICY_VERSION =
   'reward-boost-reserve-v1';
 
+// Only the destination uses v2. Existing source protection remains v1.
+export const REWARD_BOOST_RESERVE_DESTINATION_POLICY_VERSION =
+  'reward-boost-reserve-v2-adaptive';
+
 type SourceRow = {
   reward_cohort_round_id: string | number;
   allocation_receipt_id: string | number;
@@ -216,7 +220,7 @@ export async function runRewardBoostReserveRebalance(
       p_observed_pool_balance_wei:
         releasePool.effectiveRewardPoolWei,
       p_policy_version:
-        REWARD_BOOST_RESERVE_POLICY_VERSION,
+        REWARD_BOOST_RESERVE_DESTINATION_POLICY_VERSION,
     },
   );
 
