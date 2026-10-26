@@ -22,6 +22,22 @@ const submitErrors = readFileSync(
   'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
   'utf8',
 );
+const oauthFeedback = readFileSync(
+  'src/lib/i18n/rewardXPromotionOAuthFeedbackCopy.ts',
+  'utf8',
+);
+const oauthHook = readFileSync(
+  'src/hooks/useXPromotionOAuthReturnFeedback.ts',
+  'utf8',
+);
+const notificationQaPage = readFileSync(
+  'src/app/qa/notification-state/page.tsx',
+  'utf8',
+);
+const notificationLayout = readFileSync(
+  'tests/playwright/notification-locale-layout.spec.ts',
+  'utf8',
+);
 const panel = readFileSync(
   'src/components/RewardXPromotionPanel.tsx',
   'utf8',
@@ -112,4 +128,29 @@ test('public X campaign copy remains concise and friend-neutral', () => {
   assert.match(publicShare, /#B3TR/);
   assert.match(publicShare, /#VeBetterDAO/);
   assert.doesNotMatch(publicShare, /\bfriend(?:s)?\b/i);
+});
+
+
+test('X OAuth return feedback is localized instead of Korean/English branching', () => {
+  for (const locale of locales) {
+    const key = locale.includes('-')
+      ? new RegExp("'" + locale + "'\\s*:")
+      : new RegExp('\\b' + locale + '\\s*:');
+    assert.match(oauthFeedback, key, 'missing OAuth feedback copy for ' + locale);
+  }
+  assert.match(
+    oauthHook,
+    /REWARD_X_PROMOTION_OAUTH_FEEDBACK_COPY\[displayLocale\]/,
+  );
+  assert.doesNotMatch(oauthHook, /const korean =/);
+  assert.doesNotMatch(
+    oauthHook,
+    /This X account cannot be linked|X account connection did not complete/,
+  );
+});
+
+test('X promotion paid notification participates in all-locale layout QA', () => {
+  assert.match(notificationQaPage, /'NOTI-X-PROMOTION-PAID'/);
+  assert.match(notificationLayout, /'NOTI-X-PROMOTION-PAID'/);
+  assert.match(notificationLayout, /for \(const locale of SUPPORTED_LOCALES\)/);
 });
