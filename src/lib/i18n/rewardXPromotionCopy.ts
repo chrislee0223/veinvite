@@ -1,6 +1,7 @@
 import type { SupportedLocale } from './locales';
 import { REWARD_X_PROMOTION_EXPANDED_COPY_A } from './rewardXPromotionExpandedCopyA';
 import { REWARD_X_PROMOTION_EXPANDED_COPY_B } from './rewardXPromotionExpandedCopyB';
+import { REWARD_X_PROMOTION_AUTO_COPY } from './rewardXPromotionAutoCopy';
 
 export type RewardXPromotionCopy = {
   title: string;
@@ -82,6 +83,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     autoConnectedX: 'X 계정이 연결되었어요. 게시물은 자동 확인되므로 URL을 제출하지 않아도 돼요.',
   },
   zh: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.zh,
     connectX: '连接 X 账号',
     connectedX: 'X 账号已连接。自动验证启用前仍可提交帖子链接。',
     title: 'X 推广奖励',
@@ -102,6 +104,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: '重试',
   },
   'zh-tw': {
+    ...REWARD_X_PROMOTION_AUTO_COPY['zh-tw'],
     title: 'X 推廣獎勵',
     openBody: '請在 24 小時內分享到 X，然後貼上公開貼文連結。24 小時複核時同一貼文仍須保持公開。',
     graceBody: '分享時間已結束。如果你已按時發文，請現在貼上該貼文連結。',
@@ -120,6 +123,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: '重試',
   },
   ja: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.ja,
     connectX: 'Xアカウントを連携',
     connectedX: 'Xアカウントを連携しました。自動確認が有効になるまでは投稿URLを提出できます。',
     title: 'Xプロモーションボーナス',
@@ -140,6 +144,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: '再試行',
   },
   es: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.es,
     connectX: 'Conectar cuenta de X',
     connectedX: 'Cuenta de X conectada. Aún puedes enviar el enlace de tu publicación.',
     title: 'Bono de promoción en X',
@@ -160,6 +165,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Reintentar',
   },
   de: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.de,
     title: 'X-Promotionsbonus',
     openBody: 'Teile innerhalb von 24 Stunden auf X und füge danach den öffentlichen Post-Link ein. Derselbe Post muss bei der 24-Stunden-Prüfung noch öffentlich sein.',
     graceBody: 'Das Zeitfenster ist abgelaufen. Wenn du rechtzeitig gepostet hast, füge den Link jetzt ein.',
@@ -178,6 +184,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Erneut versuchen',
   },
   fr: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.fr,
     title: 'Bonus de promotion X',
     openBody: 'Partagez sur X dans les 24 heures puis collez le lien public ci-dessous. Le même post doit encore être public lors du contrôle après 24 heures.',
     graceBody: 'La période de partage est terminée. Si vous avez publié à temps, collez maintenant le lien.',
@@ -196,6 +203,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Réessayer',
   },
   it: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.it,
     title: 'Bonus promozione X',
     openBody: 'Condividi su X entro 24 ore, poi incolla qui il link pubblico. Lo stesso post deve essere ancora pubblico al controllo dopo 24 ore.',
     graceBody: 'La finestra di condivisione è terminata. Se hai pubblicato in tempo, incolla ora il link.',
@@ -214,6 +222,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Riprova',
   },
   tr: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.tr,
     connectX: 'X hesabını bağla',
     connectedX: 'X hesabın bağlandı. Otomatik kontrol başlamadan önce gönderi bağlantısını yine de iletebilirsin.',
     title: 'X Promosyon Bonusu',
@@ -234,6 +243,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Tekrar dene',
   },
   nl: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.nl,
     title: 'X-promotiebonus',
     openBody: 'Deel binnen 24 uur op X en plak daarna de openbare Post-link hieronder. Dezelfde Post moet bij de controle na 24 uur nog openbaar zijn.',
     graceBody: 'De deelperiode is voorbij. Als je op tijd hebt gepost, plak de link dan nu.',
@@ -252,6 +262,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Opnieuw',
   },
   pt: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.pt,
     title: 'Bônus de promoção no X',
     openBody: 'Compartilhe no X em até 24 horas e cole abaixo o link público. O mesmo post deve continuar público na verificação de 24 horas.',
     graceBody: 'O prazo de compartilhamento terminou. Se você publicou a tempo, cole o link agora.',
@@ -270,6 +281,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Tentar novamente',
   },
   ru: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.ru,
     title: 'Бонус за продвижение в X',
     openBody: 'Опубликуйте в X в течение 24 часов и вставьте публичную ссылку ниже. Тот же пост должен оставаться публичным при проверке через 24 часа.',
     graceBody: 'Время публикации закончилось. Если вы опубликовали вовремя, вставьте ссылку сейчас.',
@@ -288,6 +300,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Повторить',
   },
   id: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.id,
     title: 'Bonus Promosi X',
     openBody: 'Bagikan di X dalam 24 jam, lalu tempel tautan Post publik di bawah. Post yang sama harus tetap publik saat pemeriksaan 24 jam.',
     graceBody: 'Waktu berbagi sudah berakhir. Jika kamu sudah memposting tepat waktu, tempel tautannya sekarang.',
@@ -306,6 +319,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     retry: 'Coba lagi',
   },
   vi: {
+    ...REWARD_X_PROMOTION_AUTO_COPY.vi,
     connectX: 'Kết nối tài khoản X',
     connectedX: 'Đã kết nối tài khoản X. Bạn vẫn có thể gửi liên kết bài đăng trong khi chờ xác minh tự động.',
     title: 'Thưởng quảng bá X',
