@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
-const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const copyBase = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
+const copyExpandedA = readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopyA.ts', import.meta.url), 'utf8');
+const copyExpandedB = readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopyB.ts', import.meta.url), 'utf8');
+const copy = copyBase + '\n' + copyExpandedA + '\n' + copyExpandedB;
 const locales = readFileSync(new URL('../src/lib/i18n/locales.ts', import.meta.url), 'utf8');
 
 test('X sharing keeps the existing no-expired-bonus protection', () => {

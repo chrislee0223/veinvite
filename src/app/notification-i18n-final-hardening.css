@@ -232,3 +232,58 @@
   display: inline-block !important;
   transform: scaleX(-1);
 }
+
+
+/* The history panel is capped at 400px even on desktop. When Mark-all is
+ * present, reserve its own row at every viewport width so long translated
+ * titles never collapse into a one-character column beside the action. */
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 36px !important;
+  grid-template-areas:
+    "heading close"
+    "markall markall" !important;
+  align-items: start !important;
+  column-gap: 8px !important;
+  row-gap: 4px !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll)
+  .notificationHistoryHeading {
+  grid-area: heading !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll)
+  .notificationHistoryHeading h3 {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 180px !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll)
+  .notificationHistoryHeaderActions {
+  display: contents !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll)
+  .notificationHistoryClose {
+  grid-area: close !important;
+  justify-self: end !important;
+}
+
+.notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll)
+  .notificationHistoryMarkAll {
+  grid-area: markall !important;
+  justify-self: end !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+  text-align: end !important;
+}

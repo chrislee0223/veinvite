@@ -10,6 +10,7 @@ import {
   InviteNotificationHistoryCenter,
 } from '@/components/InviteNotificationHistoryCenter';
 import { TransientSnackbar } from '@/components/TransientSnackbar';
+import { RewardXPromotionPanel } from '@/components/RewardXPromotionPanel';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
@@ -43,6 +44,7 @@ export type QaNotificationStateId =
   | 'NOTI-REWARD-READY'
   | 'NOTI-REWARD-PAID'
   | 'NOTI-X-PROMOTION-PAID'
+  | 'NOTI-X-PROMOTION-LAYOUT'
   | 'NOTI-REWARD-PAID-POPUP'
   | 'NOTI-REWARD-ADJUSTED'
   | 'NOTI-INELIGIBLE'
@@ -166,6 +168,13 @@ function fixtureForState(
   stateId: QaNotificationStateId,
 ): NotificationFixture {
   switch (stateId) {
+    case 'NOTI-X-PROMOTION-LAYOUT':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
+      };
     case 'NOTI-BELL-EMPTY':
       return {
         mode: 'history',
@@ -564,6 +573,31 @@ export function QaNotificationStateHarness({
     setErrorMessage(seed.errorMessage ?? '');
     setHasMore(Boolean(seed.hasMore));
   }, [seed]);
+
+  if (stateId === 'NOTI-X-PROMOTION-LAYOUT') {
+    return (
+      <QaNotificationStage embedded={embedded}>
+        <div
+          style={{
+            width: 'min(400px, calc(100vw - 20px))',
+            margin: '0 auto',
+            padding: '14px',
+            boxSizing: 'border-box',
+            border: '1px solid rgba(255,255,255,.08)',
+            borderRadius: '18px',
+            background: '#11110f',
+          }}
+        >
+          <RewardXPromotionPanel
+            locale={locale}
+            inviteCode="QA-X-PROMO-LAYOUT"
+            receiptAmountB3tr="262.97"
+            rewardShareUrl="https://veinvite.vercel.app/s/abcdefghijklmnop"
+          />
+        </div>
+      </QaNotificationStage>
+    );
+  }
 
   if (stateId === 'NOTI-REWARD-PAID-POPUP') {
     return (

@@ -18,6 +18,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-X-PROMOTION-PAID',      // localized +10 B3TR paid notification
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -117,7 +118,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
     if (/\bundefined\b|\[missing translation\]|\{\{[^}]+\}\}/i.test(text)) {
       issues.push('unresolved translation');
     }
-    return { issues, direction: getComputedStyle(root).direction };
+    return { issues, direction: root.getAttribute('dir') || getComputedStyle(root).direction };
   });
   expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
   expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
