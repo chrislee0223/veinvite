@@ -111,7 +111,7 @@ export const REWARD_X_PROMOTION_EXPANDED_COPY_A = {
   },
   pcm: {
     title: 'X Promotion Bonus',
-    openBody: 'Share for X within 24 hours, then paste di public post link below. Di same post must still dey public when di 24-hour check happen.',
+    openBody: 'Post am for X within 24 hours, then paste di public post link below. Di same post must still dey public when di 24-hour check happen.',
     graceBody: 'Di sharing time don finish. If you post am on time, paste di post link now.',
     verifyingBody: 'We dey check your X post. Your promotion bonus still dey reserved for you.',
     retentionBody: 'We don confirm di post. Keep am public until di 24-hour check finish.',
@@ -122,7 +122,7 @@ export const REWARD_X_PROMOTION_EXPANDED_COPY_A = {
     releasedBody: 'We don return di promotion bonus to di reward pool.',
     preparingBody: 'We dey prepare your X promotion opportunity. Check dis reward receipt again small time.',
     postUrlPlaceholder: 'https://x.com/.../status/...',
-    shareFollowupBody: 'After you post for X, come back VeInvite, open your reward for Notifications and paste di public post link to verify bonus.',
+    shareFollowupBody: 'After you post for X, come back to VeInvite, open your reward for Notifications and paste di public post link to verify bonus.',
     verify: 'Check post',
     verifying: 'Checking…',
     retry: 'Try again',

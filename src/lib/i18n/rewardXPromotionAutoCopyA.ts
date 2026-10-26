@@ -121,12 +121,12 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   id: {
     connectX: 'Hubungkan akun X',
-    connectedX: 'Akun X terhubung. Anda masih dapat mengirim tautan Post selama pemeriksaan otomatis sedang diuji.',
-    autoConnectBody: 'Hubungkan dulu akun X publik Anda, lalu bagikan dalam 24 jam. URL Post tidak perlu dikirim.',
-    autoOpenBody: 'Bagikan ke X dalam 24 jam. VeInvite akan mencari Post secara otomatis. Biarkan tetap publik setidaknya 24 jam; bonus hanya dibayar setelah verifikasi.',
-    autoShareFollowupBody: 'Setelah memposting di X, Anda tidak perlu mengirim URL atau konfirmasi tambahan. Biarkan Post tetap publik setidaknya 24 jam; VeInvite memeriksanya otomatis dan membayar bonus jika syarat terpenuhi.',
-    autoGraceBody: 'Waktu berbagi telah berakhir. VeInvite memeriksa secara otomatis Post yang dibagikan sebelum batas waktu. Biarkan Post tetap publik sampai verifikasi 24 jam selesai.',
-    autoConnectedX: 'Akun X terhubung. Post publik Anda akan diperiksa otomatis; tautan tidak perlu dikirim.',
+    connectedX: 'Akun X terhubung. Anda masih dapat mengirim tautan postingan selama pemeriksaan otomatis sedang diuji.',
+    autoConnectBody: 'Hubungkan dulu akun X publik Anda, lalu bagikan dalam 24 jam. URL postingan tidak perlu dikirim.',
+    autoOpenBody: 'Bagikan ke X dalam 24 jam. VeInvite akan mencari postingan secara otomatis. Biarkan tetap publik setidaknya 24 jam; bonus hanya dibayar setelah verifikasi.',
+    autoShareFollowupBody: 'Setelah memposting di X, Anda tidak perlu mengirim URL atau konfirmasi tambahan. Biarkan postingan tetap publik setidaknya 24 jam; VeInvite memeriksanya otomatis dan membayar bonus jika syarat terpenuhi.',
+    autoGraceBody: 'Waktu berbagi telah berakhir. VeInvite memeriksa secara otomatis postingan yang dibagikan sebelum batas waktu. Biarkan postingan tetap publik sampai verifikasi 24 jam selesai.',
+    autoConnectedX: 'Akun X terhubung. Postingan publik Anda akan diperiksa otomatis; tautan tidak perlu dikirim.',
   },
   vi: {
     connectX: 'Kết nối tài khoản X',

@@ -62,8 +62,8 @@ export const REWARD_X_PROMOTION_OAUTH_FEEDBACK_COPY: Record<
     failed: 'Подключение аккаунта X не завершилось. Попробуйте ещё раз или отправьте публичную ссылку на пост вручную.',
   },
   id: {
-    conflict: 'Akun X ini tidak dapat dihubungkan ke wallet ini. Anda tetap dapat mengirim tautan Post publik secara manual.',
-    failed: 'Koneksi akun X belum selesai. Coba lagi atau kirim tautan Post publik secara manual.',
+    conflict: 'Akun X ini tidak dapat dihubungkan ke wallet ini. Anda tetap dapat mengirim tautan postingan publik secara manual.',
+    failed: 'Koneksi akun X belum selesai. Coba lagi atau kirim tautan postingan publik secara manual.',
   },
   vi: {
     conflict: 'Không thể liên kết tài khoản X này với ví hiện tại. Bạn vẫn có thể gửi liên kết bài đăng công khai theo cách thủ công.',
