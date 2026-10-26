@@ -147,7 +147,6 @@ begin
   return jsonb_build_object('changed',true,'cohort',v_cohort,'amountWei',v_amount::text,
     'planId',v_plan.id,'ledgerId',v_ledger_id,'bankRemainingWei',(v_bank-v_amount)::text);
 end;
-$function$
-
+$function$;
 
 commit;
