@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
 import {
   LANGUAGE_STORAGE_KEY, isLocale, resolveBrowserLocale,
 } from '@/lib/i18n/locales';
