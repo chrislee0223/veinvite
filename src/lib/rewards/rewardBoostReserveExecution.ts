@@ -7,6 +7,7 @@ import {
 } from '@/lib/rewards/onchainPool';
 import {
   refreshRewardForecastSnapshot,
+  readLatestRewardForecastSnapshot,
   type RewardForecastSnapshot,
 } from '@/lib/rewards/rewardForecastSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -36,6 +37,7 @@ export type RewardBoostReserveExecutionResult = {
   sourceSweepsChanged: number;
   sourceResults: MutationPayload[];
   destinationResult: MutationPayload | null;
+  currentTopUpResult: MutationPayload | null;
   forecast: RewardForecastSnapshot | null;
 };
 
@@ -64,35 +66,44 @@ function mutationPayload(
   return value as MutationPayload;
 }
 
-async function reserveEnabled(): Promise<boolean> {
+type RewardReserveRuntime = {
+  enabled: boolean;
+  currentTopUpTargetRoundId: string | null;
+};
+
+async function readReserveRuntime(): Promise<RewardReserveRuntime> {
   const { data, error } = await supabaseAdmin
     .from('reward_runtime_config')
-    .select('reward_boost_reserve_enabled')
+    .select('reward_boost_reserve_enabled,reward_boost_current_topup_target_round_id')
     .eq('id', 1)
     .maybeSingle();
 
   if (error) {
     throw new Error(
-      `Reward boost reserve runtime configuration could not be loaded: ${error.message}`,
+      `Reward boost runtime configuration could not be loaded: ${error.message}`,
     );
   }
   if (!data) {
-    throw new Error(
-      'Reward boost reserve runtime configuration is missing.',
-    );
+    throw new Error('Reward boost runtime configuration is missing.');
   }
 
-  const enabled =
-    (data as { reward_boost_reserve_enabled?: unknown })
-      .reward_boost_reserve_enabled;
-
-  if (typeof enabled !== 'boolean') {
-    throw new Error(
-      'Reward boost reserve runtime flag is malformed.',
-    );
+  const row = data as {
+    reward_boost_reserve_enabled?: unknown;
+    reward_boost_current_topup_target_round_id?: unknown;
+  };
+  if (typeof row.reward_boost_reserve_enabled !== 'boolean') {
+    throw new Error('Reward boost enabled flag is malformed.');
   }
 
-  return enabled;
+  const rawRoundId = row.reward_boost_current_topup_target_round_id;
+  const currentTopUpTargetRoundId = rawRoundId === null
+    ? null
+    : positiveId(String(rawRoundId), 'reward boost current top-up target round');
+
+  return {
+    enabled: row.reward_boost_reserve_enabled,
+    currentTopUpTargetRoundId,
+  };
 }
 
 export async function runRewardBoostReserveRebalance(
@@ -107,7 +118,8 @@ export async function runRewardBoostReserveRebalance(
     );
   }
 
-  if (!(await reserveEnabled())) {
+  const runtime = await readReserveRuntime();
+  if (!runtime.enabled) {
     return {
       enabled: false,
       network: pool.network,
@@ -116,6 +128,7 @@ export async function runRewardBoostReserveRebalance(
       sourceSweepsChanged: 0,
       sourceResults: [],
       destinationResult: null,
+      currentTopUpResult: null,
       forecast: null,
     };
   }
@@ -235,13 +248,103 @@ export async function runRewardBoostReserveRebalance(
     'reward boost destination release',
   );
 
-  const forecast =
+  let forecast =
     destinationResult.changed === true
       ? await refreshRewardForecastSnapshot({
           network: releasePool.network,
           appId: releasePool.appId,
         })
       : null;
+
+  // Explicit current-round-only feature. No historical claims or sealed
+  // destination plans are rewritten. A new audited boost is permitted
+  // only when the production runtime selects this exact round.
+  let currentTopUpResult: MutationPayload | null = null;
+  if (runtime.currentTopUpTargetRoundId !== null) {
+    const latestForecast = forecast ??
+      await readLatestRewardForecastSnapshot({
+        network: releasePool.network,
+        appId: releasePool.appId,
+      });
+
+    if (
+      latestForecast &&
+      String(latestForecast.projectedFundingRoundId) ===
+        runtime.currentTopUpTargetRoundId
+    ) {
+      const { data: existingTopup, error: lookupError } =
+        await supabaseAdmin
+          .from('reward_boost_current_topup_plans')
+          .select('id,created_at')
+          .eq('network', releasePool.network)
+          .eq('app_id', releasePool.appId)
+          .eq('reward_cohort_round_id', runtime.currentTopUpTargetRoundId)
+          .limit(1)
+          .maybeSingle();
+      if (lookupError) {
+        throw new Error(
+          `Current top-up audit lookup failed: ${lookupError.message}`,
+        );
+      }
+
+      if (existingTopup) {
+        // A previous attempt may have committed the immutable top-up but
+        // failed to persist the public estimate. Repair it on the next
+        // scheduled run rather than leaving payouts ahead of the UI.
+        const postedAt = Date.parse(String(existingTopup.created_at));
+        const forecastAt = Date.parse(latestForecast.generatedAt);
+        if (
+          Number.isNaN(postedAt) ||
+          Number.isNaN(forecastAt) ||
+          forecastAt <= postedAt
+        ) {
+          forecast = await refreshRewardForecastSnapshot({
+            network: releasePool.network,
+            appId: releasePool.appId,
+          });
+        }
+      } else {
+        // Creates a live-pool-observed, matching-funding snapshot.
+        // The DB re-checks the observation, zero commitments, caps and
+        // exact round under transaction locks before moving one Wei.
+        await refreshRewardForecastSnapshot({
+          network: releasePool.network,
+          appId: releasePool.appId,
+        });
+
+        const currentPool = await readVeInviteRewardPoolStatus();
+        if (
+          currentPool.network !== releasePool.network ||
+          currentPool.appId !== releasePool.appId ||
+          currentPool.distributionPaused
+        ) {
+          throw new Error('Current top-up pool changed or paused.');
+        }
+        const { data: topUpData, error: topUpError } =
+          await supabaseAdmin.rpc('seal_and_topup_current_reward_cohort', {
+            p_network: currentPool.network,
+            p_app_id: currentPool.appId,
+            p_observed_pool_balance_wei:
+              currentPool.effectiveRewardPoolWei,
+          });
+        if (topUpError) {
+          throw new Error(
+            `Current reward cohort top-up failed: ${topUpError.message}`,
+          );
+        }
+        currentTopUpResult = mutationPayload(
+          topUpData,
+          'current reward cohort top-up',
+        );
+        if (currentTopUpResult.changed === true) {
+          forecast = await refreshRewardForecastSnapshot({
+            network: currentPool.network,
+            appId: currentPool.appId,
+          });
+        }
+      }
+    }
+  }
 
   return {
     enabled: true,
@@ -251,6 +354,7 @@ export async function runRewardBoostReserveRebalance(
     sourceSweepsChanged,
     sourceResults,
     destinationResult,
+    currentTopUpResult,
     forecast,
   };
 }
