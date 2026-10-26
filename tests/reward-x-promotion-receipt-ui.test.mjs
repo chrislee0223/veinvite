@@ -30,6 +30,16 @@ const promotionCopy = await readFile(
   new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url),
   'utf8',
 );
+const promotionCopyExpandedA = await readFile(
+  new URL('../src/lib/i18n/rewardXPromotionExpandedCopyA.ts', import.meta.url),
+  'utf8',
+);
+const promotionCopyExpandedB = await readFile(
+  new URL('../src/lib/i18n/rewardXPromotionExpandedCopyB.ts', import.meta.url),
+  'utf8',
+);
+const promotionCopyAll =
+  promotionCopy + '\n' + promotionCopyExpandedA + '\n' + promotionCopyExpandedB;
 
 test('reward receipt delegates all X sharing decisions to the promotion panel', () => {
   assert.match(
@@ -173,7 +183,7 @@ test('X promotion copy explicitly covers every locale registered by VeInvite', (
 
   for (const locale of localeMatches) {
     assert.match(
-      promotionCopy,
+      promotionCopyAll,
       new RegExp("(?:^|\\n)\\s*['\"]?" + locale + "['\"]?\\s*:"),
       "Missing X promotion copy for " + locale,
     );
