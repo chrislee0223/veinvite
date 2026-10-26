@@ -14,6 +14,7 @@ import type {
 } from '@/components/TransientSnackbar';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
+import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
@@ -314,10 +315,7 @@ export function useRewardPaidTransientFeedback({
                   ? {
                       ...visible,
                       text: autoShareFollowup
-                        ? (REWARD_X_PROMOTION_COPY[locale].autoShareFollowupBody ??
-                           REWARD_X_PROMOTION_COPY[locale].autoOpenBody ??
-                           REWARD_X_PROMOTION_COPY.en.autoShareFollowupBody ??
-                           '')
+                        ? REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody
                         : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
                     }
                   : visible,
