@@ -168,6 +168,13 @@ function fixtureForState(
   stateId: QaNotificationStateId,
 ): NotificationFixture {
   switch (stateId) {
+    case 'NOTI-X-PROMOTION-LAYOUT':
+      return {
+        mode: 'history',
+        items: [],
+        unreadCount: 0,
+        open: false,
+      };
     case 'NOTI-BELL-EMPTY':
       return {
         mode: 'history',
