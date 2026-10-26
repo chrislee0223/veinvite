@@ -30,6 +30,19 @@ test('scheduler calls audited release once, then rebuilds the real public foreca
   assert.match(rebalancer, /currentPool.distributionPaused/);
 });
 
+const reservationScopeMigration = readFileSync(
+  new URL('../supabase/migrations/20261026224500_reward_current_topup_reservation_scope.sql', import.meta.url),
+  'utf8',
+);
+
+test('current cohort may top up while other globally reserved claims remain protected', () => {
+  assert.match(reservationScopeMigration, /if v_committed<>0 then/);
+  assert.doesNotMatch(reservationScopeMigration, /if v_committed<>0 or v_reserved<>0 then/);
+  assert.match(reservationScopeMigration, /v_reserved is null or v_reserved < 0/);
+  assert.match(reservationScopeMigration, /p_observed_pool_balance_wei-v_reserved-v_remaining-v_recent_protected-v_source_retained-v_stress/);
+  assert.match(reservationScopeMigration, /REWARD_CURRENT_TOPUP_GLOBAL_RESERVE_INVALID/);
+});
+
 const topup = (fresh, bank, stress, liquidity, current, recent, retained, reserved, committed) => {
   if (reserved > 0n || committed > 0n) return 0n;
   const ordinary = bank > stress ? bank - stress : 0n;
