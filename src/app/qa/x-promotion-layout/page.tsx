@@ -2,8 +2,8 @@ import { RewardXPromotionPanel } from '@/components/RewardXPromotionPanel';
 import { isLocale } from '@/lib/i18n/locales';
 
 // QA access is enforced by the existing /qa layout and proxy.
-// This isolated page renders the real panel without any wallet provider,
-// reward mutation, or production data fixture.
+// This isolated page renders the real panel with a mocked response,
+// without relying on live accounts, chain state or production data.
 export const dynamic = 'force-dynamic';
 
 export default async function QaXPromotionLayoutPage({
