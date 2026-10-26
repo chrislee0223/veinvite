@@ -206,7 +206,7 @@ begin
 
   return new;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.read_reward_boost_reserve_audit_snapshot(p_network text, p_app_id text)
@@ -386,7 +386,7 @@ begin
       v_bank_balance>=v_bank_stress
   );
 end;
-$function$
+$function$;
 
 
 
