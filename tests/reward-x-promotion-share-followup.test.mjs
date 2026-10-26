@@ -34,5 +34,5 @@ test('share-followup translations cover all 29 registered app locales', () => {
   for (const locale of registered) {
     assert.match(copy, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale: ' + locale);
   }
-  assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 29);
+  assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 30);
 });
