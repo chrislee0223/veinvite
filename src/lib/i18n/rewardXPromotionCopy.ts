@@ -48,7 +48,7 @@ const EN: RewardXPromotionCopy = {
   retry: 'Try again',
   connectX: 'Connect X account',
   connectedX: 'X account connected. You can still submit the post link while automatic checks are being tested.',
-  autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No post URL is needed.',
+  autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No Post URL is needed.',
   autoOpenBody: 'Share to X within 24 hours. VeInvite will look for the post automatically. Keep it public for at least 24 hours; the bonus is paid only after verification.',
   autoShareFollowupBody: 'Once you publish on X, no URL submission or confirmation is needed. Keep the Post public for at least 24 hours; VeInvite checks it automatically and pays the bonus only after verification.',
   autoGraceBody: 'The sharing window has ended. VeInvite is checking posts shared before the deadline automatically. Keep your post public until the 24-hour verification finishes.',
