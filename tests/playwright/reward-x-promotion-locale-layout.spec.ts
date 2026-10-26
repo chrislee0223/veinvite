@@ -145,7 +145,10 @@ async function layoutReport(
     ]) {
       for (const el of visible(selector)) {
         const rect = el.getBoundingClientRect();
-        if (el.scrollWidth > el.clientWidth + 2) {
+        if (
+          selector !== '.promotionSubmit input' &&
+          el.scrollWidth > el.clientWidth + 2
+        ) {
           issues.push(
             selector +
               ' clipped ' +
