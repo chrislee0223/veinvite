@@ -22,7 +22,9 @@ test('current-round funding requires explicit per-round opt-in and is off by def
 
 test('scheduler calls audited release once, then rebuilds the real public forecast', () => {
   assert.match(rebalancer, /from\('reward_boost_current_topup_plans'\)/);
-  assert.match(rebalancer, /if \(!existingTopup\)/);
+  assert.match(rebalancer, /if \(existingTopup\)/);
+  assert.match(rebalancer, /forecastAt <= postedAt/);
+  assert.match(rebalancer, /forecast = await refreshRewardForecastSnapshot/);
   assert.match(rebalancer, /await supabaseAdmin.rpc\('seal_and_topup_current_reward_cohort'/);
   assert.match(rebalancer, /if \(currentTopUpResult.changed === true\) \{\s*forecast = await refreshRewardForecastSnapshot/);
   assert.match(rebalancer, /currentPool.distributionPaused/);
