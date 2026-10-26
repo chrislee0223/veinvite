@@ -1,5 +1,10 @@
 begin;
 
+-- Default OFF. Only the explicitly selected cohort can receive this one-time top-up.
+alter table public.reward_runtime_config
+  add column if not exists reward_boost_current_topup_target_round_id bigint
+  check (reward_boost_current_topup_target_round_id is null or reward_boost_current_topup_target_round_id > 0);
+
 -- Emergency funding optimization without reclaiming any historical users' entitlements.
 -- This is a separate immutable plan, NOT an edit to a previously sealed destination.
 create table if not exists public.reward_boost_current_topup_plans(
@@ -438,6 +443,10 @@ begin
     return jsonb_build_object('changed',false,'reason','NO_ACTIVE_ALLOCATION');
   end if;
   v_cohort:=v_alloc.vebetter_round_id+1;
+  if v_cfg.reward_boost_current_topup_target_round_id is distinct from v_cohort then
+    return jsonb_build_object('changed',false,'reason','COHORT_NOT_EXPLICITLY_APPROVED',
+      'cohort',v_cohort);
+  end if;
   select * into v_existing from public.reward_boost_current_topup_plans t
   where t.network=p_network and t.app_id=p_app_id
     and t.reward_cohort_round_id=v_cohort and t.allocation_receipt_id=v_alloc.id;
