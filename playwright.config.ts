@@ -23,7 +23,12 @@ export default defineConfig({
   },
   outputDir: 'test-results',
   webServer: {
-    command: 'npm run dev -- --hostname 127.0.0.1 --port 3100',
+    // CI exercises the same precompiled Next server model as a deployment.
+    // Local QA keeps the fast, existing interactive development server.
+    command:
+      process.env.VEINVITE_PLAYWRIGHT_PREBUILT === 'true'
+        ? 'npm run start -- --hostname 127.0.0.1 --port 3100'
+        : 'npm run dev -- --hostname 127.0.0.1 --port 3100',
     url: 'http://127.0.0.1:3100/qa/render',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
