@@ -93,9 +93,44 @@ function harness() {
     return query;
   }
 
+  function sessionQuery(operation, patch = null) {
+    const filters = [];
+    const matchingRows = () => sessions.filter((row) => matches(row, filters));
+    const applyUpdate = () => {
+      const rows = matchingRows();
+      for (const row of rows) Object.assign(row, patch);
+      if (rows.length) writes.push({ table: 'wallet_auth_sessions', operation: 'scoped-update' });
+      return rows[0] ?? null;
+    };
+    return {
+      eq(column, value) { filters.push({ kind: 'eq', column, value }); return this; },
+      is(column, value) { filters.push({ kind: 'is', column, value }); return this; },
+      gt(column, value) { filters.push({ kind: 'gt', column, value }); return this; },
+      select() { return this; },
+      async maybeSingle() {
+        const row = operation === 'update' ? applyUpdate() : matchingRows()[0] ?? null;
+        return { data: row ? { ...row } : null, error: null };
+      },
+      then(onFulfilled, onRejected) {
+        if (operation !== 'update') throw Error('Unexpected awaited session query');
+        applyUpdate();
+        return Promise.resolve({ error: null }).then(onFulfilled, onRejected);
+      },
+    };
+  }
+
   const supabaseAdmin = {
     from(table) {
-      assert.equal(table, 'wallet_auth_challenges', 'No production/bonus tables may be accessed');
+      assert.ok(
+        table === 'wallet_auth_challenges' || table === 'wallet_auth_sessions',
+        'No production/bonus tables may be accessed',
+      );
+      if (table === 'wallet_auth_sessions') {
+        return {
+          select: () => sessionQuery('select'),
+          update: (patch) => sessionQuery('update', patch),
+        };
+      }
       return {
         select: () => challengeQuery('select'),
         delete: () => challengeQuery('delete'),
@@ -117,6 +152,7 @@ function harness() {
       ) return { data: false, error: null };
       row.used_at = args.p_used_at;
       sessions.push({
+        id: sessions.length + 1,
         wallet_address: args.p_wallet_address,
         token_hash: args.p_token_hash,
         expires_at: args.p_expires_at,
@@ -176,7 +212,7 @@ function harness() {
         const hash = createHash('sha256').update(token).digest('hex');
         const row = sessions.find((s) =>
           s.token_hash === hash && s.revoked_at === null && s.expires_at > new Date().toISOString());
-        return row ? { id: 1, walletAddress: row.wallet_address, expiresAt: row.expires_at } : null;
+        return row ? { id: row.id, walletAddress: row.wallet_address, expiresAt: row.expires_at } : null;
       },
       revokeWalletSession: async (request) => {
         for (const cookie of request.cookies.getAll(WALLET_COOKIE)) {
@@ -197,11 +233,11 @@ function harness() {
   const verifyRoute = loadRoute('src/app/api/auth/verify/route.ts', mocks);
   const sessionRoute = loadRoute('src/app/api/auth/session/route.ts', mocks);
 
-  function request(route, body, token = null) {
+  function request(route, body, token = null, headers = {}) {
     const cookieRows = token ? [{ name: WALLET_COOKIE, value: token }] : [];
     return {
       nextUrl: new URL(ORIGIN + '/api/auth/' + route),
-      headers: { get: () => null },
+      headers: { get: (name) => headers[name.toLowerCase()] ?? null },
       json: async () => body,
       cookies: { getAll: (name) => cookieRows.filter((item) => item.name === name) },
     };
@@ -228,9 +264,22 @@ function harness() {
   }
 
   return {
-    issue: () => challengeRoute.POST(request('challenge', { walletAddress: WALLET.address })),
+    issue: (walletAddress = WALLET.address) =>
+      challengeRoute.POST(request('challenge', { walletAddress })),
     verify: (body) => verifyRoute.POST(request('verify', body)),
     readSession: (token) => sessionRoute.GET(request('session', null, token)),
+    renewSession: (token, walletAddress, headers = {}) =>
+      sessionRoute.POST(request('session', { walletAddress }, token, {
+        'x-veinvite-session-intent': 'renew',
+        origin: ORIGIN,
+        ...headers,
+      })),
+    handoffSession: (token, oldWallet, headers = {}) =>
+      sessionRoute.DELETE(request('session', null, token, {
+        'x-veinvite-session-handoff-wallet': oldWallet,
+        origin: ORIGIN,
+        ...headers,
+      })),
     revokeSession: (token) => sessionRoute.DELETE(request('session', null, token)),
     sign,
     challenges,
@@ -338,4 +387,108 @@ test('expired or tampered signed challenge fails closed before a database transa
     401,
   );
   assert.equal(changed.sessions.length, 0);
+});
+
+test('testnet signed session renews only for the matching wallet and same-origin intent', async () => {
+  const h = harness();
+  const challenge = (await h.issue()).body;
+  const verified = await h.verify({
+    walletAddress: WALLET.address,
+    nonce: challenge.nonce,
+    proofType: 'certificate',
+    certificate: h.sign(challenge),
+  });
+  assert.equal(verified.status, 201);
+  const token = verified.cookieRows.find((item) => item.name === WALLET_COOKIE)?.value;
+  assert.ok(token);
+  const oldExpiry = h.sessions[0].expires_at;
+
+  const accepted = await h.renewSession(token, WALLET.address);
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body.authenticated, true);
+  assert.equal(accepted.body.walletAddress, WALLET.address.toLowerCase());
+  assert.ok(h.sessions[0].expires_at >= oldExpiry);
+  const renewedCookie = accepted.cookieRows.find((item) => item.name === WALLET_COOKIE);
+  assert.equal(renewedCookie?.value, token, 'renewal must not issue a different bearer token');
+  assert.equal(renewedCookie?.httpOnly, true);
+  assert.equal(renewedCookie?.secure, true);
+
+  const stranger = new Wallet('0x' + '34'.repeat(32));
+  const mismatch = await h.renewSession(token, stranger.address);
+  assert.equal(mismatch.status, 403);
+  assert.equal(mismatch.cookieRows.length, 0);
+  assert.equal((await h.readSession(token)).body.authenticated, true, 'failed switch must not revoke A');
+
+  assert.equal((await h.renewSession(token, WALLET.address, {
+    'x-veinvite-session-intent': 'wrong-intent',
+  })).status, 403);
+  assert.equal((await h.renewSession(token, WALLET.address, {
+    origin: 'https://cross-site-attacker.example',
+  })).status, 403);
+  assert.equal((await h.renewSession('invalid-token', WALLET.address)).status, 401);
+  assert.equal((await h.readSession(token)).body.authenticated, true);
+
+  assert.equal((await h.revokeSession(token)).status, 200);
+  assert.equal((await h.renewSession(token, WALLET.address)).status, 401);
+  assert.equal(
+    h.writes.some((x) => /reward|payout|referral|invitation/i.test(x.table)),
+    false,
+    'renewal/denial/logout may never access payout or reward tables',
+  );
+});
+
+test('two real signed testnet wallets: stale A handoff cannot delete B cookie or session', async () => {
+  const h = harness();
+  const bKey = '0x' + '34'.repeat(32);
+  const bWallet = new Wallet(bKey);
+
+  const challengeA = (await h.issue(WALLET.address)).body;
+  const responseA = await h.verify({
+    walletAddress: WALLET.address, nonce: challengeA.nonce,
+    proofType: 'certificate', certificate: h.sign(challengeA),
+  });
+  assert.equal(responseA.status, 201);
+  const tokenA = responseA.cookieRows.find((c) => c.name === WALLET_COOKIE)?.value;
+  assert.ok(tokenA);
+
+  const challengeB = (await h.issue(bWallet.address)).body;
+  const responseB = await h.verify({
+    walletAddress: bWallet.address, nonce: challengeB.nonce,
+    proofType: 'certificate', certificate: h.sign(challengeB, bKey),
+  });
+  assert.equal(responseB.status, 201);
+  const tokenB = responseB.cookieRows.find((c) => c.name === WALLET_COOKIE)?.value;
+  assert.ok(tokenB);
+  assert.notEqual(tokenA, tokenB, 'different wallets must receive independent tokens');
+  assert.equal(h.sessions.length, 2);
+
+  const rejectedCrossOrigin = await h.handoffSession(tokenA, WALLET.address, {
+    origin: 'https://cross-site-attacker.example',
+  });
+  assert.equal(rejectedCrossOrigin.status, 403);
+  assert.equal((await h.readSession(tokenA)).body.authenticated, true);
+
+  // A's delayed response arriving after B's session must never clear B's browser cookie.
+  const retireA = await h.handoffSession(tokenA, WALLET.address);
+  assert.equal(retireA.status, 200);
+  assert.equal(retireA.cookieRows.length, 0, 'handoff must never emit Set-Cookie deletion');
+  assert.equal((await h.readSession(tokenA)).body.authenticated, false);
+  assert.equal((await h.readSession(tokenB)).body.authenticated, true);
+
+  // The browser has already switched to B; a stale A callback must be a no-op.
+  const staleHandoff = await h.handoffSession(tokenB, WALLET.address);
+  assert.equal(staleHandoff.status, 409);
+  assert.equal(staleHandoff.cookieRows.length, 0);
+  assert.equal((await h.readSession(tokenB)).body.authenticated, true);
+
+  const renewedB = await h.renewSession(tokenB, bWallet.address);
+  assert.equal(renewedB.status, 200);
+  assert.equal(renewedB.body.walletAddress, bWallet.address.toLowerCase());
+  assert.equal((await h.revokeSession(tokenB)).status, 200);
+  assert.equal((await h.readSession(tokenB)).body.authenticated, false);
+
+  assert.equal(
+    h.writes.some((x) => /reward|payout|referral|invitation/i.test(x.table)),
+    false,
+  );
 });
