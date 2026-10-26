@@ -345,18 +345,15 @@ begin
          d.destination_reward_cohort_round_id
      and l.destination_allocation_receipt_id=
          d.destination_allocation_receipt_id
+    left join public.reward_boost_current_topup_plans t
+      on t.network=d.network and t.app_id=d.app_id
+     and t.reward_cohort_round_id=d.destination_reward_cohort_round_id
+     and t.allocation_receipt_id=d.destination_allocation_receipt_id
     where d.network=p_network
       and d.app_id=p_app_id
-    group by d.id,d.max_boost_release_wei
+    group by d.id,d.max_boost_release_wei,t.amount_wei
     having coalesce(sum(l.amount_wei),0)>
-           d.max_boost_release_wei +
-           coalesce((
-             select sum(t.amount_wei)
-             from public.reward_boost_current_topup_plans t
-             where t.network=d.network and t.app_id=d.app_id
-               and t.reward_cohort_round_id=d.destination_reward_cohort_round_id
-               and t.allocation_receipt_id=d.destination_allocation_receipt_id
-           ),0)
+           d.max_boost_release_wei+coalesce(t.amount_wei,0)
   ) x;
 
   return jsonb_build_object(
