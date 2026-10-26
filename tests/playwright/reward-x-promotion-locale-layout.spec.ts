@@ -9,8 +9,8 @@ import {
   rewardXPromotionSubmitError,
 } from '../../src/lib/i18n/rewardXPromotionSubmitErrorCopy';
 
-// The first cold Next dev route compilation may overlap 4 parallel shards.
-test.describe.configure({ timeout: 90_000 });
+// Avoid four simultaneous Next dev compilations for one new QA route.
+test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
 const SHARE_TOKEN = '123e4567-e89b-42d3-a456-426614174000';
 
@@ -87,10 +87,10 @@ async function openPanel(
   );
   expect(response?.status(), 'QA layout route should load').toBe(200);
   await expect(page.locator('[data-qa-x-promotion-layout]')).toBeVisible({
-    timeout: 20_000,
+    timeout: 60_000,
   });
 
-  // Next dev may compile a cold QA route while other browser shards execute.
+  // Next dev may compile this cold page alongside other browser specs.
   // Wait for the actual mocked API result rather than a fixed sleep.
   const panel = page.locator('.promotionPanel');
   await expect(panel).toBeVisible({ timeout: 30_000 });
