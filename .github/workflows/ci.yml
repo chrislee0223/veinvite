@@ -193,7 +193,7 @@ jobs:
   browser:
     name: browser QA
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -287,8 +287,18 @@ jobs:
         if: steps.browser-scope.outputs.run_browser == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
+      # Next dev recompiles the shared wallet-heavy app/layout.js under
+      # concurrent Playwright shards and can stall client hydration. Build the
+      # isolated preview/testnet identity first and exercise next start instead.
+      # The application, preview Supabase and API access policy are unchanged.
+      - name: Build isolated browser QA app
+        if: steps.browser-scope.outputs.run_browser == 'true'
+        run: npm run build
+
       - name: Visual and multilingual browser QA
         if: steps.browser-scope.outputs.run_browser == 'true'
+        env:
+          VEINVITE_PLAYWRIGHT_PREBUILT: 'true'
         run: npm run test:playwright
 
       - name: Upload Playwright QA evidence
