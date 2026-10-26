@@ -13,9 +13,7 @@ type AutoCopy = Required<
   >
 >;
 
-export const REWARD_X_PROMOTION_AUTO_COPY: Partial<
-  Record<string, AutoCopy>
-> = {
+export const REWARD_X_PROMOTION_AUTO_COPY = {
   zh: {
     connectX: '连接 X 账号',
     connectedX: 'X 账号已连接。自动验证完全启用前仍可提交帖子链接。',
@@ -133,4 +131,19 @@ export const REWARD_X_PROMOTION_AUTO_COPY: Partial<
     autoGraceBody: '分享時間已結束。VeInvite 正在自動檢查截止時間前發布的貼文。請保持貼文公開，直到 24 小時驗證完成。',
     autoConnectedX: 'X 帳號已連接。公開貼文會自動檢查，不需要提交連結。',
   },
-};
+} satisfies Record<
+  | 'zh'
+  | 'es'
+  | 'ja'
+  | 'it'
+  | 'tr'
+  | 'nl'
+  | 'de'
+  | 'fr'
+  | 'pt'
+  | 'ru'
+  | 'id'
+  | 'vi'
+  | 'zh-tw',
+  AutoCopy
+>;
