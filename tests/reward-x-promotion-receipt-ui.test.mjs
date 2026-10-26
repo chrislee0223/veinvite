@@ -26,10 +26,22 @@ const locales = await readFile(
   new URL('../src/lib/i18n/locales.ts', import.meta.url),
   'utf8',
 );
-const promotionCopy = await readFile(
+const promotionCopyBase = await readFile(
   new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url),
   'utf8',
 );
+const promotionCopyExpandedA = await readFile(
+  new URL('../src/lib/i18n/rewardXPromotionExpandedCopyA.ts', import.meta.url),
+  'utf8',
+);
+const promotionCopyExpandedB = await readFile(
+  new URL('../src/lib/i18n/rewardXPromotionExpandedCopyB.ts', import.meta.url),
+  'utf8',
+);
+const promotionCopy =
+  promotionCopyBase + '\n' +
+  promotionCopyExpandedA + '\n' +
+  promotionCopyExpandedB;
 
 test('reward receipt delegates all X sharing decisions to the promotion panel', () => {
   assert.match(
