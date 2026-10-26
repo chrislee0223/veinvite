@@ -463,9 +463,11 @@ begin
   select * into v_forecast from public.reward_forecast_snapshots f
   where f.network=p_network and f.app_id=p_app_id
   order by f.generated_at desc,f.id desc limit 1;
-  if not found or v_forecast.generated_at < now() - interval '30 minutes'
-    or v_forecast.observed_pool_balance_wei<>p_observed_pool_balance_wei
-    or v_forecast.input_snapshot->>'rewardCohortRoundId'<>v_cohort::text then
+  if not found
+    or v_forecast.generated_at is null
+    or v_forecast.generated_at < now() - interval '30 minutes'
+    or v_forecast.observed_pool_balance_wei is distinct from p_observed_pool_balance_wei
+    or (v_forecast.input_snapshot->>'rewardCohortRoundId') is distinct from v_cohort::text then
     return jsonb_build_object('changed',false,'reason','CURRENT_POOL_SNAPSHOT_REQUIRED');
   end if;
   v_committed:=public.read_reward_cohort_committed_wei(p_network,p_app_id,v_cohort,v_alloc.id);
