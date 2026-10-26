@@ -118,7 +118,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
     if (/\bundefined\b|\[missing translation\]|\{\{[^}]+\}\}/i.test(text)) {
       issues.push('unresolved translation');
     }
-    return { issues, direction: getComputedStyle(root).direction };
+    return { issues, direction: root.getAttribute('dir') || getComputedStyle(root).direction };
   });
   expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
   expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
