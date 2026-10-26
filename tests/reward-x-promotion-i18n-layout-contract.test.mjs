@@ -18,6 +18,15 @@ const autoCopy = readFileSync(
   'src/lib/i18n/rewardXPromotionAutoCopy.ts',
   'utf8',
 );
+const autoCopyA = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoCopyA.ts',
+  'utf8',
+);
+const autoCopyB = readFileSync(
+  'src/lib/i18n/rewardXPromotionAutoCopyB.ts',
+  'utf8',
+);
+const allAutoCopy = autoCopy + '\n' + autoCopyA + '\n' + autoCopyB;
 const submitErrors = readFileSync(
   'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
   'utf8',
@@ -70,7 +79,7 @@ test('X promotion copy has no English spread fallback and keeps all locale packs
       ? new RegExp("'" + locale + "'\\s*:")
       : new RegExp('\\b' + locale + '\\s*:');
     assert.match(
-      autoCopy,
+      allAutoCopy,
       key,
       'missing automatic X copy for ' + locale,
     );
