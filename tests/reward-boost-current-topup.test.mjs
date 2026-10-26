@@ -41,7 +41,8 @@ const topup = (fresh, bank, stress, liquidity, current, recent, retained, reserv
 test('top-up only applies to an uncommitted cohort with a recent matching pool observation', () => {
   assert.match(migration, /v_committed<>0 or v_reserved<>0/);
   assert.match(migration, /v_forecast\.generated_at < now\(\) - interval '30 minutes'/);
-  assert.match(migration, /v_forecast\.observed_pool_balance_wei<>p_observed_pool_balance_wei/);
+  assert.match(migration, /rewardCohortRoundId'\) is distinct from v_cohort::text/);
+  assert.match(migration, /v_forecast\.observed_pool_balance_wei is distinct from p_observed_pool_balance_wei/);
   assert.match(migration, /ALREADY_TOPPED_UP/);
   assert.match(migration, /reward_cohort_round_id=v_cohort and t\.allocation_receipt_id=v_alloc\.id/);
 });
