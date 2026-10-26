@@ -315,10 +315,7 @@ export function useRewardPaidTransientFeedback({
                   ? {
                       ...visible,
                       text: autoShareFollowup
-                        ? (REWARD_X_PROMOTION_COPY[locale].autoShareFollowupBody ??
-                           REWARD_X_PROMOTION_COPY[locale].autoOpenBody ??
-                           REWARD_X_PROMOTION_COPY.en.autoShareFollowupBody ??
-                           '')
+                        ? REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody
                         : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
                     }
                   : visible,
