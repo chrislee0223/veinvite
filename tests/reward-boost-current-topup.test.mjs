@@ -7,6 +7,27 @@ const migration = readFileSync(
   'utf8',
 );
 
+const rebalancer = readFileSync(
+  new URL('../src/lib/rewards/rewardBoostReserveExecution.ts', import.meta.url),
+  'utf8',
+);
+
+test('current-round funding requires explicit per-round opt-in and is off by default', () => {
+  assert.match(migration, /add column if not exists reward_boost_current_topup_target_round_id bigint/);
+  assert.match(migration, /v_cfg.reward_boost_current_topup_target_round_id is distinct from v_cohort/);
+  assert.match(migration, /COHORT_NOT_EXPLICITLY_APPROVED/);
+  assert.match(rebalancer, /runtime.currentTopUpTargetRoundId !== null/);
+  assert.match(rebalancer, /latestForecast.projectedFundingRoundId/);
+});
+
+test('scheduler calls audited release once, then rebuilds the real public forecast', () => {
+  assert.match(rebalancer, /from\('reward_boost_current_topup_plans'\)/);
+  assert.match(rebalancer, /if \(!existingTopup\)/);
+  assert.match(rebalancer, /await supabaseAdmin.rpc\('seal_and_topup_current_reward_cohort'/);
+  assert.match(rebalancer, /if \(currentTopUpResult.changed === true\) \{\s*forecast = await refreshRewardForecastSnapshot/);
+  assert.match(rebalancer, /currentPool.distributionPaused/);
+});
+
 const topup = (fresh, bank, stress, liquidity, current, recent, retained, reserved, committed) => {
   if (reserved > 0n || committed > 0n) return 0n;
   const ordinary = bank > stress ? bank - stress : 0n;
