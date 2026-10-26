@@ -53,8 +53,9 @@ test('forecast refresh occurs only after a destination accounting release', () =
 
 test('disabled reserve mode performs no accounting mutations', () => {
   const disabledGate = execution.indexOf(
-    'if (!(await reserveEnabled()))',
+    'if (!runtime.enabled)',
   );
+  assert.ok(execution.includes('const runtime = await readReserveRuntime()'));
   const sourceRpc = execution.indexOf(
     'read_reward_boost_reserve_unprotected_sources',
   );
