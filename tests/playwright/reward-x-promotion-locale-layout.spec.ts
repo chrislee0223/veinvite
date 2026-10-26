@@ -79,7 +79,7 @@ async function openPanel(
 ) {
   await page.setViewportSize(viewport);
   await page.goto(
-    '/qa/x-promotion-layout?locale=' + locale,
+    '/qa/notification-state?state=NOTI-X-PROMOTION-LAYOUT&locale=' + locale,
     { waitUntil: 'domcontentloaded', timeout: 30_000 },
   );
 
