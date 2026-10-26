@@ -37,13 +37,13 @@ test('reviewed Korean and Vietnamese X promotion copy avoids misleading hold/ver
 
 test('reviewed Dutch and Indonesian copy uses natural post terminology', () => {
   const dutch =
-    mainCopy.match(/\\bnl:\\s*\\{([\\s\\S]*?)\\n\\s*\\},/u)?.[1] ?? '';
+    mainCopy.match(/\bnl:\s*\{([\s\S]*?)\n\s*\},/u)?.[1] ?? '';
   const indonesian =
-    mainCopy.match(/\\bid:\\s*\\{([\\s\\S]*?)\\n\\s*\\},/u)?.[1] ?? '';
+    mainCopy.match(/\bid:\s*\{([\s\S]*?)\n\s*\},/u)?.[1] ?? '';
 
   assert.match(
     dutch,
-    /link naar de openbare post hieronder\\. Dezelfde post/,
+    /link naar de openbare post hieronder\. Dezelfde post/,
   );
   assert.doesNotMatch(dutch, /openbare Post-link|X-Post/);
 
