@@ -18,6 +18,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-REFERRAL-RESTORED',     // longest localized security body
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
+  'NOTI-X-PROMOTION-PAID',    // localized +10 B3TR paid notification
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -72,6 +73,7 @@ async function verifyNotificationLayout(page: Page, locale: SupportedLocale) {
       '.notificationActionCopy small',
       '.notificationReceiptFacts dd',
       '.notificationReceiptView > p',
+      '.notificationExplorerLink',
     ];
     for (const el of root.querySelectorAll<HTMLElement>(selectors.join(','))) {
       const value = el.textContent?.trim() ?? '';
