@@ -34,9 +34,7 @@ export function useXPromotionOAuthReturnFeedback(
     if (status === 'connected') {
       showFeedback(
         'success',
-        REWARD_X_PROMOTION_COPY[displayLocale].connectedX ??
-          REWARD_X_PROMOTION_COPY.en.connectedX ??
-          'X account connected.',
+        REWARD_X_PROMOTION_AUTO_COPY[displayLocale].connectedX,
       );
     } else if ([
       'invalid', 'wallet', 'offer', 'provider', 'private',
