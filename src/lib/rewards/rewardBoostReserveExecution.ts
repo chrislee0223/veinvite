@@ -275,7 +275,7 @@ export async function runRewardBoostReserveRebalance(
       const { data: existingTopup, error: lookupError } =
         await supabaseAdmin
           .from('reward_boost_current_topup_plans')
-          .select('id')
+          .select('id,created_at')
           .eq('network', releasePool.network)
           .eq('app_id', releasePool.appId)
           .eq('reward_cohort_round_id', runtime.currentTopUpTargetRoundId)
@@ -287,7 +287,23 @@ export async function runRewardBoostReserveRebalance(
         );
       }
 
-      if (!existingTopup) {
+      if (existingTopup) {
+        // A previous attempt may have committed the immutable top-up but
+        // failed to persist the public estimate. Repair it on the next
+        // scheduled run rather than leaving payouts ahead of the UI.
+        const postedAt = Date.parse(String(existingTopup.created_at));
+        const forecastAt = Date.parse(latestForecast.generatedAt);
+        if (
+          Number.isNaN(postedAt) ||
+          Number.isNaN(forecastAt) ||
+          forecastAt <= postedAt
+        ) {
+          forecast = await refreshRewardForecastSnapshot({
+            network: releasePool.network,
+            appId: releasePool.appId,
+          });
+        }
+      } else {
         // Creates a live-pool-observed, matching-funding snapshot.
         // The DB re-checks the observation, zero commitments, caps and
         // exact round under transaction locks before moving one Wei.
