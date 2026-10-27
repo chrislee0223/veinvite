@@ -103,8 +103,7 @@ export function HomeClient() {
 
   const [locale, setLocale] = useState<SupportedLocale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
-  const [referralLink, setReferralLink] =
-    useState<ReferralLinkRecord | null>(null);
+  const [referralLink, setReferralLink] = useState<ReferralLinkRecord | null>(null);
   const [invitesReady, setInvitesReady] = useState(false);
   const [invitesFailed, setInvitesFailed] = useState(false);
   const [referralLinkVerified, setReferralLinkVerified] = useState(false);
@@ -118,8 +117,7 @@ export function HomeClient() {
     useState<InviteRecord | null>(null);
   const [legacyCancelVisible, setLegacyCancelVisible] = useState(false);
   const legacyCancelCloseTimerRef = useRef<number | null>(null);
-  const [claimPendingCode, setClaimPendingCode] =
-    useState<string | null>(null);
+  const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
   const feedbackIdRef = useRef(0);
   const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
@@ -1039,7 +1037,7 @@ export function HomeClient() {
                           {pending ? progressCopy.claiming : progressCopy.claimReward}
                         </button>
                       ) : processing ? (
-                        <TransferStatus inviteCode={invite.code} wallet={wallet ?? ''} copy={progressCopy} locale={locale} rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''} />
+                        <TransferStatus inviteCode={invite.code} wallet={wallet||''} copy={progressCopy} locale={locale} rewardShareUrl={referralLinkVerified?rewardShareUrl:''}/>
                       ) : null}
                     </article>
                   );
