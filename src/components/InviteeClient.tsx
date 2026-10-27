@@ -176,6 +176,7 @@ export function InviteeClient({ code }: { code: string }) {
   const [showLanguageSetup, setShowLanguageSetup] = useState(true);
   const [claimedThisSession, setClaimedThisSession] = useState(false);
   const [initialInviteResolved, setInitialInviteResolved] = useState(false);
+  const [initialReadFailed, setInitialReadFailed] = useState(false);
   const walletRef = useRef<string | null>(wallet);
 
   walletRef.current = wallet;
@@ -256,6 +257,10 @@ export function InviteeClient({ code }: { code: string }) {
           return;
         }
 
+        // A temporary passive GET failure must not strand an otherwise valid
+        // invitation on a Home-only error page. The recovery reloads the
+        // same invite URL; GET has no claim, reward, or other side effects.
+        setInitialReadFailed(true);
         const status = error instanceof InviteRequestError
           ? error.status
           : null;
@@ -567,6 +572,15 @@ export function InviteeClient({ code }: { code: string }) {
                   ? t.otherHelp
                   : t.tryAgain}
         </p>
+        {initialReadFailed && errorCode === 'eligibility' && (
+          <button
+            type="button"
+            className="secondaryButton"
+            onClick={() => window.location.reload()}
+          >
+            ↻ {t.tryAgain}
+          </button>
+        )}
         <Link className="secondaryButton linkButton" href="/">{t.home}</Link>
       </Centered>
     );
