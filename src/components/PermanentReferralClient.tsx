@@ -91,6 +91,9 @@ type QaPreviewSeed = {
   walletConnected: boolean;
 };
 
+const REFERRAL_LINK_STATUS_TIMEOUT_MS = 12_000;
+const REFERRAL_CLAIM_TIMEOUT_MS = 60_000;
+
 const QA_PREVIEW_WALLET =
   '0x1234567890abcdef1234567890abcdef12345678';
 
@@ -246,7 +249,13 @@ export function PermanentReferralClient({
       return;
     }
 
-    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    } catch {
+      // Some privacy-restricted in-app browsers disable localStorage entirely.
+      // Continue with the URL or browser language instead of crashing the invite.
+    }
     const queryLanguage = new URLSearchParams(window.location.search).get('lang');
     const savedLocale = isLocale(saved) ? saved : null;
     const queryLocale = localeFromLanguageTag(queryLanguage);
@@ -272,7 +281,11 @@ export function PermanentReferralClient({
     }
 
     setKitLanguage(nextLocale);
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
+    } catch {
+      // Keep the selected language in React state for this visit.
+    }
     window.dispatchEvent(
       new CustomEvent('veinvite-language-change', { detail: nextLocale }),
     );
@@ -289,7 +302,10 @@ export function PermanentReferralClient({
       const readStatus = async () => {
         const response = await fetch(
           `/api/referral-links/${encodeURIComponent(referralKey)}`,
-          { cache: 'no-store' },
+          {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(REFERRAL_LINK_STATUS_TIMEOUT_MS),
+          }
         );
         const data = (await response.json()) as StatusResponse;
         return { response, data };
@@ -380,6 +396,7 @@ export function PermanentReferralClient({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inviteeAddress: wallet }),
+          signal: AbortSignal.timeout(REFERRAL_CLAIM_TIMEOUT_MS),
         },
       );
     } catch {
