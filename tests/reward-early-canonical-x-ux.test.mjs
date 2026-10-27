@@ -25,7 +25,7 @@ test('canonical feedback requires wallet-scoped, immutable, event-verified broad
   assert.doesNotMatch(early, /finalize_reward_payout_manifest|status='PAID'|reward_receipts/u);
 });
 
-test('early notice does not acknowledge finalized PAID receipt or forge one', () => {
+test('finalized PAID receipt is acknowledged only after the user confirms the early notice', () => {
   assert.match(early, /veinvite:early-transfer-shown:v1:/u);
   assert.match(early, /localStorage\.setItem/u);
   assert.match(early, /wallet\.toLowerCase\(\)/u);
@@ -35,8 +35,7 @@ test('early notice does not acknowledge finalized PAID receipt or forge one', ()
   assert.match(hook, /onConfirm: \(\) => markEarlyRewardTransferAcknowledged\(wallet, code, tx\)/u);
   assert.match(hook, /void acknowledgeReward\(pendingReward\)/u);
   assert.match(hook, /clearRewardPaidToast\(wallet, pendingReward\.receiptId\)/u);
-  // Check the actual acknowledgement call, not the formatting of a comment.
-  assert.match(hook, /Never infer a successful transfer from a Claim response/u);
+  assert.match(hook, /action\.broadcastConfirmedAt/u);
   assert.match(notice, /txId: receipt\.txId/u);
   assert.match(hook, /EARLY_REWARD_TRANSFER_COPY\[locale\]/u);
 });
