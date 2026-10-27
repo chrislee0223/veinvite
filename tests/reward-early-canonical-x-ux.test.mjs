@@ -10,6 +10,9 @@ const recovery = read('src/lib/rewards/submittedPayoutRecovery.ts');
 const migrations = read('supabase/migrations/20261027131000_allow_safe_early_x_promotion_after_canonical_transfer.sql');
 const notice = read('src/lib/notifications/rewardPaidToast.ts');
 const copy = read('src/lib/i18n/earlyRewardTransferCopy.ts');
+const processing = read('src/components/RewardTransferConfirmationLabel.tsx');
+const home = read('src/components/HomeClient.tsx');
+
 const locales = read('src/lib/i18n/locales.ts');
 
 test('canonical feedback requires wallet-scoped, immutable, event-verified broadcast', () => {
@@ -72,4 +75,15 @@ test('early reward copy is available for every VeInvite locale', () => {
       'missing early copy for ' + locale,
     );
   }
+});
+
+test('authenticated early offer remains discoverable after popup close or OAuth return', () => {
+  assert.match(home, /<TransferStatus[\s\S]*rewardShareUrl=\{referralLinkVerified/u);
+  assert.match(processing, /confirmedIdentity === identity/u);
+  assert.match(processing, /offer\.state !== 'OPEN'/u);
+  assert.match(processing, /rewardXPromotionShareUrl/u);
+  assert.match(processing, /body\.walletAddress\?\.toLowerCase\(\) !== wallet\.toLowerCase\(\)/u);
+  assert.match(processing, /x-connect\/start\?inviteCode/u);
+  assert.match(processing, /Date\.now\(\) >= earlyX\.deadline/u);
+  assert.doesNotMatch(processing, /status='PAID'|finalize_reward_payout_manifest/u);
 });
