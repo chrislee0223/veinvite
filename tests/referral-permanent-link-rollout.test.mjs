@@ -232,3 +232,26 @@ test('analytics classifies permanent links without sending raw referral paths', 
   assert.match(analyticsTracker, /const ensureSession =/i);
   assert.match(analyticsTracker, /const isEngaged =/i);
 });
+
+test('permanent referral is resilient to restricted browser storage and stalled requests', () => {
+  assert.match(permanentClient, /let saved: string \| null = null;/u);
+  assert.match(
+    permanentClient,
+    /try \{\s*saved = window\.localStorage\.getItem\(LANGUAGE_STORAGE_KEY\);\s*\} catch \{/u,
+  );
+  assert.match(
+    permanentClient,
+    /try \{\s*window\.localStorage\.setItem\(LANGUAGE_STORAGE_KEY, nextLocale\);\s*\} catch \{/u,
+  );
+  assert.match(
+    permanentClient,
+    /signal: AbortSignal\.timeout\(REFERRAL_LINK_STATUS_TIMEOUT_MS\)/u,
+  );
+  assert.match(
+    permanentClient,
+    /signal: AbortSignal\.timeout\(REFERRAL_CLAIM_TIMEOUT_MS\)/u,
+  );
+  // Retrying after a timed-out claim must resume the already-durable invite.
+  assert.match(permanentClient, /data\.outcome === 'already_claimed'/u);
+  assert.match(claimApi, /isResumableForSponsor/u);
+});
