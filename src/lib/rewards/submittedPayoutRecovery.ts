@@ -143,6 +143,24 @@ async function markBroadcastConfirmed(
       `Submitted payout broadcast confirmation could not be recorded: ${error.message}`,
     );
   }
+
+  // X participation may open on an independently verified canonical reward
+  // broadcast, but no X payout intent can be created until PAID settlement.
+  // This optional enrichment must never delay/roll back the reward transfer.
+  try {
+    const { network } = getVeBetterNetworkConfig();
+    const { data: offerSync, error: offerError } = await supabaseAdmin.rpc(
+      'sync_reward_x_promotion_opportunities_v1',
+      { p_network: network, p_limit: 10 },
+    );
+    if (offerError) {
+      console.warn('Early X reward opportunity sync failed:', offerError.message);
+    } else if (Number((offerSync as { failedCount?: number } | null)?.failedCount ?? 0) > 0) {
+      console.warn('Early X reward opportunity sync partially deferred');
+    }
+  } catch (offerError) {
+    console.warn('Early X opportunity is deferred to regular maintenance:', offerError);
+  }
 }
 
 /**
