@@ -1039,7 +1039,14 @@ export function HomeClient() {
                           {pending ? progressCopy.claiming : progressCopy.claimReward}
                         </button>
                       ) : processing ? (
-                        <TransferStatus inviteCode={invite.code} wallet={wallet ?? ''} copy={progressCopy} />
+                        <TransferStatus
+                          inviteCode={invite.code}
+                          wallet={wallet ?? ''}
+                          copy={progressCopy}
+                          locale={locale}
+                          rewardShareUrl={referralLinkVerified ? rewardShareUrl : ''}
+                          amountWei={invite.rewardClaimAmountWei ?? null}
+                        />
                       ) : null}
                     </article>
                   );
