@@ -33,6 +33,19 @@ import {
   notifyRewardClaimSessionInvalid,
 } from '@/lib/rewards/rewardClaimClient';
 import { buildProductionSharePageUrl } from '@/lib/socialShareCard';
+import { EARLY_REWARD_TRANSFER_COPY } from '@/lib/i18n/earlyRewardTransferCopy';
+import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
+import {
+  markEarlyRewardTransferShown,
+  wasEarlyRewardTransferShown,
+} from '@/lib/rewards/earlyRewardTransferFeedback';
+import { REWARD_CLAIM_UPDATED_EVENT } from '@/lib/rewards/rewardClaimClient';
+import type { RewardActionResponse } from '@/lib/notifications/rewardAction';
+
+const CANONICAL_TX_PATTERN = /^0x[0-9a-f]{64}$/iu;
+const POSITIVE_WEI_PATTERN = /^[0-9]+$/u;
+const CANONICAL_FAST_POLL_MS = 5_000;
+const CANONICAL_IDLE_POLL_MS = 60_000;
 
 const REWARD_RECEIPT_ACKNOWLEDGED_EVENT =
   'veinvite-reward-receipt-acknowledged';
@@ -131,6 +144,21 @@ export function useRewardPaidTransientFeedback({
 
   useEffect(() => {
     if (!pendingReward || feedback) return;
+
+    // This same wallet + immutable tx already received a canonical transfer
+    // notice. Preserve the finalized receipt (and its unread history) but do
+    // not interrupt the user with a second, identical reward popup 80m later.
+    if (wasEarlyRewardTransferShown(
+      pendingReward.recipientWallet,
+      pendingReward.inviteCode,
+      pendingReward.txId,
+    )) {
+      if (wallet) {
+        clearRewardPaidToast(wallet, pendingReward.receiptId);
+        setPendingReward(readRewardPaidToast(wallet));
+      }
+      return;
+    }
 
     const shareReady =
       referralLinkVerified && referralLink !== null;
@@ -352,4 +380,102 @@ export function useRewardPaidTransientFeedback({
     setFeedback,
     wallet,
   ]);
+
+  // Early UI feedback is driven exclusively by the authenticated reward-action
+  // reader and its manifest-verified canonical broadcast marker. Never infer a
+  // successful transfer from a Claim response, a tx hash alone or a timer.
+  // The PAID receipt, Sybil gates, X opportunity and any payouts stay unchanged.
+  useEffect(() => {
+    if (!wallet) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
+
+    const poll = async () => {
+      if (disposed || inFlight) return;
+      if (document.visibilityState !== 'visible') {
+        schedule(CANONICAL_IDLE_POLL_MS);
+        return;
+      }
+
+      inFlight = true;
+      let processing = false;
+      try {
+        const response = await fetch('/api/notifications/reward-actions', {
+          cache: 'no-store',
+          credentials: 'include',
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (response.status === 401 || response.status === 403) {
+          notifyRewardClaimSessionInvalid();
+          return;
+        }
+        if (!response.ok) return;
+        const body = (await response.json()) as RewardActionResponse;
+        // A stale response after wallet switching must never celebrate
+        // somebody else's transfer.
+        if (disposed || body.walletAddress?.toLowerCase() !== wallet.toLowerCase()) return;
+
+        for (const action of body.actions ?? []) {
+          if (action.status === 'AWAITING_CLAIM') continue;
+          processing = true;
+          const amountWei = action.claimAmountWei ?? action.reservedAmountWei;
+          if (
+            !action.broadcastConfirmedAt ||
+            !action.txId ||
+            !CANONICAL_TX_PATTERN.test(action.txId) ||
+            !amountWei ||
+            !POSITIVE_WEI_PATTERN.test(amountWei) ||
+            BigInt(amountWei) <= 0n ||
+            wasEarlyRewardTransferShown(wallet, action.inviteCode, action.txId)
+          ) continue;
+          // Do not hide a different reward notice or another user's dialog.
+          if (feedback !== null) continue;
+          const tx = action.txId;
+          const code = action.inviteCode;
+          markEarlyRewardTransferShown(wallet, code, tx);
+          setFeedback({
+            id: Date.now(),
+            kind: 'reward',
+            title: EARLY_REWARD_TRANSFER_COPY[locale].title,
+            text: EARLY_REWARD_TRANSFER_COPY[locale].body,
+            amountB3tr: formatWeiAsB3tr(amountWei, 18),
+            confirmLabel: NOTIFICATION_COPY[locale].confirm,
+            // Dismisses UI only. Never acknowledges or creates a PAID receipt.
+            onConfirm: () => {},
+          });
+          break;
+        }
+      } catch {
+        // An optional UI poll must never alter payment or receipt state.
+      } finally {
+        inFlight = false;
+        if (!disposed) schedule(processing ? CANONICAL_FAST_POLL_MS : CANONICAL_IDLE_POLL_MS);
+      }
+    };
+
+    const schedule = (delay: number) => {
+      if (disposed) return;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void poll();
+      }, delay);
+    };
+
+    const onClaim = () => schedule(200);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') schedule(200);
+    };
+
+    window.addEventListener(REWARD_CLAIM_UPDATED_EVENT, onClaim);
+    document.addEventListener('visibilitychange', onVisible);
+    schedule(400);
+    return () => {
+      disposed = true;
+      if (timer !== null) clearTimeout(timer);
+      window.removeEventListener(REWARD_CLAIM_UPDATED_EVENT, onClaim);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [wallet, locale, feedback, setFeedback]);
 }
