@@ -20,6 +20,7 @@ export type RewardPaidToastPayload = {
   recipientWallet: string;
   amountWei: string;
   amountB3tr: string;
+  txId?: string; // Backwards compatible with previously persisted toast queues.
 };
 
 function keyForWallet(wallet: string): string {
@@ -42,7 +43,8 @@ function validPayload(value: unknown): value is RewardPaidToastPayload {
     typeof payload.amountWei === 'string' &&
     /^\d+$/u.test(payload.amountWei) &&
     typeof payload.amountB3tr === 'string' &&
-    payload.amountB3tr.length > 0
+    payload.amountB3tr.length > 0 &&
+    (payload.txId === undefined || (typeof payload.txId === 'string' && /^0x[0-9a-f]{64}$/iu.test(payload.txId)))
   );
 }
 
@@ -106,6 +108,7 @@ export function storeRewardPaidToast(receipt: RewardReceipt): void {
       recipientWallet: receipt.recipientWallet.toLowerCase(),
       amountWei: receipt.amountWei,
       amountB3tr: receipt.amountB3tr,
+      txId: receipt.txId,
     };
     const queue = readQueue(payload.recipientWallet);
     if (queue.some((item) => item.receiptId === payload.receiptId)) {
