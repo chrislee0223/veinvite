@@ -35,7 +35,8 @@ test('early notice does not acknowledge finalized PAID receipt or forge one', ()
   assert.match(hook, /onConfirm: \(\) => markEarlyRewardTransferAcknowledged\(wallet, code, tx\)/u);
   assert.match(hook, /void acknowledgeReward\(pendingReward\)/u);
   assert.match(hook, /clearRewardPaidToast\(wallet, pendingReward\.receiptId\)/u);
-  assert.match(hook, /Never acknowledges or creates a PAID receipt/u);
+  assert.match(hook, /The immutable PAID receipt can be marked seen once it exists/u);
+  assert.match(hook, /Never infer a successful transfer from a Claim response/u);
   assert.match(notice, /txId: receipt\.txId/u);
   assert.match(hook, /EARLY_REWARD_TRANSFER_COPY\[locale\]/u);
 });
