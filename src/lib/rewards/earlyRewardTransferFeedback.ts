@@ -48,3 +48,45 @@ export function markEarlyRewardTransferShown(
     // In-memory deduplication remains active in storage-restricted WebViews.
   }
 }
+
+const ACK_PREFIX = 'veinvite:early-transfer-acknowledged:v1:';
+
+function acknowledgedKey(wallet: string, inviteCode: string, txId: string): string | null {
+  return key(wallet, inviteCode, txId)?.replace(PREFIX, ACK_PREFIX) ?? null;
+}
+
+// Acknowledging the early UI is intentionally separate from merely seeing
+// it: only an explicit user acknowledgement may later mark the immutable
+// finalized receipt seen without repeating the same popup.
+export function markEarlyRewardTransferAcknowledged(
+  wallet: string,
+  inviteCode: string,
+  txId: string,
+): void {
+  const identity = acknowledgedKey(wallet, inviteCode, txId);
+  if (!identity) return;
+  const expires = Date.now() + TTL_MS;
+  memory.set(identity, expires);
+  try {
+    window.localStorage.setItem(identity, String(expires));
+  } catch {
+    // Private WebViews retain the acknowledgement for this tab only.
+  }
+}
+
+export function wasEarlyRewardTransferAcknowledged(
+  wallet: string,
+  inviteCode: string,
+  txId: string,
+): boolean {
+  const identity = acknowledgedKey(wallet, inviteCode, txId);
+  if (!identity) return false;
+  let expires = memory.get(identity) ?? 0;
+  try {
+    const stored = Number(window.localStorage.getItem(identity) ?? 0);
+    if (Number.isFinite(stored)) expires = Math.max(expires, stored);
+  } catch {
+    // No persistence is required for reward financial correctness.
+  }
+  return expires > Date.now();
+}
