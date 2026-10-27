@@ -155,7 +155,7 @@ export function useRewardPaidTransientFeedback({
     if (wasEarlyRewardTransferShown(
       pendingReward.recipientWallet,
       pendingReward.inviteCode,
-      pendingReward.txId,
+      pendingReward.txId ?? '',
     )) {
       if (wallet) {
         clearRewardPaidToast(wallet, pendingReward.receiptId);
@@ -500,6 +500,8 @@ export function useRewardPaidTransientFeedback({
     ) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let shareExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+    let shareReady = false;
     const startedAt = Date.now();
     const referralUrl = buildProductionSharePageUrl('s', referralLink.key);
 
@@ -527,6 +529,7 @@ export function useRewardPaidTransientFeedback({
         // an incentive-qualified composer. Never show a misleading +10 link.
         if (body.xUrlLessEnabled && body.xConnected !== true) {
           if (body.xConnectAvailable) {
+            shareReady = true;
             setFeedback(current =>
               current?.kind === 'reward' && current.id === earlyTransfer.feedbackId
                 ? {
@@ -556,6 +559,7 @@ export function useRewardPaidTransientFeedback({
         if (!intentUrl) return;
 
         const deadline = Date.parse(offer.postDeadlineAt);
+        shareReady = true;
         setFeedback(current =>
           current?.kind === 'reward' && current.id === earlyTransfer.feedbackId
             ? {
@@ -579,12 +583,18 @@ export function useRewardPaidTransientFeedback({
               }
             : current,
         );
-        // The offer is immutable; no need to poll again once it is displayed.
+        // Retire a stale button when the immutable offer window expires.
+        shareExpiryTimer = setTimeout(() => {
+          setFeedback(current => current?.kind === 'reward' &&
+            current.id === earlyTransfer.feedbackId
+            ? { ...current, shareLabel: undefined, onShare: undefined }
+            : current);
+        }, Math.max(1, Math.min(deadline - Date.now() + 100, 86_400_000)));
         return;
       } catch {
         // Bonus discovery is optional: payment or transfer feedback is intact.
       } finally {
-        if (!cancelled && Date.now() - startedAt < 120_000) {
+        if (!cancelled && !shareReady && Date.now() - startedAt < 120_000) {
           // Stop once a valid OPEN bonus button has been added by the server.
           timer = setTimeout(() => void refresh(), 5_000);
         }
@@ -595,6 +605,7 @@ export function useRewardPaidTransientFeedback({
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      if (shareExpiryTimer) clearTimeout(shareExpiryTimer);
     };
   }, [
     earlyTransfer,
