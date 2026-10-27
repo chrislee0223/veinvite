@@ -370,9 +370,11 @@ for (const locale of SUPPORTED_LOCALES) {
     await expect(popup).toHaveAttribute('lang', locale);
     const expectedDirection = ['ar', 'arz', 'ur'].includes(locale) ? 'rtl' : 'ltr';
     await expect(popup).toHaveAttribute('dir', expectedDirection);
-    expect(await popup.evaluate((el) => getComputedStyle(el).direction)).toBe(expectedDirection);
-    expect(await popup.locator('.rewardFeedbackAmount')
-      .evaluate((el) => getComputedStyle(el).direction)).toBe('ltr');
+    // Layout may re-render once during locale hydration. Retry until the
+    // browser-computed direction is stable rather than sampling a detached
+    // intermediate node (which reports an empty computed-style value).
+    await expect(popup).toHaveCSS('direction', expectedDirection);
+    await expect(popup.locator('.rewardFeedbackAmount')).toHaveCSS('direction', 'ltr');
     await captureAndAssert(page, testInfo, `reward-popup-${locale}-320`);
   });
 }
