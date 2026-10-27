@@ -83,6 +83,10 @@ export function useRewardPaidTransientFeedback({
 }) {
   const [pendingReward, setPendingReward] =
     useState<RewardPaidToastPayload | null>(null);
+  const [earlyTransfer, setEarlyTransfer] = useState<{
+    inviteCode: string;
+    feedbackId: number;
+  } | null>(null);
   const feedbackIdRef = useRef(0);
   const shareExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -434,8 +438,10 @@ export function useRewardPaidTransientFeedback({
           const tx = action.txId;
           const code = action.inviteCode;
           markEarlyRewardTransferShown(wallet, code, tx);
+          const earlyFeedbackId = Date.now();
+          setEarlyTransfer({ inviteCode: code, feedbackId: earlyFeedbackId });
           setFeedback({
-            id: Date.now(),
+            id: earlyFeedbackId,
             kind: 'reward',
             title: EARLY_REWARD_TRANSFER_COPY[locale].title,
             text: EARLY_REWARD_TRANSFER_COPY[locale].body,
@@ -478,4 +484,126 @@ export function useRewardPaidTransientFeedback({
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [wallet, locale, feedback, setFeedback]);
+
+
+  // Optional early X action. The URL carries a DB-issued share token only
+  // after an immutable, security-checked opportunity is actually OPEN.
+  // Never imply that a generic composer post qualifies for +10 B3TR.
+  useEffect(() => {
+    if (
+      !wallet ||
+      !earlyTransfer ||
+      feedback?.kind !== 'reward' ||
+      feedback.id !== earlyTransfer.feedbackId ||
+      !referralLinkVerified ||
+      !referralLink
+    ) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+    const referralUrl = buildProductionSharePageUrl('s', referralLink.key);
+
+    const refresh = async () => {
+      try {
+        const response = await fetch(
+          `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(earlyTransfer.inviteCode)}`,
+          { cache: 'no-store', credentials: 'include', signal: AbortSignal.timeout(7_000) },
+        );
+        if (response.status === 401 || response.status === 403) {
+          notifyRewardClaimSessionInvalid();
+          return;
+        }
+        if (!response.ok) return;
+        const body = (await response.json()) as RewardXPromotionPopupState & {
+          xConnectAvailable?: boolean;
+        };
+        const offer = body.promotion;
+        if (!offer || offer.state !== 'OPEN' || !offer.shareToken ||
+            !offer.postDeadlineAt || !offer.amountB3tr ||
+            Date.now() >= Date.parse(offer.postDeadlineAt)) return;
+        if (cancelled) return;
+
+        // URL-less auto-discovery requires a linked X author before we offer
+        // an incentive-qualified composer. Never show a misleading +10 link.
+        if (body.xUrlLessEnabled && body.xConnected !== true) {
+          if (body.xConnectAvailable) {
+            setFeedback(current =>
+              current?.kind === 'reward' && current.id === earlyTransfer.feedbackId
+                ? {
+                    ...current,
+                    shareLabel: REWARD_X_PROMOTION_AUTO_COPY[locale].connectX,
+                    onShare: () => window.location.assign(
+                      `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(earlyTransfer.inviteCode)}`,
+                    ),
+                  }
+                : current
+            );
+          }
+          return;
+        }
+
+        const promotionUrl = rewardXPromotionShareUrl({
+          referralUrl,
+          shareToken: offer.shareToken,
+        });
+        const intentUrl = promotionUrl
+          ? rewardReceiptXIntentUrl({
+              locale,
+              amountB3tr: feedback.amountB3tr,
+              referralUrl: promotionUrl,
+            })
+          : '';
+        if (!intentUrl) return;
+
+        const deadline = Date.parse(offer.postDeadlineAt);
+        setFeedback(current =>
+          current?.kind === 'reward' && current.id === earlyTransfer.feedbackId
+            ? {
+                ...current,
+                shareLabel:
+                  `${rewardReceiptShareLabel(locale)} · +${offer.amountB3tr} B3TR`,
+                onShare: () => {
+                  if (Date.now() >= deadline) return;
+                  window.open(intentUrl, '_blank', 'noopener,noreferrer');
+                  setFeedback(visible =>
+                    visible?.kind === 'reward' && visible.id === earlyTransfer.feedbackId
+                      ? {
+                          ...visible,
+                          text: body.xUrlLessEnabled
+                            ? REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody
+                            : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                        }
+                      : visible,
+                  );
+                },
+              }
+            : current,
+        );
+        // The offer is immutable; no need to poll again once it is displayed.
+        return;
+      } catch {
+        // Bonus discovery is optional: payment or transfer feedback is intact.
+      } finally {
+        if (!cancelled && Date.now() - startedAt < 120_000) {
+          // Stop once a valid OPEN bonus button has been added by the server.
+          timer = setTimeout(() => void refresh(), 5_000);
+        }
+      }
+    };
+
+    void refresh();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    earlyTransfer,
+    feedback?.id,
+    feedback?.kind,
+    locale,
+    referralLink,
+    referralLinkVerified,
+    setFeedback,
+    wallet,
+  ]);
 }
