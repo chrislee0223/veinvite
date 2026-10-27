@@ -422,7 +422,11 @@ export function useRewardPaidTransientFeedback({
 
         for (const action of body.actions ?? []) {
           if (action.status === 'AWAITING_CLAIM') continue;
-          processing = true;
+          // Poll frequently only while a claimed transfer still lacks a
+          // canonical confirmation. Once observed, downgrade to the idle
+          // cadence instead of polling the server every five seconds during
+          // the normal ~80-minute finality window.
+          if (!action.broadcastConfirmedAt || !action.txId) processing = true;
           const amountWei = action.claimAmountWei ?? action.reservedAmountWei;
           if (
             !action.broadcastConfirmedAt ||
