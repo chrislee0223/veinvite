@@ -49,3 +49,17 @@ test('allocation vote action uses the same mission status link pattern as the dA
     /if \(href\) \{[\s\S]*?<a[\s\S]*?href=\{href\}[\s\S]*?<span aria-hidden="true">↗<\/span>/,
   );
 });
+
+test('transient first mission read can retry on the same invite without repeating claim', () => {
+  assert.match(source, /const \[initialReadFailed, setInitialReadFailed\] = useState\(false\)/);
+  assert.match(
+    source,
+    /loadInviteProgress\('read'\)[\s\S]*?\.catch\(\(error: unknown\) => \{[\s\S]*?setInitialReadFailed\(true\)/,
+  );
+  assert.match(
+    source,
+    /initialReadFailed && errorCode === 'eligibility'[\s\S]*?onClick=\{\(\) => window\.location\.reload\(\)\}/,
+  );
+  assert.match(source, /status === 404 \|\| status === 410[\s\S]*?'invalidLink'/);
+  assert.match(source, /method: mode === 'sync' \? 'POST' : 'GET'/);
+});
