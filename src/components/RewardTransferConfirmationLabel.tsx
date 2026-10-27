@@ -28,7 +28,8 @@ const TX_ID_PATTERN = /^0x[0-9a-f]{64}$/iu;
 /**
  * Read-only early feedback for an already-claimed B3TR transfer.
  * Only the server's manifest-verified canonical broadcast marker is trusted.
- * This never creates a PAID receipt, advances a payout, or opens X sharing.
+ * This never creates a PAID receipt or advances a payout. A guarded X
+ * sharing option may be shown only after a canonical server proof.
  */
 export function TransferStatus({
   inviteCode,
@@ -36,17 +37,19 @@ export function TransferStatus({
   copy,
   locale,
   rewardShareUrl,
-  amountWei,
 }: {
   inviteCode: string;
   wallet: string;
   copy: Pick<ProgressClaimCopy, 'claimQueued' | 'finalCheck'>;
   locale: SupportedLocale;
   rewardShareUrl: string;
-  amountWei: string | null;
 }) {
   const identity = `${wallet.toLowerCase()}:${inviteCode.toUpperCase()}`;
   const [confirmedIdentity, setConfirmedIdentity] = useState<string | null>(null);
+  const [confirmedAmount, setConfirmedAmount] = useState<{
+    identity: string;
+    amountWei: string;
+  } | null>(null);
   const [earlyX, setEarlyX] = useState<{
     intentUrl: string | null;
     deadline: number;
@@ -120,6 +123,10 @@ export function TransferStatus({
           );
 
           if (confirmed && !disposed) {
+            const amount = action?.claimAmountWei ?? action?.reservedAmountWei;
+            if (amount && /^[0-9]+$/u.test(amount) && BigInt(amount) > 0n) {
+              setConfirmedAmount({ identity, amountWei: amount });
+            }
             setConfirmedIdentity(identity);
           }
         }
@@ -204,8 +211,10 @@ export function TransferStatus({
           referralUrl: rewardShareUrl,
           shareToken: offer.shareToken,
         });
-        const amount = amountWei && /^[0-9]+$/u.test(amountWei) &&
-          BigInt(amountWei) > 0n ? formatWeiAsB3tr(amountWei, 18) : null;
+        const amountWei = confirmedAmount?.identity === identity
+          ? confirmedAmount.amountWei
+          : null;
+        const amount = amountWei ? formatWeiAsB3tr(amountWei, 18) : null;
         const intentUrl = bonusUrl && amount
           ? rewardReceiptXIntentUrl({
               locale,
@@ -229,7 +238,7 @@ export function TransferStatus({
       if (timer !== null) clearTimeout(timer);
       if (expiryTimer !== null) clearTimeout(expiryTimer);
     };
-  }, [confirmed, identity, inviteCode, locale, amountWei, rewardShareUrl, wallet]);
+  }, [confirmed, confirmedAmount, identity, inviteCode, locale, rewardShareUrl, wallet]);
 
   const bonusVisible = Boolean(
     confirmed && earlyX && Date.now() < earlyX.deadline &&
