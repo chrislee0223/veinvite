@@ -38,6 +38,8 @@ import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
 import {
   markEarlyRewardTransferShown,
   wasEarlyRewardTransferShown,
+  markEarlyRewardTransferAcknowledged,
+  wasEarlyRewardTransferAcknowledged,
 } from '@/lib/rewards/earlyRewardTransferFeedback';
 import { REWARD_CLAIM_UPDATED_EVENT } from '@/lib/rewards/rewardClaimClient';
 import type { RewardActionResponse } from '@/lib/notifications/rewardAction';
@@ -149,10 +151,11 @@ export function useRewardPaidTransientFeedback({
   useEffect(() => {
     if (!pendingReward || feedback) return;
 
-    // This same wallet + immutable tx already received a canonical transfer
-    // notice. Preserve the finalized receipt (and its unread history) but do
-    // not interrupt the user with a second, identical reward popup 80m later.
-    if (wasEarlyRewardTransferShown(
+    // A user already acknowledged the exact canonical transfer. Mark its
+    // later finalized, server-owned receipt as seen through the usual
+    // authenticated route; never silently suppress a still-unacknowledged
+    // reward or leave an unseen receipt polling forever.
+    if (wasEarlyRewardTransferAcknowledged(
       pendingReward.recipientWallet,
       pendingReward.inviteCode,
       pendingReward.txId ?? '',
@@ -160,6 +163,7 @@ export function useRewardPaidTransientFeedback({
       if (wallet) {
         clearRewardPaidToast(wallet, pendingReward.receiptId);
         setPendingReward(readRewardPaidToast(wallet));
+        void acknowledgeReward(pendingReward);
       }
       return;
     }
@@ -451,8 +455,10 @@ export function useRewardPaidTransientFeedback({
             text: EARLY_REWARD_TRANSFER_COPY[locale].body,
             amountB3tr: formatWeiAsB3tr(amountWei, 18),
             confirmLabel: NOTIFICATION_COPY[locale].confirm,
-            // Dismisses UI only. Never acknowledges or creates a PAID receipt.
-            onConfirm: () => {},
+            // The user has acknowledged the early confirmation. The
+            // immutable PAID receipt can be marked seen once it exists,
+            // without ever altering its financial settlement.
+            onConfirm: () => markEarlyRewardTransferAcknowledged(wallet, code, tx),
           });
           break;
         }
