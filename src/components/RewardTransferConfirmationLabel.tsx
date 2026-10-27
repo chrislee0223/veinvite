@@ -162,6 +162,8 @@ export function TransferStatus({
     }
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+    let resolvedOffer = false;
     const end = Date.now() + 2 * 60_000;
     const load = async () => {
       try {
@@ -192,7 +194,9 @@ export function TransferStatus({
         const deadline = Date.parse(offer.postDeadlineAt);
         if (data.xUrlLessEnabled && !data.xConnected) {
           if (data.xConnectAvailable) {
+            resolvedOffer = true;
             setEarlyX({ intentUrl: null, deadline, bonus: offer.amountB3tr, connectX: true });
+            expiryTimer = setTimeout(() => setEarlyX(null), Math.max(1, Math.min(deadline - Date.now() + 100, 86_400_000)));
           }
           return;
         }
@@ -210,17 +214,20 @@ export function TransferStatus({
             })
           : null;
         if (!intentUrl) return;
+        resolvedOffer = true;
         setEarlyX({ intentUrl, deadline, bonus: offer.amountB3tr, connectX: false });
+        expiryTimer = setTimeout(() => setEarlyX(null), Math.max(1, Math.min(deadline - Date.now() + 100, 86_400_000)));
       } catch {
         // UI enhancement may fail; the canonical transfer stays verified.
       } finally {
-        if (!disposed && Date.now() < end) timer = setTimeout(() => void load(), 5_000);
+        if (!disposed && !resolvedOffer && Date.now() < end) timer = setTimeout(() => void load(), 5_000);
       }
     };
     void load();
     return () => {
       disposed = true;
       if (timer !== null) clearTimeout(timer);
+      if (expiryTimer !== null) clearTimeout(expiryTimer);
     };
   }, [confirmed, identity, inviteCode, locale, amountWei, rewardShareUrl, wallet]);
 
