@@ -218,3 +218,19 @@ test('receipt share also blocks an expired offer when a background tab delayed e
   assert.match(panel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/);
   assert.match(panel, /if \(Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)\) \{[\s\S]*?void load\(\);[\s\S]*?return/);
 });
+
+test('X promotion state lookup has a bounded timeout and a safe manual retry', () => {
+  assert.match(
+    panel,
+    /cache: 'no-store',[\s\S]*?signal: AbortSignal\.timeout\(12_000\)/,
+  );
+  assert.match(
+    panel,
+    /if \(requestSequence !== requestSequenceRef\.current\) return;/,
+  );
+  assert.match(
+    panel,
+    /if \(loadError\) \{[\s\S]*?setLoading\(true\);[\s\S]*?void load\(\);/,
+  );
+  assert.match(panel, /if \(loading\) \{\s*return null;/);
+});
