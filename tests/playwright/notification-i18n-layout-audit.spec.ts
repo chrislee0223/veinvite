@@ -37,6 +37,17 @@ for (const locale of SUPPORTED_LOCALES) {
         ]);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       });
+      // The mobile dialog enters from below the viewport for 210ms.
+      // Its initial transform can put a valid fixed panel a few pixels
+      // outside the screen. Measure settled layout, not entrance motion.
+      await surface.evaluate(async (element) => {
+        const animations = element.getAnimations().filter(
+          (animation) => animation.playState === 'running',
+        );
+        await Promise.all(
+          animations.map((animation) => animation.finished.catch(() => undefined)),
+        );
+      });
       const result = await page.evaluate((selector) => {
         const root = document.querySelector<HTMLElement>(selector);
         if (!root) return { missing: true, issues: [] };
