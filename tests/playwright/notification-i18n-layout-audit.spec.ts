@@ -15,6 +15,8 @@ for (const locale of SUPPORTED_LOCALES) {
   for (const scenario of tests) {
     test('notification layout audit / ' + locale + ' / ' + scenario.state + ' / ' + scenario.width, async ({ page }) => {
       await page.setViewportSize({ width: scenario.width, height: scenario.height });
+      // Static overflow audit: do not sample the dialog's entrance transform.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto('/qa/notification-state?state=' + scenario.state + '&locale=' + locale, {
         waitUntil: 'domcontentloaded', timeout: 30_000,
       });
@@ -36,6 +38,17 @@ for (const locale of SUPPORTED_LOCALES) {
           new Promise(resolve => setTimeout(resolve, 1500)),
         ]);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
+      // The mobile dialog enters from below the viewport for 210ms.
+      // Its initial transform can put a valid fixed panel a few pixels
+      // outside the screen. Measure settled layout, not entrance motion.
+      await surface.evaluate(async (element) => {
+        const animations = element.getAnimations().filter(
+          (animation) => animation.playState === 'running',
+        );
+        await Promise.all(
+          animations.map((animation) => animation.finished.catch(() => undefined)),
+        );
       });
       const result = await page.evaluate((selector) => {
         const root = document.querySelector<HTMLElement>(selector);
@@ -95,13 +108,16 @@ for (const locale of SUPPORTED_LOCALES) {
 for (const locale of ['ar', 'ur', 'de', 'el', 'ko', 'vi', 'te', 'fr'] as const) {
   test('notification desktop audit / ' + locale, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/qa/notification-state?state=NOTI-REFERRAL-RESTORED&locale=' + locale, {
       waitUntil: 'domcontentloaded', timeout: 30_000,
     });
     await expect(page.locator('.notificationHistoryPanel')).toBeVisible();
-    const bounds = await page.locator('.notificationHistoryPanel').boundingBox();
-    expect(bounds).not.toBeNull();
-    expect((bounds?.x ?? -1) >= 0).toBeTruthy();
-    expect((bounds?.x ?? 0) + (bounds?.width ?? 0) <= 1282).toBeTruthy();
+    // The fixture can re-render the panel between a visibility assertion
+    // and a layout read. Retry the read, not the user-facing application.
+    await expect.poll(async () => {
+      const bounds = await page.locator('.notificationHistoryPanel').boundingBox();
+      return Boolean(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 1282);
+    }, { timeout: 5_000 }).toBe(true);
   });
 }
