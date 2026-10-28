@@ -115,6 +115,9 @@ export function RewardXPromotionPanel({
         `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
         {
           cache: 'no-store',
+          // A hung state read must not hide the X offer indefinitely.
+          // Expiry, offer validation, and reward authority remain server-side.
+          signal: AbortSignal.timeout(12_000),
         },
       );
       const body =
