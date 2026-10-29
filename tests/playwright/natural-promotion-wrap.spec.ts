@@ -7,7 +7,9 @@ import {
 
 // Real production promotion component + isolated QA data: no wallet, API
 // mutations, social provider calls, or live payment dependencies.
-test.describe.configure({ mode: 'serial', timeout: 120_000 });
+// Each shard has independent mocked API/page state. Chromium runs shards
+// concurrently against the prebuilt isolated QA app without compiling routes.
+test.describe.configure({ mode: 'parallel', timeout: 120_000 });
 
 const LONG_COPY_VISUALS = new Set(['ko', 'de', 'ar', 'ur', 'te', 'el', 'nl', 'ro']);
 const BASE_OFFER = {
