@@ -51,7 +51,7 @@ test('automatic cohort reward popup never requires a URL or a return to VeInvite
   assert.match(popup, /text: autoShareFollowup/);
   assert.match(popup, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]\.autoShareFollowupBody/);
   assert.match(autoCopy, /autoShareFollowupBody:/);
-  assert.match(autoCopy, /X에 게시했다면 더 누르거나 URL을 제출할 필요가 없어요/);
+  assert.match(autoCopy, /X에 게시했다면 링크 제출이나 별도 확인은 필요 없어요/);
   assert.doesNotMatch(popup, /REWARD_X_PROMOTION_COPY\[locale\]\.autoOpenBody/);
   assert.match(popup, /: REWARD_X_PROMOTION_COPY\[locale\]\.shareFollowupBody/);
   assert.doesNotMatch(popup, /scan-request|I posted on X|X에 게시했어요/u);
