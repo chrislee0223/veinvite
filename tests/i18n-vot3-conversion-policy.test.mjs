@@ -103,9 +103,14 @@ test('late Greek product polish cannot restore the retired 1 B3TR minimum', () =
   assert.ok(conversionPolicyIndex >= 0 && greekFinalIndex > conversionPolicyIndex);
   assert.doesNotMatch(
     greekFinalSource,
-    /conversionMissionDescription\s*:/,
-    'Greek final copy must inherit the shared any-positive-amount conversion policy',
+    /(?:conversionMissionDescription|voteMissionDescription)\s*:/,
+    'Greek final copy must inherit the shared conversion and voting mission policy',
   );
+  assert.match(
+    policySource,
+    /voteMission: 'Πάρε μέρος μία φορά στο Allocation Voting'/,
+  );
+  assert.doesNotMatch(policySource, /Συμμετείχε μία φορά/);
   assert.match(
     policySource,
     /el: \{ conversionMission: '[^']+'[,]? conversionMissionDescription: '[^']*οποιαδήποτε θετική ποσότητα B3TR/,
