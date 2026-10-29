@@ -163,3 +163,27 @@ test('X promotion paid notification participates in all-locale layout QA', () =>
   assert.match(notificationLayout, /'NOTI-X-PROMOTION-PAID'/);
   assert.match(notificationLayout, /for \(const locale of SUPPORTED_LOCALES\)/);
 });
+
+test('reviewed X auto-share guidance stays concise across long-text locales', () => {
+  const revisedLocales = ['en', 'ko', 'es', 'de', 'fr', 'pt', 'vi', 'el'];
+  for (const locale of revisedLocales) {
+    const pack = locale === 'el' ? autoCopyB : autoCopyA;
+    const key = locale;
+    const match = pack.match(
+      new RegExp('^  ' + key + ': \\{\\n([\\s\\S]*?)^  \\},', 'm'),
+    );
+    assert.ok(match, 'missing localized X bonus copy for ' + locale);
+    for (const field of ['autoOpenBody', 'autoShareFollowupBody']) {
+      const value = match[1].match(
+        new RegExp('^    ' + field + ": '([^'\\n]*)',", 'm'),
+      )?.[1];
+      assert.ok(value, 'missing ' + field + ' for ' + locale);
+      assert.match(value, /24/, '24-hour policy must remain visible in ' + locale);
+      assert.ok(
+        [...value].length <= 170,
+        locale + ' ' + field + ' became too verbose for compact bonus UI',
+      );
+    }
+  }
+  assert.doesNotMatch(autoCopyA, /더 누르거나 URL을 제출할 필요가 없어요/);
+});
