@@ -378,3 +378,38 @@ for (const locale of SUPPORTED_LOCALES) {
     await captureAndAssert(page, testInfo, `reward-popup-${locale}-320`);
   });
 }
+
+
+// Main navigation can appear at 320px even when prior all-locale QA focused on
+// 393px phones. Visit the actual landing + Settings components in all 29
+// languages at narrow, typical and desktop widths, not just risky languages.
+for (const locale of SUPPORTED_LOCALES) {
+  test('every locale 320px landing and settings / ' + locale, async ({ page }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize(NARROW_MOBILE_VIEWPORT);
+    await page.goto(
+      '/qa/render?scenario=invite-landing-ko-mobile&locale=' +
+        encodeURIComponent(locale),
+      { waitUntil: 'domcontentloaded', timeout: 30_000 },
+    );
+    await captureAndAssert(page, testInfo, 'landing-narrow-' + locale);
+
+    for (const viewport of [
+      NARROW_MOBILE_VIEWPORT,
+      MOBILE_VIEWPORT,
+      DESKTOP_VIEWPORT,
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(
+        '/qa/state?state=SETTINGS-LANGUAGE-OPEN&locale=' +
+          encodeURIComponent(locale),
+        { waitUntil: 'domcontentloaded', timeout: 30_000 },
+      );
+      await captureAndAssert(
+        page,
+        testInfo,
+        'settings-' + locale + '-' + viewport.width,
+      );
+    }
+  });
+}
