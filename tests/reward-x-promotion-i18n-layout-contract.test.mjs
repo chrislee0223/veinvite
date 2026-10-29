@@ -168,7 +168,7 @@ test('reviewed X auto-share guidance stays concise across long-text locales', ()
   const revisedLocales = ['en', 'ko', 'es', 'de', 'fr', 'pt', 'vi', 'el'];
   for (const locale of revisedLocales) {
     const pack = locale === 'el' ? autoCopyB : autoCopyA;
-    const key = locale.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&');
+    const key = locale;
     const match = pack.match(
       new RegExp('^  ' + key + ': \\{\\n([\\s\\S]*?)^  \\},', 'm'),
     );
