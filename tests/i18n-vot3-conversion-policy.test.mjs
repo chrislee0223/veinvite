@@ -9,6 +9,7 @@ const policySource = read('src/lib/i18n/inviteeConversionPolicyPolish.ts');
 const guidePolicySource = read('src/lib/i18n/guideVot3PolicyPolish.ts');
 const localesSource = read('src/lib/i18n/locales.ts');
 const providersSource = read('src/lib/i18n/runtimePatches.ts');
+const greekFinalSource = read('src/lib/i18n/greekFinalPolish.ts');
 
 test('conversion and allocation-vote copy matches the final mission policy in every locale', () => {
   const supported = [
@@ -88,4 +89,25 @@ test('the inviter guide reuses the finalized localized invitee mission policy', 
   assert.doesNotMatch(guidePolicySource, /at least 1 B3TR/i);
   assert.doesNotMatch(guidePolicySource, /최소\s*1\s*B3TR/);
   assert.doesNotMatch(guidePolicySource, /1000000000000000000/);
+});
+
+
+test('late Greek product polish cannot restore the retired 1 B3TR minimum', () => {
+  const conversionPolicyIndex = providersSource.indexOf(
+    "import '@/lib/i18n/inviteeConversionPolicyPolish';",
+  );
+  const greekFinalIndex = providersSource.indexOf(
+    "import '@/lib/i18n/greekFinalPolish';",
+  );
+
+  assert.ok(conversionPolicyIndex >= 0 && greekFinalIndex > conversionPolicyIndex);
+  assert.doesNotMatch(
+    greekFinalSource,
+    /conversionMissionDescription\s*:/,
+    'Greek final copy must inherit the shared any-positive-amount conversion policy',
+  );
+  assert.match(
+    policySource,
+    /el: \{ conversionMission: '[^']+'[,]? conversionMissionDescription: '[^']*οποιαδήποτε θετική ποσότητα B3TR/,
+  );
 });
