@@ -64,7 +64,6 @@ Object.assign(INVITEE_COPY.el, {
   oneThingToDo: 'Οι αποστολές μου',
   walletMissionDescription: 'Είσαι έτοιμος να ξεκινήσεις.',
   appMissionDescription: 'Λάβε B3TR από 3 διαφορετικά dApps. Μετά την πρώτη επιλέξιμη ανταμοιβή μπορείς να συνεχίσεις και με τις επόμενες αποστολές.',
-  voteMissionDescription: 'Μετά την επιλέξιμη μετατροπή B3TR σε VOT3, συμμετείχε μία φορά στο Allocation Voting.',
   demoComplete: 'Επίδειξη: εμφάνιση ολοκληρωμένης αποστολής',
   autoProgress: 'Οι ανταμοιβές dApp, η μετατροπή VOT3 και η συμμετοχή σου στο Allocation Voting επαληθεύονται αυτόματα on-chain.',
   requestNewLink: 'Ζήτησε από τον φίλο σου έναν νέο σύνδεσμο πρόσκλησης.',
