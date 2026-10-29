@@ -504,7 +504,7 @@ export function RewardXPromotionPanel({
         .promotionHeading{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px 12px}
         .promotionHeading strong{min-width:0;color:#f3e6bd;font-size:.7rem;line-height:1.4;overflow-wrap:anywhere;text-wrap:balance}
         .promotionHeading span{min-width:0;color:#ffd04a;font-size:.68rem;font-weight:950;font-variant-numeric:tabular-nums;white-space:nowrap;unicode-bidi:isolate}
-        .promotionPanel p{min-width:0;margin:8px 0 0;color:#9f998f;font-size:.62rem;line-height:1.55;overflow-wrap:break-word}
+        .promotionPanel p{min-width:0;margin:8px 0 0;color:#9f998f;font-size:.62rem;line-height:1.55;overflow-wrap:break-word;text-wrap:pretty}
         .promotionShare{width:100%;min-width:0;min-height:44px;margin-top:12px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#f7f7f5;color:#0b0b0a;font:inherit;font-size:.72rem;font-weight:950;line-height:1.35;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:3px 6px;white-space:normal;text-align:center;overflow-wrap:anywhere}
         .promotionShare b{font:inherit;font-weight:950;white-space:nowrap;unicode-bidi:isolate}
         .promotionConnect{width:100%;min-width:0;min-height:42px;margin-top:10px;padding:9px 12px;border:1px solid rgba(255,205,80,.35);border-radius:11px;background:rgba(244,183,40,.10);color:#f1cf65;font:inherit;font-size:.7rem;font-weight:900;line-height:1.35;white-space:normal;overflow-wrap:anywhere;text-align:center;cursor:pointer}
