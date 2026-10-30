@@ -32,6 +32,12 @@ jobs:
       - name: Isolated PostgreSQL fixture
         run: |
           docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < tests/sql/reward-early-empty-rollover-fixture.sql
+      - name: Restore the unchanged Production source-sweep function into isolated QA
+        run: |
+          node scripts/extract-postgres-function.mjs \
+            supabase/migrations/20261007064447_add_reward_boost_reserve_accounting_foundation.sql \
+            seal_and_sweep_reward_boost_reserve_source > /tmp/veinvite-source-sweep.sql
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < /tmp/veinvite-source-sweep.sql
       - name: Execute the actual rollover SQL migration in PostgreSQL 17
         run: |
           docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/migrations/20261030170000_reward_early_empty_cohort_rollover.sql
