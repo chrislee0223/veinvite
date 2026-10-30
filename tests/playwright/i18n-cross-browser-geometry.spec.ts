@@ -137,6 +137,10 @@ for (const locale of SUPPORTED_LOCALES) {
           document.documentElement.style.fontSize = size + 'px';
         }, fontSize);
         await settled(page);
+        const measuredRootSize = await page.evaluate(() =>
+          Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        );
+        expect(measuredRootSize, 'actual root font scaling must match test matrix').toBe(fontSize);
         const result = await geometry(page);
         expect(
           result.direction,
