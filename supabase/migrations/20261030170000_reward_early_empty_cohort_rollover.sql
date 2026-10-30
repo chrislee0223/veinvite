@@ -55,6 +55,9 @@ begin
         and public.read_reward_cohort_committed_wei(
           a.network,a.app_id,a.vebetter_round_id+1,a.id
         )=0
+        and public.read_sybil_v2_cleared_unreserved_count(
+          a.network,a.vebetter_round_id+1,a.id
+        )=0
         and not exists (
           select 1 from public.invitations i
           where i.activation_network=a.network
@@ -153,6 +156,12 @@ begin
       and p_source_reward_cohort_round_id=v_current_cohort-1
       and public.read_reward_cohort_committed_wei(
         p_network,p_app_id,p_source_reward_cohort_round_id,
+        p_source_allocation_receipt_id
+      )=0
+      -- Zero bound invitations alone is not proof of zero queued reward
+      -- obligations. Treat missing queue evidence as ineligible as well.
+      and public.read_sybil_v2_cleared_unreserved_count(
+        p_network,p_source_reward_cohort_round_id,
         p_source_allocation_receipt_id
       )=0
       and not exists (
