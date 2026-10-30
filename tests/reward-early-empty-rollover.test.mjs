@@ -9,7 +9,7 @@ const sql = await readFile(
 const B3TR = 10n ** 18n;
 const section = (name) => {
   const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.' + name + '(');
-  const end = sql.indexOf('$function$\\n;', start);
+  const end = sql.indexOf('$function$\n;', start);
   assert.ok(start >= 0 && end > start, 'missing '+name);
   return sql.slice(start, end + 12);
 };
@@ -39,8 +39,8 @@ const scenario = (overrides = {}) => ({
 
 test('new policy is default-OFF and does not activate itself', () => {
   assert.match(sql, /reward_boost_early_empty_rollover_enabled boolean NOT NULL DEFAULT false/);
-  assert.doesNotMatch(sql, /UPDATE\\s+public\\.reward_runtime_config/i);
-  assert.match(sql, /BEGIN;[\\s\\S]*COMMIT;/);
+  assert.doesNotMatch(sql, /UPDATE\s+public\.reward_runtime_config/i);
+  assert.match(sql, /BEGIN;[\s\S]*COMMIT;/);
 });
 
 test('only immediately prior, absolutely invitation-free, uncommitted source can be swept early', () => {
@@ -49,7 +49,7 @@ test('only immediately prior, absolutely invitation-free, uncommitted source can
   for (const part of [candidate, sources]) {
     assert.match(part, /reward_boost_early_empty_rollover_enabled|v_early_empty_enabled/);
     assert.match(part, /read_reward_cohort_committed_wei/);
-    assert.match(part, /not exists \\([\\s\\S]*?from public\\.invitations i/);
+    assert.match(part, /not exists \([\s\S]*?from public\.invitations i/);
     assert.match(part, /v_current_cohort-1/);
   }
   assert.match(candidate, /REWARD_BOOST_RESERVE_SOURCE_NOT_MATURE/);
@@ -76,7 +76,7 @@ test('destination requires auditable swept source, no destination participants a
     'v_reserved_existing',
     'pg_advisory_xact_lock',
   ]) assert.ok(dest.includes(term), term);
-  assert.match(dest, /greatest\\(\\s*trunc\\(v_current_pricing\\*v_boost_factor_bps\\/10000\\),\\s*v_early_empty_rollover/);
+  assert.match(dest, /greatest\(\s*trunc\(v_current_pricing\*v_boost_factor_bps\/10000\),\s*v_early_empty_rollover/);
 });
 
 test('existing immutable destination plan is returned before new release logic', () => {
@@ -86,18 +86,18 @@ test('existing immutable destination plan is returned before new release logic',
   const novel = dest.indexOf('v_early_empty_rollover');
   const decision = dest.indexOf('if v_cfg.reward_boost_early_empty_rollover_enabled');
   assert.ok(existing >= 0 && oldPlanReturn > existing && decision > oldPlanReturn && novel >= 0);
-  assert.doesNotMatch(dest, /update public\\.(reward_queue_entries|reward_payouts|reward_boost_reserve_destination_plans)/i);
+  assert.doesNotMatch(dest, /update public\.(reward_queue_entries|reward_payouts|reward_boost_reserve_destination_plans)/i);
 });
 
 test('migration does not change payout, Claim or X promotion functions', () => {
-  const fn = [...sql.matchAll(/CREATE OR REPLACE FUNCTION public\\.([^(]+)\\(/g)].map(x=>x[1]);
+  const fn = [...sql.matchAll(/CREATE OR REPLACE FUNCTION public\.([^(]+)\(/g)].map(x=>x[1]);
   assert.deepEqual(fn.sort(),[
     'read_reward_boost_reserve_source_candidate',
     'read_reward_boost_reserve_unprotected_sources',
     'seal_and_release_reward_boost_destination'
   ].sort());
   for (const name of fn) assert.match(sql,
-    new RegExp('REVOKE ALL ON FUNCTION public\\\\.' + name));
+    new RegExp('REVOKE ALL ON FUNCTION public\\.' + name));
 });
 
 test('happy path: prior verified empty funding can be carried into next round', () => {
