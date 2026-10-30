@@ -44,6 +44,19 @@ BEGIN
   WHERE reward_cohort_round_id=122;
   IF n<>0 THEN RAISE EXCEPTION '1 Wei commitment must block early sweep'; END IF;
   DELETE FROM public.qa_commitments WHERE reward_cohort_round_id=122;
+
+  UPDATE public.qa_guards SET cleared_pending_count=1 WHERE id=1;
+  SELECT count(*) INTO n FROM public.read_reward_boost_reserve_unprotected_sources('mainnet',app)
+  WHERE reward_cohort_round_id=122;
+  IF n<>0 THEN RAISE EXCEPTION 'cleared pending reward candidate must block early sweep'; END IF;
+  threw:=false;
+  BEGIN
+    PERFORM public.read_reward_boost_reserve_source_candidate('mainnet',app,122,9);
+  EXCEPTION WHEN OTHERS THEN
+    threw:=position('REWARD_BOOST_RESERVE_SOURCE_NOT_MATURE' in SQLERRM)>0;
+  END;
+  IF NOT threw THEN RAISE EXCEPTION 'maturity guard must block pending cleared reward'; END IF;
+  UPDATE public.qa_guards SET cleared_pending_count=0 WHERE id=1;
 END
 $qa$;
 
