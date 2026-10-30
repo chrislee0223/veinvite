@@ -1,0 +1,30 @@
+name: Maintenance safety guards
+
+on:
+  pull_request:
+    paths:
+      - 'tests/retired-production-routes.test.mjs'
+      - 'tests/cron-configuration-safety.test.mjs'
+      - 'tests/vercel-deployment-isolation.test.mjs'
+      - 'scripts/check-retired-production-routes.mjs'
+      - 'scripts/vercel-ignore-build.mjs'
+      - 'src/app/api/cron/**'
+      - 'src/proxy.ts'
+      - 'vercel.json'
+      - '.github/workflows/maintenance-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run maintenance regression tests
+        run: node --test tests/retired-production-routes.test.mjs tests/cron-configuration-safety.test.mjs tests/vercel-deployment-isolation.test.mjs
