@@ -101,9 +101,10 @@ CREATE TABLE public.qa_guards (
   bank_stress_wei numeric(78,0),
   recent_protected_wei numeric(78,0),
   retained_wei numeric(78,0),
-  globally_reserved_wei numeric(78,0)
+  globally_reserved_wei numeric(78,0),
+  cleared_pending_count integer NOT NULL DEFAULT 0
 );
-INSERT INTO public.qa_guards VALUES (1,0,0,0,0);
+INSERT INTO public.qa_guards VALUES (1,0,0,0,0,0);
 
 CREATE FUNCTION public.read_reward_cohort_committed_wei(text,text,bigint,bigint)
 RETURNS numeric LANGUAGE sql STABLE AS $f$
@@ -125,7 +126,9 @@ $f$;
 CREATE FUNCTION public.read_reward_boost_reserve_source_revision(text,text)
 RETURNS text LANGUAGE sql STABLE AS $f$ SELECT 'qa-source-revision'::text $f$;
 CREATE FUNCTION public.read_sybil_v2_cleared_unreserved_count(text,bigint,bigint)
-RETURNS bigint LANGUAGE sql STABLE AS $f$ SELECT 0::bigint $f$;
+RETURNS bigint LANGUAGE sql STABLE AS $f$
+  SELECT cleared_pending_count::bigint FROM public.qa_guards WHERE id=1
+$f$;
 CREATE FUNCTION public.read_reward_boost_reserve_balance_wei(text,text)
 RETURNS numeric LANGUAGE sql STABLE AS $f$
   SELECT coalesce(sum(CASE WHEN entry_kind='SOURCE_SWEEP' THEN amount_wei
