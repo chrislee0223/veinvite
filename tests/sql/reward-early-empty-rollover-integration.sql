@@ -60,56 +60,57 @@ BEGIN
 END
 $qa$;
 
--- A forged/mismatched sweep ledger must NOT unlock the early 1,930 ceiling.
+-- Run the real source-seal function from the existing Production migration.
+-- Unlike a hand-crafted ledger, this verifies source candidate -> SQL lock ->
+-- immutable protection -> SOURCE_SWEEP audit, including repeated-run idempotency.
+DO $qa$
+DECLARE
+  app text := '0x' || repeat('a',64);
+  result jsonb;
+  repeat_result jsonb;
+  sweep_count integer;
+BEGIN
+  SELECT public.seal_and_sweep_reward_boost_reserve_source(
+    'mainnet',app,122,9,'reward-boost-reserve-v1'
+  ) INTO result;
+  IF result->>'changed'<>'true' OR
+     (result->>'maxSweepableWei')::numeric<>1930*power(10::numeric,18) THEN
+    RAISE EXCEPTION 'actual source sweep failed: %',result;
+  END IF;
+  SELECT public.seal_and_sweep_reward_boost_reserve_source(
+    'mainnet',app,122,9,'reward-boost-reserve-v1'
+  ) INTO repeat_result;
+  IF repeat_result->>'changed'<>'false' THEN
+    RAISE EXCEPTION 'source re-execution was not idempotent: %',repeat_result;
+  END IF;
+  SELECT count(*) INTO sweep_count
+  FROM public.reward_boost_reserve_ledger
+  WHERE entry_kind='SOURCE_SWEEP' AND source_reward_cohort_round_id=122;
+  IF sweep_count<>1 THEN
+    RAISE EXCEPTION 'expected exactly one real SOURCE_SWEEP';
+  END IF;
+END
+$qa$;
+
+-- A tampered/mismatched SOURCE_SWEEP amount must NOT unlock a larger release.
 BEGIN;
 SAVEPOINT bad_ledger;
-INSERT INTO public.reward_boost_reserve_source_protections
-(network,app_id,source_reward_cohort_round_id,source_allocation_receipt_id,
- baseline_effective_budget_wei,baseline_committed_wei,
- promotion_original_wei,promotion_reserve_wei,late_reward_wei,
- queued_eligible_count,long_incomplete_count,late_weighted_bps,
- late_weighted_liability_wei,max_sweepable_wei,source_revision,policy_version)
-VALUES
-('mainnet','0x' || repeat('a',64),122,9,
- 1930*power(10::numeric,18),0,0,0,0,0,0,0,0,
- 1930*power(10::numeric,18),'qa-revision','reward-boost-reserve-v1');
-INSERT INTO public.reward_boost_reserve_ledger
-(network,app_id,entry_kind,source_reward_cohort_round_id,source_allocation_receipt_id,
- amount_wei,policy_version,reference_key,details)
-VALUES
-('mainnet','0x' || repeat('a',64),'SOURCE_SWEEP',122,9,
- 1000*power(10::numeric,18),'qa-mismatch','mismatch','{}');
+UPDATE public.reward_boost_reserve_ledger SET amount_wei=1000*power(10::numeric,18)
+WHERE entry_kind='SOURCE_SWEEP' AND source_reward_cohort_round_id=122;
 DO $qa$
 DECLARE r jsonb;
 BEGIN
  SELECT public.seal_and_release_reward_boost_destination(
   'mainnet','0x' || repeat('a',64),10000*power(10::numeric,18),'reward-boost-reserve-v2-adaptive'
  ) INTO r;
- IF r->>'changed'<>'true' OR (r->>'maxBoostReleaseWei')::numeric<>957*power(10::numeric,18) THEN
+ IF r->>'changed'<>'true' OR
+    (r->>'maxBoostReleaseWei')::numeric<>957*power(10::numeric,18) THEN
    RAISE EXCEPTION 'mismatched sweep proof must fall back to original ceiling: %',r;
  END IF;
 END
 $qa$;
 ROLLBACK TO SAVEPOINT bad_ledger;
 COMMIT;
-
--- Create matching immutable SOURCE_SWEEP evidence (in a fixture only).
-INSERT INTO public.reward_boost_reserve_source_protections
-(network,app_id,source_reward_cohort_round_id,source_allocation_receipt_id,
- baseline_effective_budget_wei,baseline_committed_wei,
- promotion_original_wei,promotion_reserve_wei,late_reward_wei,
- queued_eligible_count,long_incomplete_count,late_weighted_bps,
- late_weighted_liability_wei,max_sweepable_wei,source_revision,policy_version)
-VALUES
-('mainnet','0x' || repeat('a',64),122,9,
- 1930*power(10::numeric,18),0,0,0,0,0,0,0,0,
- 1930*power(10::numeric,18),'qa-revision','reward-boost-reserve-v1');
-INSERT INTO public.reward_boost_reserve_ledger
-(network,app_id,entry_kind,source_reward_cohort_round_id,source_allocation_receipt_id,
- amount_wei,policy_version,reference_key,details)
-VALUES
-('mainnet','0x' || repeat('a',64),'SOURCE_SWEEP',122,9,
- 1930*power(10::numeric,18),'qa-match','verified-source','{}');
 
 -- Disabling the feature must preserve old behavior even after a valid source sweep.
 BEGIN;
