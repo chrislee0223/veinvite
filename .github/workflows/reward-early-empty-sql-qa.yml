@@ -1,0 +1,40 @@
+name: Reward Empty Cohort SQL QA
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/*reward_early_empty_cohort_rollover.sql'
+      - 'tests/sql/reward-early-empty-rollover-*.sql'
+      - '.github/workflows/reward-early-empty-sql-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: qa-local-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout isolated test inputs
+        uses: actions/checkout@v7
+      - name: Isolated PostgreSQL fixture
+        run: |
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < tests/sql/reward-early-empty-rollover-fixture.sql
+      - name: Execute the actual rollover SQL migration in PostgreSQL 17
+        run: |
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/migrations/20261030170000_reward_early_empty_cohort_rollover.sql
+      - name: Prove safe rollover and fail-closed counterexamples
+        run: |
+          docker exec -i "${{ job.services.postgres.id }}" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < tests/sql/reward-early-empty-rollover-integration.sql
