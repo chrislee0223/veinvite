@@ -9,7 +9,15 @@ BEGIN
  SELECT reward_admission_lab.handoff_to_fixed('FAKE-B',5*power(10::numeric,18)) INTO result;
  IF result<>'NOT_FINALIZED_CLEAR' THEN RAISE EXCEPTION 'Sybil not clear still handed off: %',result; END IF;
 
- UPDATE reward_admission_lab.invites SET sybil_cleared=true WHERE code='FAKE-B';
+ UPDATE reward_admission_lab.invites SET sybil_cleared=true,recovery_offset_active=true WHERE code='FAKE-B';
+ SELECT reward_admission_lab.handoff_to_fixed('FAKE-B',5*power(10::numeric,18)) INTO result;
+ IF result<>'RECOVERY_OFFSET_REQUIRES_GROSS_NET_RECONCILIATION' THEN
+   RAISE EXCEPTION 'Recovery offset was bypassed: %',result;
+ END IF;
+ IF (SELECT status FROM reward_admission_lab.reservations WHERE code='FAKE-B')<>'HELD' THEN
+   RAISE EXCEPTION 'Refused recovery offset nevertheless released guarantee';
+ END IF;
+ UPDATE reward_admission_lab.invites SET recovery_offset_active=false WHERE code='FAKE-B';
  SELECT reward_admission_lab.handoff_to_fixed('FAKE-B',5*power(10::numeric,18)) INTO result;
  IF result<>'FIXED' THEN RAISE EXCEPTION 'Valid fixed handoff failed: %',result; END IF;
  SELECT reward_admission_lab.handoff_to_fixed('FAKE-B',5*power(10::numeric,18)) INTO result;
