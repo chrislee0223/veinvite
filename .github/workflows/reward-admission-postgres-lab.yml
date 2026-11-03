@@ -4,6 +4,7 @@ on:
     paths:
       - 'tests/sql/reward-admission-atomic-*.sql'
       - 'tests/sql/reward-admission-payout-handoff-*.sql'
+      - 'tests/sql/reward-admission-liability-bridge-*.sql'
       - '.github/workflows/reward-admission-postgres-lab.yml'
   workflow_dispatch:
 permissions:
@@ -105,3 +106,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-lab.sql
       - name: Verify no double liability during Claim and chain finality
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-assert.sql
+
+      - name: Model physical pool and cohort lifetime liability bridge
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-lab.sql
+      - name: Check no double-count across X, Claim, PAID and later cohort
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-assert.sql
