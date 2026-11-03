@@ -51,7 +51,7 @@ test('source rollover and current cohort boosts remain separate financial writer
 });
 
 test('draft guarantee shadow must never be reachable from live reward and route code', () => {
-  const names = /rewardAdmissionShadow|rewardElasticClosureShadow|rewardTreasuryAudit|reward_admission_lab/;
+  const names = /rewardAdmissionShadow|rewardElasticClosureShadow|rewardTreasuryAudit|rewardFundingBridgePolicy|reward_admission_lab/;
   for (const path of live) assert.doesNotMatch(read(path), names, path);
   const root = new URL('../supabase/migrations/', import.meta.url);
   const admissionMigrations = readdirSync(root).filter(name=>/reward_admission|elastic_guarantee/i.test(name));
@@ -65,4 +65,20 @@ test('the new financial prototype is explicitly isolated to tests and never a pa
   assert.match(lab, /reward_admission_lab\.settle_finalized/);
   assert.match(lab, /WAITING_CANONICAL_FINALITY/);
   assert.doesNotMatch(lab, /create or replace function public\./i);
+});
+
+test('X additional payout signer shares original base payout liability and lock', () => {
+  const x = read('src/lib/rewards/rewardXPromotionPayoutExecutor.ts');
+  assert.match(x, /read_outstanding_reward_liability/);
+  assert.match(x, /readVeInviteRewardPoolStatus/);
+  assert.match(x, /automatic_reward_payout:/);
+  assert.match(x, /verifyFinalizedXPromotionTransactionOnChain/);
+  assert.doesNotMatch(x, /rewardFundingBridgePolicy|reward_admission_lab/);
+});
+
+test('X post-base LIVE obligations already enter legacy physical liability once', () => {
+  const mig = read('supabase/migrations/20261008140000_harden_x_promotion_liability_readers_v1.sql');
+  assert.match(mig, /reward_x_promotion_post_base_liability_wei/);
+  assert.match(mig, /RESERVED/);
+  assert.match(mig, /HELD/);
 });
