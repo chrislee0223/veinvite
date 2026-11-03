@@ -1,0 +1,56 @@
+name: Reward Admission PostgreSQL Lab
+on:
+  pull_request:
+    paths:
+      - 'tests/sql/reward-admission-atomic-*.sql'
+      - '.github/workflows/reward-admission-postgres-lab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: qa-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Set up isolated lab tables and fake cohorts
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-lab.sql
+      - name: Prove concurrent cross-cohort overbooking impossible
+        shell: bash
+        run: |
+          set -euo pipefail
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "BEGIN; SELECT reward_admission_lab.reserve('FAKE-A'); SELECT pg_sleep(2); COMMIT;" > /tmp/a) &
+          first=$!
+          sleep 0.3
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('FAKE-B');" > /tmp/b) &
+          second=$!
+          wait "$first"
+          wait "$second"
+          grep -qx 'RESERVED' /tmp/a
+          grep -qx 'INSUFFICIENT' /tmp/b
+      - name: Verify exact accounting, replay safety, terminality, public access
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-assert.sql
