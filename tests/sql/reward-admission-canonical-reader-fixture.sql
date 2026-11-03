@@ -126,7 +126,7 @@ begin
     v_post_base_promotion
   )::text;
 end;
-$function$
+$function$;
 
 -- read_reward_cohort_committed_wei / md5 23bbbfadd10f61ccf012366eccd9a975
 CREATE OR REPLACE FUNCTION public.read_reward_cohort_committed_wei(p_network text, p_app_id text, p_reward_cohort_round_id bigint, p_allocation_receipt_id bigint)
@@ -210,7 +210,7 @@ begin
     v_x_promotion_committed +
     v_offset_committed;
 end;
-$function$
+$function$;
 
 -- read_reward_cohort_effective_budget_wei / md5 35a41aa258eb697932baba494534b381
 CREATE OR REPLACE FUNCTION public.read_reward_cohort_effective_budget_wei(p_network text, p_app_id text, p_reward_cohort_round_id bigint, p_allocation_receipt_id bigint)
@@ -265,7 +265,7 @@ begin
 
   return v_budget;
 end;
-$function$
+$function$;
 
 -- read_reward_x_promotion_post_base_liability_wei / md5 3077ed71c200eb828a2e3e0249057478
 CREATE OR REPLACE FUNCTION public.read_reward_x_promotion_post_base_liability_wei(p_network text, p_app_id text)
@@ -299,7 +299,7 @@ begin
 
   return v_amount;
 end;
-$function$
+$function$;
 
 DO $verify$ BEGIN
 IF md5(pg_get_functiondef('public.read_outstanding_reward_liability(text,text)'::regprocedure)) <> 'd4cc74ac3f93baa2bbccf23dc4596049' THEN RAISE EXCEPTION 'Canonical reader source altered: read_outstanding_reward_liability'; END IF;
