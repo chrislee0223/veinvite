@@ -71,3 +71,32 @@ jobs:
           grep -qx 'RESERVED' /tmp/same_a
           grep -qx 'ALREADY_RESERVED' /tmp/same_b
           psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=2 AND (SELECT held_wei FROM reward_admission_lab.pool)=10*power(10::numeric,18) THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
+
+
+      - name: Stress test 20 simultaneous applicants competing for two funded seats
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_lab.pool SET physical_wei=20*power(10::numeric,18); INSERT INTO reward_admission_lab.cohorts(id,receipt_id,budget_wei,floor_wei,receipt_verified,admission_open) VALUES(125,1003,10*power(10::numeric,18),5*power(10::numeric,18),true,true); INSERT INTO reward_admission_lab.invites(code,cohort_id,receipt_id,verified,status) SELECT 'STRESS-'||n,125,1003,true,'ACTIVE' FROM generate_series(1,20) n;"
+          declare -a pids=()
+          for i in $(seq 1 20); do
+            (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('STRESS-$i');" > "/tmp/stress-$i") &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          accepted=0
+          refused=0
+          for i in $(seq 1 20); do
+            value="$(cat "/tmp/stress-$i")"
+            if [ "$value" = "RESERVED" ]; then
+              accepted=$((accepted+1))
+            elif [ "$value" = "INSUFFICIENT" ]; then
+              refused=$((refused+1))
+            else
+              echo "Unexpected response: $value" >&2
+              exit 1
+            fi
+          done
+          test "$accepted" -eq 2
+          test "$refused" -eq 18
+          psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT held_wei FROM reward_admission_lab.pool)=20*power(10::numeric,18) AND (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)=10*power(10::numeric,18) AND (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=4 THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
