@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'tests/sql/reward-admission-atomic-*.sql'
+      - 'tests/sql/reward-admission-payout-handoff-*.sql'
       - '.github/workflows/reward-admission-postgres-lab.yml'
   workflow_dispatch:
 permissions:
@@ -100,3 +101,7 @@ jobs:
           test "$accepted" -eq 2
           test "$refused" -eq 18
           psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT held_wei FROM reward_admission_lab.pool)=20*power(10::numeric,18) AND (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)=10*power(10::numeric,18) AND (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=4 THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
+      - name: Initialize isolated fixed payout handoff model
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-lab.sql
+      - name: Verify no double liability during Claim and chain finality
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-assert.sql
