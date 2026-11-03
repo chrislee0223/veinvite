@@ -6,6 +6,7 @@ on:
       - 'tests/sql/reward-admission-payout-handoff-*.sql'
       - 'tests/sql/reward-admission-liability-bridge-*.sql'
       - 'tests/sql/reward-admission-x-promo-interop.sql'
+      - 'tests/sql/reward-admission-gross-net-recovery-lab.sql'
       - 'tests/sql/reward-admission-production-bridge-*.sql'
       - 'supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql'
       - '.github/workflows/reward-admission-postgres-lab.yml'
@@ -117,6 +118,9 @@ jobs:
 
       - name: Verify X promotion holds, paid and released are never counted twice
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-x-promo-interop.sql
+
+      - name: Verify isolated recovery gross-to-net finality and full-offset reconciliation
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-gross-net-recovery-lab.sql
 
       - name: Prepare fake Production accounting readers (no Production DB)
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-production-bridge-stubs.sql
