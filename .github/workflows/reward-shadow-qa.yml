@@ -8,6 +8,8 @@ on:
       - 'src/lib/rewards/rewardTreasuryAudit.ts'
       - 'src/lib/rewards/rewardElasticClosureShadow.ts'
       - 'tests/reward-admission-shadow.test.mjs'
+      - 'src/lib/rewards/rewardFundingBridgePolicy.ts'
+      - 'tests/reward-funding-bridge-policy.test.mjs'
       - 'tests/reward-admission-live-compat-boundary.test.mjs'
       - 'tests/reward-treasury-audit.test.mjs'
       - 'tests/reward-elastic-closure-shadow.test.mjs'
@@ -30,6 +32,7 @@ jobs:
         run: |
           node --experimental-strip-types --test \
             tests/reward-admission-shadow.test.mjs \
+            tests/reward-funding-bridge-policy.test.mjs \
             tests/reward-admission-live-compat-boundary.test.mjs \
             tests/reward-treasury-audit.test.mjs \
             tests/reward-elastic-closure-shadow.test.mjs
