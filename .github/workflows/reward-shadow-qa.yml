@@ -13,6 +13,8 @@ on:
       - 'tests/reward-admission-bridge-contract.test.mjs'
       - 'src/lib/rewards/rewardFundingBridgePolicy.ts'
       - 'tests/reward-funding-bridge-policy.test.mjs'
+      - 'src/lib/rewards/rewardGrossNetHandoffShadow.ts'
+      - 'tests/reward-gross-net-handoff-shadow.test.mjs'
       - 'tests/reward-admission-live-compat-boundary.test.mjs'
       - 'tests/reward-treasury-audit.test.mjs'
       - 'tests/reward-elastic-closure-shadow.test.mjs'
@@ -37,6 +39,7 @@ jobs:
             tests/reward-admission-shadow.test.mjs \
             tests/reward-admission-bridge-contract.test.mjs \
             tests/reward-funding-bridge-policy.test.mjs \
+            tests/reward-gross-net-handoff-shadow.test.mjs \
             tests/reward-admission-live-compat-boundary.test.mjs \
             tests/reward-treasury-audit.test.mjs \
             tests/reward-elastic-closure-shadow.test.mjs
