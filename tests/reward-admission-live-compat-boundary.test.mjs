@@ -55,7 +55,18 @@ test('draft guarantee shadow must never be reachable from live reward and route 
   for (const path of live) assert.doesNotMatch(read(path), names, path);
   const root = new URL('../supabase/migrations/', import.meta.url);
   const admissionMigrations = readdirSync(root).filter(name=>/reward_admission|elastic_guarantee/i.test(name));
-  assert.deepEqual(admissionMigrations, [], 'No live admission migration until compatibility gates are solved');
+  assert.deepEqual(admissionMigrations,
+    ['20261104030000_reward_admission_staged_read_bridge.sql'],
+    'Only the mechanically disabled read-only admission bridge may be staged');
+  const staging = read('supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql');
+  assert.match(staging, /enabled boolean NOT NULL DEFAULT false CHECK\(enabled=false\)/);
+  assert.match(staging, /'canAdmit',false/);
+  assert.match(staging, /'canGuarantee',false/);
+  assert.match(staging, /'canSign',false/);
+  assert.match(staging, /GRANT SELECT ON reward_admission_bridge\.holds TO service_role/);
+  assert.doesNotMatch(staging,
+    /create or replace function public\.(commit_reward_reservation|read_outstanding_reward_liability|read_reward_cohort_committed_wei|finalize_reward_x_promotion_payout_v1)/i,
+    'Staging must not rewrite Production financial authority');
 });
 
 test('the new financial prototype is explicitly isolated to tests and never a payout RPC', () => {
