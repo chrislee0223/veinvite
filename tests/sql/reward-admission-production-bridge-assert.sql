@@ -8,18 +8,18 @@ BEGIN
   IF j->>'model'<>'staged-disabled-v1'
     OR (j->>'canAdmit')::boolean OR (j->>'canGuarantee')::boolean
     OR (j->>'canSign')::boolean OR (j->>'enabled')::boolean
-    OR (j->>'physicalBaseAndXOutstandingWei')::numeric<>5*e
+    OR (j->>'physicalBaseAndXOutstandingWei')::numeric<>10*e
     OR (j->>'xLiveUnpaidAlreadyIncludedWei')::numeric<>5*e
-    OR (j->>'globalLiabilityIncludingHoldsWei')::numeric<>5*e
+    OR (j->>'globalLiabilityIncludingHoldsWei')::numeric<>10*e
   THEN RAISE EXCEPTION 'Unfunded or accidentally active staged bridge: %',j; END IF;
 
-  -- Internal legacy X liability is included exactly once (not 5+5).
+  -- Existing physical liability is base UNPAID 5 + X HELD 5, not X twice.
   INSERT INTO reward_admission_bridge.holds(
     network,invite_code,app_id,reward_cohort_round_id,
     funding_allocation_receipt_id,amount_wei,status
   ) VALUES('mainnet','STAGING-FAKE-A',app,123,1001,2*e,'HELD');
   SELECT public.read_reward_admission_bridge_status_v1('mainnet',app,123,1001) INTO j;
-  IF (j->>'globalLiabilityIncludingHoldsWei')::numeric<>7*e
+  IF (j->>'globalLiabilityIncludingHoldsWei')::numeric<>12*e
      OR (j->>'unconvertedCohortHoldsWei')::numeric<>2*e
      OR (j->>'cohortLifetimePlusHoldsWei')::numeric<>2*e
      OR NOT (j->>'accountingConsistent')::boolean
@@ -28,7 +28,7 @@ BEGIN
   END IF;
   UPDATE reward_admission_bridge.holds SET status='CONVERTED' WHERE invite_code='STAGING-FAKE-A';
   SELECT public.read_reward_admission_bridge_status_v1('mainnet',app,123,1001) INTO j;
-  IF (j->>'globalLiabilityIncludingHoldsWei')::numeric<>5*e OR
+  IF (j->>'globalLiabilityIncludingHoldsWei')::numeric<>10*e OR
      (j->>'unconvertedCohortHoldsWei')::numeric<>0
   THEN RAISE EXCEPTION 'Converted hold remained in admission liability: %',j; END IF;
   
