@@ -7,6 +7,7 @@ on:
       - 'tests/sql/reward-admission-liability-bridge-*.sql'
       - 'tests/sql/reward-admission-x-promo-interop.sql'
       - 'tests/sql/reward-admission-gross-net-recovery-lab.sql'
+      - 'tests/sql/reward-admission-canonical-reader-*.sql'
       - 'tests/sql/reward-admission-production-bridge-*.sql'
       - 'supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql'
       - '.github/workflows/reward-admission-postgres-lab.yml'
@@ -128,3 +129,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql
       - name: Verify fail-closed X accounting, read-only privileges and policy gate
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-production-bridge-assert.sql
+
+      - name: Load exact Production financial readers over isolated fake table shapes
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-fixture.sql
+      - name: Verify canonical base/X/paid/recovery cohort accounting and staged disable
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-assert.sql
