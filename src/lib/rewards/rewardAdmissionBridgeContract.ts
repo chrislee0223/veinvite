@@ -64,7 +64,7 @@ export function validateStagedAdmissionBridge(input: unknown, scope: AdmissionBr
     throw new Error('Admission cohort accounting flag does not match exact Wei');
   }
   const count = v.globalHoldsCount;
-  if (!Number.isSafeInteger(count) || (count as number)<0) {
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count<0) {
     throw new Error('Invalid admission global holds count');
   }
   return {
