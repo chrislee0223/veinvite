@@ -133,7 +133,7 @@ export function auditRewardTreasury(x: TreasuryAuditInput) {
   return {
     version: 'reward-treasury-reconciliation-v1',
     writesPerformed: false as const,
-    status: problems.length ? 'FAILED_RECONCILIATION' as const : 'CONSERVED_WITH_STRESS_ALERTS' as const,
+    status: problems.length ? 'FAILED_RECONCILIATION' as const : alerts.length ? 'CONSERVED_WITH_STRESS_ALERTS' as const : 'CONSERVED' as const,
     problems,
     alerts,
     snapshotAsOf: x.snapshotAsOf,
