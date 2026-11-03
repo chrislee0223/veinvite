@@ -67,6 +67,13 @@ export function validateStagedAdmissionBridge(input: unknown, scope: AdmissionBr
   if (typeof count !== 'number' || !Number.isSafeInteger(count) || count<0) {
     throw new Error('Invalid admission global holds count');
   }
+  // Every HELD row has a strictly positive Wei amount. A zero count with
+  // nonzero Wei (or vice versa) means the status response is not trustworthy.
+  // Never silently mark a contradictory funding snapshot as consistent.
+  if ((count === 0) !== (globalHold === 0n) ||
+      (count > 0 && globalHold < BigInt(count))) {
+    throw new Error('Admission holds count/Wei reconciliation drift');
+  }
   return {
     status: reported ? 'STAGING_DISABLED' : 'COHORT_OVERCOMMITTED',
     authorizesAdmission: false as const,
