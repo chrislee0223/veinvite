@@ -77,6 +77,18 @@ test('reject X double counting, inconsistent lifetime or bad exact Wei',()=>{
     {accountingConsistent:false},{globalHoldsCount:1.5}
   ]) assert.throws(()=>validate(v(opts),scope));
 });
+test('reject impossible global HELD count-to-Wei snapshots before reporting safe staging',()=>{
+  for (const opts of [
+    {globalHoldsCount:0,unconvertedGlobalHoldsWei:w(2),unconvertedCohortHoldsWei:w(2),globalLiabilityIncludingHoldsWei:w(12)},
+    {globalHoldsCount:1,unconvertedGlobalHoldsWei:'0',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:w(10)},
+    {globalHoldsCount:3,unconvertedGlobalHoldsWei:'2',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:(10n*e+2n).toString()},
+  ]) assert.throws(()=>validate(v(opts),scope),/count\\/Wei reconciliation drift/);
+  const validZero=validate(v({
+    globalHoldsCount:0,unconvertedGlobalHoldsWei:'0',unconvertedCohortHoldsWei:'0',
+    globalLiabilityIncludingHoldsWei:w(10),cohortLifetimePlusHoldsWei:w(20)
+  }),scope);
+  assert.equal(validZero.status,'STAGING_DISABLED');
+});
 test('staged RPC is available only in unused server-only read module',()=>{
   const s=readFileSync(new URL('../src/lib/rewards/readStagedAdmissionFundingStatus.ts',import.meta.url),'utf8');
   assert.match(s,/import 'server-only'/);
