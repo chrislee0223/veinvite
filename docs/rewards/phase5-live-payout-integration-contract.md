@@ -37,6 +37,12 @@ Also avoid simply subtracting the pre-guarantee from every existing reader. That
 7. Add rollback/disable switch that stops **new** admissions without forfeiting existing held guarantees. Verify 100–1,000 concurrent requests, late Sybil reversals, X promo/boost, submitted-chain retries and cross-round races against a Production-schema isolated database.
 8. Resolve the unrelated existing `npm audit --audit-level=high` CI gate failure before merging. Do not bypass the gate.
 
+## Existing fraud-recovery offset compatibility
+
+The actual `commit_reward_reservation` RPC may calculate `v_net = gross_amount - verified_recovery_offset`. The fixed queue reserve tracks net B3TR to transfer, whereas `read_reward_cohort_committed_wei` also includes valid recovery-offset settlements. **Cohort lifetime commitment and physical outstanding B3TR are not the same quantity.**
+
+A new minimum-guarantee hold must not be transformed into an offset reward by subtracting one gross number from both ledgers. The isolated handoff prototype now **refuses** participants flagged with outstanding recovery offsets until separate net/offset accounting and conflict tests exist. It must not change existing live recovery rights or settled history.
+
 ## Extra limitation: chain and database are separate systems
 
 A PostgreSQL lock serializes local operators, not the public VeChain pool. A payment by another authorized distributor or an external on-chain change could occur after a read. A hard, unconditional guarantee would require stronger custody/escrow semantics or overcollateralized funding plus signer-level controls and fail-closed recovery; an application-only preview does **not** provide a mathematical 100% guarantee against external changes.
