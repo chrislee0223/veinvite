@@ -216,6 +216,36 @@ BEGIN
      THEN RAISE EXCEPTION 'Invalid attestation mutated an admission hold'; END IF;
 END $qa$;
 ROLLBACK;
+-- A simultaneous LIVE X claim uses the same physical pool. Neither a
+-- gross recovery offset nor an old held minimum can silently fund X.
+BEGIN;
+DO $qa$
+DECLARE v_code text; outcome text; e numeric(78,0):=power(10::numeric,18);
+BEGIN
+  SELECT r.code INTO v_code FROM reward_admission_lab.reservations r
+    WHERE r.code LIKE 'STRESS-%' AND r.status='HELD' ORDER BY r.code LIMIT 1;
+  UPDATE reward_admission_lab.invites SET
+    status='COMPLETED',mission_finalized=true,sybil_cleared=true,
+    recovery_offset_active=true WHERE invites.code=v_code;
+  INSERT INTO reward_admission_lab.gross_net_attestations
+    (code,receipt_id,gross_wei,offset_wei,authority_verified)
+  SELECT inv.code,inv.receipt_id,5*e,2*e,true
+    FROM reward_admission_lab.invites inv WHERE inv.code=v_code;
+  UPDATE reward_admission_lab.pool SET external_holds_wei=e WHERE id=true;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
+  IF outcome<>'BASELINE_INCONSISTENT'
+     OR (SELECT status FROM reward_admission_lab.reservations WHERE code=v_code)<>'HELD'
+  THEN RAISE EXCEPTION 'Unfunded concurrent LIVE X consumed original guaranteed floor: %',outcome; END IF;
+  UPDATE reward_admission_lab.pool SET physical_wei=physical_wei+e WHERE id=true;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
+  IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'X correctly funded but gross/net handoff failed: %',outcome; END IF;
+  IF (SELECT physical_wei FROM reward_admission_lab.pool)<>16*e
+     OR (SELECT held_wei+unpaid_fixed_wei+external_holds_wei FROM reward_admission_lab.pool)<>14*e
+     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
+  THEN RAISE EXCEPTION 'X and recovered base reward were counted twice'; END IF;
+END $qa$;
+ROLLBACK;
+
 DO $qa$
 BEGIN
  IF has_function_privilege('anon','reward_admission_lab.handoff_verified_gross_net(text)','EXECUTE')
