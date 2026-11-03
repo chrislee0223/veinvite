@@ -5,7 +5,8 @@ ALTER TABLE reward_admission_lab.pool
   ADD COLUMN unpaid_fixed_wei numeric(78,0) NOT NULL DEFAULT 0 CHECK(unpaid_fixed_wei>=0);
 ALTER TABLE reward_admission_lab.invites
   ADD COLUMN mission_finalized boolean NOT NULL DEFAULT false,
-  ADD COLUMN sybil_cleared boolean NOT NULL DEFAULT false;
+  ADD COLUMN sybil_cleared boolean NOT NULL DEFAULT false,
+  ADD COLUMN recovery_offset_active boolean NOT NULL DEFAULT false;
 CREATE TABLE reward_admission_lab.fixed_rewards (
   code text PRIMARY KEY REFERENCES reward_admission_lab.invites(code),
   cohort_id bigint NOT NULL REFERENCES reward_admission_lab.cohorts(id),
@@ -56,6 +57,9 @@ BEGIN
  IF i.cohort_id<>r.cohort_id OR i.receipt_id<>c.receipt_id THEN RETURN 'RECEIPT_MISMATCH'; END IF;
  IF i.status<>'COMPLETED' OR NOT i.verified OR
     NOT i.mission_finalized OR NOT i.sybil_cleared THEN RETURN 'NOT_FINALIZED_CLEAR'; END IF;
+ -- Legacy recovery may split the gross quote into net B3TR and offset ledger.
+ -- Fail closed until that two-ledger bridge is implemented and reconciled.
+ IF i.recovery_offset_active THEN RETURN 'RECOVERY_OFFSET_REQUIRES_GROSS_NET_RECONCILIATION'; END IF;
  IF p.paused OR NOT p.evidence_verified OR NOT c.receipt_verified THEN RETURN 'UNVERIFIED'; END IF;
  IF p.observed_at>clock_timestamp()+interval '1 minute' OR
     clock_timestamp()-p.observed_at>interval '5 minutes' THEN RETURN 'STALE'; END IF;
