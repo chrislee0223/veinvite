@@ -111,7 +111,7 @@ BEGIN
     recovery_offset_active=true WHERE invites.code=code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT code,receipt_id,5*e,2*e,true FROM reward_admission_lab.invites WHERE invites.code=code;
+  SELECT inv.code,inv.receipt_id,5*e,2*e,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'Partial gross/net failed: %',outcome; END IF;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
@@ -148,7 +148,7 @@ BEGIN
     recovery_offset_active=true WHERE invites.code=code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT code,receipt_id,5*e,5*e,true FROM reward_admission_lab.invites WHERE invites.code=code;
+  SELECT inv.code,inv.receipt_id,5*e,5*e,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'FULL_OFFSET_NO_TOKEN' THEN RAISE EXCEPTION 'Full offset failed: %',outcome; END IF;
   IF EXISTS(SELECT 1 FROM reward_admission_lab.fixed_rewards f WHERE f.code=code)
@@ -170,7 +170,7 @@ BEGIN
     recovery_offset_active=false WHERE invites.code=code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT code,receipt_id,7*e,0,true FROM reward_admission_lab.invites WHERE invites.code=code;
+  SELECT inv.code,inv.receipt_id,7*e,0,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'HANDOFF_UNDERFUNDED' THEN RAISE EXCEPTION 'Unfunded extra gross accepted: %',outcome; END IF;
   IF (SELECT status FROM reward_admission_lab.reservations WHERE reservations.code=code)<>'HELD' THEN
@@ -197,7 +197,7 @@ BEGIN
     recovery_offset_active=true WHERE invites.code=code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT code,receipt_id,5*e,2*e,false FROM reward_admission_lab.invites WHERE invites.code=code;
+  SELECT inv.code,inv.receipt_id,5*e,2*e,false FROM reward_admission_lab.invites inv WHERE inv.code=code;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'MISSION_OR_SYBIL_UNRESOLVED' THEN RAISE EXCEPTION 'Sybil bypass: %',outcome; END IF;
   UPDATE reward_admission_lab.invites SET sybil_cleared=true WHERE invites.code=code;
