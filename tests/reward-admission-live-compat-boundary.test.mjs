@@ -51,7 +51,7 @@ test('source rollover and current cohort boosts remain separate financial writer
 });
 
 test('draft guarantee shadow must never be reachable from live reward and route code', () => {
-  const names = /rewardAdmissionShadow|rewardElasticClosureShadow|rewardTreasuryAudit|rewardFundingBridgePolicy|reward_admission_lab/;
+  const names = /rewardAdmissionShadow|rewardElasticClosureShadow|rewardTreasuryAudit|rewardFundingBridgePolicy|reward_admission_lab|rewardGrossNetHandoffShadow/;
   for (const path of live) assert.doesNotMatch(read(path), names, path);
   const root = new URL('../supabase/migrations/', import.meta.url);
   const admissionMigrations = readdirSync(root).filter(name=>/reward_admission|elastic_guarantee/i.test(name));
