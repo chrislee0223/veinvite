@@ -54,3 +54,20 @@ jobs:
           grep -qx 'INSUFFICIENT' /tmp/b
       - name: Verify exact accounting, replay safety, terminality, public access
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-assert.sql
+
+      - name: Concurrent same-invite retry must reserve only once
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Extend verified fake balance; two concurrent requests share one code.
+          psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_lab.pool SET physical_wei=10*power(10::numeric,18) WHERE id=true;"
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "BEGIN; SELECT reward_admission_lab.reserve('FAKE-B'); SELECT pg_sleep(2); COMMIT;" > /tmp/same_a) &
+          first=$!
+          sleep 0.3
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('FAKE-B');" > /tmp/same_b) &
+          second=$!
+          wait "$first"
+          wait "$second"
+          grep -qx 'RESERVED' /tmp/same_a
+          grep -qx 'ALREADY_RESERVED' /tmp/same_b
+          psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=2 AND (SELECT held_wei FROM reward_admission_lab.pool)=10*power(10::numeric,18) THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
