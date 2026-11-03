@@ -1,0 +1,46 @@
+name: Reward Admission Staged DB Security
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql'
+      - 'tests/sql/reward-admission-staging-standalone-*.sql'
+      - '.github/workflows/reward-admission-staged-db-security.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  staged-private-reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-qa-not-live
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: isolated-qa-not-live
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install isolated PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create canonical fake accounting readers
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-staging-standalone-fixture.sql
+      - name: Execute exact prospective-only Supabase migration on local PostgreSQL
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql
+      - name: Check ledger, identity, X once, privileges and disabled policy
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-staging-standalone-assert.sql
