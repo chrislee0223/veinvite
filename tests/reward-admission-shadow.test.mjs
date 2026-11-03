@@ -80,3 +80,27 @@ test('malformed financial values, timestamps and counts are rejected', () => {
     {currentAdmissionCount:-1},{evaluatedAt:'2026-11-03'},
   ]) assert.throws(()=>previewRewardAdmission(input(change)));
 });
+
+
+test('sanitized historical 27-user all-complete stress blocks new promises', () => {
+  // Hypothetical cohort 114-120 stress, NOT a realized funding deficit.
+  const cohorts = [
+    [4n,'145856230326545178266','218784345489817767399'],
+    [1n,'196949790797450313728','49237447699362578432'],
+    [2n,'110805439331916840960','199449790797450313728'],
+    [4n,'232691422597025366016','349037133895538049024'],
+    [3n,'40885429486108353820','42929700960413771511'],
+    [6n,'33637365511474756174','85775282054260628244'],
+    [7n,'218573871652502309639','557363372713880889579'],
+  ];
+  const allComplete = cohorts.reduce((s,[n,quote])=>s+n*BigInt(quote),0n);
+  const weighted = cohorts.reduce((s,[,,held])=>s+BigInt(held),0n);
+  const hypotheticalGap = allComplete-weighted-232691422597025366016n;
+  assert.equal(cohorts.reduce((s,[n])=>s+n,0n),27n);
+  assert.equal(hypotheticalGap,2051980368042506574820n);
+  const x=previewRewardAdmission(input({
+    uncoveredOlderCompletionStressWei:hypotheticalGap.toString(),
+  }));
+  assert.equal(x.status,'UNRESOLVED_LEGACY_STRESS');
+  assert.equal(x.authorizesAdmission,false);
+});
