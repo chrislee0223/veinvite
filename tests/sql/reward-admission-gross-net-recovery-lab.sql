@@ -102,32 +102,32 @@ REVOKE ALL ON FUNCTION reward_admission_lab.handoff_verified_gross_net(text) FRO
 -- actual source invite, financial wallet, X entry or Production SQL is touched.
 BEGIN;
 DO $qa$
-DECLARE code text; outcome text; e numeric(78,0):=power(10::numeric,18);
+DECLARE v_code text; outcome text; e numeric(78,0):=power(10::numeric,18);
 BEGIN
-  SELECT r.code INTO code FROM reward_admission_lab.reservations r
+  SELECT r.code INTO v_code FROM reward_admission_lab.reservations r
    WHERE r.code LIKE 'STRESS-%' AND r.status='HELD' ORDER BY r.code LIMIT 1;
   UPDATE reward_admission_lab.invites SET
     status='COMPLETED',mission_finalized=true,sybil_cleared=true,
-    recovery_offset_active=true WHERE invites.code=code;
+    recovery_offset_active=true WHERE invites.code=v_code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT inv.code,inv.receipt_id,5*e,2*e,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT inv.code,inv.receipt_id,5*e,2*e,true FROM reward_admission_lab.invites inv WHERE inv.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'Partial gross/net failed: %',outcome; END IF;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'ALREADY_RECOVERY_SETTLED' THEN RAISE EXCEPTION 'Idempotency failed: %',outcome; END IF;
   IF (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
      OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>8*e
      OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
      OR (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)<>0
-     OR (SELECT gross_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=code)<>5*e
-     OR (SELECT net_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=code)<>3*e
+     OR (SELECT gross_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=v_code)<>5*e
+     OR (SELECT net_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=v_code)<>3*e
      THEN RAISE EXCEPTION 'Gross lifetime and net physical ledgers diverged'; END IF;
   -- Existing verified PAID path consumes ONLY the actual net onchain amount.
   INSERT INTO reward_admission_lab.canonical_finalities
      (code,tx_id,quote_wei,chain_finalized,authority_verified)
-   VALUES(code,'mock-gross-net-finality',3*e,true,true);
-  SELECT reward_admission_lab.settle_finalized(code) INTO outcome;
+   VALUES(v_code,'mock-gross-net-finality',3*e,true,true);
+  SELECT reward_admission_lab.settle_finalized(v_code) INTO outcome;
   IF outcome<>'PAID'
      OR (SELECT physical_wei FROM reward_admission_lab.pool)<>12*e
      OR (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
@@ -139,19 +139,19 @@ ROLLBACK;
 
 BEGIN;
 DO $qa$
-DECLARE code text; outcome text; e numeric(78,0):=power(10::numeric,18);
+DECLARE v_code text; outcome text; e numeric(78,0):=power(10::numeric,18);
 BEGIN
-  SELECT r.code INTO code FROM reward_admission_lab.reservations r
+  SELECT r.code INTO v_code FROM reward_admission_lab.reservations r
    WHERE r.code LIKE 'STRESS-%' AND r.status='HELD' ORDER BY r.code LIMIT 1;
   UPDATE reward_admission_lab.invites SET
     status='COMPLETED',mission_finalized=true,sybil_cleared=true,
-    recovery_offset_active=true WHERE invites.code=code;
+    recovery_offset_active=true WHERE invites.code=v_code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT inv.code,inv.receipt_id,5*e,5*e,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT inv.code,inv.receipt_id,5*e,5*e,true FROM reward_admission_lab.invites inv WHERE inv.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'FULL_OFFSET_NO_TOKEN' THEN RAISE EXCEPTION 'Full offset failed: %',outcome; END IF;
-  IF EXISTS(SELECT 1 FROM reward_admission_lab.fixed_rewards f WHERE f.code=code)
+  IF EXISTS(SELECT 1 FROM reward_admission_lab.fixed_rewards f WHERE f.code=v_code)
     OR (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
     OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>5*e
     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
@@ -161,24 +161,24 @@ ROLLBACK;
 
 BEGIN;
 DO $qa$
-DECLARE code text; outcome text; e numeric(78,0):=power(10::numeric,18);
+DECLARE v_code text; outcome text; e numeric(78,0):=power(10::numeric,18);
 BEGIN
-  SELECT r.code INTO code FROM reward_admission_lab.reservations r
+  SELECT r.code INTO v_code FROM reward_admission_lab.reservations r
    WHERE r.code LIKE 'STRESS-%' AND r.status='HELD' ORDER BY r.code LIMIT 1;
   UPDATE reward_admission_lab.invites SET
     status='COMPLETED',mission_finalized=true,sybil_cleared=true,
-    recovery_offset_active=false WHERE invites.code=code;
+    recovery_offset_active=false WHERE invites.code=v_code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT inv.code,inv.receipt_id,7*e,0,true FROM reward_admission_lab.invites inv WHERE inv.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT inv.code,inv.receipt_id,7*e,0,true FROM reward_admission_lab.invites inv WHERE inv.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'HANDOFF_UNDERFUNDED' THEN RAISE EXCEPTION 'Unfunded extra gross accepted: %',outcome; END IF;
-  IF (SELECT status FROM reward_admission_lab.reservations WHERE reservations.code=code)<>'HELD' THEN
+  IF (SELECT status FROM reward_admission_lab.reservations WHERE reservations.code=v_code)<>'HELD' THEN
     RAISE EXCEPTION 'Failed quote stole old guarantee'; END IF;
   -- Both cohort funds and actually verified physical tokens must increase.
   UPDATE reward_admission_lab.pool SET physical_wei=physical_wei+2*e WHERE id=true;
   UPDATE reward_admission_lab.cohorts SET budget_wei=budget_wei+2*e WHERE id=125;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'Genuinely funded increase rejected: %',outcome; END IF;
   IF (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>12*e
     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>12*e
@@ -188,31 +188,31 @@ ROLLBACK;
 
 BEGIN;
 DO $qa$
-DECLARE code text; outcome text; e numeric(78,0):=power(10::numeric,18);
+DECLARE v_code text; outcome text; e numeric(78,0):=power(10::numeric,18);
 BEGIN
-  SELECT r.code INTO code FROM reward_admission_lab.reservations r
+  SELECT r.code INTO v_code FROM reward_admission_lab.reservations r
    WHERE r.code LIKE 'STRESS-%' AND r.status='HELD' ORDER BY r.code LIMIT 1;
   UPDATE reward_admission_lab.invites SET
     status='COMPLETED',mission_finalized=true,sybil_cleared=false,
-    recovery_offset_active=true WHERE invites.code=code;
+    recovery_offset_active=true WHERE invites.code=v_code;
   INSERT INTO reward_admission_lab.gross_net_attestations
     (code,receipt_id,gross_wei,offset_wei,authority_verified)
-  SELECT inv.code,inv.receipt_id,5*e,2*e,false FROM reward_admission_lab.invites inv WHERE inv.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT inv.code,inv.receipt_id,5*e,2*e,false FROM reward_admission_lab.invites inv WHERE inv.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'MISSION_OR_SYBIL_UNRESOLVED' THEN RAISE EXCEPTION 'Sybil bypass: %',outcome; END IF;
-  UPDATE reward_admission_lab.invites SET sybil_cleared=true WHERE invites.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  UPDATE reward_admission_lab.invites SET sybil_cleared=true WHERE invites.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'RECOVERY_PROOF_UNVERIFIED' THEN RAISE EXCEPTION 'Unverified offset bypass: %',outcome; END IF;
   UPDATE reward_admission_lab.gross_net_attestations SET authority_verified=true,receipt_id=999999
-    WHERE gross_net_attestations.code=code;
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+    WHERE gross_net_attestations.code=v_code;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'RECOVERY_PROOF_UNVERIFIED' THEN RAISE EXCEPTION 'Wrong funding receipt bypass: %',outcome; END IF;
-  UPDATE reward_admission_lab.gross_net_attestations SET receipt_id=125 WHERE gross_net_attestations.code=code;
+  UPDATE reward_admission_lab.gross_net_attestations SET receipt_id=125 WHERE gross_net_attestations.code=v_code;
   -- The prior cohort id is NOT the receipt: a mistaken reuse must be refused.
-  SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
+  SELECT reward_admission_lab.handoff_verified_gross_net(v_code) INTO outcome;
   IF outcome<>'RECOVERY_PROOF_UNVERIFIED' THEN RAISE EXCEPTION 'Cohort id mistaken for receipt id: %',outcome; END IF;
-  IF (SELECT status FROM reward_admission_lab.reservations WHERE reservations.code=code)<>'HELD'
-     OR EXISTS(SELECT 1 FROM reward_admission_lab.gross_net_settlements s WHERE s.code=code)
+  IF (SELECT status FROM reward_admission_lab.reservations WHERE reservations.code=v_code)<>'HELD'
+     OR EXISTS(SELECT 1 FROM reward_admission_lab.gross_net_settlements s WHERE s.code=v_code)
      THEN RAISE EXCEPTION 'Invalid attestation mutated an admission hold'; END IF;
 END $qa$;
 ROLLBACK;
