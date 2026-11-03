@@ -116,10 +116,10 @@ BEGIN
   IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'Partial gross/net failed: %',outcome; END IF;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'ALREADY_RECOVERY_SETTLED' THEN RAISE EXCEPTION 'Idempotency failed: %',outcome; END IF;
-  IF (SELECT held_wei FROM reward_admission_lab.pool)<>10*e
-     OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>3*e
-     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>5*e
-     OR (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)<>5*e
+  IF (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
+     OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>8*e
+     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
+     OR (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)<>0
      OR (SELECT gross_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=code)<>5*e
      OR (SELECT net_wei FROM reward_admission_lab.gross_net_settlements WHERE gross_net_settlements.code=code)<>3*e
      THEN RAISE EXCEPTION 'Gross lifetime and net physical ledgers diverged'; END IF;
@@ -130,9 +130,9 @@ BEGIN
   SELECT reward_admission_lab.settle_finalized(code) INTO outcome;
   IF outcome<>'PAID'
      OR (SELECT physical_wei FROM reward_admission_lab.pool)<>12*e
-     OR (SELECT held_wei FROM reward_admission_lab.pool)<>10*e
-     OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>0
-     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>5*e
+     OR (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
+     OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>5*e
+     OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
      THEN RAISE EXCEPTION 'Net settlement ignored original GROSS lifetime charge'; END IF;
 END $qa$;
 ROLLBACK;
@@ -152,9 +152,9 @@ BEGIN
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'FULL_OFFSET_NO_TOKEN' THEN RAISE EXCEPTION 'Full offset failed: %',outcome; END IF;
   IF EXISTS(SELECT 1 FROM reward_admission_lab.fixed_rewards f WHERE f.code=code)
-    OR (SELECT held_wei FROM reward_admission_lab.pool)<>10*e
-    OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>0
-    OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>5*e
+    OR (SELECT held_wei FROM reward_admission_lab.pool)<>5*e
+    OR (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>5*e
+    OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>10*e
     THEN RAISE EXCEPTION 'Full offset created fake token debt or failed lifetime gross'; END IF;
 END $qa$;
 ROLLBACK;
@@ -180,8 +180,8 @@ BEGIN
   UPDATE reward_admission_lab.cohorts SET budget_wei=budget_wei+2*e WHERE id=125;
   SELECT reward_admission_lab.handoff_verified_gross_net(code) INTO outcome;
   IF outcome<>'NET_FIXED' THEN RAISE EXCEPTION 'Genuinely funded increase rejected: %',outcome; END IF;
-  IF (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>7*e
-    OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>7*e
+  IF (SELECT unpaid_fixed_wei FROM reward_admission_lab.pool)<>12*e
+    OR (SELECT committed_wei FROM reward_admission_lab.cohorts WHERE id=125)<>12*e
   THEN RAISE EXCEPTION 'Funded gross and net flow wrong'; END IF;
 END $qa$;
 ROLLBACK;
