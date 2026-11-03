@@ -1,0 +1,136 @@
+name: Reward Admission PostgreSQL Lab
+on:
+  pull_request:
+    paths:
+      - 'tests/sql/reward-admission-atomic-*.sql'
+      - 'tests/sql/reward-admission-payout-handoff-*.sql'
+      - 'tests/sql/reward-admission-liability-bridge-*.sql'
+      - 'tests/sql/reward-admission-x-promo-interop.sql'
+      - 'tests/sql/reward-admission-gross-net-recovery-lab.sql'
+      - 'tests/sql/reward-admission-canonical-reader-*.sql'
+      - 'tests/sql/reward-admission-production-bridge-*.sql'
+      - 'supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql'
+      - '.github/workflows/reward-admission-postgres-lab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: qa-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Set up isolated lab tables and fake cohorts
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-lab.sql
+      - name: Prove concurrent cross-cohort overbooking impossible
+        shell: bash
+        run: |
+          set -euo pipefail
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "BEGIN; SELECT reward_admission_lab.reserve('FAKE-A'); SELECT pg_sleep(2); COMMIT;" > /tmp/a) &
+          first=$!
+          sleep 0.3
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('FAKE-B');" > /tmp/b) &
+          second=$!
+          wait "$first"
+          wait "$second"
+          grep -qx 'RESERVED' /tmp/a
+          grep -qx 'INSUFFICIENT' /tmp/b
+      - name: Verify exact accounting, replay safety, terminality, public access
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-assert.sql
+
+      - name: Concurrent same-invite retry must reserve only once
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Extend verified fake balance; two concurrent requests share one code.
+          psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_lab.pool SET physical_wei=10*power(10::numeric,18) WHERE id=true;"
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "BEGIN; SELECT reward_admission_lab.reserve('FAKE-B'); SELECT pg_sleep(2); COMMIT;" > /tmp/same_a) &
+          first=$!
+          sleep 0.3
+          (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('FAKE-B');" > /tmp/same_b) &
+          second=$!
+          wait "$first"
+          wait "$second"
+          grep -qx 'RESERVED' /tmp/same_a
+          grep -qx 'ALREADY_RESERVED' /tmp/same_b
+          psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=2 AND (SELECT held_wei FROM reward_admission_lab.pool)=10*power(10::numeric,18) THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
+
+
+      - name: Stress test 20 simultaneous applicants competing for two funded seats
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_lab.pool SET physical_wei=20*power(10::numeric,18); INSERT INTO reward_admission_lab.cohorts(id,receipt_id,budget_wei,floor_wei,receipt_verified,admission_open) VALUES(125,1003,10*power(10::numeric,18),5*power(10::numeric,18),true,true); INSERT INTO reward_admission_lab.invites(code,cohort_id,receipt_id,verified,status) SELECT 'STRESS-'||n,125,1003,true,'ACTIVE' FROM generate_series(1,20) n;"
+          declare -a pids=()
+          for i in $(seq 1 20); do
+            (psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT reward_admission_lab.reserve('STRESS-$i');" > "/tmp/stress-$i") &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          accepted=0
+          refused=0
+          for i in $(seq 1 20); do
+            value="$(cat "/tmp/stress-$i")"
+            if [ "$value" = "RESERVED" ]; then
+              accepted=$((accepted+1))
+            elif [ "$value" = "INSUFFICIENT" ]; then
+              refused=$((refused+1))
+            else
+              echo "Unexpected response: $value" >&2
+              exit 1
+            fi
+          done
+          test "$accepted" -eq 2
+          test "$refused" -eq 18
+          psql -X -v ON_ERROR_STOP=1 -Atqc "SELECT CASE WHEN (SELECT held_wei FROM reward_admission_lab.pool)=20*power(10::numeric,18) AND (SELECT held_wei FROM reward_admission_lab.cohorts WHERE id=125)=10*power(10::numeric,18) AND (SELECT count(*) FROM reward_admission_lab.reservations WHERE status='HELD')=4 THEN 'PASS' ELSE 'FAIL' END;" | grep -qx PASS
+      - name: Initialize isolated fixed payout handoff model
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-lab.sql
+      - name: Verify no double liability during Claim and chain finality
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-assert.sql
+
+      - name: Model physical pool and cohort lifetime liability bridge
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-lab.sql
+      - name: Check no double-count across X, Claim, PAID and later cohort
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-assert.sql
+
+      - name: Verify X promotion holds, paid and released are never counted twice
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-x-promo-interop.sql
+
+      - name: Verify isolated recovery gross-to-net finality and full-offset reconciliation
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-gross-net-recovery-lab.sql
+
+      - name: Prepare fake Production accounting readers (no Production DB)
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-production-bridge-stubs.sql
+      - name: Rehearse the actual staged Supabase migration on PostgreSQL 17
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql
+      - name: Verify fail-closed X accounting, read-only privileges and policy gate
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-production-bridge-assert.sql
+
+      - name: Load exact Production financial readers over isolated fake table shapes
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-fixture.sql
+      - name: Verify canonical base/X/paid/recovery cohort accounting and staged disable
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-assert.sql
