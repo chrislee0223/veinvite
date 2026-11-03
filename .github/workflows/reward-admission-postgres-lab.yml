@@ -5,6 +5,7 @@ on:
       - 'tests/sql/reward-admission-atomic-*.sql'
       - 'tests/sql/reward-admission-payout-handoff-*.sql'
       - 'tests/sql/reward-admission-liability-bridge-*.sql'
+      - 'tests/sql/reward-admission-x-promo-interop.sql'
       - '.github/workflows/reward-admission-postgres-lab.yml'
   workflow_dispatch:
 permissions:
@@ -111,3 +112,6 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-lab.sql
       - name: Check no double-count across X, Claim, PAID and later cohort
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-liability-bridge-assert.sql
+
+      - name: Verify X promotion holds, paid and released are never counted twice
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-x-promo-interop.sql
