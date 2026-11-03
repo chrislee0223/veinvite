@@ -80,8 +80,8 @@ test('reject X double counting, inconsistent lifetime or bad exact Wei',()=>{
 test('reject impossible global HELD count-to-Wei snapshots before reporting safe staging',()=>{
   for (const opts of [
     {globalHoldsCount:0,unconvertedGlobalHoldsWei:w(2),unconvertedCohortHoldsWei:w(2),globalLiabilityIncludingHoldsWei:w(12)},
-    {globalHoldsCount:1,unconvertedGlobalHoldsWei:'0',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:w(10)},
-    {globalHoldsCount:3,unconvertedGlobalHoldsWei:'2',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:(10n*e+2n).toString()},
+    {globalHoldsCount:1,unconvertedGlobalHoldsWei:'0',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:w(10),cohortLifetimePlusHoldsWei:w(20)},
+    {globalHoldsCount:3,unconvertedGlobalHoldsWei:'2',unconvertedCohortHoldsWei:'0',globalLiabilityIncludingHoldsWei:(10n*e+2n).toString(),cohortLifetimePlusHoldsWei:w(20)},
   ]) assert.throws(()=>validate(v(opts),scope),/count\\/Wei reconciliation drift/);
   const validZero=validate(v({
     globalHoldsCount:0,unconvertedGlobalHoldsWei:'0',unconvertedCohortHoldsWei:'0',
