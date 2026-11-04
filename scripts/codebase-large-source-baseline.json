@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed inviter-controlled unfinished referral release (2026-11-05): HomeClient adds wallet-authenticated release flow, confirmation modal reuse, 38px close control and single-line wallet layout. AppNetwork +207B reflects already merged canary UI parity. Referrals/rewards remain protected by server RPC and Preview DB rollback QA; remaining growth ceilings unchanged.",
+  "note": "Reviewed inviter-controlled unfinished referral release (2026-11-05): HomeClient adds accessible clickable occupied friend card, read-only 5-step detail view, two-step confirmation and wallet-authenticated release feedback. Existing canary test-only projection is never eligible for release. Network growth reflects already merged canary UI parity. Reward/Sybil routes unchanged.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -40,7 +40,7 @@
     "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
-    "src/components/HomeClient.tsx": 58032,
+    "src/components/HomeClient.tsx": 59454,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
     "src/app/api/cron/vote-reconcile/route.ts": 29931,
     "src/components/AppSettings.tsx": 32280
