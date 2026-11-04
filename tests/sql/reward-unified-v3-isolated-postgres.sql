@@ -119,7 +119,29 @@ begin
  if not v_rejected then raise exception 'TEST_FAILED_EARLY_X_FINAL_PROOF'; end if;
 end $$;
 
--- A post failing retention may be released once; no signed+released double pay.
+-- Even if a user cancels immediately, no unverified early release.
+do $
+declare v_rejected boolean:=false;
+begin
+ begin
+  insert into reward_unified_v3.x_events(
+    entitlement_id,network,event_type,amount_wei,event_reference
+  ) select id,network,'RELEASED',x_hold_wei,'too-early-with-live-post'
+    from reward_unified_v3.entitlements where invite_code='ABCDEFG';
+ exception when others then
+  if sqlerrm not like '%UNIFIED_V3_X_NOT_YET_RELEASABLE%' then raise; end if;
+  v_rejected:=true;
+ end;
+ if not v_rejected then raise exception 'TEST_FAILED_X_PREMATURE_RELEASE'; end if;
+end $;
+
+-- Certified deleted/invalid X proof is a genuine terminal failure.
+insert into reward_unified_v3.x_events(
+ entitlement_id,network,event_type,amount_wei,event_reference
+) select id,network,'PROOF_REJECTED',x_hold_wei,'verified-delete-proof'
+  from reward_unified_v3.entitlements where invite_code='ABCDEFG';
+
+-- A post failing retention may now release once, never after signing.
 insert into reward_unified_v3.x_events(
  entitlement_id,network,event_type,amount_wei,event_reference
 ) select id,network,'RELEASED',x_hold_wei,'expired-deleted-test'
