@@ -69,4 +69,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_candidate_reader.sql
           psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-candidates-postgres.sql
           psql -v ON_ERROR_STOP=1 -c "select count(*) from reward_unified_v3.read_candidates_v1('testnet',100);"
+      - name: Verify transactionally locked round writer in isolated DB
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_sandbox_writer.sql
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-writer-postgres.sql
 
