@@ -71,9 +71,6 @@ test('exactly 10 B3TR is fully paid as base; never offer a zero-base promotion',
 });
 
 test('1000 users cannot turn 8000 B3TR into a 10000 B3TR X liability', () => {
-  const candidates = Array.from({length:1000},(_,i) => eligible(
-    'A' + i.toString(32).toUpperCase().padStart(6,'A').replace(/[01IO]/g,'Z')
-  ));
   // Uniform seven-character codes that meet the invitation alphabet:
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const unique = Array.from({length:1000},(_,i) => {
@@ -81,7 +78,6 @@ test('1000 users cannot turn 8000 B3TR into a 10000 B3TR X liability', () => {
     for(let j=0;j<6;j++){ suffix = alphabet[k%alphabet.length]+suffix; k=Math.floor(k/alphabet.length); }
     return eligible('A'+suffix);
   });
-  void candidates;
   const result = calculateUnifiedRewardSettlement({
     poolBalanceWei: b3tr(8000),
     outstandingLiabilityWei: '0',
@@ -94,7 +90,7 @@ test('1000 users cannot turn 8000 B3TR into a 10000 B3TR X liability', () => {
 
 test('tiny remainder goes deterministically to lowest invite code, never disappears', () => {
   const result = calculateUnifiedRewardSettlement({
-    poolBalanceWei: (b3tr(45) && (45n*B3TR_WEI + 1n).toString()),
+    poolBalanceWei: (45n*B3TR_WEI + 1n).toString(),
     outstandingLiabilityWei: '0',
     candidates: [eligible(codes[1]), eligible(codes[0])],
   });
