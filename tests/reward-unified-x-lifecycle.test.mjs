@@ -71,7 +71,7 @@ test('malformed/tampered proof timelines fail closed',()=>{
   assert.throws(()=>decide({nowMs:-10}),/CURRENT_TIME/);
   assert.throws(()=>decide({offerOpenedAtMs:O+H}),/OFFER_IN_FUTURE/);
   assert.throws(()=>decide({initialVerifiedAtMs:O+H}),/PROOF_BEFORE_OFFER/);
-  assert.throws(()=>decide({offerOpenedAtMs:O,postCreatedAtMs:O+H,submittedAtMs:O+H,initialVerifiedAtMs:O+2*H,finalVerifiedAtMs:O+30*H}),/FINAL_24H_RETENTION_NOT_PROVEN|FINAL_POST_PROOF_INVALID/);
+  assert.throws(()=>decide({offerOpenedAtMs:O,postCreatedAtMs:O+H,submittedAtMs:O+2*H,initialVerifiedAtMs:O+H}),/INITIAL_PROOF_TIMELINE_INVALID/);
 });
 test('post existing with no submission still expires at end of grace',()=>{
   assert.equal(decide({offerOpenedAtMs:O,nowMs:O+X_POST_WINDOW_MS+X_SUBMISSION_GRACE_MS+1,postCreatedAtMs:O+H}).action,'RELEASE');
