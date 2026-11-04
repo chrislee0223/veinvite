@@ -89,6 +89,18 @@ const ACTIVE_STATUSES = new Set([
 ]);
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
+
+function canEndIncompleteReferral(invite: InviteRecord): boolean {
+  return Boolean(invite.referralLinkId) &&
+    Boolean(invite.inviteeAddress) &&
+    invite.status === 'ACTIVATING' &&
+    invite.rewardEligibility === 'PENDING' &&
+    !invite.rewardQueueStatus &&
+    !invite.slotReleasedAt &&
+    invite.sybilStatus !== 'REVIEW' &&
+    invite.sybilStatus !== 'BLOCKED' &&
+    !missionFlags(invite).every(Boolean);
+}
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const HOME_DATA_REFRESH_SETTLED_EVENT =
@@ -124,6 +136,9 @@ export function HomeClient() {
   const [cancelTarget, setCancelTarget] =
     useState<InviteRecord | null>(null);
   const [cancelVisible, setCancelVisible] = useState(false);
+  // The occupied slot opens a read-only detail view first. Ending it needs
+  // one additional explicit confirmation; never trigger release on card tap.
+  const [releaseConfirm, setReleaseConfirm] = useState(false);
   const cancelCloseTimerRef = useRef<number | null>(null);
   const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
   const feedbackIdRef = useRef(0);
@@ -131,7 +146,7 @@ export function HomeClient() {
   const activeWalletRef = useRef<string | null>(wallet);
   activeWalletRef.current = wallet;
   const evidenceSyncAttemptRef = useRef<Map<string, number>>(new Map());
-  const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const cancelTriggerRef = useRef<HTMLElement | null>(null);
   const cancelDialogRef = useRef<HTMLDivElement | null>(null);
   const cancelKeepRef = useRef<HTMLButtonElement | null>(null);
 
@@ -235,6 +250,7 @@ export function HomeClient() {
     deferredFeedbackRef.current = null;
     setClaimPendingCode(null);
     setCancelTarget(null);
+    setReleaseConfirm(false);
     setInvites([]);
     setInvitesReady(false);
     setInvitesFailed(false);
@@ -1036,14 +1052,15 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setReleaseConfirm(true);
                       setCancelVisible(false);
                       setCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
-                    releaseLabel={releaseCopy.confirm}
-                    onReleaseInvite={(invite, trigger) => {
+                    onShowDetails={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setReleaseConfirm(false);
                       setCancelVisible(false);
                       setCancelTarget(invite);
                     }}
@@ -1062,14 +1079,15 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setReleaseConfirm(true);
                       setCancelVisible(false);
                       setCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
-                    releaseLabel={releaseCopy.confirm}
-                    onReleaseInvite={(invite, trigger) => {
+                    onShowDetails={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
+                      setReleaseConfirm(false);
                       setCancelVisible(false);
                       setCancelTarget(invite);
                     }}
@@ -1190,33 +1208,72 @@ export function HomeClient() {
             aria-labelledby="cancel-dialog-title"
             aria-describedby="cancel-dialog-description"
           >
-            <div className="warningIcon">!</div>
-            <h2 id="cancel-dialog-title">
-              {cancelTarget.inviteeAddress ? releaseCopy.title : t.cancelTitleWaiting}
-            </h2>
-            <p id="cancel-dialog-description">
-              {cancelTarget.inviteeAddress ? releaseCopy.description : t.cancelDescriptionWaiting}
-            </p>
-            <button
-              ref={cancelKeepRef}
-              type="button"
-              className="primaryAction"
-              onClick={closeCancelModal}
-            >
-              {t.keepInvite}
-            </button>
-            <button
-              type="button"
-              className="cancelConfirm"
-              disabled={loading}
-              onClick={() => void (
-                cancelTarget.inviteeAddress
-                  ? releaseAcceptedInvite()
-                  : cancelLegacyInvite()
-              )}
-            >
-              {cancelTarget.inviteeAddress ? releaseCopy.confirm : t.confirmCancel}
-            </button>
+            {cancelTarget.inviteeAddress && !releaseConfirm ? (
+              <>
+                <h2 id="cancel-dialog-title">
+                  {missionFlags(cancelTarget).every(Boolean)
+                    ? progressCopy.finalCheck
+                    : cancelTarget.status === 'UNDER_REVIEW'
+                      ? referral.slotReview
+                      : referral.slotInProgress}
+                </h2>
+                <p id="cancel-dialog-description" className="slotDetailWallet" dir="ltr">
+                  {cancelTarget.inviteeAddress}
+                </p>
+                <div className="slotDetailProgress">
+                  <strong>{missionFlags(cancelTarget).filter(Boolean).length}/5</strong>
+                  <MissionDots invite={cancelTarget} />
+                  <span>{nextMissionLabel(cancelTarget) ?? progressCopy.finalCheck}</span>
+                </div>
+                <button
+                  ref={cancelKeepRef}
+                  type="button"
+                  className="primaryAction"
+                  onClick={closeCancelModal}
+                >
+                  {releaseCopy.close}
+                </button>
+                {canEndIncompleteReferral(cancelTarget) ? (
+                  <button
+                    type="button"
+                    className="cancelConfirm"
+                    onClick={() => setReleaseConfirm(true)}
+                  >
+                    {releaseCopy.confirm}
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="warningIcon">!</div>
+                <h2 id="cancel-dialog-title">
+                  {cancelTarget.inviteeAddress ? releaseCopy.title : t.cancelTitleWaiting}
+                </h2>
+                <p id="cancel-dialog-description">
+                  {cancelTarget.inviteeAddress ? releaseCopy.description : t.cancelDescriptionWaiting}
+                </p>
+                <button
+                  ref={cancelKeepRef}
+                  type="button"
+                  className="primaryAction"
+                  onClick={closeCancelModal}
+                >
+                  {t.keepInvite}
+                </button>
+                <button
+                  type="button"
+                  className="cancelConfirm"
+                  disabled={loading}
+                  onClick={() => void (
+                    cancelTarget.inviteeAddress
+                      ? releaseAcceptedInvite()
+                      : cancelLegacyInvite()
+                  )}
+                >
+                  {cancelTarget.inviteeAddress ? releaseCopy.confirm : t.confirmCancel}
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -1287,6 +1344,10 @@ export function HomeClient() {
         .modalBackdrop { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:20px; background:rgba(2,3,10,.78); backdrop-filter:blur(10px); }
         .modalCard { width:min(100%,410px); max-height:calc(100dvh - 40px); overflow-y:auto; box-sizing:border-box; padding:25px; border:1px solid rgba(255,255,255,.1); border-radius:25px; background:#121421; text-align:center; box-shadow:0 30px 90px rgba(0,0,0,.5); }
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }
+        .slotDetailWallet { font-size:.76rem!important; overflow-wrap:anywhere; }
+        .slotDetailProgress { display:grid; justify-items:center; gap:12px; margin-top:24px; padding:16px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.025); }
+        .slotDetailProgress strong { color:#ffd66e; font-size:1.15rem; }
+        .slotDetailProgress span { font-size:.78rem; color:#aaa3b3; text-align:center; overflow-wrap:anywhere; }
         .modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; transition:transform 90ms ease; }
@@ -1346,10 +1407,9 @@ function FriendSlot({
   shareDisabled,
   onCopyLegacy,
   onCancelLegacy,
-  onReleaseInvite,
+  onShowDetails,
   copyLabel,
   cancelLabel,
-  releaseLabel,
 }: {
   number: 1 | 2;
   invite?: InviteRecord;
@@ -1362,13 +1422,12 @@ function FriendSlot({
     invite: InviteRecord,
     trigger: HTMLButtonElement,
   ) => void;
-  onReleaseInvite: (
+  onShowDetails: (
     invite: InviteRecord,
-    trigger: HTMLButtonElement,
+    trigger: HTMLElement,
   ) => void;
   copyLabel: string;
   cancelLabel: string;
-  releaseLabel: string;
 }) {
   const legacyWaiting =
     Boolean(invite) &&
@@ -1420,14 +1479,7 @@ function FriendSlot({
   }
 
   const allMissions = missionFlags(invite).every(Boolean);
-  const showRelease = !allMissions &&
-    Boolean(invite.referralLinkId) &&
-    invite.status === 'ACTIVATING' &&
-    invite.rewardEligibility === 'PENDING' &&
-    !invite.rewardQueueStatus &&
-    !invite.slotReleasedAt &&
-    invite.sybilStatus !== 'REVIEW' &&
-    invite.sybilStatus !== 'BLOCKED';
+  const detailStatus = missionFlags(invite).filter(Boolean).length;
   const finalChecking = allMissions && !invite.slotReleasedAt;
   const shortInvitee = invite.inviteeAddress
     ? nodeWallet(invite.inviteeAddress)
@@ -1440,7 +1492,19 @@ function FriendSlot({
   const nextLabel = nextMissionLabel(invite);
 
   return (
-    <div className={`friendSlot detailed ${finalChecking ? 'review' : 'progress'} ${showRelease ? 'releasable' : ''}`}>
+    <div
+      className={`friendSlot detailed selectable ${finalChecking ? 'review' : 'progress'}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${statusText} · ${shortInvitee} · ${detailStatus}/5`}
+      onClick={(event) => onShowDetails(invite, event.currentTarget)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onShowDetails(invite, event.currentTarget);
+        }
+      }}
+    >
       <span className="slotNumber">{number}</span>
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
@@ -1460,17 +1524,7 @@ function FriendSlot({
               : progressCopy.finalCheck}
         </span>
       </div>
-      {showRelease ? (
-        <button
-          type="button"
-          className="slotReleaseButton"
-          aria-label={`${releaseLabel}: ${shortInvitee}`}
-          title={releaseLabel}
-          onClick={(event) => onReleaseInvite(invite, event.currentTarget)}
-        >
-          ×
-        </button>
-      ) : null}
+      <span className="slotChevron" aria-hidden="true">›</span>
       <style jsx>{slotStyles}</style>
     </div>
   );
@@ -1484,12 +1538,11 @@ const slotStyles = `
   .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
   .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
   .friendSlot.progress { border-color:rgba(91,212,162,.16); background:rgba(42,164,116,.05); }
-  .friendSlot.detailed { position:relative; align-items:start; min-height:94px; grid-template-columns:auto minmax(0,1fr); }
-  .friendSlot.detailed.releasable { padding-right:50px; }
-  .slotReleaseButton { position:absolute; top:7px; right:7px; width:38px; height:38px; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(255,255,255,.045); color:#e4b6bc; font:inherit; font-size:1.25rem; line-height:1; cursor:pointer; }
-  .slotReleaseButton:hover:not(:disabled),.slotReleaseButton:focus-visible { border-color:rgba(255,123,139,.5); background:rgba(255,91,111,.1); }
-  .slotReleaseButton:focus-visible { outline:2px solid #ffd66e; outline-offset:2px; }
-  .slotReleaseButton:disabled { opacity:.45; cursor:not-allowed; }
+  .friendSlot.detailed { align-items:start; min-height:94px; grid-template-columns:auto minmax(0,1fr) auto; }
+  .friendSlot.detailed.selectable { cursor:pointer; }
+  .friendSlot.detailed.selectable:hover { border-color:rgba(244,183,40,.4); }
+  .friendSlot.detailed.selectable:focus-visible { outline:2px solid #ffd66e; outline-offset:3px; }
+  .slotChevron { align-self:center; color:#aaa3b3; font-size:1.4rem; line-height:1; }
   .slotNumber { width:36px; height:36px; display:grid; place-items:center; border-radius:12px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.76rem; font-weight:950; }
   .available .slotNumber { background:rgba(255,255,255,.045); color:#8d8797; }
   .slotCopy { min-width:0; display:grid; gap:4px; }
