@@ -106,11 +106,15 @@ begin
   from reward_unified_v3.read_candidates_v1(
     v_network,p_cutoff_finalized_block
   ) c;
-  select array_agg(i.invite_code order by i.invite_code)
+  select array_agg(locked.invite_code order by locked.invite_code)
     into v_locked_codes
-  from public.invitations i
-  where i.invite_code=any(v_codes)
-  for update of i;
+  from (
+    select i.invite_code
+    from public.invitations i
+    where i.invite_code=any(v_codes)
+    order by i.invite_code
+    for update of i
+  ) locked;
   select array_agg(c.invite_code order by c.invite_code)
     into v_recheck_codes
   from reward_unified_v3.read_candidates_v1(
