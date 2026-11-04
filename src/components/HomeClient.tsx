@@ -61,6 +61,7 @@ import {
   sameWallet,
 } from '@/lib/homeClientHelpers';
 import { TransferStatus } from './RewardTransferConfirmationLabel';
+import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useXPromotionOAuthReturnFeedback } from '@/hooks/useXPromotionOAuthReturnFeedback';
 import { useHomeStartupLoader } from '@/hooks/useHomeStartupLoader';
@@ -1447,7 +1448,7 @@ function FriendSlot({
     !invite.slotReleasedAt &&
     !demoCompleted;
   const shortInvitee = invite.inviteeAddress
-    ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
+    ? nodeWallet(invite.inviteeAddress)
     : '';
   const statusText = demoCompleted
     ? (demoCompleteLabel ?? progressCopy.finalCheck)
@@ -1464,7 +1465,11 @@ function FriendSlot({
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
           <strong>{statusText}</strong>
-          {shortInvitee ? <small>{shortInvitee}</small> : null}
+          {shortInvitee ? (
+            <small className="inviteeWalletLabel" title={invite.inviteeAddress}>
+              {shortInvitee}
+            </small>
+          ) : null}
         </div>
         <MissionDots invite={invite} />
         <span className="stageText">
@@ -1513,7 +1518,7 @@ const slotStyles = `
   .slotCopy { min-width:0; display:grid; gap:4px; }
   .slotCopy strong { color:#ded9e7; font-size:.74rem; line-height:1.38; overflow-wrap:anywhere; }
   .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
-  .slotTop small { white-space:nowrap; flex:0 1 auto; min-width:0; }
+  .slotTop .inviteeWalletLabel { white-space:nowrap; flex:0 0 auto; min-width:0; }
   .detailedCopy { gap:8px; }
   .slotTop { min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .stageText { color:#8f9b91; font-size:.63rem; line-height:1.4; overflow-wrap:anywhere; }
