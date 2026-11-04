@@ -1,6 +1,14 @@
 -- Isolated v3 Claim request regression, no on-chain signatures.
 \set ON_ERROR_STOP on
 
+-- New Sybil security judgment after round settlement. The claim endpoint
+-- must reject a newly blocked invite before any payout is signed.
+create or replace function public.reward_x_promotion_security_clear_v1(
+  p_invite_code text,p_network text
+) returns boolean language sql stable as $fn$
+select p_invite_code <> 'DEFGHJK'
+$fn$;
+
 do $$
 declare v jsonb; v_again jsonb;
 begin
