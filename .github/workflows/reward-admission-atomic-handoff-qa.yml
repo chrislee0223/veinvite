@@ -9,6 +9,9 @@ on:
       - 'tests/sql/reward-admission-hold-writer-*.sql'
       - 'tests/sql/reward-admission-invalid-release-*.sql'
       - 'tests/sql/reward-admission-inviter-release-guard-*.sql'
+      - 'tests/sql/reward-admission-service-handoff-gateway-assert.sql'
+      - 'supabase/migrations/20261104190000_reward_admission_service_handoff_disabled.sql'
+      - 'src/lib/rewards/rewardReservation.ts'
       - '.github/workflows/reward-admission-atomic-handoff-qa.yml'
   workflow_dispatch:
 permissions:
@@ -55,6 +58,10 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104035500_reward_admission_handoff_exact_recovery_proof_disabled.sql
       - name: Create fake completion Sybil and recovery writer
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-fixture.sql
+      - name: Install staged service-only completion gateway and HELD queue interlock
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104190000_reward_admission_service_handoff_disabled.sql
+      - name: Prove withheld Claim and X recovery cannot bypass original HELD
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-service-handoff-gateway-assert.sql
       - name: Assert hard-disabled Production-style gate and role isolation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-disabled-assert.sql
       - name: Install fake disabled admission creation prototype
