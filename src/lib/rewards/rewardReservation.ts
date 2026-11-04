@@ -714,7 +714,7 @@ async function releaseTerminalAdmissionHolds(network: string): Promise<void> {
   if (result.reason !== 'TERMINAL_HELD_SWEEP_COMPLETE' ||
       !Number.isSafeInteger(released) || released < 0 || released > 25 ||
       !Number.isSafeInteger(skippedFixed) || skippedFixed < 0 ||
-      !/^\\d+$/.test(releasedWei)) {
+      !/^\d+$/.test(releasedWei)) {
     throw new Error('Terminal HELD release violated exact accounting contract.');
   }
   if (released > 0 || skippedFixed > 0) {
