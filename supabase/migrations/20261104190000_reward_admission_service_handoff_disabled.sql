@@ -93,4 +93,44 @@ GRANT EXECUTE ON FUNCTION public.commit_reward_admission_held_to_fixed_v1(
   text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb
 ) TO service_role;
 
+
+-- Independent DB interlock: legacy queue/recovery writers can never create
+-- a SECOND obligation while an invite has an active HELD minimum. The
+-- transaction-local atomic handoff first marks HELD -> CONVERTED, then invokes
+-- the legacy writer; this is the only valid transition.
+CREATE OR REPLACE FUNCTION reward_admission_bridge.reject_legacy_double_commit_with_held_v1()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO pg_catalog,public,reward_admission_bridge
+AS $guard$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM reward_admission_bridge.holds h
+    WHERE h.network=lower(btrim(new.network))
+      AND h.invite_code=upper(btrim(new.invite_code))
+      AND h.status='HELD'
+  ) THEN
+    RAISE EXCEPTION 'LEGACY_REWARD_WRITER_BLOCKED_BY_HELD_GUARANTEE';
+  END IF;
+  RETURN new;
+END $guard$;
+
+REVOKE ALL ON FUNCTION reward_admission_bridge.reject_legacy_double_commit_with_held_v1()
+FROM PUBLIC,anon,authenticated,service_role;
+
+DROP TRIGGER IF EXISTS aa_reward_queue_reject_held_double_commit
+  ON public.reward_queue_entries;
+CREATE TRIGGER aa_reward_queue_reject_held_double_commit
+BEFORE INSERT OR UPDATE OF invite_code,network ON public.reward_queue_entries
+FOR EACH ROW
+EXECUTE FUNCTION reward_admission_bridge.reject_legacy_double_commit_with_held_v1();
+
+DROP TRIGGER IF EXISTS aa_reward_recovery_reject_held_double_commit
+  ON public.reward_recovery_settlements;
+CREATE TRIGGER aa_reward_recovery_reject_held_double_commit
+BEFORE INSERT OR UPDATE OF invite_code,network ON public.reward_recovery_settlements
+FOR EACH ROW
+EXECUTE FUNCTION reward_admission_bridge.reject_legacy_double_commit_with_held_v1();
+
 COMMIT;
