@@ -96,15 +96,10 @@ function publicSlotOccupies(row: PublicInviteSlotRow): boolean {
 }
 
 async function readPublicSlotSnapshot(wallet: string): Promise<PublicInviteSlotSnapshot | null> {
-  // The canary mirrors the owner-slot fixture: slot 1 occupied, slot 2 free.
+  // Test-only visual slots are private to My Network. Never surface them
+  // to a visitor through the public Network explorer.
   if (await isNetworkCanaryWallet(wallet)) {
-    return {
-      slots: [
-        { slot: 1, state: 'IN_PROGRESS' },
-        { slot: 2, state: 'AVAILABLE' },
-      ],
-      occupiedInviteeWallets: new Set<string>(),
-    };
+    return null;
   }
 
   const controller = new AbortController();
