@@ -25,6 +25,11 @@ test('post must remain 24h and base must be paid before X offer is opened',()=>{
   assert.match(sql,/interval '24 hours'/);
   assert.match(sql,/UNIFIED_V3_X_24H_RETENTION_NOT_PROVEN/);
   assert.match(sql,/UNIFIED_V3_X_BASE_NOT_PAID/);
+  assert.match(sql,/unified_x_post_proof_timestamps/);
+  assert.match(sql,/x_post_created_at/);
+  assert.match(sql,/x_submitted_at/);
+  assert.match(sql,/UNIFIED_V3_X_POST_WINDOW_INVALID/);
+  assert.match(sql,/interval '24 hours 15 minutes'/);
   assert.match(sql,/UNIFIED_V3_X_FINAL_PROOF_REQUIRED/);
 });
 test('new v3 outstanding includes base until PAID, X until PAID or RELEASED once',()=>{
