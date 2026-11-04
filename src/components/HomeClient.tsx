@@ -31,6 +31,7 @@ import {
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { deriveCanaryHomeInvites } from '@/lib/canaryHomeDisplay';
+import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
@@ -1368,7 +1369,7 @@ function FriendSlot({
     !invite.slotReleasedAt &&
     !demoCompleted;
   const shortInvitee = invite.inviteeAddress
-    ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
+    ? nodeWallet(invite.inviteeAddress)
     : '';
   const statusText = demoCompleted
     ? (demoCompleteLabel ?? progressCopy.finalCheck)
@@ -1385,7 +1386,15 @@ function FriendSlot({
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
           <strong>{statusText}</strong>
-          {shortInvitee ? <small>{shortInvitee}</small> : null}
+          {shortInvitee ? (
+            <small
+              className="inviteeWalletLabel"
+              dir="ltr"
+              title={invite.inviteeAddress}
+            >
+              {shortInvitee}
+            </small>
+          ) : null}
         </div>
         <MissionDots invite={invite} />
         <span className="stageText">
@@ -1419,6 +1428,8 @@ const slotStyles = `
   .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
   .detailedCopy { gap:8px; }
   .slotTop { min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .slotTop strong { min-width:0; flex:1 1 auto; }
+  .slotTop .inviteeWalletLabel { flex:0 0 auto; white-space:nowrap; overflow-wrap:normal; }
   .stageText { color:#8f9b91; font-size:.63rem; line-height:1.4; overflow-wrap:anywhere; }
   .review .stageText { color:#b3a681; }
   .slotState { width:28px; height:28px; display:grid; place-items:center; border-radius:10px; color:#ffd66e; background:rgba(244,183,40,.08); font-weight:950; }
