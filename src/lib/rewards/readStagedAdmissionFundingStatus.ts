@@ -8,8 +8,9 @@ import {
 
 /**
  * Service-only, READ-ONLY integration with actual mainnet funding RPC.
- * No API route, cron, Claim path or payout signer imports this module.
- * A bridge response can never authorize financial actions.
+ * Imported only by the explicit Preview-only reservation parity probe.
+ * No Claim path or payout signer uses it to authorize financial actions.
+ * A bridge response can never authorize any reservation or payout.
  */
 export async function readStagedAdmissionFundingStatus(scope: AdmissionBridgeScope) {
   if (!/^(mainnet|testnet|testnet-staging)$/.test(scope.network)) {
