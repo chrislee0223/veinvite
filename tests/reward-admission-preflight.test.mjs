@@ -59,7 +59,7 @@ test('funding is conservatively capped by both physical pool and cohort budget',
 });
 
 test('unreviewed does not masquerade as cleared but Sybil restricted and pause are blocked', () => {
- for (const status of ['BLOCKED','HOLD']) {
+ for (const status of ['BLOCKED','REVIEW']) {
    assert.ok(evaluateAdmissionPreflight(base({sybilStatus:status})).reasons.includes('SYBIL_RESTRICTION'));
  }
  assert.ok(evaluateAdmissionPreflight(base({distributionPaused:true})).reasons.includes('DISTRIBUTION_PAUSED'));
