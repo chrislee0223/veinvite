@@ -32,6 +32,7 @@ test('funding shadow is opt-in and restricted to isolated testnet Preview', () =
 const snapshot = {
   status: 'STAGING_DISABLED',
   originalOutstandingWei: '100000000000000000000',
+  totalPhysicalLiabilityWei: '100000000000000000000',
   cohortLifetimeIncludingUnconvertedWei: '120000000000000000000',
 };
 const expected = {
@@ -46,12 +47,29 @@ test('exact-WeI preview shadow compares existing reserve and lifetime without do
   });
   assert.deepEqual(compareRewardAdmissionShadow({
     ...snapshot,
-    originalOutstandingWei: '100000000000000000001',
+    totalPhysicalLiabilityWei: '100000000000000000001',
   }, expected), { status: 'DRIFT', mismatches: ['globalOutstanding'] });
   assert.deepEqual(compareRewardAdmissionShadow({
     ...snapshot,
     cohortLifetimeIncludingUnconvertedWei: '1',
   }, expected), { status: 'DRIFT', mismatches: ['cohortLifetime'] });
+});
+
+test('legitimate HELD is counted once in global and cohort totals', () => {
+  const held = {
+    ...snapshot,
+    originalOutstandingWei: '100000000000000000000',
+    totalPhysicalLiabilityWei: '106000000000000000000',
+    cohortLifetimeIncludingUnconvertedWei: '126000000000000000000',
+  };
+  assert.deepEqual(compareRewardAdmissionShadow(held, {
+    reservedExistingWei: '106000000000000000000',
+    cohortReservedWei: '126000000000000000000',
+  }), { status: 'MATCH', mismatches: [] });
+  assert.deepEqual(compareRewardAdmissionShadow(held, {
+    reservedExistingWei: '100000000000000000000',
+    cohortReservedWei: '126000000000000000000',
+  }), { status: 'DRIFT', mismatches: ['globalOutstanding'] });
 });
 
 test('shadow never treats overcommitment as approval or accepts malformed liabilities', () => {
