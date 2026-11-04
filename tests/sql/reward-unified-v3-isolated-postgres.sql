@@ -120,7 +120,7 @@ begin
 end $$;
 
 -- Even if a user cancels immediately, no unverified early release.
-do $
+do $$
 declare v_rejected boolean:=false;
 begin
  begin
