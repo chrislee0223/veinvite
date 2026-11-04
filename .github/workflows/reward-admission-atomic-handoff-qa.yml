@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'supabase/migrations/20261104010000_reward_admission_atomic_handoff_staged_disabled.sql'
+      - 'supabase/migrations/20261104035500_reward_admission_handoff_exact_recovery_proof_disabled.sql'
+      - 'tests/sql/reward-admission-handoff-exact-recovery-proof-assert.sql'
       - 'tests/sql/reward-admission-atomic-handoff-*.sql'
       - '.github/workflows/reward-admission-atomic-handoff-qa.yml'
   workflow_dispatch:
@@ -46,6 +48,8 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104093000_reward_admission_canonical_held_readers_disabled.sql
       - name: Install exact candidate staged-only handoff function
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104010000_reward_admission_atomic_handoff_staged_disabled.sql
+      - name: Strengthen future handoff with exact active recovery settlement proof
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104035500_reward_admission_handoff_exact_recovery_proof_disabled.sql
       - name: Create fake completion Sybil and recovery writer
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-fixture.sql
       - name: Assert hard-disabled Production-style gate and role isolation
@@ -54,6 +58,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-simple-assert.sql
       - name: Assert partial/full recovery GROSS and NET exact reconciliation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-recovery-assert.sql
+      - name: Reject fake inactive or wrong-offset recovery evidence without consuming HELD
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-handoff-exact-recovery-proof-assert.sql
       - name: Verify core SQL crash and wrong funding receipt never consume HELD
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-core-failure-assert.sql
       - name: Restore settings to disabled in fake QA DB
