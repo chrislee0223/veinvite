@@ -54,6 +54,9 @@ function createPlanningHarness(rawCohortWei) {
   context.exports = context.module.exports;
   context.require = (name) => {
     if (name === '@/lib/supabaseServer') return { supabaseAdmin };
+    if (name === '@/lib/rewards/pendingAcceptanceReservationRisk') {
+      return { ageWeightedPendingAcceptanceStressCount: () => { throw new Error('Should not load ages when includePendingAcceptance=false'); } };
+    }
     if (name === '@/lib/rewards/rewardFundingHistory') {
       return { readRewardFundingHistory: async () => ({
         recentAllocationWeiNewestFirst: [allocationWei],

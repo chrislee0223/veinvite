@@ -47,7 +47,7 @@ test('VOT3-ready users carry the agreed 90 percent expected completion weight', 
   });
 
   assert.equal(result.expectedCompletions, 9);
-  assert.equal(result.stressCompletions, 14);
+  assert.equal(result.stressCompletions, 13);
 });
 
 test('near-complete users increase the stress denominator and lower fixed reward', () => {
@@ -60,8 +60,8 @@ test('near-complete users increase the stress denominator and lower fixed reward
   });
 
   assert.equal(result.expectedCompletions, 3);
-  assert.equal(result.stressCompletions, 6);
-  assert.equal(result.rewardPerInviteWei, '1333');
+  assert.equal(result.stressCompletions, 5);
+  assert.equal(result.rewardPerInviteWei, '1600');
 });
 
 test('unrelated carry-over reserve increases physical capacity without inflating cohort reward', () => {

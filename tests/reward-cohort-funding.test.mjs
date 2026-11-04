@@ -111,9 +111,9 @@ test('round boundary never substitutes a newest allocation for missing exact fun
 });
 
 test('public forecast and actual fixed pricing both use designated cohort funding', () => {
-  assert.match(forecastPolicy, /reward-forecast-v2\.5-auto-history-floor/);
+  assert.match(forecastPolicy, /reward-forecast-v2\.6-aged-demand-three-slot-floor/);
   assert.match(forecastPolicy, /remainingCohortBudget/);
-  assert.match(predictivePolicy, /predictive-reserve-v5-auto-history-floor/);
+  assert.match(predictivePolicy, /predictive-reserve-v6-aged-demand-three-slot-floor/);
   assert.match(
     predictivePolicy,
     /latestAllocation \+ fundingAdjustment \+ reserveNetFlow/,

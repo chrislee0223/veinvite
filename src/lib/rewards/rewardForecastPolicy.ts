@@ -1,6 +1,6 @@
 import { calculateRecipientDemandFloor } from './recipientDemandFloor.ts';
 
-export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.5-auto-history-floor';
+export const REWARD_FORECAST_MODEL_VERSION = 'reward-forecast-v2.6-aged-demand-three-slot-floor';
 
 const BPS = 10_000n;
 const BOOTSTRAP_BASE_RECIPIENTS = 6;
@@ -11,7 +11,7 @@ const FUTURE_ENTRY_BASE = 1;
 const FUTURE_ENTRY_STRESS = 3;
 const COMPLETION_TIME_STRESS_GROWTH_BPS = 12_500n;
 const COMPLETION_TIME_MIN_STRESS_RECIPIENTS = 3;
-const COMPLETION_TIME_STRESS_EXTRA_RECIPIENTS = 2;
+const COMPLETION_TIME_STRESS_EXTRA_RECIPIENTS = 1;
 
 export type RewardForecastPipeline = {
   queuedEligibleCount: number;

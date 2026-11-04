@@ -401,6 +401,11 @@ async function reserveCandidate({
       network,
       appId: VEINVITE_APP_ID,
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+      // Age-weight unaccepted invites in live pricing exactly as the public
+      // forecast does. A 30+ day dormant link is NOT a verified participant.
+      // Every fixed reservation is still bounded by the DB global physical
+      // liability and immutable cohort lifetime funding cap.
+      ageWeightPendingAcceptanceForReservation: true,
       rewardCohortRoundId,
       allocationReceiptId,
       // A pending invite has no verified entry round yet. Once a specific

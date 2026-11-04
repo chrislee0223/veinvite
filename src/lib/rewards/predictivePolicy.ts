@@ -1,14 +1,14 @@
 import { calculateRecipientDemandFloor } from './recipientDemandFloor.ts';
 
 export const PREDICTIVE_REWARD_ALGORITHM_VERSION =
-  'predictive-reserve-v5-auto-history-floor';
+  'predictive-reserve-v6-aged-demand-three-slot-floor';
 
 const BPS = 10_000;
 const STRESS_GROWTH_BPS = 12_500;
 // History-informed safety floor: preserve three funded completion slots,
 // then add demand-driven stress slots for later valid recipients.
 const MIN_STRESS_RECIPIENTS = 3;
-const STRESS_EXTRA_RECIPIENTS = 2;
+const STRESS_EXTRA_RECIPIENTS = 1;
 
 export type RewardPipelineSnapshot = {
   queuedEligibleCount: number;

@@ -5,6 +5,7 @@ import {
 } from '@/lib/rewards/predictivePolicy';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { readRewardFundingHistory } from '@/lib/rewards/rewardFundingHistory';
+import { ageWeightedPendingAcceptanceStressCount } from '@/lib/rewards/pendingAcceptanceReservationRisk';
 
 const INTEGER_PATTERN = /^\d+$/;
 const SIGNED_INTEGER_PATTERN = /^-?\d+$/;
@@ -148,6 +149,7 @@ export async function readPredictiveRewardPlanning(input: {
   rewardCohortRoundId?: string | number | null;
   allocationReceiptId?: string | number | null;
   includePendingAcceptance?: boolean;
+  ageWeightPendingAcceptanceForReservation?: boolean;
 }): Promise<PredictiveRewardPlanningSnapshot> {
   const hasCohort = input.rewardCohortRoundId !== undefined && input.rewardCohortRoundId !== null;
   const hasReceipt = input.allocationReceiptId !== undefined && input.allocationReceiptId !== null;
@@ -212,8 +214,37 @@ export async function readPredictiveRewardPlanning(input: {
     );
   }
 
+  let pendingAcceptanceRiskCount = rawPipeline.pendingAcceptanceCount;
+  if (input.ageWeightPendingAcceptanceForReservation === true &&
+      input.includePendingAcceptance !== false && latestAllocation) {
+    // Public forecasts already age-weight this cohort-unbound demand.
+    // Previously the fixed payout used every 30+ day old, unaccepted invite
+    // as a full current-round participant, creating a severe forecast/payout
+    // mismatch. Reconcile the exact SQL cohort snapshot count and fail closed
+    // if the read races a new acceptance; the next sweep will recalculate.
+    const { data: pendingRows, error: pendingError, count: pendingCount } =
+      await supabaseAdmin
+        .from('invitations')
+        .select('created_at', { count: 'exact' })
+        .eq('status', 'PENDING_ACCEPTANCE')
+        .is('reward_eligible_at', null)
+        .is('reward_cohort_round_id', null);
+    if (pendingError) {
+      throw new Error('Pending invitation age evidence failed: ' + pendingError.message);
+    }
+    if (!Array.isArray(pendingRows) || pendingCount !== rawPipeline.pendingAcceptanceCount ||
+        pendingRows.length !== pendingCount) {
+      throw new Error('Pending invitation count changed during fixed reward planning.');
+    }
+    pendingAcceptanceRiskCount = ageWeightedPendingAcceptanceStressCount(
+      pendingRows.map((row) => String(row.created_at ?? '')),
+      Date.now(),
+    );
+  }
+
   const pipeline: RewardPipelineSnapshot = {
     ...rawPipeline,
+    pendingAcceptanceCount: pendingAcceptanceRiskCount,
     // Legacy reward_status=ELIGIBLE is no longer sufficient for pricing.
     // Only the current CLEAR/WATCH assessment revision may dilute the fixed
     // reservation amount offered to legitimate users.
