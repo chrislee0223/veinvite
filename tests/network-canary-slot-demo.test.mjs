@@ -24,3 +24,17 @@ test('public reader does not expose fake slot states', () => {
   assert.match(publicApi, /if \(await isNetworkCanaryWallet\(wallet\)\) \{\s*return null;\s*\}/);
   assert.match(publicApi, /readPublicSlotSnapshot\(focusWallet\)/);
 });
+
+test('Home uses the authenticated canary slots only in a display-only overlay', () => {
+  const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+  const projection = readFileSync('src/lib/canaryHomeDisplay.ts', 'utf8');
+  assert.match(home, /deriveCanaryHomeInvites\(payload, requestWallet\)/);
+  assert.match(home, /displayedSlotInvites\.get\(1\)/);
+  assert.match(home, /displayedSlotInvites\.get\(2\)/);
+  assert.match(home, /const acceptedActiveInvites = useMemo\([\s\S]*slotOccupyingInvites\.filter/);
+  assert.doesNotMatch(home, /setInvites\(.*CANARY_VISUAL_ONLY_/);
+  assert.match(home, /demoCompleted[\s\S]*demoCompleteLabel/);
+  assert.match(projection, /response\.canaryFixture !== true/);
+  assert.match(projection, /CANARY_VISUAL_ONLY_/);
+  assert.match(ownerApi, /canaryFixture: true/);
+});
