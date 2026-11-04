@@ -129,7 +129,7 @@ create table reward_unified_v3.x_events (
     on delete restrict,
   constraint unified_x_event_type
     check (event_type in ('OFFER_OPENED','POST_VERIFIED','FINAL_VERIFIED',
-                         'RELEASED','PAYOUT_SIGNED','PAID')),
+                         'PROOF_REJECTED','RELEASED','PAYOUT_SIGNED','PAID')),
   constraint unified_x_event_amount
     check (amount_wei > 0 and amount_wei =
            10000000000000000000::numeric),
