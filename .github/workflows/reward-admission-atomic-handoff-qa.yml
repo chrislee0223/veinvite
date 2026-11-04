@@ -10,6 +10,8 @@ on:
       - 'tests/sql/reward-admission-invalid-release-*.sql'
       - 'tests/sql/reward-admission-inviter-release-guard-*.sql'
       - 'tests/sql/reward-admission-service-handoff-gateway-assert.sql'
+      - 'tests/sql/reward-admission-funded-entry-candidate*.sql'
+      - 'supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql'
       - 'supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql'
       - 'src/lib/rewards/rewardReservation.ts'
       - '.github/workflows/reward-admission-atomic-handoff-qa.yml'
@@ -58,6 +60,12 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104035500_reward_admission_handoff_exact_recovery_proof_disabled.sql
       - name: Create fake completion Sybil and recovery writer
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-fixture.sql
+      - name: Install candidate private funded admission writer in fake DB only
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-funded-entry-candidate.sql
+      - name: Install staged hard-disabled service admission writer in disposable DB
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql
+      - name: Prove activated-only, fresh-finality and exact-collateral admission
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-funded-entry-candidate-assert.sql
       - name: Install staged service-only completion gateway and HELD queue interlock
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql
       - name: Prove withheld Claim and X recovery cannot bypass original HELD
