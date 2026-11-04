@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { retryTransientXPromotionAuditRead } from '@/lib/rewards/rewardXPromotionAuditRetry';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -147,11 +148,14 @@ function booleanField(
 export async function runRewardXPromotionShadowAudit():
 Promise<RewardXPromotionShadowAuditResult> {
   const { network } = getVeBetterNetworkConfig();
-  const { data, error } = await supabaseAdmin.rpc(
-    'read_reward_x_promotion_shadow_audit',
-    {
-      p_network: network,
-    },
+  // The DB function is STABLE and has no side effects. Only this audit
+  // read may be retried after a transient transport failure (e.g. HTTP 502).
+  // Never retry the VOLATILE shadow sync or any payment mutation here.
+  const { data, error } = await retryTransientXPromotionAuditRead(
+    () => supabaseAdmin.rpc(
+      'read_reward_x_promotion_shadow_audit',
+      { p_network: network },
+    ).abortSignal(AbortSignal.timeout(5_000)),
   );
 
   if (error) {
