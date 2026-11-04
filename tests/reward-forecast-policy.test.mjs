@@ -57,7 +57,7 @@ test('VOT3-ready users carry the agreed 90 percent expected completion weight', 
   assert.equal(result.pipelineExpectedRecipients, 9);
   // The public midpoint then respects the same conservative stress floor used
   // by completion-time fixed reservations instead of overstating the reward.
-  assert.equal(result.expectedRecipients, 14);
+  assert.equal(result.expectedRecipients, 13);
 });
 
 test('a separately recorded cohort promotion increases this cohort estimate', () => {
