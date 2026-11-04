@@ -130,7 +130,7 @@ test('home uses one permanent link, two independently rendered slots, and an act
   assert.match(home, /<FriendSlot[\s\S]*number=\{1\}/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{2\}/i);
   assert.match(home, /legacyInviteUrl/i);
-  assert.match(home, /<span>\{slotInvites\.size\}\/2<\/span>/i);
+  assert.match(home, /<span>\{displayedSlotInvites\.size\}\/2<\/span>/i);
   assert.doesNotMatch(home, /2\s*-\s*slotInvites\.size/i);
   assert.doesNotMatch(home, /createInvite\s*=\s*async/i);
 });
