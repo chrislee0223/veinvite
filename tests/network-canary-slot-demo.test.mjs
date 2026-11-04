@@ -41,7 +41,7 @@ test('Home uses the authenticated canary slots only in a display-only overlay', 
 
 test('canary home projection produces display-only 2/5 and 5/5 records', async () => {
   const { deriveCanaryHomeInvites } = await import('../src/lib/canaryHomeDisplay.ts');
-  const wallet = '0xeff325935b63299e9eeda79931bed6ec119aefcb';
+  const wallet = '0x1234567890abcdef1234567890abcdef12345678';
   const data = {
     canaryFixture: true,
     slots: [
