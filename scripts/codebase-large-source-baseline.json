@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "fc25f8e821ef3b7ef2fb56e909b12396319f45df",
-  "note": "Reviewed owner-only canary friend slot display from #1268: +207 bytes AppNetwork and +2644 bytes HomeClient. Synthetic entries remain visual-only and are not sent to real reward writers. Existing Sybil, Claim, payout safety gates unchanged.",
+  "note": "Reviewed #1268 owner-only synthetic friend slot UI. Tested CI merge-preview UTF-8 byte counts: AppNetwork 149239, HomeClient 54379. Display-only synthetic data is excluded from reward state and user fund writers. Other existing source ceilings unchanged.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -40,7 +40,7 @@
     "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
-    "src/components/HomeClient.tsx": 54041,
+    "src/components/HomeClient.tsx": 54379,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
     "src/app/api/cron/vote-reconcile/route.ts": 29931,
     "src/components/AppSettings.tsx": 32280
