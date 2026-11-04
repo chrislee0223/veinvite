@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'supabase/drafts/reward_unified_v3_*.sql'
-      - 'tests/sql/reward-unified-v3-isolated-postgres.sql'
+      - 'tests/sql/reward-unified-v3-*.sql'
       - '.github/workflows/reward-unified-v3-postgres.yml'
   push:
     branches: [main]
@@ -63,3 +63,10 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-isolated-postgres.sql
+      - name: Validate late completion and Sybil exclusion against PostgreSQL
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-candidates-postgres.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_candidate_reader.sql
+          psql -v ON_ERROR_STOP=1 -c "select count(*) from reward_unified_v3.read_candidates_v1('testnet',100);"
+
