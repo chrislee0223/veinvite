@@ -29,7 +29,6 @@ import {
   publishHomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
-import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { deriveCanaryHomeInvites } from '@/lib/canaryHomeDisplay';
 import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -471,9 +470,6 @@ export function HomeClient() {
     return slots;
   }, [slotOccupyingInvites]);
 
-  const displayingCanaryHome =
-    Boolean(wallet && canaryHomeDisplay &&
-      sameWallet(canaryHomeDisplay.wallet, wallet));
   const displayedSlotInvites = useMemo(() => {
     if (!wallet || !canaryHomeDisplay ||
       !sameWallet(canaryHomeDisplay.wallet, wallet)) return slotInvites;
@@ -985,8 +981,6 @@ export function HomeClient() {
                   <FriendSlot
                     number={1}
                     invite={displayedSlotInvites.get(1)}
-                    demoOnly={displayingCanaryHome}
-                    demoCompleteLabel={NETWORK_EXPERIENCE_COPY[locale].qualified}
                     copy={referral}
                     progressCopy={progressCopy}
                     onShare={() => void shareUrl(permanentInviteUrl)}
@@ -1007,8 +1001,6 @@ export function HomeClient() {
                   <FriendSlot
                     number={2}
                     invite={displayedSlotInvites.get(2)}
-                    demoOnly={displayingCanaryHome}
-                    demoCompleteLabel={NETWORK_EXPERIENCE_COPY[locale].qualified}
                     copy={referral}
                     progressCopy={progressCopy}
                     onShare={() => void shareUrl(permanentInviteUrl)}
@@ -1294,8 +1286,6 @@ function FriendSlot({
   onCancelLegacy,
   copyLabel,
   cancelLabel,
-  demoOnly = false,
-  demoCompleteLabel,
 }: {
   number: 1 | 2;
   invite?: InviteRecord;
@@ -1310,8 +1300,6 @@ function FriendSlot({
   ) => void;
   copyLabel: string;
   cancelLabel: string;
-  demoOnly?: boolean;
-  demoCompleteLabel?: string;
 }) {
   const legacyWaiting =
     Boolean(invite) &&
@@ -1363,25 +1351,19 @@ function FriendSlot({
   }
 
   const allMissions = missionFlags(invite).every(Boolean);
-  const demoCompleted = demoOnly && allMissions;
-  const finalChecking =
-    allMissions &&
-    !invite.slotReleasedAt &&
-    !demoCompleted;
+  const finalChecking = allMissions && !invite.slotReleasedAt;
   const shortInvitee = invite.inviteeAddress
     ? nodeWallet(invite.inviteeAddress)
     : '';
-  const statusText = demoCompleted
-    ? (demoCompleteLabel ?? progressCopy.finalCheck)
-    : finalChecking
-      ? progressCopy.finalCheck
+  const statusText = finalChecking
+    ? progressCopy.finalCheck
     : invite.status === 'UNDER_REVIEW'
       ? copy.slotReview
       : copy.slotInProgress;
   const nextLabel = nextMissionLabel(invite);
 
   return (
-    <div className={`friendSlot detailed ${finalChecking || demoCompleted ? 'review' : 'progress'}`}>
+    <div className={`friendSlot detailed ${finalChecking ? 'review' : 'progress'}`}>
       <span className="slotNumber">{number}</span>
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
@@ -1398,10 +1380,8 @@ function FriendSlot({
         </div>
         <MissionDots invite={invite} />
         <span className="stageText">
-          {demoCompleted
-            ? (demoCompleteLabel ?? progressCopy.finalCheck)
-            : finalChecking
-              ? progressCopy.finalCheck
+          {finalChecking
+            ? progressCopy.finalCheck
             : nextLabel
               ? `${progressCopy.currentStep} · ${nextLabel}`
               : progressCopy.finalCheck}
