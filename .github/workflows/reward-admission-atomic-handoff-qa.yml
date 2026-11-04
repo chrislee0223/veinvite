@@ -54,6 +54,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-simple-assert.sql
       - name: Assert partial/full recovery GROSS and NET exact reconciliation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-recovery-assert.sql
+      - name: Verify core SQL crash and wrong funding receipt never consume HELD
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-core-failure-assert.sql
       - name: Restore settings to disabled in fake QA DB
         run: |
           psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_bridge.settings SET enabled=false WHERE id=1;"
