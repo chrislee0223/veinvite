@@ -155,7 +155,7 @@ async function readAdmissionHoldForCompletion(
   const exactWei = String(v.guaranteedWei ?? '');
   const cohortRoundId = String(v.cohortRoundId ?? '');
   const allocationReceiptId = String(v.allocationReceiptId ?? '');
-  if (!/^[1-9]\\d*$/.test(exactWei) ||
+  if (!/^[1-9]\d*$/.test(exactWei) ||
       cohortRoundId !== expectedCohort ||
       allocationReceiptId !== expectedReceipt) {
     throw new Error('Admission hold funding identity or exact Wei mismatch.');
