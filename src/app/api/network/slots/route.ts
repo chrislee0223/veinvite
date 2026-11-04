@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { NETWORK_CANARY_INVITE_SLOTS } from '@/lib/networkCanaryFixture';
+
 import {
   canUseNetworkSurface,
   isNetworkCanaryWallet,
@@ -116,30 +118,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The canary graph represents lifetime referral history. Keep one current
-  // slot occupied and one available so the test wallet can exercise both the
-  // historical branches and the Available-slot interaction at the same time.
+  // Test-wallet-only visual states: 2/5 in progress and 5/5 completed.
+  // This endpoint performs no test-data writes.
   if (await isNetworkCanaryWallet(wallet)) {
     return NextResponse.json(
       {
-        availableSlots: 1,
-        occupiedSlots: [1],
-        slots: [
-          {
-            slot: 1,
-            state: 'IN_PROGRESS',
-            inviteeWallet: '0xca11ab1e0000000000000000000000000000000a',
-            completedSteps: 3,
-            totalSteps: 5,
-          },
-          {
-            slot: 2,
-            state: 'AVAILABLE',
-            inviteeWallet: null,
-            completedSteps: 0,
-            totalSteps: 5,
-          },
-        ],
+        availableSlots: 0,
+        occupiedSlots: [1, 2],
+        slots: NETWORK_CANARY_INVITE_SLOTS,
+        canaryFixture: true,
       },
       {
         headers: {

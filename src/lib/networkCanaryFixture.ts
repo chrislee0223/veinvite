@@ -95,6 +95,26 @@ function buildFixtureNodes(): FixtureNode[] {
   });
 }
 
+// Owner-only synthetic display state. These nodes are never inserted into
+// real invitations, rewards, anti-Sybil evidence, or public analytics.
+// Wallet #10 is IN_PROGRESS and wallet #3 is QUALIFIED in the fixture graph.
+export const NETWORK_CANARY_INVITE_SLOTS = [
+  {
+    slot: 1,
+    state: 'IN_PROGRESS',
+    inviteeWallet: walletFor(10),
+    completedSteps: 2,
+    totalSteps: 5,
+  },
+  {
+    slot: 2,
+    state: 'IN_PROGRESS',
+    inviteeWallet: walletFor(3),
+    completedSteps: 5,
+    totalSteps: 5,
+  },
+] as const;
+
 const NODES: FixtureNode[] = buildFixtureNodes();
 
 function key(wallet: string): string {

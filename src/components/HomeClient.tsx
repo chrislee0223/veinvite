@@ -29,6 +29,8 @@ import {
   publishHomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
+import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
+import { deriveCanaryHomeInvites } from '@/lib/canaryHomeDisplay';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
@@ -103,6 +105,11 @@ export function HomeClient() {
 
   const [locale, setLocale] = useState<SupportedLocale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
+  // Presentation only: never mix synthetic entries into the real invites state.
+  const [canaryHomeDisplay, setCanaryHomeDisplay] = useState<{
+    wallet: string;
+    invitations: InviteRecord[];
+  } | null>(null);
   const [referralLink, setReferralLink] = useState<ReferralLinkRecord | null>(null);
   const [invitesReady, setInvitesReady] = useState(false);
   const [invitesFailed, setInvitesFailed] = useState(false);
@@ -330,6 +337,41 @@ export function HomeClient() {
       );
   }, [clearFeedback]);
 
+  useEffect(() => {
+    setCanaryHomeDisplay(null);
+    if (!wallet || !invitesReady) return;
+
+    const requestWallet = wallet;
+    const controller = new AbortController();
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/network/slots?wallet=${encodeURIComponent(requestWallet)}`,
+          {
+            credentials: 'include',
+            cache: 'no-store',
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
+          },
+        );
+        if (!response.ok) return;
+        const payload: unknown = await response.json();
+        const invitations = deriveCanaryHomeInvites(payload, requestWallet);
+        if (active && invitations &&
+          sameWallet(activeWalletRef.current, requestWallet)) {
+          setCanaryHomeDisplay({ wallet: requestWallet, invitations });
+        }
+      } catch {
+        // Optional visual demo must not impact actual Home or reward loading.
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [wallet, invitesReady]);
+
   const load = useHomeStartupLoader({
     wallet, copy: t, activeWalletRef,
     setInvites, setInvitesReady, setInvitesFailed,
@@ -427,6 +469,20 @@ export function HomeClient() {
     }
     return slots;
   }, [slotOccupyingInvites]);
+
+  const displayingCanaryHome =
+    Boolean(wallet && canaryHomeDisplay &&
+      sameWallet(canaryHomeDisplay.wallet, wallet));
+  const displayedSlotInvites = useMemo(() => {
+    if (!wallet || !canaryHomeDisplay ||
+      !sameWallet(canaryHomeDisplay.wallet, wallet)) return slotInvites;
+    return new Map<1 | 2, InviteRecord>(
+      canaryHomeDisplay.invitations.map((invite) => [
+        invite.inviteSlot as 1 | 2,
+        invite,
+      ]),
+    );
+  }, [wallet, canaryHomeDisplay, slotInvites]);
 
   const acceptedActiveInvites = useMemo(
     () => slotOccupyingInvites.filter(
@@ -923,11 +979,13 @@ export function HomeClient() {
                 <div className="slotsBlock">
                   <div className="slotsHeading">
                     <strong>{referral.slotsLabel}</strong>
-                    <span>{slotInvites.size}/2</span>
+                    <span>{displayedSlotInvites.size}/2{displayingCanaryHome ? ' · TEST' : ''}</span>
                   </div>
                   <FriendSlot
                     number={1}
-                    invite={slotInvites.get(1)}
+                    invite={displayedSlotInvites.get(1)}
+                    demoOnly={displayingCanaryHome}
+                    demoCompleteLabel={NETWORK_EXPERIENCE_COPY[locale].qualified}
                     copy={referral}
                     progressCopy={progressCopy}
                     onShare={() => void shareUrl(permanentInviteUrl)}
@@ -947,7 +1005,9 @@ export function HomeClient() {
                   />
                   <FriendSlot
                     number={2}
-                    invite={slotInvites.get(2)}
+                    invite={displayedSlotInvites.get(2)}
+                    demoOnly={displayingCanaryHome}
+                    demoCompleteLabel={NETWORK_EXPERIENCE_COPY[locale].qualified}
                     copy={referral}
                     progressCopy={progressCopy}
                     onShare={() => void shareUrl(permanentInviteUrl)}
@@ -1233,6 +1293,8 @@ function FriendSlot({
   onCancelLegacy,
   copyLabel,
   cancelLabel,
+  demoOnly = false,
+  demoCompleteLabel,
 }: {
   number: 1 | 2;
   invite?: InviteRecord;
@@ -1247,6 +1309,8 @@ function FriendSlot({
   ) => void;
   copyLabel: string;
   cancelLabel: string;
+  demoOnly?: boolean;
+  demoCompleteLabel?: string;
 }) {
   const legacyWaiting =
     Boolean(invite) &&
@@ -1298,21 +1362,25 @@ function FriendSlot({
   }
 
   const allMissions = missionFlags(invite).every(Boolean);
+  const demoCompleted = demoOnly && allMissions;
   const finalChecking =
     allMissions &&
-    !invite.slotReleasedAt;
+    !invite.slotReleasedAt &&
+    !demoCompleted;
   const shortInvitee = invite.inviteeAddress
     ? `${invite.inviteeAddress.slice(0, 7)}…${invite.inviteeAddress.slice(-5)}`
     : '';
-  const statusText = finalChecking
-    ? progressCopy.finalCheck
+  const statusText = demoCompleted
+    ? (demoCompleteLabel ?? progressCopy.finalCheck)
+    : finalChecking
+      ? progressCopy.finalCheck
     : invite.status === 'UNDER_REVIEW'
       ? copy.slotReview
       : copy.slotInProgress;
   const nextLabel = nextMissionLabel(invite);
 
   return (
-    <div className={`friendSlot detailed ${finalChecking ? 'review' : 'progress'}`}>
+    <div className={`friendSlot detailed ${finalChecking || demoCompleted ? 'review' : 'progress'}`}>
       <span className="slotNumber">{number}</span>
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
@@ -1321,8 +1389,10 @@ function FriendSlot({
         </div>
         <MissionDots invite={invite} />
         <span className="stageText">
-          {finalChecking
-            ? progressCopy.finalCheck
+          {demoCompleted
+            ? (demoCompleteLabel ?? progressCopy.finalCheck)
+            : finalChecking
+              ? progressCopy.finalCheck
             : nextLabel
               ? `${progressCopy.currentStep} · ${nextLabel}`
               : progressCopy.finalCheck}

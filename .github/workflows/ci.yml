@@ -178,6 +178,7 @@ jobs:
           tests/legacy-invite-cancel-retry.test.mjs
           tests/network-single-runtime.test.mjs
           tests/network-slot-status-consistency.test.mjs
+          tests/network-canary-slot-demo.test.mjs
           tests/network-top-controls.test.mjs
           tests/network-public-readonly-navigation.test.mjs
           tests/notification-ack-batch-atomicity.test.mjs
