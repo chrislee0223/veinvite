@@ -6,7 +6,7 @@ const source = readFileSync(
   new URL('../src/lib/rewards/rewardReservation.ts',import.meta.url),'utf8',
 );
 const sql = readFileSync(
-  new URL('../supabase/migrations/20261104190000_reward_admission_service_handoff_disabled.sql',import.meta.url),
+  new URL('../supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql',import.meta.url),
   'utf8',
 );
 
