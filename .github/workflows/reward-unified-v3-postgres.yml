@@ -85,4 +85,8 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-x-paid-postgres.sql
+      - name: Confirm missing X post returns ten after deadline and grace
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-x-expiry-postgres.sql
 
