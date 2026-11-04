@@ -208,6 +208,10 @@ begin
       raise exception 'UNIFIED_V3_X_POST_WINDOW_INVALID';
     end if;
   elsif new.event_type='FINAL_VERIFIED' then
+    if exists (
+      select 1 from reward_unified_v3.x_events x
+      where x.entitlement_id=new.entitlement_id and x.event_type='PROOF_REJECTED'
+    ) then raise exception 'UNIFIED_V3_X_REJECTED_PROOF_CANNOT_FINALIZE'; end if;
     select x.created_at into v_post_verified_at
     from reward_unified_v3.x_events x
     where x.entitlement_id=new.entitlement_id and x.event_type='POST_VERIFIED';
@@ -216,6 +220,10 @@ begin
       raise exception 'UNIFIED_V3_X_24H_RETENTION_NOT_PROVEN';
     end if;
   elsif new.event_type='PAYOUT_SIGNED' then
+    if exists (
+      select 1 from reward_unified_v3.x_events x
+      where x.entitlement_id=new.entitlement_id and x.event_type='PROOF_REJECTED'
+    ) then raise exception 'UNIFIED_V3_X_REJECTED_PROOF_CANNOT_PAY'; end if;
     if not exists (
       select 1 from reward_unified_v3.x_events x
       where x.entitlement_id=new.entitlement_id and x.event_type='FINAL_VERIFIED'
