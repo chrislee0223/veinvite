@@ -29,6 +29,7 @@ import {
   publishHomeStartupState,
 } from '@/lib/homeStartupReadiness';
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
+import { MANUAL_RELEASE_COPY } from '@/lib/i18n/manualReleaseCopy';
 import { NETWORK_EXPERIENCE_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { deriveCanaryHomeInvites } from '@/lib/canaryHomeDisplay';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
@@ -120,10 +121,10 @@ export function HomeClient() {
     useState<TransientFeedback | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [vercelShareToken, setVercelShareToken] = useState('');
-  const [legacyCancelTarget, setLegacyCancelTarget] =
+  const [cancelTarget, setCancelTarget] =
     useState<InviteRecord | null>(null);
-  const [legacyCancelVisible, setLegacyCancelVisible] = useState(false);
-  const legacyCancelCloseTimerRef = useRef<number | null>(null);
+  const [cancelVisible, setCancelVisible] = useState(false);
+  const cancelCloseTimerRef = useRef<number | null>(null);
   const [claimPendingCode, setClaimPendingCode] = useState<string | null>(null);
   const feedbackIdRef = useRef(0);
   const deferredFeedbackRef = useRef<TransientFeedback | null>(null);
@@ -137,6 +138,7 @@ export function HomeClient() {
   const t = HOME_COPY[locale];
   const referral = REFERRAL_LINK_COPY[locale];
   const progressCopy = PROGRESS_CLAIM_COPY[locale];
+  const releaseCopy = MANUAL_RELEASE_COPY[locale];
 
   const clearFeedback = useCallback(() => {
     deferredFeedbackRef.current = null;
@@ -232,6 +234,7 @@ export function HomeClient() {
     activeWalletRef.current = wallet;
     deferredFeedbackRef.current = null;
     setClaimPendingCode(null);
+    setCancelTarget(null);
     setInvites([]);
     setInvitesReady(false);
     setInvitesFailed(false);
@@ -294,7 +297,7 @@ export function HomeClient() {
   const changeTab = (nextTab: AppTab) => {
     clearFeedback();
     setActiveTab(nextTab);
-    setLegacyCancelTarget(null);
+    setCancelTarget(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -316,7 +319,7 @@ export function HomeClient() {
       }
 
       clearFeedback();
-      setLegacyCancelTarget(null);
+      setCancelTarget(null);
       setActiveTab('guide');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       window.dispatchEvent(
@@ -789,41 +792,41 @@ export function HomeClient() {
   };
 
   const closeCancelModal = useCallback(() => {
-    if (!legacyCancelTarget || legacyCancelCloseTimerRef.current !== null) {
+    if (!cancelTarget || cancelCloseTimerRef.current !== null) {
       return;
     }
-    setLegacyCancelVisible(false);
-    legacyCancelCloseTimerRef.current = window.setTimeout(() => {
-      legacyCancelCloseTimerRef.current = null;
-      setLegacyCancelTarget(null);
+    setCancelVisible(false);
+    cancelCloseTimerRef.current = window.setTimeout(() => {
+      cancelCloseTimerRef.current = null;
+      setCancelTarget(null);
       window.requestAnimationFrame(() =>
         cancelTriggerRef.current?.focus(),
       );
     }, softFocusCloseDelay());
-  }, [legacyCancelTarget]);
+  }, [cancelTarget]);
 
   useEffect(() => {
-    if (!legacyCancelTarget) return;
+    if (!cancelTarget) return;
     let revealFrame: number | null = null;
     const mountFrame = window.requestAnimationFrame(() => {
       revealFrame = window.requestAnimationFrame(() => {
-        setLegacyCancelVisible(true);
+        setCancelVisible(true);
       });
     });
     return () => {
       window.cancelAnimationFrame(mountFrame);
       if (revealFrame !== null) window.cancelAnimationFrame(revealFrame);
     };
-  }, [legacyCancelTarget]);
+  }, [cancelTarget]);
 
   useEffect(() => () => {
-    if (legacyCancelCloseTimerRef.current !== null) {
-      window.clearTimeout(legacyCancelCloseTimerRef.current);
+    if (cancelCloseTimerRef.current !== null) {
+      window.clearTimeout(cancelCloseTimerRef.current);
     }
   }, []);
 
   useEffect(() => {
-    if (!legacyCancelTarget) return;
+    if (!cancelTarget) return;
     cancelKeepRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -852,14 +855,14 @@ export function HomeClient() {
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [legacyCancelTarget, closeCancelModal]);
+  }, [cancelTarget, closeCancelModal]);
 
   const cancelLegacyInvite = async () => {
     if (
       !wallet ||
-      !legacyCancelTarget ||
-      legacyCancelTarget.status !== 'PENDING_ACCEPTANCE' ||
-      legacyCancelTarget.inviteeAddress
+      !cancelTarget ||
+      cancelTarget.status !== 'PENDING_ACCEPTANCE' ||
+      cancelTarget.inviteeAddress
     ) {
       return;
     }
@@ -868,7 +871,7 @@ export function HomeClient() {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/invites/${legacyCancelTarget.code}/cancel`,
+        `/api/invites/${cancelTarget.code}/cancel`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -889,6 +892,47 @@ export function HomeClient() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const releaseAcceptedInvite = async () => {
+    if (!wallet || !cancelTarget?.inviteeAddress || loading) return;
+    const requestWallet = wallet;
+    const code = cancelTarget.code;
+    clearFeedback();
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/invites/${encodeURIComponent(code)}/release`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inviterAddress: requestWallet }),
+        },
+      );
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          response.status === 409
+            ? releaseCopy.error
+            : data.error ?? releaseCopy.error,
+        );
+      }
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+      closeCancelModal();
+      showFeedback('success', releaseCopy.success);
+      await load(true);
+    } catch (error) {
+      if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+      showFeedback(
+        'error',
+        error instanceof Error ? error.message : releaseCopy.error,
+      );
+      await load(true);
+    } finally {
+      if (sameWallet(activeWalletRef.current, requestWallet)) {
+        setLoading(false);
+      }
     }
   };
 
@@ -997,11 +1041,17 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
-                      setLegacyCancelVisible(false);
-                      setLegacyCancelTarget(invite);
+                      setCancelVisible(false);
+                      setCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
+                    releaseLabel={releaseCopy.confirm}
+                    onReleaseInvite={(invite, trigger) => {
+                      cancelTriggerRef.current = trigger;
+                      setCancelVisible(false);
+                      setCancelTarget(invite);
+                    }}
                   />
                   <FriendSlot
                     number={2}
@@ -1019,11 +1069,17 @@ export function HomeClient() {
                       )}
                     onCancelLegacy={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
-                      setLegacyCancelVisible(false);
-                      setLegacyCancelTarget(invite);
+                      setCancelVisible(false);
+                      setCancelTarget(invite);
                     }}
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
+                    releaseLabel={releaseCopy.confirm}
+                    onReleaseInvite={(invite, trigger) => {
+                      cancelTriggerRef.current = trigger;
+                      setCancelVisible(false);
+                      setCancelTarget(invite);
+                    }}
                   />
                 </div>
               ) : (
@@ -1124,10 +1180,10 @@ export function HomeClient() {
         />
       )}
 
-      {legacyCancelTarget ? (
+      {cancelTarget ? (
         <div
           className="modalBackdrop veinviteSoftFocusBackdrop"
-          data-open={legacyCancelVisible ? 'true' : 'false'}
+          data-open={cancelVisible ? 'true' : 'false'}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeCancelModal();
@@ -1142,9 +1198,11 @@ export function HomeClient() {
             aria-describedby="cancel-dialog-description"
           >
             <div className="warningIcon">!</div>
-            <h2 id="cancel-dialog-title">{t.cancelTitleWaiting}</h2>
+            <h2 id="cancel-dialog-title">
+              {cancelTarget.inviteeAddress ? releaseCopy.title : t.cancelTitleWaiting}
+            </h2>
             <p id="cancel-dialog-description">
-              {t.cancelDescriptionWaiting}
+              {cancelTarget.inviteeAddress ? releaseCopy.description : t.cancelDescriptionWaiting}
             </p>
             <button
               ref={cancelKeepRef}
@@ -1158,9 +1216,13 @@ export function HomeClient() {
               type="button"
               className="cancelConfirm"
               disabled={loading}
-              onClick={() => void cancelLegacyInvite()}
+              onClick={() => void (
+                cancelTarget.inviteeAddress
+                  ? releaseAcceptedInvite()
+                  : cancelLegacyInvite()
+              )}
             >
-              {t.confirmCancel}
+              {cancelTarget.inviteeAddress ? releaseCopy.confirm : t.confirmCancel}
             </button>
           </div>
         </div>
@@ -1291,8 +1353,10 @@ function FriendSlot({
   shareDisabled,
   onCopyLegacy,
   onCancelLegacy,
+  onReleaseInvite,
   copyLabel,
   cancelLabel,
+  releaseLabel,
   demoOnly = false,
   demoCompleteLabel,
 }: {
@@ -1307,8 +1371,13 @@ function FriendSlot({
     invite: InviteRecord,
     trigger: HTMLButtonElement,
   ) => void;
+  onReleaseInvite: (
+    invite: InviteRecord,
+    trigger: HTMLButtonElement,
+  ) => void;
   copyLabel: string;
   cancelLabel: string;
+  releaseLabel: string;
   demoOnly?: boolean;
   demoCompleteLabel?: string;
 }) {
@@ -1362,6 +1431,16 @@ function FriendSlot({
   }
 
   const allMissions = missionFlags(invite).every(Boolean);
+  const showRelease = !allMissions && (
+    demoOnly ||
+    (Boolean(invite.referralLinkId) &&
+      invite.status === 'ACTIVATING' &&
+      invite.rewardEligibility === 'PENDING' &&
+      !invite.rewardQueueStatus &&
+      !invite.slotReleasedAt &&
+      invite.sybilStatus !== 'REVIEW' &&
+      invite.sybilStatus !== 'BLOCKED')
+  );
   const demoCompleted = demoOnly && allMissions;
   const finalChecking =
     allMissions &&
@@ -1380,7 +1459,7 @@ function FriendSlot({
   const nextLabel = nextMissionLabel(invite);
 
   return (
-    <div className={`friendSlot detailed ${finalChecking || demoCompleted ? 'review' : 'progress'}`}>
+    <div className={`friendSlot detailed ${finalChecking || demoCompleted ? 'review' : 'progress'} ${showRelease ? 'releasable' : ''}`}>
       <span className="slotNumber">{number}</span>
       <div className="slotCopy detailedCopy">
         <div className="slotTop">
@@ -1398,6 +1477,18 @@ function FriendSlot({
               : progressCopy.finalCheck}
         </span>
       </div>
+      {showRelease ? (
+        <button
+          type="button"
+          className="slotReleaseButton"
+          aria-label={`${releaseLabel}: ${shortInvitee}`}
+          title={releaseLabel}
+          disabled={demoOnly}
+          onClick={(event) => onReleaseInvite(invite, event.currentTarget)}
+        >
+          ×
+        </button>
+      ) : null}
       <style jsx>{slotStyles}</style>
     </div>
   );
@@ -1411,12 +1502,18 @@ const slotStyles = `
   .friendSlot.available { border-style:dashed; background:rgba(255,255,255,.022); }
   .friendSlot.review { border-color:rgba(255,205,80,.2); background:rgba(244,183,40,.055); }
   .friendSlot.progress { border-color:rgba(91,212,162,.16); background:rgba(42,164,116,.05); }
-  .friendSlot.detailed { align-items:start; min-height:94px; grid-template-columns:auto minmax(0,1fr); }
+  .friendSlot.detailed { position:relative; align-items:start; min-height:94px; grid-template-columns:auto minmax(0,1fr); }
+  .friendSlot.detailed.releasable { padding-right:50px; }
+  .slotReleaseButton { position:absolute; top:7px; right:7px; width:38px; height:38px; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(255,255,255,.045); color:#e4b6bc; font:inherit; font-size:1.25rem; line-height:1; cursor:pointer; }
+  .slotReleaseButton:hover:not(:disabled),.slotReleaseButton:focus-visible { border-color:rgba(255,123,139,.5); background:rgba(255,91,111,.1); }
+  .slotReleaseButton:focus-visible { outline:2px solid #ffd66e; outline-offset:2px; }
+  .slotReleaseButton:disabled { opacity:.45; cursor:not-allowed; }
   .slotNumber { width:36px; height:36px; display:grid; place-items:center; border-radius:12px; background:rgba(244,183,40,.12); color:#ffd66e; font-size:.76rem; font-weight:950; }
   .available .slotNumber { background:rgba(255,255,255,.045); color:#8d8797; }
   .slotCopy { min-width:0; display:grid; gap:4px; }
   .slotCopy strong { color:#ded9e7; font-size:.74rem; line-height:1.38; overflow-wrap:anywhere; }
   .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
+  .slotTop small { white-space:nowrap; flex:0 1 auto; min-width:0; }
   .detailedCopy { gap:8px; }
   .slotTop { min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .stageText { color:#8f9b91; font-size:.63rem; line-height:1.4; overflow-wrap:anywhere; }
