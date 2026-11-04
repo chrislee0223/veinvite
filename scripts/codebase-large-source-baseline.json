@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
-  "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed Sybil HOLD recovery change (2026-10-17): +1.4% to pipeline.ts for bounded, non-starving fresh-evidence reassessment and independently corroborated same-client classification. Existing reward/blacklist fail-closed gates unchanged. Other hotspot growth ceilings remain fixed.",
+  "capturedFromCommit": "fc25f8e821ef3b7ef2fb56e909b12396319f45df",
+  "note": "Reviewed owner-only canary friend slot display from #1268: +207 bytes AppNetwork and +2644 bytes HomeClient. Synthetic entries remain visual-only and are not sent to real reward writers. Existing Sybil, Claim, payout safety gates unchanged.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -36,11 +36,11 @@
     "src/components/WalletSessionGate.tsx"
   ],
   "growthCeilingsBytes": {
-    "src/components/AppNetwork.tsx": 149032,
+    "src/components/AppNetwork.tsx": 149239,
     "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
-    "src/components/HomeClient.tsx": 51397,
+    "src/components/HomeClient.tsx": 54041,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
     "src/app/api/cron/vote-reconcile/route.ts": 29931,
     "src/components/AppSettings.tsx": 32280
