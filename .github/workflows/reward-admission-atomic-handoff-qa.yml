@@ -58,6 +58,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-simple-assert.sql
       - name: Assert partial/full recovery GROSS and NET exact reconciliation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-recovery-assert.sql
+      - name: Simulate Claim QUEUED to ASSIGNED to PAID with LIVE X and recovery
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-claim-x-integration-assert.sql
       - name: Reject fake inactive or wrong-offset recovery evidence without consuming HELD
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-handoff-exact-recovery-proof-assert.sql
       - name: Verify core SQL crash and wrong funding receipt never consume HELD

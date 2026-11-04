@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { simulateFutureCohortAdaptiveRelease as simulate } from '../src/lib/rewards/adaptiveBoostReleaseShadow.ts';
+import { simulateFutureCohortAdaptiveRelease as simulate } from './support/adaptiveBoostReleaseShadow.ts';
 const sql=await readFile(new URL('../supabase/migrations/20261025121500_reward_boost_reserve_adaptive_future_v2.sql',import.meta.url),'utf8');
 const source=await readFile(new URL('../src/lib/rewards/rewardBoostReserveExecution.ts',import.meta.url),'utf8');
 const pricing=await readFile(new URL('../src/lib/rewards/predictivePolicy.ts',import.meta.url),'utf8');

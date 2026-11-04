@@ -4,6 +4,8 @@ import { ThorClient } from '@vechain/sdk-network';
 
 import { readVeInviteRewardPoolStatus, VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { readPredictiveRewardPlanning } from '@/lib/rewards/predictivePlanning';
+import { readStagedAdmissionFundingStatus } from '@/lib/rewards/readStagedAdmissionFundingStatus';
+import { shouldReadRewardAdmissionShadow, compareRewardAdmissionShadow } from '@/lib/rewards/rewardAdmissionShadowParity';
 import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { withRewardReservationSweepLock } from '@/lib/rewards/reservationSweepLock';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -421,6 +423,42 @@ async function reserveCandidate({
       planning.rewardCohortRoundId !== rewardCohortRoundId
     ) {
       throw new Error('Reward reservation cohort planning mismatch.');
+    }
+
+    // Read-only bridge rehearsal in the isolated Preview database, opt-in only.
+    // This never authorizes, replaces, delays on failure, or changes the legacy
+    // reservation, Claim, Sybil or X payout paths.
+    if (
+      attempt === 0 &&
+      shouldReadRewardAdmissionShadow(network, process.env)
+    ) {
+      try {
+        const shadow = await readStagedAdmissionFundingStatus({
+          network,
+          appId: VEINVITE_APP_ID,
+          cohortRoundId: rewardCohortRoundId,
+          receiptId: allocationReceiptId,
+        });
+        const parity = compareRewardAdmissionShadow(shadow, {
+          reservedExistingWei: planning.reservedExistingWei,
+          cohortReservedWei: planning.cohortReservedWei,
+        });
+        if (parity.status !== 'MATCH') {
+          console.warn('Preview reward admission shadow disagreed with canonical planning:', {
+            rewardCohortRoundId,
+            allocationReceiptId,
+            status: parity.status,
+            fields: parity.mismatches,
+          });
+        }
+      } catch (shadowError) {
+        // A diagnostic must never veto a legitimate existing Claim reservation.
+        console.warn('Preview reward admission shadow unavailable:', {
+          rewardCohortRoundId,
+          allocationReceiptId,
+          reason: shadowError instanceof Error ? shadowError.message : 'UNKNOWN',
+        });
+      }
     }
 
     lastExpectedCohortCommittedWei = planning.cohortReservedWei;
