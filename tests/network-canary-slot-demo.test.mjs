@@ -33,7 +33,8 @@ test('Home uses the authenticated canary slots only in a display-only overlay', 
   assert.match(home, /displayedSlotInvites\.get\(2\)/);
   assert.match(home, /const acceptedActiveInvites = useMemo\([\s\S]*slotOccupyingInvites\.filter/);
   assert.doesNotMatch(home, /setInvites\(.*CANARY_VISUAL_ONLY_/);
-  assert.match(home, /demoCompleted[\s\S]*demoCompleteLabel/);
+  assert.match(home, /const finalChecking = allMissions && !invite\.slotReleasedAt/);
+  assert.doesNotMatch(home, /demoOnly|demoCompleted|demoCompleteLabel/);
   assert.match(projection, /response\.canaryFixture !== true/);
   assert.match(projection, /CANARY_VISUAL_ONLY_/);
   assert.match(ownerApi, /canaryFixture: true/);
@@ -69,4 +70,23 @@ test('Home invitation wallets use the same compact 0xXXX…XXX format as Network
   assert.match(home, /className="inviteeWalletLabel"/);
   assert.match(home, /\.slotTop \.inviteeWalletLabel \{[^}]*white-space:nowrap;/);
   assert.match(home, /title=\{invite\.inviteeAddress\}/);
+});
+
+test('canary UI has no extra test or public-network badges, while public explorer stays unchanged', () => {
+  const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+  const network = readFileSync('src/components/AppNetwork.tsx', 'utf8');
+  const networkSync = readFileSync('src/hooks/useNetworkPublishedLayoutSync.ts', 'utf8');
+  const publicExplorer = readFileSync('src/components/PublicNetworkExplorer.tsx', 'utf8');
+
+  assert.match(home, /<span>\{displayedSlotInvites\.size\}\/2<\/span>/);
+  assert.doesNotMatch(home, / · TEST|demoOnly|demoCompleteLabel/);
+  assert.match(home, /displayedSlotInvites\.get\(1\)/);
+  assert.match(home, /displayedSlotInvites\.get\(2\)/);
+  assert.match(home, /deriveCanaryHomeInvites\(payload, requestWallet\)/);
+  assert.doesNotMatch(network, /className="publicLayoutBadge"|\.publicLayoutBadge\{/);
+  assert.match(network, /currentData\?\.publicLayoutPublishingEnabled === true/);
+  assert.match(network, /<span>\{e\.visibleNetwork\}<\/span>/);
+  assert.doesNotMatch(networkSync, /publicNetworkCopy/);
+  assert.match(networkSync, /setNotice\(layoutSavedCopy, 1600\)/);
+  assert.match(publicExplorer, /className="otherNetworkBadge"/);
 });
