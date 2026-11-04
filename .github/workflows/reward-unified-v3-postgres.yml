@@ -76,4 +76,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-writer-postgres.sql
       - name: Reject simultaneous duplicate round commitments
         run: bash scripts/test-unified-v3-concurrency.sh
+      - name: Enforce Claim wallet authority, idempotency, Sybil and legacy collision
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_sandbox_claims.sql
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-claims-postgres.sql
 
