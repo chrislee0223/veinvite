@@ -12,6 +12,8 @@ on:
       - 'tests/sql/reward-admission-service-handoff-gateway-assert.sql'
       - 'tests/sql/reward-admission-funded-entry-candidate*.sql'
       - 'supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql'
+      - 'supabase/migrations/20261104194500_reward_admission_terminal_hold_release_disabled.sql'
+      - 'tests/sql/reward-admission-terminal-hold-release-assert.sql'
       - 'supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql'
       - 'src/lib/rewards/rewardReservation.ts'
       - '.github/workflows/reward-admission-atomic-handoff-qa.yml'
@@ -66,6 +68,10 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql
       - name: Prove activated-only, fresh-finality and exact-collateral admission
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-funded-entry-candidate-assert.sql
+      - name: Install staged terminal invalid-HELD release in disposable DB
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104194500_reward_admission_terminal_hold_release_disabled.sql
+      - name: Prove exact once blocked release and unresolved invite conservation
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-terminal-hold-release-assert.sql
       - name: Install staged service-only completion gateway and HELD queue interlock
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql
       - name: Prove withheld Claim and X recovery cannot bypass original HELD
