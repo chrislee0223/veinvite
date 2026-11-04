@@ -3004,7 +3004,12 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                 top: slot.y,
                 ...(pendingAcceptance ? {} : { '--slot-progress': progressDegrees }),
               } as CSSProperties;
-              const slotStatusLabel = pendingAcceptance ? t.pendingAcceptance : t.inProgress;
+              const missionsCompleted = !pendingAcceptance && slot.completedSteps >= slot.totalSteps;
+              const slotStatusLabel = pendingAcceptance
+                ? t.pendingAcceptance
+                : missionsCompleted
+                  ? t.qualified
+                  : t.inProgress;
 
               return (
                 <button
@@ -3030,7 +3035,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
                     <small className="nodeProgressStatus">
                       {pendingAcceptance
                         ? t.pendingAcceptance
-                        : `${t.inProgress} · ${slot.completedSteps}/${slot.totalSteps}`}
+                        : `${slotStatusLabel} · ${slot.completedSteps}/${slot.totalSteps}`}
                     </small>
                     <strong>{slot.inviteeWallet ? <NetworkWalletLabel address={slot.inviteeWallet} /> : slotStatusLabel}</strong>
                   </span>
