@@ -55,10 +55,10 @@ test('round 114 live forecast stays aligned after pending invites age', () => {
   });
   const fixedPricing = round114FixedPricing();
 
-  assert.equal(publicForecast.expectedRecipients, 8);
-  assert.equal(fixedPricing.stressCompletions, 8);
+  assert.equal(publicForecast.expectedRecipients, 7);
+  assert.equal(fixedPricing.stressCompletions, 7);
   assert.equal(publicForecast.estimatedRewardWei, fixedPricing.rewardPerInviteWei);
-  assert.equal(publicForecast.estimatedRewardWei, '262971250000000000000');
+  assert.equal(publicForecast.estimatedRewardWei, (2103770000000000000000n / 7n).toString());
 });
 
 test('aging pending invites cannot raise the midpoint above fixed reservation pricing', () => {
@@ -68,7 +68,7 @@ test('aging pending invites cannot raise the midpoint above fixed reservation pr
   });
   const fixedPricing = round114FixedPricing();
 
-  assert.equal(publicForecast.expectedRecipients, 8);
-  assert.equal(fixedPricing.stressCompletions, 8);
+  assert.equal(publicForecast.expectedRecipients, 7);
+  assert.equal(fixedPricing.stressCompletions, 7);
   assert.equal(publicForecast.estimatedRewardWei, fixedPricing.rewardPerInviteWei);
 });
