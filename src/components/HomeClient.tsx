@@ -1466,7 +1466,7 @@ function FriendSlot({
         <div className="slotTop">
           <strong>{statusText}</strong>
           {shortInvitee ? (
-            <small className="inviteeWalletLabel" title={invite.inviteeAddress}>
+            <small className="inviteeWalletLabel" dir="ltr" title={invite.inviteeAddress}>
               {shortInvitee}
             </small>
           ) : null}
@@ -1518,7 +1518,8 @@ const slotStyles = `
   .slotCopy { min-width:0; display:grid; gap:4px; }
   .slotCopy strong { color:#ded9e7; font-size:.74rem; line-height:1.38; overflow-wrap:anywhere; }
   .slotCopy small { direction:ltr; color:#837e8e; font-size:.62rem; font-weight:750; overflow-wrap:anywhere; }
-  .slotTop .inviteeWalletLabel { white-space:nowrap; flex:0 0 auto; min-width:0; }
+  .slotTop strong { min-width:0; flex:1 1 auto; }
+  .slotTop .inviteeWalletLabel { flex:0 0 auto; white-space:nowrap; overflow-wrap:normal; }
   .detailedCopy { gap:8px; }
   .slotTop { min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .stageText { color:#8f9b91; font-size:.63rem; line-height:1.4; overflow-wrap:anywhere; }
