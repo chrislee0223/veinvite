@@ -517,7 +517,7 @@ test('Network slot API derives pending state from invitation status, not wallet 
 
 test('pending acceptance stays distinct from mission progress in Network slots', () => {
   assert.match(networkSource, /const pendingAcceptance = slot\.state === 'PENDING'/);
-  assert.match(networkSource, /const slotStatusLabel = pendingAcceptance \? t\.pendingAcceptance : t\.inProgress/);
+  assert.match(networkSource, /const slotStatusLabel = pendingAcceptance\s*\? t\.pendingAcceptance\s*:\s*missionsCompleted\s*\? t\.qualified\s*:\s*t\.inProgress/);
   assert.match(networkSource, /pendingAcceptance \? 'pendingInviteNode' : 'progressInviteNode'/);
   assert.match(networkSource, /pendingAcceptance[\s\S]*t\.pendingAcceptance[\s\S]*slot\.completedSteps/);
   assert.match(networkSource, /\.pendingInviteNode \.nodeCircle\{[^}]*border-style:dashed/);
