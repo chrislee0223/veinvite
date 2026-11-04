@@ -133,7 +133,7 @@ begin
   v_rejected:=true;
  end;
  if not v_rejected then raise exception 'TEST_FAILED_X_PREMATURE_RELEASE'; end if;
-end $;
+end $$;
 
 -- Certified deleted/invalid X proof is a genuine terminal failure.
 insert into reward_unified_v3.x_events(
