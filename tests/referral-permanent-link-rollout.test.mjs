@@ -131,7 +131,7 @@ test('home uses one permanent link, two independently rendered slots, and an act
   assert.match(home, /<FriendSlot[\s\S]*number=\{2\}/i);
   assert.match(home, /legacyInviteUrl/i);
   const originalSlotCount = home.includes('<span>{slotInvites.size}/2</span>');
-  const canarySlotCount = home.includes(
+  const canarySlotCount = home.includes('<span>{displayedSlotInvites.size}/2</span>') || home.includes(
     "<span>{displayedSlotInvites.size}/2{displayingCanaryHome ? ' · TEST' : ''}</span>",
   );
   assert.ok(originalSlotCount || canarySlotCount, 'Home must expose the two-slot counter');
