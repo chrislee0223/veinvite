@@ -56,15 +56,21 @@ test('manual release RPC is not executable directly by visitors', () => {
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.release_incomplete_referral_by_inviter\(text, text\)[\s\S]*TO service_role/);
 });
 
-test('slot x only appears before all mission milestones are complete', () => {
-  assert.match(home, /const allMissions = missionFlags\(invite\)\.every\(Boolean\)/);
-  assert.match(home, /const showRelease = !allMissions/);
+test('occupied card opens read-only details before requiring an explicit release confirmation', () => {
+  assert.match(home, /function canEndIncompleteReferral\(invite: InviteRecord\)/);
   assert.match(home, /invite\.status === 'ACTIVATING'/);
   assert.match(home, /invite\.rewardEligibility === 'PENDING'/);
   assert.match(home, /!invite\.rewardQueueStatus/);
   assert.match(home, /invite\.sybilStatus !== 'REVIEW'/);
-  assert.match(home, /className="slotReleaseButton"/);
-  assert.doesNotMatch(home, /demoOnly|demoCompleted|demoCompleteLabel/);
+  assert.match(home, /!missionFlags\(invite\)\.every\(Boolean\)/);
+  assert.match(home, /role="button"\s+tabIndex=\{0\}/);
+  assert.match(home, /onClick=\{\(event\) => onShowDetails\(invite, event\.currentTarget\)\}/);
+  assert.match(home, /onKeyDown=\{\(event\) => \{/);
+  assert.match(home, /className="slotChevron"/);
+  assert.doesNotMatch(home, /slotReleaseButton|onReleaseInvite|demoOnly|demoCompleted|demoCompleteLabel/);
+  assert.match(home, /cancelTarget\.inviteeAddress && !releaseConfirm/);
+  assert.match(home, /<MissionDots invite=\{cancelTarget\} \/>/);
+  assert.match(home, /onClick=\{\(\) => setReleaseConfirm\(true\)\}/);
   assert.match(home, /releaseAcceptedInvite\(\)/);
   assert.match(home, /className="inviteeWalletLabel" dir="ltr" title=\{invite\.inviteeAddress\}/);
 });
@@ -79,4 +85,6 @@ test('all supported languages receive release warnings', () => {
     assert.match(i18n, new RegExp(`"${locale}": \\{ title: `));
   }
   assert.match(i18n, /Record<SupportedLocale, ManualReleaseCopy>/);
+  assert.match(i18n, /close: string/);
+  assert.match(home, /releaseCopy\.close/);
 });
