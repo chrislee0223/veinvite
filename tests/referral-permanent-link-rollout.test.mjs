@@ -130,7 +130,15 @@ test('home uses one permanent link, two independently rendered slots, and an act
   assert.match(home, /<FriendSlot[\s\S]*number=\{1\}/i);
   assert.match(home, /<FriendSlot[\s\S]*number=\{2\}/i);
   assert.match(home, /legacyInviteUrl/i);
-  assert.match(home, /<span>\{slotInvites\.size\}\/2<\/span>/i);
+  const originalSlotCount = /<span>\\{slotInvites\\.size\\}\\/2<\\/span>/i.test(home);
+  const canarySlotCount = /<span>\\{displayedSlotInvites\\.size\\}\\/2\\{displayingCanaryHome \\? ' · TEST' : ''\\}<\\/span>/i.test(home);
+  assert.ok(originalSlotCount || canarySlotCount, 'Home must expose the two-slot counter');
+  if (canarySlotCount) {
+    assert.match(home, /sameWallet\\(canaryHomeDisplay\\.wallet, wallet\\)/i);
+    assert.match(home, /return slotInvites;/i);
+    assert.match(home, /displayedSlotInvites\\.get\\(1\\)/i);
+    assert.match(home, /displayedSlotInvites\\.get\\(2\\)/i);
+  }
   assert.doesNotMatch(home, /2\s*-\s*slotInvites\.size/i);
   assert.doesNotMatch(home, /createInvite\s*=\s*async/i);
 });
