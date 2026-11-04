@@ -64,7 +64,7 @@ test('slot x only appears before all mission milestones are complete', () => {
   assert.match(home, /!invite\.rewardQueueStatus/);
   assert.match(home, /invite\.sybilStatus !== 'REVIEW'/);
   assert.match(home, /className="slotReleaseButton"/);
-  assert.match(home, /disabled=\{demoOnly\}/);
+  assert.doesNotMatch(home, /demoOnly|demoCompleted|demoCompleteLabel/);
   assert.match(home, /releaseAcceptedInvite\(\)/);
   assert.match(home, /className="inviteeWalletLabel" dir="ltr" title=\{invite\.inviteeAddress\}/);
 });
