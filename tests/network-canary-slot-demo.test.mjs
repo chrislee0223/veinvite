@@ -38,3 +38,25 @@ test('Home uses the authenticated canary slots only in a display-only overlay', 
   assert.match(projection, /CANARY_VISUAL_ONLY_/);
   assert.match(ownerApi, /canaryFixture: true/);
 });
+
+test('canary home projection produces display-only 2/5 and 5/5 records', async () => {
+  const { deriveCanaryHomeInvites } = await import('../src/lib/canaryHomeDisplay.ts');
+  const wallet = '0xeff325935b63299e9eeda79931bed6ec119aefcb';
+  const data = {
+    canaryFixture: true,
+    slots: [
+      { slot: 1, inviteeWallet: '0xca11ab1e0000000000000000000000000000000a', completedSteps: 2, totalSteps: 5 },
+      { slot: 2, inviteeWallet: '0xca11ab1e00000000000000000000000000000003', completedSteps: 5, totalSteps: 5 },
+    ],
+  };
+  const display = deriveCanaryHomeInvites(data, wallet);
+  assert.equal(display?.length, 2);
+  assert.deepEqual(display?.map((invite) => invite.appsCompleted), [2, 3]);
+  assert.deepEqual(display?.map((invite) => invite.status), ['ACTIVATING', 'COMPLETED']);
+  assert.deepEqual(display?.map((invite) => invite.vot3Converted), [false, true]);
+  assert.deepEqual(display?.map((invite) => invite.voteCompleted), [false, true]);
+  assert.deepEqual(display?.map((invite) => invite.rewardEligibility), ['NONE', 'NONE']);
+  assert.equal(deriveCanaryHomeInvites({ ...data, canaryFixture: false }, wallet), null);
+  assert.equal(deriveCanaryHomeInvites({ ...data, slots: [data.slots[0], data.slots[0]] }, wallet), null);
+  assert.equal(deriveCanaryHomeInvites({ ...data, slots: [data.slots[0]] }, wallet), null);
+});
