@@ -63,7 +63,8 @@ insert into public.invite_impact_events
 select invite_code,'testnet','ALLOCATION_VOTE',vote_completed_block,1,1
 from public.invitations;
 insert into public.reward_queue_entries values ('EFGHJKL');
-insert into public.reward_payouts values ('FGHJKLM');
+insert into public.reward_payouts values ('GHJKLMN');
+insert into public.reward_reservation_legacy_exclusions values ('FGHJKLM');
 insert into public.sybil_v2_wallet_restrictions
  values ('testnet','ACTIVE','0x'||repeat('a',40));
 
