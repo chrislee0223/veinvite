@@ -1,4 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+
+import { INVITATION_EVIDENCE_LEASE_SECONDS } from '@/lib/impact/reconcileInvitationWithLease';
+import { syncInvitationEvidence, type InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
 
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
@@ -69,19 +73,89 @@ export async function POST(
     return reply({ error: 'Wallet verification failed.' }, 500);
   }
 
-  const { data, error } = await supabaseAdmin.rpc(
-    'release_incomplete_referral_by_inviter',
+  // Serialize with other on-chain evidence scans. A stale browser snapshot
+  // must never enable release after the friend completed their final step.
+  const lockName = `invite_evidence_sync:${normalizedCode}`;
+  const ownerToken = randomUUID();
+  const { data: acquired, error: leaseError } = await supabaseAdmin.rpc(
+    'try_acquire_operator_lock',
     {
-      p_invite_code: normalizedCode,
-      p_inviter_wallet: inviterAddress,
+      p_lock_name: lockName,
+      p_owner_token: ownerToken,
+      p_lease_seconds: INVITATION_EVIDENCE_LEASE_SECONDS,
     },
   );
-  if (error) {
-    console.error('Manual slot release RPC failed:', error);
-    return reply({ error: 'Could not release this invitation.' }, 500);
+  if (leaseError) {
+    console.error('Slot release sync lease unavailable:', leaseError);
+    return reply({ error: 'Could not verify mission progress.' }, 503);
+  }
+  if (acquired !== true) {
+    return reply({ error: 'Mission verification is in progress. Try again.' }, 409);
   }
 
-  const result = data as ReleaseResult;
+  let result: ReleaseResult;
+  try {
+    const { data: invitation, error: readError } = await supabaseAdmin
+      .from('invitations')
+      .select('*')
+      .eq('invite_code', normalizedCode)
+      .eq('inviter_wallet', inviterAddress)
+      .maybeSingle();
+
+    if (readError) throw readError;
+    if (!invitation) return reply({ error: 'Invitation not found.' }, 404);
+
+    // Preserve idempotency without rescanning a terminal referral.
+    if (invitation.status === 'CANCELLED' &&
+        invitation.inviter_released_at) {
+      return reply({ released: true, result: 'ALREADY_RELEASED' });
+    }
+
+    if (invitation.status !== 'ACTIVATING' ||
+        !invitation.referral_link_id ||
+        !invitation.invitee_wallet ||
+        invitation.sybil_status === 'REVIEW' ||
+        invitation.sybil_status === 'BLOCKED') {
+      return reply({ error: 'This invitation cannot be released.' }, 409);
+    }
+
+    // Run the same authoritative on-chain evidence reconciliation as the
+    // invite's existing verification endpoint while the lease is held.
+    const synced = await syncInvitationEvidence(
+      invitation as InvitationEvidenceRow,
+    );
+    if (synced.row.status !== 'ACTIVATING' ||
+        synced.row.sybil_status === 'REVIEW' ||
+        synced.row.sybil_status === 'BLOCKED') {
+      return reply({ error: 'Mission or security verification is in progress.' }, 409);
+    }
+
+    // RPC performs the final row-level and reward/payout checks atomically.
+    const { data, error } = await supabaseAdmin.rpc(
+      'release_incomplete_referral_by_inviter',
+      {
+        p_invite_code: normalizedCode,
+        p_inviter_wallet: inviterAddress,
+      },
+    );
+    if (error) throw error;
+    result = data as ReleaseResult;
+  } catch (error) {
+    console.error('Manual slot release verification failed:', error);
+    return reply({ error: 'Could not verify or release this invitation.' }, 503);
+  } finally {
+    const { error: releaseError } = await supabaseAdmin.rpc(
+      'release_operator_lock',
+      {
+        p_lock_name: lockName,
+        p_owner_token: ownerToken,
+      },
+    );
+    if (releaseError) {
+      console.error('Manual slot release evidence lease cleanup failed:', releaseError);
+    }
+  }
+
   switch (result) {
     case 'RELEASED':
     case 'ALREADY_RELEASED':
