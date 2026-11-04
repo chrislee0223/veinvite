@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20261105033000_inviter_release_incomplete_referral.sql',
+  'supabase/migrations/20261104181537_inviter_release_incomplete_referral.sql',
+  'utf8',
+);
+const guard = readFileSync(
+  'supabase/migrations/20261104183720_reward_admission_inviter_release_guard.sql',
   'utf8',
 );
 const route = readFileSync('src/app/api/invites/[code]/release/route.ts', 'utf8');
@@ -35,6 +39,10 @@ test('DB function serializes with permanent claim and fails closed on rewards', 
   assert.match(migration, /FROM public\.reward_queue_entries/);
   assert.match(migration, /FROM public\.reward_payouts/);
   assert.match(migration, /RETURN 'REWARD_LOCKED'/);
+  assert.match(guard, /reward_admission_bridge\.holds/);
+  assert.match(guard, /h\.status IN \('HELD','CONVERTED'\)/);
+  assert.match(guard, /public\.reward_recovery_settlements/);
+  assert.match(guard, /RETURN 'REWARD_LOCKED'/);
 });
 
 test('release is terminal and keeps separate Sybil and referral histories', () => {
