@@ -870,6 +870,12 @@ export function HomeClient() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [cancelTarget, closeCancelModal]);
 
+  // Switching from read-only details to the confirmation panel replaces
+  // its controls, so restore focus to the safe primary action.
+  useEffect(() => {
+    if (cancelTarget && releaseConfirm) cancelKeepRef.current?.focus();
+  }, [cancelTarget, releaseConfirm]);
+
   const cancelLegacyInvite = async () => {
     if (
       !wallet ||
