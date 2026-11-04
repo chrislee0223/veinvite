@@ -126,6 +126,7 @@ export async function GET(request: NextRequest) {
         availableSlots: 0,
         occupiedSlots: [1, 2],
         slots: NETWORK_CANARY_INVITE_SLOTS,
+        canaryFixture: true,
       },
       {
         headers: {
