@@ -1,3 +1,6 @@
+-- Recovered verbatim from Production Supabase migration version 20261104181537.
+-- This file represents an ALREADY APPLIED schema change and is tracked
+-- to close the history gap. It must not be re-executed against Production.
 -- An accepted v2 invitation may be ended by its inviter only while unfinished.
 -- This is NOT a Sybil verdict, deletion of referral history or payout cancellation.
 ALTER TABLE public.invitations
