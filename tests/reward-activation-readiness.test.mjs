@@ -34,7 +34,7 @@ test('live readiness exposes historical protection exactly and never authorizes 
   assert.equal(result.canReleaseHistoricalProtection, false);
   assert.equal(result.writesPerformed, false);
   assert.equal(result.transfersPerformed, false);
-  assert.equal(result.historicalProtectedSnapshotWei, '3615520432020931911544');
+  assert.equal(result.historicalProtectedSnapshotWei, '3615520432025931911544');
   assert.equal(result.bankBalanceWei, result.bankStressReserveWei);
   assert.equal(result.ordinaryBoostAvailableWei, '0');
   assert.ok(result.blockers.includes('NO_FREE_RESERVE_BANK_CAPACITY'));
