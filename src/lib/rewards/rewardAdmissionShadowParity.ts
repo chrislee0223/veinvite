@@ -25,6 +25,7 @@ export function shouldReadRewardAdmissionShadow(
 export type AdmissionShadowSnapshot = {
   status: string;
   originalOutstandingWei: string;
+  totalPhysicalLiabilityWei: string;
   cohortLifetimeIncludingUnconvertedWei: string;
 };
 
@@ -39,6 +40,7 @@ export function compareRewardAdmissionShadow(
 ): { status: 'MATCH' | 'DRIFT' | 'OVERCOMMITTED'; mismatches: string[] } {
   for (const [label, value] of [
     ['originalOutstandingWei', snapshot.originalOutstandingWei],
+    ['totalPhysicalLiabilityWei', snapshot.totalPhysicalLiabilityWei],
     ['cohortLifetimeIncludingUnconvertedWei', snapshot.cohortLifetimeIncludingUnconvertedWei],
     ['reservedExistingWei', expected.reservedExistingWei],
     ['cohortReservedWei', expected.cohortReservedWei],
@@ -55,7 +57,9 @@ export function compareRewardAdmissionShadow(
   }
 
   const mismatches: string[] = [];
-  if (BigInt(snapshot.originalOutstandingWei) !== BigInt(expected.reservedExistingWei)) {
+  // The canonical funding planner already includes unconverted HELD once.
+  // Comparing pre-HELD original outstanding would produce a false positive.
+  if (BigInt(snapshot.totalPhysicalLiabilityWei) !== BigInt(expected.reservedExistingWei)) {
     mismatches.push('globalOutstanding');
   }
   if (
