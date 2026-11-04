@@ -109,6 +109,66 @@ function readRpcResult(value: unknown): ReservationRpcResult {
   return value as ReservationRpcResult;
 }
 
+type AdmissionHold = {
+  status: 'NONE' | 'HELD' | 'CONVERTED' | 'RELEASED';
+  admissionEnabled: boolean;
+  guaranteedWei: string | null;
+  cohortRoundId: string | null;
+  allocationReceiptId: string | null;
+};
+
+/**
+ * The only live completion writer for a HELD invite is the atomic handoff.
+ * A service-gateway error or unexpected state MUST stop this candidate;
+ * falling through to the legacy writer would create two obligations.
+ */
+async function readAdmissionHoldForCompletion(
+  network: string,
+  inviteCode: string,
+  expectedCohort: string,
+  expectedReceipt: string,
+): Promise<AdmissionHold> {
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_admission_hold_for_reservation_v1',
+    { p_network: network, p_invite_code: inviteCode },
+  );
+  if (error) {
+    throw new Error('Admission hold status could not be verified: ' + error.message);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Admission hold reader returned malformed data.');
+  }
+  const v = data as Record<string, unknown>;
+  if (typeof v.admissionEnabled !== 'boolean' ||
+      !['NONE','HELD','CONVERTED','RELEASED'].includes(String(v.status))) {
+    throw new Error('Admission hold reader returned invalid policy or state.');
+  }
+  if (v.status === 'NONE') {
+    return {
+      status: 'NONE',
+      admissionEnabled: v.admissionEnabled,
+      guaranteedWei: null,
+      cohortRoundId: null,
+      allocationReceiptId: null,
+    };
+  }
+  const exactWei = String(v.guaranteedWei ?? '');
+  const cohortRoundId = String(v.cohortRoundId ?? '');
+  const allocationReceiptId = String(v.allocationReceiptId ?? '');
+  if (!/^[1-9]\\d*$/.test(exactWei) ||
+      cohortRoundId !== expectedCohort ||
+      allocationReceiptId !== expectedReceipt) {
+    throw new Error('Admission hold funding identity or exact Wei mismatch.');
+  }
+  return {
+    status: v.status as AdmissionHold['status'],
+    admissionEnabled: v.admissionEnabled,
+    guaranteedWei: exactWei,
+    cohortRoundId,
+    allocationReceiptId,
+  };
+}
+
 function nonNegativeWeiString(
   value: unknown,
   fieldName: string,
@@ -464,6 +524,18 @@ async function reserveCandidate({
     lastExpectedCohortCommittedWei = planning.cohortReservedWei;
     lastExpectedOutstandingWei = planning.reservedExistingWei;
 
+    const admission = await readAdmissionHoldForCompletion(
+      network, candidate.invite_code, rewardCohortRoundId, allocationReceiptId,
+    );
+    if (admission.status === 'CONVERTED' ||
+        admission.status === 'RELEASED') {
+      return skipCandidate(candidate, 'ADMISSION_ALREADY_FINAL');
+    }
+    if (admission.status === 'HELD' && !admission.admissionEnabled) {
+      // Do not fall back to legacy when a monetary guarantee exists.
+      return skipCandidate(candidate, 'ADMISSION_HANDOFF_DISABLED');
+    }
+
     const lateQuote = await readLateRewardQuote(
       network,
       candidate.invite_code,
@@ -483,9 +555,15 @@ async function reserveCandidate({
       );
     }
 
-    const amountWei =
+    const quotedAmountWei =
       lateQuote?.amountWei ??
       planning.forecast.rewardPerInviteWei;
+    // Gross completion promise can never fall below an existing HELD floor.
+    // The atomic SQL writer rechecks both cohort and physical collateral.
+    const amountWei = admission.status === 'HELD' &&
+      BigInt(admission.guaranteedWei!) > BigInt(quotedAmountWei)
+      ? admission.guaranteedWei!
+      : quotedAmountWei;
     if (BigInt(amountWei) <= 0n) {
       return skipCandidate(
         candidate,
@@ -531,6 +609,11 @@ async function reserveCandidate({
               lateQuote.policyVersion,
           }
         : null,
+      admissionHandoff:
+        admission.status === 'HELD'
+          ? { guaranteedMinimumWei: admission.guaranteedWei,
+              policy: 'atomic-held-to-fixed-v1' }
+          : null,
       completionPosition: {
         block: completionBlock,
         txIndex: candidate.completion_tx_index,
@@ -539,7 +622,9 @@ async function reserveCandidate({
     };
 
     const { data, error } = await supabaseAdmin.rpc(
-      'commit_reward_reservation_with_late_reserve',
+      admission.status === 'HELD'
+        ? 'commit_reward_admission_held_to_fixed_v1'
+        : 'commit_reward_reservation_with_late_reserve',
       {
         p_invite_code: candidate.invite_code,
         p_network: network,
