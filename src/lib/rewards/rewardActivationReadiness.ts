@@ -1,33 +1,36 @@
 /**
- * Read-only activation readiness math. Never authorizes, reserves, releases,
- * signs, claims or pays B3TR. Protected historical budget is not escrow.
+ * Operator-only, non-authorizing activation readiness mathematics.
+ * This is NOT permission to release funds, enable admission or sign.
+ * Every financial amount is an exact decimal Wei string from either
+ * an on-chain read or a reviewed SQL RPC that stringifies NUMERIC values.
  */
 const WEI = /^(0|[1-9]\d*)$/;
-
-function parseWei(value: string, label: string): bigint {
-  if (!WEI.test(value)) {
-    throw new Error('Invalid exact Wei in reward readiness: ' + label);
+function wei(value: string, field: string) {
+  if (typeof value !== 'string' || !WEI.test(value)) {
+    throw new Error('Invalid exact Wei: ' + field);
   }
   return BigInt(value);
 }
-
-function parseCount(value: number, label: string): number {
+function count(value: number, field: string) {
   if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error('Invalid reward readiness count: ' + label);
+    throw new Error('Invalid readiness count: ' + field);
   }
   return value;
 }
-
 export type RewardActivationReadinessInputs = {
   nowMs: number;
-  onchainPoolWei: string;
-  forecastPoolWei: string;
-  forecastObservedAt: string;
-  historicalRetainedWei: string;
+  liveOnchainPoolWei: string;
+  latestForecastAt: string;
+  sourceRetainedProtectionWei: string;
   recentCohortProtectedWei: string;
-  snapshotReleaseCeilingWei: string;
-  releaseLedgerWei: string;
-  releaseEvents: number;
+  bankBalanceWei: string;
+  bankStressReserveWei: string;
+  ordinaryBoostAvailableWei: string;
+  sourceOverrunCount: number;
+  destinationOverrunCount: number;
+  unprotectedMatureSourceCount: number;
+  conservationOk: boolean;
+  stressReserveCovered: boolean;
   unreviewedUnpaidInvites: number;
   eligibleUnpaidInvites: number;
   threeAppsVoteMissingInvites: number;
@@ -35,69 +38,73 @@ export type RewardActivationReadinessInputs = {
   distributionPaused: boolean;
 };
 
-export function summarizeRewardActivationReadiness(
-  v: RewardActivationReadinessInputs,
-) {
-  const onchain = parseWei(v.onchainPoolWei, 'onchainPoolWei');
-  const forecast = parseWei(v.forecastPoolWei, 'forecastPoolWei');
-  const retained = parseWei(v.historicalRetainedWei, 'historicalRetainedWei');
-  const recent = parseWei(v.recentCohortProtectedWei, 'recentCohortProtectedWei');
-  const ceiling = parseWei(v.snapshotReleaseCeilingWei, 'snapshotReleaseCeilingWei');
-  const released = parseWei(v.releaseLedgerWei, 'releaseLedgerWei');
-  parseCount(v.releaseEvents, 'releaseEvents');
-  parseCount(v.unreviewedUnpaidInvites, 'unreviewedUnpaidInvites');
-  parseCount(v.eligibleUnpaidInvites, 'eligibleUnpaidInvites');
-  parseCount(v.threeAppsVoteMissingInvites, 'threeAppsVoteMissingInvites');
+export function summarizeRewardActivationReadiness(v: RewardActivationReadinessInputs) {
+  const pool = wei(v.liveOnchainPoolWei, 'liveOnchainPoolWei');
+  const retained = wei(v.sourceRetainedProtectionWei, 'sourceRetainedProtectionWei');
+  const recent = wei(v.recentCohortProtectedWei, 'recentCohortProtectedWei');
+  const bank = wei(v.bankBalanceWei, 'bankBalanceWei');
+  const stress = wei(v.bankStressReserveWei, 'bankStressReserveWei');
+  const available = wei(v.ordinaryBoostAvailableWei, 'ordinaryBoostAvailableWei');
+  count(v.sourceOverrunCount, 'sourceOverrunCount');
+  count(v.destinationOverrunCount, 'destinationOverrunCount');
+  count(v.unprotectedMatureSourceCount, 'unprotectedMatureSourceCount');
+  count(v.unreviewedUnpaidInvites, 'unreviewedUnpaidInvites');
+  count(v.eligibleUnpaidInvites, 'eligibleUnpaidInvites');
+  count(v.threeAppsVoteMissingInvites, 'threeAppsVoteMissingInvites');
   if (v.threeAppsVoteMissingInvites > v.unreviewedUnpaidInvites) {
     throw new Error('Incomplete invite subset exceeds unreviewed invites');
   }
-  if (!Number.isFinite(v.nowMs)) {
-    throw new Error('Invalid observation timestamp');
+  if (typeof v.conservationOk !== 'boolean' ||
+      typeof v.stressReserveCovered !== 'boolean' ||
+      typeof v.distributionPaused !== 'boolean') {
+    throw new Error('Invalid financial readiness flag');
   }
-  const observedMs = Date.parse(v.forecastObservedAt);
-  const ageMs = v.nowMs - observedMs;
-  const fresh = Number.isFinite(observedMs)
-    && ageMs >= 0 && ageMs <= 30 * 60_000;
-  if (v.admissionBridgeStatus !== 'STAGING_DISABLED'
-      && v.admissionBridgeStatus !== 'COHORT_OVERCOMMITTED') {
-    throw new Error('Unreviewed admission bridge state');
+  if (v.admissionBridgeStatus !== 'STAGING_DISABLED' &&
+      v.admissionBridgeStatus !== 'COHORT_OVERCOMMITTED') {
+    throw new Error('Unreviewed bridge state');
   }
-  if (typeof v.distributionPaused !== 'boolean') {
-    throw new Error('Invalid distribution pause flag');
+  if (available !== (bank > stress ? bank - stress : 0n)) {
+    throw new Error('Reserve-bank available amount is inconsistent');
   }
-  const reasons: string[] = [];
-  if (!fresh) reasons.push('FORECAST_SNAPSHOT_STALE');
-  if (onchain !== forecast) reasons.push('POOL_CHANGED_SINCE_SNAPSHOT');
-  if (released > ceiling) reasons.push('HISTORICAL_RELEASE_EXCEEDS_CEILING');
-  if (released === ceiling) reasons.push('NO_UNRELEASED_CAPACITY_IN_PLAN');
-  if (v.unreviewedUnpaidInvites > 0) reasons.push('UNREVIEWED_UNPAID_INVITES');
-  if (v.eligibleUnpaidInvites > 0) reasons.push('ELIGIBLE_UNPAID_INVITES');
-  if (v.distributionPaused) reasons.push('DISTRIBUTION_PAUSED');
+  const observedAtMs = Date.parse(v.latestForecastAt);
+  const snapshotFresh = Number.isFinite(v.nowMs) && Number.isFinite(observedAtMs) &&
+    v.nowMs >= observedAtMs && v.nowMs - observedAtMs <= 30 * 60_000;
+  const blockers: string[] = [];
+  if (!snapshotFresh) blockers.push('POOL_OBSERVATION_STALE');
+  if (v.unreviewedUnpaidInvites > 0) blockers.push('UNREVIEWED_UNPAID_INVITES');
+  if (v.eligibleUnpaidInvites > 0) blockers.push('ELIGIBLE_UNPAID_INVITES');
+  if (v.sourceOverrunCount > 0 || v.destinationOverrunCount > 0 ||
+      !v.conservationOk) blockers.push('RESERVE_LEDGER_DRIFT');
+  if (!v.stressReserveCovered || bank < stress) blockers.push('STRESS_RESERVE_UNCOVERED');
+  if (available === 0n) blockers.push('NO_FREE_RESERVE_BANK_CAPACITY');
+  if (v.unprotectedMatureSourceCount > 0) blockers.push('UNPROTECTED_MATURE_SOURCE');
+  if (v.distributionPaused) blockers.push('DISTRIBUTION_PAUSED');
   if (v.admissionBridgeStatus === 'COHORT_OVERCOMMITTED') {
-    reasons.push('COHORT_OVERCOMMITTED');
+    blockers.push('COHORT_OVERCOMMITTED');
   }
-  // A hard-disabled bridge MUST never be read as permission to activate.
-  reasons.push('ADMISSION_WRITER_AND_PAYOUT_NOT_AUTHORIZED');
-
+  // Admission SQL is explicitly hard-disabled. This diagnostic NEVER
+  // upgrades a green accounting report into payout authorization.
+  blockers.push('ADMISSION_WRITER_AND_PAYOUT_NOT_AUTHORIZED');
   return {
     mode: 'READ_ONLY' as const,
-    enabled: false as const,
     canActivate: false as const,
-    canReleaseHistoricalProtection: false as const,
     canSign: false as const,
+    canReleaseHistoricalProtection: false as const,
     writesPerformed: false as const,
     transfersPerformed: false as const,
-    reasons,
-    onchainPoolWei: onchain.toString(),
-    lastForecastPoolWei: forecast.toString(),
-    poolChangedSinceForecast: onchain !== forecast,
-    forecastObservedAt: v.forecastObservedAt,
-    forecastFresh: fresh,
+    blockers,
+    liveOnchainPoolWei: pool.toString(),
     historicalProtectedSnapshotWei: (retained + recent).toString(),
-    alreadyReleasedToDestinationWei: released.toString(),
-    snapshotReleaseCeilingWei: ceiling.toString(),
-    unreleasedSnapshotCapacityWei: (released >= ceiling ? 0n : ceiling - released).toString(),
-    releaseEvents: v.releaseEvents,
+    retainedProtectedWei: retained.toString(),
+    recentProtectedWei: recent.toString(),
+    bankBalanceWei: bank.toString(),
+    bankStressReserveWei: stress.toString(),
+    ordinaryBoostAvailableWei: available.toString(),
+    latestForecastAt: v.latestForecastAt,
+    forecastFresh: snapshotFresh,
+    sourceOverrunCount: v.sourceOverrunCount,
+    destinationOverrunCount: v.destinationOverrunCount,
+    unprotectedMatureSourceCount: v.unprotectedMatureSourceCount,
     unreviewedUnpaidInvites: v.unreviewedUnpaidInvites,
     eligibleUnpaidInvites: v.eligibleUnpaidInvites,
     threeAppsVoteMissingInvites: v.threeAppsVoteMissingInvites,
