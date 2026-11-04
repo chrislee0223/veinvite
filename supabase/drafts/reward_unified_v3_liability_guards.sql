@@ -54,6 +54,8 @@ as $fn$
 declare
   v_entitlement reward_unified_v3.entitlements%rowtype;
 begin
+  -- Financial event timestamps must be server-authored, not caller supplied.
+  new.created_at := clock_timestamp();
   select * into v_entitlement
   from reward_unified_v3.entitlements e
   where e.id=new.entitlement_id and e.network=new.network
@@ -103,6 +105,8 @@ declare
   v_signed boolean;
   v_released boolean;
 begin
+  -- Financial event timestamps must be server-authored, not caller supplied.
+  new.created_at := clock_timestamp();
   select * into v_entitlement
   from reward_unified_v3.entitlements e
   where e.id=new.entitlement_id and e.network=new.network
