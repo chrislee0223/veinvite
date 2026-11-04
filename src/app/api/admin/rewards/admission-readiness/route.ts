@@ -138,7 +138,12 @@ export async function GET(request: NextRequest) {
       unreviewedUnpaidInvites: pending.count,
       eligibleUnpaidInvites: eligible.count,
       threeAppsVoteMissingInvites: threeApps.count,
-      admissionBridgeStatus: bridge.status,
+      admissionBridgeStatus:
+        bridge.status === 'STAGING_DISABLED'
+          ? 'STAGING_DISABLED'
+          : bridge.status === 'COHORT_OVERCOMMITTED'
+            ? 'COHORT_OVERCOMMITTED'
+            : (() => { throw new Error('Unexpected staged bridge state'); })(),
       distributionPaused: pool.distributionPaused,
     });
 
