@@ -689,6 +689,41 @@ async function reserveCandidate({
   );
 }
 
+/**
+ * Reconcile terminal Sybil/cancelled HELD guarantees before planning the next
+ * completion. No payout or inviter cancellation occurs in this worker.
+ * The DB function serializes with admission and Claim under financial locks.
+ */
+async function releaseTerminalAdmissionHolds(network: string): Promise<void> {
+  if (process.env.VEINVITE_ADMISSION_GUARANTEE_ENABLED !== 'true') return;
+  const { data, error } = await supabaseAdmin.rpc(
+    'release_terminal_reward_admission_held_v1',
+    { p_network: network, p_limit: 25 },
+  );
+  if (error) {
+    throw new Error('Terminal HELD release could not be verified: ' + error.message);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Terminal HELD release returned malformed data.');
+  }
+  const result = data as Record<string, unknown>;
+  if (result.reason === 'ADMISSION_RELEASE_DISABLED') return;
+  const released = Number(result.released);
+  const releasedWei = String(result.releasedWei ?? '');
+  const skippedFixed = Number(result.skippedFixed);
+  if (result.reason !== 'TERMINAL_HELD_SWEEP_COMPLETE' ||
+      !Number.isSafeInteger(released) || released < 0 || released > 25 ||
+      !Number.isSafeInteger(skippedFixed) || skippedFixed < 0 ||
+      !/^\\d+$/.test(releasedWei)) {
+    throw new Error('Terminal HELD release violated exact accounting contract.');
+  }
+  if (released > 0 || skippedFixed > 0) {
+    console.info('Terminal admission guarantees reconciled:', {
+      released, releasedWei, skippedFixed,
+    });
+  }
+}
+
 export async function reserveEligibleReferralRewards(): Promise<RewardReservationSweepResult> {
   const { network } = getVeBetterNetworkConfig();
 
@@ -702,6 +737,7 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
   return withRewardReservationSweepLock(
     network,
     async () => {
+  await releaseTerminalAdmissionHolds(network);
   const finalizedBlock = await readFinalizedBlockNumber();
   const candidates = await loadCandidates(network);
 
