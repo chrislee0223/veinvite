@@ -14,7 +14,7 @@ function exactWei(raw: string, key: string): bigint {
 }
 export type AdmissionPreflight = {
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
-  sybilStatus: 'NOT_CHECKED' | 'CLEAR' | 'HOLD' | 'BLOCKED';
+  sybilStatus: 'NOT_CHECKED' | 'CLEAR' | 'REVIEW' | 'BLOCKED';
   rewardCohortRoundId: string | null;
   allocationReceiptId: string | null;
   existingAdmissionHold: boolean;
@@ -47,7 +47,7 @@ export function evaluateAdmissionPreflight(v: AdmissionPreflight) {
       !v.allocationReceiptId || !/^[1-9]\d*$/.test(v.allocationReceiptId)) {
     reasons.push('OFFICIAL_COHORT_RECEIPT_NOT_BOUND');
   }
-  if (v.sybilStatus === 'BLOCKED' || v.sybilStatus === 'HOLD') {
+  if (v.sybilStatus === 'BLOCKED' || v.sybilStatus === 'REVIEW') {
     reasons.push('SYBIL_RESTRICTION');
   } else if (v.sybilStatus !== 'CLEAR' && v.sybilStatus !== 'NOT_CHECKED') {
     throw new Error('Unrecognized Sybil status');
