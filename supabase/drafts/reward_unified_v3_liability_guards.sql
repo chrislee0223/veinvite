@@ -102,6 +102,7 @@ declare
   v_entitlement reward_unified_v3.entitlements%rowtype;
   v_post_verified_at timestamptz;
   v_offer_opened_at timestamptz;
+  v_proof_rejected boolean;
   v_signed boolean;
   v_released boolean;
 begin
@@ -137,6 +138,50 @@ begin
       where x.entitlement_id=new.entitlement_id and x.event_type='PAID'
     ) then
       raise exception 'UNIFIED_V3_X_SIGNED_CANNOT_RELEASE';
+    end if;
+
+    select x.created_at into v_offer_opened_at
+    from reward_unified_v3.x_events x
+    where x.entitlement_id=new.entitlement_id and x.event_type='OFFER_OPENED';
+    select exists (
+      select 1 from reward_unified_v3.x_events x
+      where x.entitlement_id=new.entitlement_id and x.event_type='PROOF_REJECTED'
+    ) into v_proof_rejected;
+    if exists (
+      select 1 from reward_unified_v3.x_events x
+      where x.entitlement_id=new.entitlement_id and x.event_type='FINAL_VERIFIED'
+    ) then
+      raise exception 'UNIFIED_V3_X_FINAL_PROOF_CANNOT_RELEASE';
+    end if;
+    if v_proof_rejected is not true
+       and public.reward_x_promotion_security_clear_v1(
+         v_entitlement.invite_code,v_entitlement.network
+       )
+       and (
+         v_offer_opened_at is null
+         or clock_timestamp()<
+              v_offer_opened_at + interval '24 hours 15 minutes'
+         or exists (
+           select 1 from reward_unified_v3.x_events x
+           where x.entitlement_id=new.entitlement_id
+             and x.event_type='POST_VERIFIED'
+         )
+       ) then
+      raise exception 'UNIFIED_V3_X_NOT_YET_RELEASABLE';
+    end if;
+  elsif new.event_type='PROOF_REJECTED' then
+    -- An external verification adapter must supply evidence of failure.
+    -- These are immutable journal facts; transient X API outages are NOT
+    -- proof of rejection and must not create this event.
+    if not exists (
+      select 1 from reward_unified_v3.x_events x
+      where x.entitlement_id=new.entitlement_id
+        and x.event_type='OFFER_OPENED'
+    ) then
+      raise exception 'UNIFIED_V3_X_REJECTION_BEFORE_OFFER';
+    end if;
+    if v_signed then
+      raise exception 'UNIFIED_V3_X_SIGNED_CANNOT_REJECT';
     end if;
   elsif new.event_type='OFFER_OPENED' then
     if not exists (
