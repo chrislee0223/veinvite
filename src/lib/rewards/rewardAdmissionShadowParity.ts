@@ -5,12 +5,8 @@
  * This helper does not reserve, release, authorize or pay anything.
  * Production and the dedicated read-only QA Studio cannot opt in.
  */
-export type AdmissionShadowEnvironment = {
-  VERCEL_ENV?: string;
-  VEINVITE_QA_STUDIO?: string;
-  VEINVITE_ADMISSION_SHADOW_READ_ENABLED?: string;
-  NEXT_PUBLIC_SUPABASE_URL?: string;
-};
+// Compatible with NodeJS.ProcessEnv (which has a string index signature).
+export type AdmissionShadowEnvironment = Record<string, string | undefined>;
 
 const PREVIEW_DB_URL = 'https://bpppslplhmppxzvdkwxs.supabase.co';
 const EXACT_WEI = /^(0|[1-9]\d*)$/;
