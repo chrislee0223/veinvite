@@ -9,7 +9,8 @@ ALTER TABLE public.invitations
  ADD COLUMN mock_recovery_offset_wei numeric(78,0) NOT NULL DEFAULT 0;
 ALTER TABLE public.reward_recovery_settlements
  ADD COLUMN gross_amount_wei numeric(78,0) NOT NULL DEFAULT 0,
- ADD COLUMN net_amount_wei numeric(78,0) NOT NULL DEFAULT 0;
+ ADD COLUMN net_amount_wei numeric(78,0) NOT NULL DEFAULT 0,
+ ADD COLUMN state text NOT NULL DEFAULT 'ACTIVE';
 
 -- FAKE analog of the legacy core reservation + recovery writer.
 -- Does not purport to simulate identity/Sybil evidence, finality, or wallet
@@ -56,7 +57,15 @@ BEGIN
     INSERT INTO public.reward_recovery_settlements(
       id,invite_code,network,offset_amount_wei,gross_amount_wei,net_amount_wei)
     VALUES (3000+(SELECT count(*) FROM public.reward_recovery_settlements),
-      p_invite_code,p_network,v_offset,p_amount_wei,v_net);
+      p_invite_code,p_network,
+      CASE WHEN p_invite_code='HANDOFF-WRONG-OFFSET' THEN v_offset+1 ELSE v_offset END,
+      p_amount_wei,v_net);
+    -- CI-only compromised/mock writer: a non-active settlement must never
+    -- be accepted just because its numeric totals and result JSON look valid.
+    IF p_invite_code='HANDOFF-INACTIVE' THEN
+      UPDATE public.reward_recovery_settlements SET state='SUSPENDED'
+        WHERE invite_code=p_invite_code AND network=p_network;
+    END IF;
   END IF;
   IF v_net>0 THEN
     INSERT INTO public.reward_queue_entries(invite_code,network,reserved_amount_wei,status)
