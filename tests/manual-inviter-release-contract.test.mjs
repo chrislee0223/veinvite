@@ -18,6 +18,10 @@ test('manual release is wallet-session authenticated before DB mutation', () => 
   assert.match(route, /release_incomplete_referral_by_inviter/);
   assert.match(route, /ALREADY_RELEASED/);
   assert.match(route, /REWARD_LOCKED/);
+  assert.match(route, /try_acquire_operator_lock/);
+  assert.match(route, /syncInvitationEvidence/);
+  assert.ok(route.indexOf('await syncInvitationEvidence') > route.indexOf('await requireWalletSession'));
+  assert.ok(route.indexOf('release_incomplete_referral_by_inviter') > route.indexOf('await syncInvitationEvidence'));
 });
 
 test('DB function serializes with permanent claim and fails closed on rewards', () => {
@@ -62,7 +66,7 @@ test('slot x only appears before all mission milestones are complete', () => {
   assert.match(home, /className="slotReleaseButton"/);
   assert.match(home, /disabled=\{demoOnly\}/);
   assert.match(home, /releaseAcceptedInvite\(\)/);
-  assert.match(home, /className="inviteeWalletLabel" title=\{invite\.inviteeAddress\}/);
+  assert.match(home, /className="inviteeWalletLabel" dir="ltr" title=\{invite\.inviteeAddress\}/);
 });
 
 test('all supported languages receive release warnings', () => {
