@@ -980,7 +980,7 @@ export function HomeClient() {
                 <div className="slotsBlock">
                   <div className="slotsHeading">
                     <strong>{referral.slotsLabel}</strong>
-                    <span>{displayedSlotInvites.size}/2{displayingCanaryHome ? ' · TEST' : ''}</span>
+                    <span>{displayedSlotInvites.size}/2</span>
                   </div>
                   <FriendSlot
                     number={1}
