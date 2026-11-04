@@ -29,6 +29,18 @@ create table reward_unified_v3.base_events (
   unique (network,event_type,reference)
 );
 
+-- Verified X proof must retain the original post and submission timestamps.
+-- The external X API identity check stays in the authenticated backend.
+alter table reward_unified_v3.x_events
+  add column x_post_created_at timestamptz,
+  add column x_submitted_at timestamptz,
+  add constraint unified_x_post_proof_timestamps check (
+    (event_type='POST_VERIFIED' and x_post_created_at is not null
+      and x_submitted_at is not null)
+    or (event_type<>'POST_VERIFIED' and x_post_created_at is null
+      and x_submitted_at is null)
+  );
+
 -- Exactly one event of each type; concurrent attempts cannot bypass these.
 -- A payout cannot be finalized twice or signed with a different transaction.
 create unique index unified_x_event_single_transition_idx
@@ -87,6 +99,7 @@ as $fn$
 declare
   v_entitlement reward_unified_v3.entitlements%rowtype;
   v_post_verified_at timestamptz;
+  v_offer_opened_at timestamptz;
   v_signed boolean;
   v_released boolean;
 begin
@@ -129,11 +142,21 @@ begin
       raise exception 'UNIFIED_V3_X_BASE_NOT_PAID';
     end if;
   elsif new.event_type='POST_VERIFIED' then
-    if not exists (
-      select 1 from reward_unified_v3.x_events x
-      where x.entitlement_id=new.entitlement_id and x.event_type='OFFER_OPENED'
-    ) then
+    select x.created_at into v_offer_opened_at
+    from reward_unified_v3.x_events x
+    where x.entitlement_id=new.entitlement_id
+      and x.event_type='OFFER_OPENED';
+    if v_offer_opened_at is null then
       raise exception 'UNIFIED_V3_X_OFFER_NOT_OPENED';
+    end if;
+    if new.x_post_created_at < v_offer_opened_at
+       or new.x_post_created_at >
+          v_offer_opened_at + interval '24 hours'
+       or new.x_submitted_at < new.x_post_created_at
+       or new.x_submitted_at >
+          v_offer_opened_at + interval '24 hours 15 minutes'
+       or new.created_at < new.x_submitted_at then
+      raise exception 'UNIFIED_V3_X_POST_WINDOW_INVALID';
     end if;
   elsif new.event_type='FINAL_VERIFIED' then
     select x.created_at into v_post_verified_at
