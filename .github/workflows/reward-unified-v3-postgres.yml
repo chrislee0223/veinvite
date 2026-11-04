@@ -1,0 +1,92 @@
+name: Unified Reward V3 PostgreSQL Contract
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/drafts/reward_unified_v3_*.sql'
+      - 'tests/sql/reward-unified-v3-*.sql'
+      - '.github/workflows/reward-unified-v3-postgres.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/drafts/reward_unified_v3_*.sql'
+      - 'tests/sql/reward-unified-v3-isolated-postgres.sql'
+      - '.github/workflows/reward-unified-v3-postgres.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-contract:
+    name: postgres v3 financial contract (sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: only-local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: only-local-test-password
+    steps:
+      - name: Checkout reviewed PR
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Prepare empty local Supabase-compatible roles
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          SQL
+      - name: Load isolated private-ledger draft
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_shadow_ledger.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_liability_guards.sql
+      - name: Exercise payout, claim liability, X hold and permission invariants
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-isolated-postgres.sql
+      - name: Validate late completion and Sybil exclusion against PostgreSQL
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_candidate_reader.sql
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-candidates-postgres.sql
+          psql -v ON_ERROR_STOP=1 -c "select count(*) from reward_unified_v3.read_candidates_v1('testnet',100);"
+      - name: Verify transactionally locked round writer in isolated DB
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_sandbox_writer.sql
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-writer-postgres.sql
+      - name: Reject simultaneous duplicate round commitments
+        run: bash scripts/test-unified-v3-concurrency.sh
+      - name: Enforce Claim wallet authority, idempotency, Sybil and legacy collision
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_sandbox_claims.sql
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-claims-postgres.sql
+      - name: Verify signed X cannot be released until on-chain paid
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-x-paid-postgres.sql
+      - name: Confirm missing X post returns ten after deadline and grace
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-x-expiry-postgres.sql
+
