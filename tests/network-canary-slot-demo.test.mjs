@@ -60,3 +60,13 @@ test('canary home projection produces display-only 2/5 and 5/5 records', async (
   assert.equal(deriveCanaryHomeInvites({ ...data, slots: [data.slots[0], data.slots[0]] }, wallet), null);
   assert.equal(deriveCanaryHomeInvites({ ...data, slots: [data.slots[0]] }, wallet), null);
 });
+
+test('Home invitation wallets use the same compact 0xXXX…XXX format as Network and never wrap', async () => {
+  const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+  const { nodeWallet } = await import('../src/lib/networkAppViewHelpers.ts');
+  assert.equal(nodeWallet('0xabcdef0000000000000000000000000000000123'), '0xABC…123');
+  assert.match(home, /const shortInvitee = invite\.inviteeAddress\s*\? nodeWallet\(invite\.inviteeAddress\)/);
+  assert.match(home, /className="inviteeWalletLabel"/);
+  assert.match(home, /\.slotTop \.inviteeWalletLabel \{[^}]*white-space:nowrap;/);
+  assert.match(home, /title=\{invite\.inviteeAddress\}/);
+});
