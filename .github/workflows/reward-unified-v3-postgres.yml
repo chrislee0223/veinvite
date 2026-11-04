@@ -1,0 +1,65 @@
+name: Unified Reward V3 PostgreSQL Contract
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/drafts/reward_unified_v3_*.sql'
+      - 'tests/sql/reward-unified-v3-isolated-postgres.sql'
+      - '.github/workflows/reward-unified-v3-postgres.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/drafts/reward_unified_v3_*.sql'
+      - 'tests/sql/reward-unified-v3-isolated-postgres.sql'
+      - '.github/workflows/reward-unified-v3-postgres.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-contract:
+    name: postgres v3 financial contract (sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: only-local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: only-local-test-password
+    steps:
+      - name: Checkout reviewed PR
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Prepare empty local Supabase-compatible roles
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          SQL
+      - name: Load isolated private-ledger draft
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_shadow_ledger.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_liability_guards.sql
+      - name: Exercise payout, claim liability, X hold and permission invariants
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-isolated-postgres.sql
