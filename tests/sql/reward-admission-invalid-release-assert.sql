@@ -9,6 +9,11 @@ INSERT INTO public.invitations(
  ('INVALID-REVIEW',123,1001,'mainnet','UNDER_REVIEW','NOT_CHECKED'),
  ('INVALID-FIXED',123,1001,'mainnet','COMPLETED','BLOCKED'),
  ('INVALID-CONVERT',123,1001,'mainnet','COMPLETED','BLOCKED');
+-- Model a historical drifted fixed payout BEFORE an already-held row.
+-- The new DB trigger rightly blocks creation in the other direction.
+INSERT INTO public.reward_queue_entries(invite_code,network,reserved_amount_wei,status)
+VALUES('INVALID-FIXED','mainnet',6*power(10::numeric,18),'AWAITING_CLAIM');
+
 INSERT INTO reward_admission_bridge.holds(
  network,invite_code,app_id,reward_cohort_round_id,funding_allocation_receipt_id,
  amount_wei,status
@@ -21,8 +26,6 @@ INSERT INTO reward_admission_bridge.holds(
    ('INVALID-FIXED','HELD'),
    ('INVALID-CONVERT','CONVERTED')
  ) AS fake(code,st);
-INSERT INTO public.reward_queue_entries(invite_code,network,reserved_amount_wei,status)
-VALUES('INVALID-FIXED','mainnet',6*power(10::numeric,18),'AWAITING_CLAIM');
 DO $test$
 DECLARE
   v jsonb;
