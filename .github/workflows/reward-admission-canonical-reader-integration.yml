@@ -1,0 +1,53 @@
+name: Reward Admission Canonical Reader Integration
+on:
+  pull_request:
+    paths:
+      - 'tests/sql/reward-admission-atomic-lab.sql'
+      - 'tests/sql/reward-admission-production-bridge-stubs.sql'
+      - 'tests/sql/reward-admission-payout-handoff-lab.sql'
+      - 'tests/sql/reward-admission-canonical-reader-fixture.sql'
+      - 'tests/sql/reward-admission-authoritative-reader-*.sql'
+      - 'supabase/migrations/20261104093000_reward_admission_canonical_held_readers_disabled.sql'
+      - '.github/workflows/reward-admission-canonical-reader-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: qa-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Create isolated fake database and original authorities
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-lab.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-payout-handoff-lab.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-production-bridge-stubs.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-fixture.sql
+      - name: Stage combined physical and cohort readers in a single transaction
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104093000_reward_admission_canonical_held_readers_disabled.sql
+      - name: Prove no base/X overbooking and no double counting during conversion/finality
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-authoritative-reader-assert.sql
