@@ -943,6 +943,8 @@ export function HomeClient() {
       await load(true);
     } catch (error) {
       if (!sameWallet(activeWalletRef.current, requestWallet)) return;
+      // Errors must be visible above the dialog, not hidden by its backdrop.
+      closeCancelModal();
       showFeedback(
         'error',
         error instanceof Error ? error.message : releaseCopy.error,
@@ -1353,7 +1355,7 @@ export function HomeClient() {
         .slotDetailWallet { font-size:.76rem!important; overflow-wrap:anywhere; }
         .slotDetailProgress { display:grid; justify-items:center; gap:12px; margin-top:24px; padding:16px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.025); }
         .slotDetailProgress strong { color:#ffd66e; font-size:1.15rem; }
-        .slotDetailProgress span { font-size:.78rem; color:#aaa3b3; text-align:center; overflow-wrap:anywhere; }
+        .slotDetailProgress > span { font-size:.78rem; color:#aaa3b3; text-align:center; overflow-wrap:anywhere; }
         .modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
         .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; transition:transform 90ms ease; }
