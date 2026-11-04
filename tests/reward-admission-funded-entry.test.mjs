@@ -42,3 +42,21 @@ test('service-only entry writer cannot alter hard-disabled Production settings',
   assert.match(sql,/ADMISSION_POST_COMMIT_LEDGER_DRIFT/);
   assert.doesNotMatch(sql,/DROP CONSTRAINT settings_enabled_check|UPDATE reward_admission_bridge\.settings|GRANT EXECUTE[\s\S]*TO anon/i);
 });
+
+test('terminal admission release is service-only, blocking ordinary Claim and preserving unresolved users',()=>{
+  const release = readFileSync(new URL('../supabase/migrations/20261104194500_reward_admission_terminal_hold_release_disabled.sql',import.meta.url),'utf8');
+  const sweep = readFileSync(new URL('../src/lib/rewards/rewardReservation.ts',import.meta.url),'utf8');
+  assert.match(release,/CREATE OR REPLACE FUNCTION public\.release_terminal_reward_admission_held_v1/);
+  assert.match(release,/i\.status='CANCELLED' OR i\.sybil_status='BLOCKED'/);
+  assert.match(release,/v_hold\.status<>'HELD'/);
+  assert.match(release,/ADMISSION_RELEASE_LEDGER_DRIFT/);
+  assert.match(release,/FROM PUBLIC,anon,authenticated/);
+  assert.match(release,/TO service_role/);
+  assert.doesNotMatch(release,/UPDATE public\.invitations|UPDATE public\.reward_payouts|DROP CONSTRAINT settings_enabled_check/i);
+  assert.match(sweep,/await releaseTerminalAdmissionHolds\(network\)/);
+  assert.match(sweep,/VEINVITE_ADMISSION_GUARANTEE_ENABLED !== 'true'/);
+  const canonical = String.fromCharCode(92)+'d';
+  const malformed = String.fromCharCode(92,92)+'d';
+  assert.ok(sweep.includes('/^'+canonical+'+$/'), 'exact released Wei must use normal numeric parser');
+  assert.ok(!sweep.includes('/^'+malformed+'+$/'));
+});
