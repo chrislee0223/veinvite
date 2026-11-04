@@ -6,6 +6,9 @@ on:
       - 'supabase/migrations/20261104035500_reward_admission_handoff_exact_recovery_proof_disabled.sql'
       - 'tests/sql/reward-admission-handoff-exact-recovery-proof-assert.sql'
       - 'tests/sql/reward-admission-atomic-handoff-*.sql'
+      - 'tests/sql/reward-admission-hold-writer-*.sql'
+      - 'tests/sql/reward-admission-invalid-release-*.sql'
+      - 'tests/sql/reward-admission-inviter-release-guard-*.sql'
       - '.github/workflows/reward-admission-atomic-handoff-qa.yml'
   workflow_dispatch:
 permissions:
@@ -54,6 +57,18 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-fixture.sql
       - name: Assert hard-disabled Production-style gate and role isolation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-disabled-assert.sql
+      - name: Install fake disabled admission creation prototype
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-hold-writer-lab.sql
+      - name: Prove fake hold creation, budget, duplicate, Sybil and rollback gates
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-hold-writer-assert.sql
+      - name: Install fake blocked-invite release prototype
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-invalid-release-lab.sql
+      - name: Reject unreviewed/fixed release and replay in fake DB
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-invalid-release-assert.sql
+      - name: Install safe inviter cancellation SQL candidate from live function
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-inviter-release-guard-lab.sql
+      - name: Prove HELD, converted and recovery cannot be orphaned
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-inviter-release-guard-assert.sql
       - name: Assert held/fixed/paid, replay, X and underfunding rollback
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-atomic-handoff-simple-assert.sql
       - name: Assert partial/full recovery GROSS and NET exact reconciliation
