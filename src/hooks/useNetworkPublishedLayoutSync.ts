@@ -59,7 +59,6 @@ export function useNetworkPublishedLayoutSync({
   setWorkspaceNotice,
   noticeTimerRef,
   layoutSavedCopy,
-  publicNetworkCopy,
   syncFailedCopy,
 }: {
   wallet: string | null;
@@ -87,7 +86,6 @@ export function useNetworkPublishedLayoutSync({
     number | null
   >;
   layoutSavedCopy: string;
-  publicNetworkCopy: string;
   syncFailedCopy: string;
 }) {
   const workspaceStoreRef =
@@ -478,10 +476,7 @@ export function useNetworkPublishedLayoutSync({
                 );
               }
 
-              setNotice(
-                `${layoutSavedCopy} · ${publicNetworkCopy}`,
-                1600,
-              );
+              setNotice(layoutSavedCopy, 1600);
             } catch (error) {
               if (
                 error instanceof
@@ -547,8 +542,7 @@ export function useNetworkPublishedLayoutSync({
       setRootData,
       setNotice,
       layoutSavedCopy,
-      publicNetworkCopy,
-      syncFailedCopy,
+          syncFailedCopy,
     ]);
 
   const persistFocusWorkspace =
