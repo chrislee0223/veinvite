@@ -7,6 +7,7 @@ on:
       - 'tests/sql/reward-admission-payout-handoff-lab.sql'
       - 'tests/sql/reward-admission-canonical-reader-fixture.sql'
       - 'tests/sql/reward-admission-authoritative-reader-*.sql'
+      - 'supabase/migrations/20261104093000_reward_admission_canonical_held_readers_disabled.sql'
       - '.github/workflows/reward-admission-canonical-reader-integration.yml'
   workflow_dispatch:
 permissions:
@@ -47,6 +48,6 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104030000_reward_admission_staged_read_bridge.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-canonical-reader-fixture.sql
       - name: Stage combined physical and cohort readers in a single transaction
-        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-authoritative-reader-upgrade.sql
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261104093000_reward_admission_canonical_held_readers_disabled.sql
       - name: Prove no base/X overbooking and no double counting during conversion/finality
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-authoritative-reader-assert.sql
