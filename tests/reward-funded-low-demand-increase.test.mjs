@@ -64,7 +64,7 @@ test('new and aging invites continue reserving demand; no blindly ignored fresh 
   assert.equal(aged([fresh,fresh,fresh,fresh],now),4);
   assert.equal(aged([aging,aging],now),2);
   const boosted=quote();
-  const many=quote({pendingCount:aged([fresh,fresh,fresh,fresh],now)});
+  const many=quote({pendingCount:aged(Array.from({length:20},()=>fresh),now)});
   assert.ok(many.stressCompletions>boosted.stressCompletions);
   assert.ok(BigInt(many.rewardPerInviteWei)<BigInt(boosted.rewardPerInviteWei));
 });
