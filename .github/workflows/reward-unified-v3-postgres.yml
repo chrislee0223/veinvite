@@ -74,4 +74,6 @@ jobs:
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f supabase/drafts/reward_unified_v3_sandbox_writer.sql
           psql -v ON_ERROR_STOP=1 -f tests/sql/reward-unified-v3-writer-postgres.sql
+      - name: Reject simultaneous duplicate round commitments
+        run: bash scripts/test-unified-v3-concurrency.sh
 
