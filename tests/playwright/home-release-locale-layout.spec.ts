@@ -23,7 +23,7 @@ async function checkReleaseLayout(page: Page, locale: SupportedLocale): Promise<
       document.fonts.ready,
       new Promise<void>((resolve) => setTimeout(resolve, 1200)),
     ]);
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
 
   const result = await dialog.evaluate((node) => {
