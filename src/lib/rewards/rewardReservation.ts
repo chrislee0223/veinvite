@@ -621,6 +621,64 @@ async function reserveCandidate({
       },
     };
 
+    // NEW COHORTS ONLY: at official cohort closure, the database computes
+    // the *actual* equitable award under the same canonical pool lock as
+    // Claim and X. While old invites/unfinished participants remain, it
+    // defers instead of spending funds intended for unresolved recipients.
+    // SQL defaults disabled; old claims and protected late quotes preserve
+    // their existing payout route unchanged.
+    if (
+      process.env.VEINVITE_ELASTIC_COHORT_ENABLED === 'true' &&
+      admission.status === 'NONE' && lateQuote === null
+    ) {
+      const { data: elasticRaw, error: elasticError } = await supabaseAdmin.rpc(
+        'commit_reward_elastic_closed_cohort_v1',
+        {
+          p_invite_code: candidate.invite_code,
+          p_network: network,
+          p_observed_pool_balance_wei: pool.effectiveRewardPoolWei,
+          p_observed_at: new Date().toISOString(),
+          p_finalized_block: finalizedBlock,
+          p_legacy_amount_wei: amountWei,
+          p_basis: basis,
+        },
+      );
+      if (elasticError) {
+        throw new Error('Atomic elastic cohort reservation failed: ' +
+          elasticError.message);
+      }
+      if (!elasticRaw || typeof elasticRaw !== 'object' ||
+          Array.isArray(elasticRaw)) {
+        throw new Error('Atomic elastic cohort result is malformed.');
+      }
+      const elastic = elasticRaw as Record<string,unknown>;
+      if (elastic.mode === 'DEFER') {
+        return skipCandidate(candidate, 'ELASTIC_COHORT_NOT_FINAL', {
+          reason: String(elastic.reason ?? 'UNKNOWN'),
+        });
+      }
+      if (elastic.mode === 'BLOCKED') {
+        return skipCandidate(candidate, 'ELASTIC_FINANCIAL_GUARD', {
+          reason: String(elastic.reason ?? 'UNKNOWN'),
+        });
+      }
+      if (elastic.mode === 'ELASTIC') {
+        const result = readRpcResult(elastic);
+        if (result.reserved === true) return 'reserved';
+        if (result.reason === 'RECALCULATE') {
+          repriceResponses.push(result);
+          continue;
+        }
+        if (result.reason === 'AWAITING_FINALITY') return 'awaiting_finality';
+        return skipCandidate(candidate, 'ELASTIC_CANONICAL_REJECTED', {
+          reason: result.reason ?? 'UNKNOWN',
+        });
+      }
+      if (elastic.mode !== 'LEGACY') {
+        throw new Error('Unknown elastic settlement authority response.');
+      }
+    }
+
     const { data, error } = await supabaseAdmin.rpc(
       admission.status === 'HELD'
         ? 'commit_reward_admission_held_to_fixed_v1'
