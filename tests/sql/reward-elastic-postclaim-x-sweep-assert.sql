@@ -18,6 +18,8 @@ BEGIN
  ('ELASTIC-USER1','mainnet',300*e,'ASSIGNED'),
  ('ELASTIC-USER2','mainnet',300*e,'ASSIGNED'),
  ('ELASTIC-UNFIN','mainnet',300*e,'ASSIGNED');
+ IF NOT public.reward_elastic_source_has_unsettled_slots_v1('mainnet',app,125,1003)
+ THEN RAISE EXCEPTION 'Unpaid Claim future X option was swept'; END IF;
  INSERT INTO public.reward_payouts
  (invite_code,round_id,amount_wei,status,paid_at)
  VALUES('ELASTIC-USER1',11,300*e,'PAID',now()),
