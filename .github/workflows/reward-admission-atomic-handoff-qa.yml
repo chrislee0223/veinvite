@@ -17,6 +17,8 @@ on:
       - 'supabase/migrations/20261105100100_reward_elastic_closed_cohort_x_no_legacy_fallback.sql'
       - 'supabase/migrations/20261105113000_reward_elastic_pending_slots_staged_disabled.sql'
       - 'supabase/migrations/20261105113500_reward_elastic_closure_liveness_service_only.sql'
+      - 'supabase/migrations/20261105114000_reward_elastic_source_unsettled_slots_reader.sql'
+      - 'supabase/migrations/20261105114500_reward_boost_source_elastic_unswept_interlock.sql'
       - 'src/lib/rewards/operationsMonitoring.ts'
       - 'tests/sql/reward-elastic-real-closure-*.sql'
       - 'src/lib/rewards/rewardReservation.ts'
@@ -133,3 +135,11 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105113500_reward_elastic_closure_liveness_service_only.sql
       - name: Prove no false positives for not-yet-closed cohorts
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-closure-liveness-assert.sql
+      - name: Install future-only contingent source-sweep detector
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105114000_reward_elastic_source_unsettled_slots_reader.sql
+      - name: Prepare fake reserve-source readers in disposable PostgreSQL
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-source-sweep-protection-lab.sql
+      - name: Protect source discovery and execution against contingent obligations
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105114500_reward_boost_source_elastic_unswept_interlock.sql
+      - name: Reject SOURCE_SWEEP while any pending future referral holds a cohort share
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-source-sweep-protection-assert.sql
