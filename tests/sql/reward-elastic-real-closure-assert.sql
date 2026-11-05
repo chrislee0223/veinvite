@@ -43,7 +43,7 @@ BEGIN
  WHERE vebetter_round_id=125;
  -- Canonical committed amount must be calculated once under shared locks.
  SELECT public.commit_reward_elastic_closed_cohort_v1(
-  'ELASTIC-USER1','mainnet',2000*e,now(),1000,100*e,'{}'::jsonb) INTO r;
+  'ELASTIC-USER1','mainnet',2000*e,now(),1000,600*e,'{}'::jsonb) INTO r;
  IF r->>'mode'<>'ELASTIC' OR r->>'reserved'<>'true'
    OR r->>'elasticGrossWei'<>(490*e)::text THEN
    RAISE EXCEPTION 'First eligible user did not receive funded boost: %',r;
