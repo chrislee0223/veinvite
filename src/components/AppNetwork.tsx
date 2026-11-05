@@ -14,6 +14,7 @@ import { useVechainDomain } from '@vechain/vechain-kit';
 import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
+import { applyCanarySlotDemoRelease, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
@@ -256,7 +257,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const initialInviteSlots = getCachedNetworkInviteSlots(wallet);
+  const initialInviteSlots = wallet
+    ? applyCanarySlotDemoRelease(wallet, getCachedNetworkInviteSlots(wallet) ?? [])
+    : [];
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>(
     () => initialInviteSlots ?? [],
   );
@@ -916,7 +919,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setMemberDropGroupId(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots(cachedInviteSlots ?? []);
+    setInviteSlots(wallet
+      ? applyCanarySlotDemoRelease(wallet, cachedInviteSlots ?? [])
+      : []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -935,6 +940,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   }, [wallet, loadRoot, cancelRequest, resetSyncState]);
 
   useEffect(() => {
+    if (!wallet) return;
+    const onCanaryRelease = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: string }>).detail;
+      if (detail?.wallet?.toLowerCase() !== wallet.toLowerCase()) return;
+      setInviteSlots((current) => applyCanarySlotDemoRelease(wallet, current));
+    };
+    window.addEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
+    return () => window.removeEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
+  }, [wallet]);
+
+  useEffect(() => {
     if (!wallet) {
       setInviteSlots([]);
       setInviteSlotsReady(false);
@@ -944,7 +960,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const cachedSlots = getCachedNetworkInviteSlots(wallet);
     let active = true;
     if (cachedSlots) {
-      setInviteSlots(cachedSlots);
+      setInviteSlots(applyCanarySlotDemoRelease(wallet, cachedSlots));
       setInviteSlotsReady(true);
     } else {
       setInviteSlots([]);
@@ -1047,7 +1063,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           throw new Error(`Invite slot refresh failed (${response.status}).`);
         }
 
-        const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
+        const payload = await response.json().catch(() => null) as { slots?: unknown; canaryFixture?: unknown } | null;
         const slots = parseSlots(payload);
         if (!slots) {
           throw new Error('Invite slot response was incomplete.');
@@ -1058,8 +1074,11 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
-        rememberNetworkInviteSlots(wallet, slots);
-        setInviteSlots(slots);
+        const displayedSlots = payload?.canaryFixture === true
+          ? applyCanarySlotDemoRelease(wallet, slots)
+          : slots;
+        rememberNetworkInviteSlots(wallet, displayedSlots);
+        setInviteSlots(displayedSlots);
         setInviteSlotsReady(true);
       } catch (error) {
         if (!active || controller.signal.aborted) return;
