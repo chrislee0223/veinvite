@@ -627,7 +627,10 @@ async function reserveCandidate({
     // defers instead of spending funds intended for unresolved recipients.
     // SQL defaults disabled; old claims and protected late quotes preserve
     // their existing payout route unchanged.
-    if (admission.status === 'NONE' && lateQuote === null) {
+    if (
+      process.env.VEINVITE_ELASTIC_COHORT_ENABLED === 'true' &&
+      admission.status === 'NONE' && lateQuote === null
+    ) {
       const { data: elasticRaw, error: elasticError } = await supabaseAdmin.rpc(
         'commit_reward_elastic_closed_cohort_v1',
         {
