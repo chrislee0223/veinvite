@@ -114,6 +114,16 @@ BEGIN
  THEN
    RETURN jsonb_build_object('mode','BLOCKED','reason','ALREADY_FIXED');
  END IF;
+ -- Never mix a new pricing scheme with older participants in the same
+ -- funding cohort. Existing accepted users keep their original quote.
+ IF EXISTS(SELECT 1 FROM public.invitations old
+    WHERE old.activation_network=p_network
+      AND old.reward_cohort_round_id=v_inv.reward_cohort_round_id
+      AND old.reward_funding_allocation_receipt_id=v_inv.reward_funding_allocation_receipt_id
+      AND old.status<>'CANCELLED'
+      AND (old.activated_at IS NULL OR old.activated_at<v_cfg.rollout_not_before)) THEN
+   RETURN jsonb_build_object('mode','LEGACY','reason','MIXED_HISTORICAL_COHORT');
+ END IF;
  IF NOT EXISTS(SELECT 1 FROM public.vebetter_round_allocations a
     WHERE a.network=p_network AND a.app_id=v_app
       AND a.id=v_inv.reward_funding_allocation_receipt_id
