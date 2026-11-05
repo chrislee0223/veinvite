@@ -44,7 +44,7 @@ test('service-only entry writer cannot alter hard-disabled Production settings',
 });
 
 test('terminal admission release is service-only, blocking ordinary Claim and preserving unresolved users',()=>{
-  const release = readFileSync(new URL('../supabase/migrations/20261104194500_reward_admission_terminal_hold_release_disabled.sql',import.meta.url),'utf8');
+  const release = readFileSync(new URL('../supabase/migrations/20261105020645_reward_admission_terminal_hold_release_disabled.sql',import.meta.url),'utf8');
   const sweep = readFileSync(new URL('../src/lib/rewards/rewardReservation.ts',import.meta.url),'utf8');
   assert.match(release,/CREATE OR REPLACE FUNCTION public\.release_terminal_reward_admission_held_v1/);
   assert.match(release,/i\.status='CANCELLED' OR i\.sybil_status='BLOCKED'/);
