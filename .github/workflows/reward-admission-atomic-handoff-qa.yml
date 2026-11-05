@@ -24,6 +24,8 @@ on:
       - 'tests/sql/reward-elastic-own-escrow-canonical-payout-assert.sql'
       - 'supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql'
       - 'supabase/migrations/20261105220500_reward_elastic_future_activation_binding_guard.sql'
+      - 'supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql'
+      - 'tests/sql/reward-elastic-blocked-vs-pending-assert.sql'
       - 'tests/sql/reward-elastic-binding-guard-*.sql'
       - 'tests/sql/reward-elastic-postclaim-x-sweep-*.sql'
       - 'tests/sql/reward-elastic-global-physical-collateral-assert.sql'
@@ -171,3 +173,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105220500_reward_elastic_future_activation_binding_guard.sql
       - name: Verify new unbound invites fail closed without blocking existing accepted users
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-binding-guard-assert.sql
+      - name: Exclude confirmed terminal Sybil BLOCKED from contingent slots
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql
+      - name: Prove blocked-but-ACTIVATING users cannot drain clean winner shares or poison funds
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-blocked-vs-pending-assert.sql
