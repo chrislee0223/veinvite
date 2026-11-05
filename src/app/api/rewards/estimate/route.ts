@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 
 const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
 const FORCE_CACHE_CONTROL = 'private, no-store, max-age=0';
+const ELASTIC_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=120';
 const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
 
 type EstimateReason =
@@ -71,11 +72,59 @@ function pendingResponse(
   );
 }
 
-function readyResponse(
+type ElasticPublicPreview =
+  | { mode: 'LEGACY' | 'PENDING' }
+  | { mode: 'ELASTIC_SCENARIOS';
+      oneWinnerWei: string; twoWinnersWei: string; threeWinnersWei: string;
+      acceptedParticipants: number; rewardCohortRoundId: number; observedAt: string };
+
+async function readElasticPublicPreview(network: string): Promise<ElasticPublicPreview | null> {
+  if (process.env.VEINVITE_ELASTIC_COHORT_ENABLED !== 'true') return null;
+  try {
+    const { data, error } = await supabaseAdmin.rpc(
+      'read_reward_elastic_public_scenarios_v1',
+      { p_network: network, p_app_id: VEINVITE_APP_ID },
+    );
+    if (error) throw new Error(error.message);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('Invalid elastic preview response.');
+    }
+    const x = data as Record<string, unknown>;
+    if (x.mode === 'PENDING' || x.mode === 'LEGACY') return { mode: x.mode };
+    const values = [x.oneWinnerWei, x.twoWinnersWei, x.threeWinnersWei];
+    if (x.mode !== 'ELASTIC_SCENARIOS' ||
+        !values.every((v) => typeof v === 'string' && /^\d+$/.test(v)) ||
+        !Number.isSafeInteger(x.acceptedParticipants) ||
+        !Number.isSafeInteger(x.rewardCohortRoundId) ||
+        typeof x.observedAt !== 'string' ||
+        Number.isNaN(Date.parse(x.observedAt))) {
+      throw new Error('Malformed elastic reward preview.');
+    }
+    return {
+      mode: 'ELASTIC_SCENARIOS',
+      oneWinnerWei: String(x.oneWinnerWei),
+      twoWinnersWei: String(x.twoWinnersWei),
+      threeWinnersWei: String(x.threeWinnersWei),
+      acceptedParticipants: Number(x.acceptedParticipants),
+      rewardCohortRoundId: Number(x.rewardCohortRoundId),
+      observedAt: x.observedAt,
+    };
+  } catch (error) {
+    console.error('Elastic reward preview unavailable:', error);
+    return { mode: 'PENDING' };
+  }
+}
+
+async function readyResponse(
   snapshot: RewardForecastSnapshot,
   stale: boolean,
+  network: string,
   cacheControl = CACHE_CONTROL,
 ) {
+  const elasticEstimate = await readElasticPublicPreview(network);
+  const effectiveCacheControl = elasticEstimate && cacheControl === CACHE_CONTROL
+    ? ELASTIC_CACHE_CONTROL
+    : cacheControl;
   return NextResponse.json(
     {
       generatedAt: snapshot.generatedAt,
@@ -85,6 +134,7 @@ function readyResponse(
       projectedFundingRoundId: snapshot.projectedFundingRoundId,
       earliestCompletionRoundId: snapshot.earliestCompletionRoundId,
       estimatedRewardWei: snapshot.estimatedRewardWei,
+      elasticEstimate,
       estimatedRewardLowWei: snapshot.estimatedRewardLowWei,
       estimatedRewardHighWei: snapshot.estimatedRewardHighWei,
       expectedRecipients: snapshot.expectedRecipients,
@@ -97,7 +147,7 @@ function readyResponse(
     },
     {
       headers: {
-        'Cache-Control': cacheControl,
+        'Cache-Control': effectiveCacheControl,
       },
     },
   );
@@ -282,11 +332,7 @@ export async function GET(request: NextRequest) {
       isFresh(previousSnapshot) &&
       !refreshRequested
     ) {
-      return readyResponse(
-        previousSnapshot,
-        false,
-        responseCacheControl,
-      );
+      return await readyResponse(previousSnapshot, false, network, responseCacheControl);
     }
 
     const fundingCheck =
@@ -301,11 +347,7 @@ export async function GET(request: NextRequest) {
       isFresh(previousSnapshot) &&
       fundingCheck === 'unavailable'
     ) {
-      return readyResponse(
-        previousSnapshot,
-        true,
-        responseCacheControl,
-      );
+      return await readyResponse(previousSnapshot, true, network, responseCacheControl);
     }
 
     if (
@@ -313,11 +355,7 @@ export async function GET(request: NextRequest) {
       isFresh(previousSnapshot) &&
       !fundingChanged
     ) {
-      return readyResponse(
-        previousSnapshot,
-        false,
-        responseCacheControl,
-      );
+      return await readyResponse(previousSnapshot, false, network, responseCacheControl);
     }
 
     const limited = await enforceRateLimits([
@@ -348,11 +386,7 @@ export async function GET(request: NextRequest) {
         });
 
         if (refreshed) {
-          return readyResponse(
-            refreshed,
-            false,
-            responseCacheControl,
-          );
+          return await readyResponse(refreshed, false, network, responseCacheControl);
         }
       } catch (refreshError) {
         if (!previousSnapshot) throw refreshError;
@@ -361,11 +395,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (previousSnapshot) {
-      return readyResponse(
-        previousSnapshot,
-        true,
-        responseCacheControl,
-      );
+      return await readyResponse(previousSnapshot, true, network, responseCacheControl);
     }
 
     return pendingResponse(
@@ -376,11 +406,7 @@ export async function GET(request: NextRequest) {
     console.error('Public reward forecast request failed:', error);
 
     if (previousSnapshot) {
-      return readyResponse(
-        previousSnapshot,
-        true,
-        responseCacheControl,
-      );
+      return await readyResponse(previousSnapshot, true, network, responseCacheControl);
     }
 
     return NextResponse.json(
