@@ -92,7 +92,7 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     if (x.mode === 'PENDING' || x.mode === 'LEGACY') return { mode: x.mode };
     const values = [x.oneWinnerWei, x.twoWinnersWei, x.threeWinnersWei];
     if (x.mode !== 'ELASTIC_SCENARIOS' ||
-        !values.every((v) => typeof v === 'string' && /^\\d+$/.test(v)) ||
+        !values.every((v) => typeof v === 'string' && /^\d+$/.test(v)) ||
         !Number.isSafeInteger(x.acceptedParticipants) ||
         !Number.isSafeInteger(x.rewardCohortRoundId) ||
         typeof x.observedAt !== 'string' ||
