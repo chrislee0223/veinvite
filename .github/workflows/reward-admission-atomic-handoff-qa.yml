@@ -20,6 +20,8 @@ on:
       - 'supabase/migrations/20261105114000_reward_elastic_source_unsettled_slots_reader.sql'
       - 'supabase/migrations/20261105114500_reward_boost_source_elastic_unswept_interlock.sql'
       - 'supabase/migrations/20261105215300_reward_elastic_global_contingent_physical_collateral.sql'
+      - 'supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql'
+      - 'tests/sql/reward-elastic-postclaim-x-sweep-*.sql'
       - 'tests/sql/reward-elastic-global-physical-collateral-assert.sql'
       - 'src/lib/rewards/operationsMonitoring.ts'
       - 'tests/sql/reward-elastic-real-closure-*.sql'
@@ -149,3 +151,9 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105215300_reward_elastic_global_contingent_physical_collateral.sql
       - name: Verify global budget cannot be spent by X/other cohorts before or after Claim
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-global-physical-collateral-assert.sql
+      - name: Prepare synthetic X post publication and Claim timestamps for source-sweep QA
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-postclaim-x-sweep-fixture.sql
+      - name: Preserve 72h X-post eligibility and active LIVE X before source recycling
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql
+      - name: Reject source sweeps until pending X opportunities and verifications are terminal
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-postclaim-x-sweep-assert.sql
