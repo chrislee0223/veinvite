@@ -14,6 +14,7 @@ on:
       - 'supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql'
       - 'supabase/migrations/20261105084500_reward_admission_future_only_db_policy_disabled.sql'
       - 'supabase/migrations/20261105095700_reward_elastic_closed_cohort_staged_disabled.sql'
+      - 'supabase/migrations/20261105100100_reward_elastic_closed_cohort_x_no_legacy_fallback.sql'
       - 'tests/sql/reward-elastic-real-closure-*.sql'
       - 'src/lib/rewards/rewardReservation.ts'
       - 'tests/sql/reward-admission-future-only-db-policy-assert.sql'
@@ -117,5 +118,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-real-closure-fixture.sql
       - name: Install real closed-cohort elastic writer DISABLED in isolated PostgreSQL
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105095700_reward_elastic_closed_cohort_staged_disabled.sql
+      - name: Apply verified forward-only X collateral correction in fake SQL
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105100100_reward_elastic_closed_cohort_x_no_legacy_fallback.sql
       - name: Assert actual payout winner split, pending safeguard and double-charge protection
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-real-closure-assert.sql
