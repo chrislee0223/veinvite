@@ -195,12 +195,10 @@ BEGIN
  v_physical_headroom:=greatest(
    p_observed_pool_balance_wei-v_outstanding-v_total_stress-v_x_reserve,0);
  v_quote:=floor(least(v_budget_headroom,v_physical_headroom)/v_unfixed);
- -- The cohort is already closed: *every* verified recipient has a
- -- share. Even under high participation, keep the 10 B3TR X option reserved.
- -- Never silently return to the old forecast path and exhaust X collateral.
- IF v_quote<v_cfg.min_real_reward_wei THEN
-   RETURN jsonb_build_object('mode','BLOCKED',
-     'reason','COHORT_X_AND_OLDER_PROTECTION_UNDERFUNDED');
+ -- Preserve live payout behavior if boost is not provably larger than the
+ -- existing reward quote. Never block an ordinary funded eligible Claim.
+ IF v_quote<=p_legacy_amount_wei OR v_quote<v_cfg.min_real_reward_wei THEN
+   RETURN jsonb_build_object('mode','LEGACY','reason','NO_VERIFIED_BOOST_CAPACITY');
  END IF;
  v_basis:=p_basis || jsonb_build_object(
    'cohortReservedWei',v_committed::text,
