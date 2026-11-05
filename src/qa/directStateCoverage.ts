@@ -134,6 +134,7 @@ export const QA_DIRECT_STATE_RENDERERS: QaDirectStateRenderer[] = [
   { stateId: 'HOME-SLOT-COMPLETED', renderer: 'home', homeStateId: 'HOME-SLOT-COMPLETED', defaultLocale: 'ko' },
   { stateId: 'HOME-SLOTS-FULL', renderer: 'home', homeStateId: 'HOME-SLOTS-FULL', defaultLocale: 'ko' },
   { stateId: 'HOME-CANCEL-CONFIRM', renderer: 'home', homeStateId: 'HOME-CANCEL-CONFIRM', defaultLocale: 'ko' },
+  { stateId: 'HOME-RELEASE-CONFIRM', renderer: 'home', homeStateId: 'HOME-RELEASE-CONFIRM', defaultLocale: 'ko' },
   { stateId: 'HOME-COPY-SUCCESS', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-SUCCESS', defaultLocale: 'ko' },
   { stateId: 'HOME-COPY-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-COPY-ERROR', defaultLocale: 'ko' },
   { stateId: 'HOME-LOAD-ERROR', renderer: 'home-feedback', homeFeedbackStateId: 'HOME-LOAD-ERROR', defaultLocale: 'ko' },

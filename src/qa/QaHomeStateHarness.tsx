@@ -34,11 +34,12 @@ export type QaHomeStateId =
   | 'HOME-SLOT-COMPLETED'
   | 'HOME-SLOTS-FULL'
   | 'HOME-CANCEL-CONFIRM'
+  | 'HOME-RELEASE-CONFIRM'
   | 'REWARD-AWAITING-CLAIM'
   | 'REWARD-CLAIM-PENDING'
   | 'REWARD-CLAIM-QUEUED';
 
-type AutoAction = 'open-cancel' | 'start-reward-claim';
+type AutoAction = 'open-cancel' | 'open-release' | 'start-reward-claim';
 
 type QaHomeFixture = {
   wallet: string | null;
@@ -102,6 +103,17 @@ function activatingInvite(
     vot3Converted: false,
     voteCompleted: false,
   });
+}
+
+// Reproduce the real accepted invite, not a simulated reward-eligible fixture.
+function releasableInvite(): InviteRecord {
+  return {
+    ...activatingInvite(),
+    code: 'QA_RELEASE_INCOMPLETE',
+    referralLinkId: QA_REFERRAL_LINK.key,
+    rewardEligibility: 'PENDING',
+    appsCompleted: 2,
+  };
 }
 
 function reviewInvite(): InviteRecord {
@@ -223,6 +235,12 @@ function fixtureForState(stateId: QaHomeStateId): QaHomeFixture {
         ...readyBase,
         invites: [legacyWaitingInvite()],
         autoAction: 'open-cancel',
+      };
+    case 'HOME-RELEASE-CONFIRM':
+      return {
+        ...readyBase,
+        invites: [releasableInvite()],
+        autoAction: 'open-release',
       };
     case 'REWARD-AWAITING-CLAIM':
       return {
@@ -443,7 +461,9 @@ export function QaHomeStateHarness({
       const selector =
         fixture.autoAction === 'open-cancel'
           ? '.friendSlot.legacy .danger'
-          : '.claimButton';
+          : fixture.autoAction === 'open-release'
+            ? '.friendSlot.releasable .slotReleaseButton'
+            : '.claimButton';
       const button =
         rootRef.current?.querySelector<HTMLButtonElement>(
           selector,
