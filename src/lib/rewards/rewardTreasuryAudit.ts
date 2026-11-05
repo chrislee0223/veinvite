@@ -94,6 +94,7 @@ export function auditRewardTreasury(x: TreasuryAuditInput) {
   let sumLate = 0n;
   let sumPromo = 0n;
   let allLateCompleteStress = 0n;
+  let perCohortUncoveredStress = 0n;
   let currentLongIncomplete = 0n;
   let historicalSnapshotCount = 0n;
   const cohortDetails = [];
@@ -115,6 +116,9 @@ export function auditRewardTreasury(x: TreasuryAuditInput) {
     // Worst case only, NOT existing fixed liabilities.
     const demand = liveN * rate;
     allLateCompleteStress += demand;
+    // Cohort protections are ring-fenced: surplus in one old cohort is
+    // not assumed transferable to cover another cohort's late claim.
+    perCohortUncoveredStress += max0(demand - protectedLate);
     currentLongIncomplete += liveN;
     historicalSnapshotCount += sealedN;
     cohortDetails.push({
@@ -126,7 +130,7 @@ export function auditRewardTreasury(x: TreasuryAuditInput) {
     });
   }
   if (sumLate + sumPromo !== retained) problems.push('SOURCE_RETAINED_LEDGER_MISMATCH');
-  const riskGap = max0(allLateCompleteStress - sumLate - bankStress);
+  const riskGap = max0(perCohortUncoveredStress - bankStress);
   if (riskGap > 0n) alerts.push('HISTORICAL_ALL_COMPLETE_STRESS_EXCEEDS_WEIGHTED_PROTECTION');
   if (paired === 0n && (unmatchedAssigned > 0n || unmatchedPaid > 0n)) alerts.push('PAYOUT_PAIRING_ABSENT');
 
@@ -147,6 +151,9 @@ export function auditRewardTreasury(x: TreasuryAuditInput) {
       sealedIncompleteCount: historicalSnapshotCount.toString(),
       hypotheticalAllLateCompleteDemandWei: allLateCompleteStress.toString(),
       hypotheticalGapBeyondWeightedPlusBankStressWei: riskGap.toString(),
+      // Sum individual cohort shortfalls before deducting the shared bank.
+      // Excess weighted protection in another cohort cannot hide a deficit.
+      perCohortUncoveredStressWei: perCohortUncoveredStress.toString(),
       note: 'Hypothetical stress gap, NOT a confirmed deficit or payable balance. Other pool funds and recovery logic may change outcomes.',
       perCohort: cohortDetails,
     },
