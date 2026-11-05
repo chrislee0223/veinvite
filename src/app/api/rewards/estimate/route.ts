@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 
 const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
 const FORCE_CACHE_CONTROL = 'private, no-store, max-age=0';
+const ELASTIC_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=120';
 const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
 
 type EstimateReason =
@@ -121,6 +122,9 @@ async function readyResponse(
   cacheControl = CACHE_CONTROL,
 ) {
   const elasticEstimate = await readElasticPublicPreview(network);
+  const effectiveCacheControl = elasticEstimate && cacheControl === CACHE_CONTROL
+    ? ELASTIC_CACHE_CONTROL
+    : cacheControl;
   return NextResponse.json(
     {
       generatedAt: snapshot.generatedAt,
@@ -143,7 +147,7 @@ async function readyResponse(
     },
     {
       headers: {
-        'Cache-Control': cacheControl,
+        'Cache-Control': effectiveCacheControl,
       },
     },
   );
