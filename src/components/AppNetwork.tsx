@@ -257,9 +257,10 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const initialInviteSlots = wallet
-    ? applyCanarySlotDemoRelease(wallet, getCachedNetworkInviteSlots(wallet) ?? [])
-    : [];
+  const cachedInitialInviteSlots = getCachedNetworkInviteSlots(wallet);
+  const initialInviteSlots = wallet && cachedInitialInviteSlots
+    ? applyCanarySlotDemoRelease(wallet, cachedInitialInviteSlots)
+    : null;
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>(
     () => initialInviteSlots ?? [],
   );
