@@ -15,6 +15,9 @@ on:
       - 'supabase/migrations/20261105084500_reward_admission_future_only_db_policy_disabled.sql'
       - 'supabase/migrations/20261105095700_reward_elastic_closed_cohort_staged_disabled.sql'
       - 'supabase/migrations/20261105100100_reward_elastic_closed_cohort_x_no_legacy_fallback.sql'
+      - 'supabase/migrations/20261105113000_reward_elastic_pending_slots_staged_disabled.sql'
+      - 'supabase/migrations/20261105113500_reward_elastic_closure_liveness_service_only.sql'
+      - 'src/lib/rewards/operationsMonitoring.ts'
       - 'tests/sql/reward-elastic-real-closure-*.sql'
       - 'src/lib/rewards/rewardReservation.ts'
       - 'tests/sql/reward-admission-future-only-db-policy-assert.sql'
@@ -122,3 +125,11 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105100100_reward_elastic_closed_cohort_x_no_legacy_fallback.sql
       - name: Assert actual payout winner split, pending safeguard and double-charge protection
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-real-closure-assert.sql
+      - name: Stage pending-slot protection OFF before verifying late-completion payout
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105113000_reward_elastic_pending_slots_staged_disabled.sql
+      - name: Prove payouts preserve unfinished rights, X and double-payment protections
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-protected-partial-assert.sql
+      - name: Install operator-only liveness reader
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105113500_reward_elastic_closure_liveness_service_only.sql
+      - name: Prove no false positives for not-yet-closed cohorts
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-closure-liveness-assert.sql
