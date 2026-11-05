@@ -31,6 +31,7 @@ import {
 import { HOME_COPY } from '@/lib/i18n/homeCopy';
 import { MANUAL_RELEASE_COPY } from '@/lib/i18n/manualReleaseCopy';
 import { deriveCanaryHomeInvites } from '@/lib/canaryHomeDisplay';
+import { isCanarySlotDemoReleased, releaseCanarySlotDemo } from '@/lib/canarySlotDemoState';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
 import { PROGRESS_CLAIM_COPY } from '@/lib/i18n/progressClaimCopy';
@@ -375,7 +376,11 @@ export function HomeClient() {
         const invitations = deriveCanaryHomeInvites(payload, requestWallet);
         if (active && invitations &&
           sameWallet(activeWalletRef.current, requestWallet)) {
-          setCanaryHomeDisplay({ wallet: requestWallet, invitations });
+          setCanaryHomeDisplay({
+            wallet: requestWallet,
+            invitations: invitations.filter((invite) =>
+              !isCanarySlotDemoReleased(requestWallet, invite.inviteSlot as 1 | 2)),
+          });
         }
       } catch {
         // Optional visual demo must not impact actual Home or reward loading.
@@ -484,6 +489,9 @@ export function HomeClient() {
     }
     return slots;
   }, [slotOccupyingInvites]);
+
+  const showingCanarySlots = Boolean(wallet && canaryHomeDisplay &&
+    sameWallet(canaryHomeDisplay.wallet, wallet));
 
   const displayedSlotInvites = useMemo(() => {
     if (!wallet || !canaryHomeDisplay ||
@@ -908,6 +916,29 @@ export function HomeClient() {
     if (!wallet || !cancelTarget?.inviteeAddress || loading) return;
     const requestWallet = wallet;
     const code = cancelTarget.code;
+    // Only the authenticated owner's private fixture can take this path.
+    // Never POST a synthetic code to the live release/reward endpoint.
+    const isCanaryDemoRelease = Boolean(canaryHomeDisplay &&
+      sameWallet(canaryHomeDisplay.wallet, requestWallet) &&
+      canaryHomeDisplay.invitations.some((invite) =>
+        invite.code === code && invite.inviteSlot === 1 &&
+        !missionFlags(invite).every(Boolean)));
+    if (isCanaryDemoRelease) {
+      if (!releaseCanarySlotDemo(requestWallet, 1)) return;
+      setCanaryHomeDisplay((current) => current &&
+        sameWallet(current.wallet, requestWallet)
+          ? { ...current, invitations: current.invitations.filter((invite) => invite.code !== code) }
+          : current);
+      closeCancelModal();
+      showFeedback('success', releaseCopy.success);
+      return;
+    }
+    // Never submit a visual-only fixture code if its owner overlay went stale.
+    if (code.startsWith('CANARY_VISUAL_ONLY_')) {
+      closeCancelModal();
+      showFeedback('error', releaseCopy.error);
+      return;
+    }
     clearFeedback();
     setLoading(true);
     try {
@@ -1056,6 +1087,7 @@ export function HomeClient() {
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
                     releaseLabel={releaseCopy.confirm}
+                    canaryReleaseEnabled={showingCanarySlots}
                     onReleaseInvite={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setCancelVisible(false);
@@ -1082,6 +1114,7 @@ export function HomeClient() {
                     copyLabel={t.copyLink}
                     cancelLabel={t.cancelInvite}
                     releaseLabel={releaseCopy.confirm}
+                    canaryReleaseEnabled={showingCanarySlots}
                     onReleaseInvite={(invite, trigger) => {
                       cancelTriggerRef.current = trigger;
                       setCancelVisible(false);
@@ -1364,6 +1397,7 @@ function FriendSlot({
   copyLabel,
   cancelLabel,
   releaseLabel,
+  canaryReleaseEnabled = false,
 }: {
   number: 1 | 2;
   invite?: InviteRecord;
@@ -1383,6 +1417,7 @@ function FriendSlot({
   copyLabel: string;
   cancelLabel: string;
   releaseLabel: string;
+  canaryReleaseEnabled?: boolean;
 }) {
   const legacyWaiting =
     Boolean(invite) &&
@@ -1434,7 +1469,8 @@ function FriendSlot({
   }
 
   const allMissions = missionFlags(invite).every(Boolean);
-  const showRelease = canEndIncompleteReferral(invite);
+  const showRelease = canEndIncompleteReferral(invite) ||
+    (canaryReleaseEnabled && invite.code === 'CANARY_VISUAL_ONLY_1' && !allMissions);
   const finalChecking = allMissions && !invite.slotReleasedAt;
   const shortInvitee = invite.inviteeAddress
     ? nodeWallet(invite.inviteeAddress)

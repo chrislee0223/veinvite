@@ -14,6 +14,7 @@ import { useVechainDomain } from '@vechain/vechain-kit';
 import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
+import { applyCanarySlotDemoRelease, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
@@ -431,7 +432,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return [];
     }
 
-    return inviteSlots.map((slot) => {
+    const displaySlots = wallet ? applyCanarySlotDemoRelease(wallet, inviteSlots) : inviteSlots;
+    return displaySlots.map((slot) => {
       const key = `slot:${slot.slot}`;
       const fallback = inviteSlotPoint(slot.slot - 1);
       const saved = activeWorkspace.positions[key];
@@ -442,7 +444,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: saved?.y ?? fallback.y,
       };
     });
-  }, [currentData, inviteSlots, activeWorkspace.positions]);
+  }, [currentData, inviteSlots, activeWorkspace.positions, wallet]);
 
   const {
     activeInviteeKeys,
@@ -933,6 +935,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       cancelRequest();
     };
   }, [wallet, loadRoot, cancelRequest, resetSyncState]);
+
+  useEffect(() => {
+    if (!wallet) return;
+    const onCanaryRelease = (event: Event) => {
+      const detail = (event as CustomEvent<{ wallet?: string }>).detail;
+      if (detail?.wallet?.toLowerCase() !== wallet.toLowerCase()) return;
+      setInviteSlots((current) => [...current]);
+    };
+    window.addEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
+    return () => window.removeEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
+  }, [wallet]);
 
   useEffect(() => {
     if (!wallet) {
