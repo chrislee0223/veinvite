@@ -52,7 +52,7 @@ BEGIN
    OR result->>'elasticGrossWei'<>third_wei::text THEN
    RAISE EXCEPTION 'Late completing user lost protected share: %',result;
  END IF;
- SELECT coalesce(sum(amount_wei),0) INTO held_total FROM public.reward_queue_entries
+ SELECT coalesce(sum(reserved_amount_wei),0) INTO held_total FROM public.reward_queue_entries
  WHERE invite_code IN ('ELASTIC-USER1','ELASTIC-USER2','ELASTIC-UNFIN');
  IF held_total + x_protected >1000*e THEN
    RAISE EXCEPTION 'Base/X aggregate exceeds canonical budget'; END IF;
