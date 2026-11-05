@@ -10,6 +10,21 @@ DECLARE
  old_tail text := E'\n );\nEND';
  new_tail text := $new$
  ) OR EXISTS (
+   -- A fixed-but-unpaid base Claim also has a prospective X opportunity;
+   -- never sweep the spare 10 B3TR while Claim is in progress.
+   SELECT 1 FROM public.invitations i
+   JOIN public.reward_queue_entries q ON q.invite_code=i.invite_code
+   WHERE i.activation_network=p_network
+     AND i.reward_cohort_round_id=p_reward_cohort_round_id
+     AND i.reward_funding_allocation_receipt_id=p_receipt_id
+     AND i.activated_at>=v_rollout
+     AND i.status<>'CANCELLED'
+     AND q.network=p_network
+     AND q.status IN ('AWAITING_CLAIM','QUEUED','ASSIGNED')
+     AND NOT EXISTS (
+       SELECT 1 FROM public.reward_payouts paid
+       WHERE paid.invite_code=q.invite_code AND paid.status='PAID')
+ ) OR EXISTS (
    SELECT 1
    FROM public.invitations i
    JOIN public.reward_payouts p ON p.invite_code=i.invite_code
