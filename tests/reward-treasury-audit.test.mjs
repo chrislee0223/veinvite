@@ -52,3 +52,21 @@ test('invalid wei fails closed',()=>{
  assert.throws(()=>auditRewardTreasury(input({recordedBankWei:'-1'})));
  assert.throws(()=>auditRewardTreasury(input({sourceOverrunCount:-1})));
 });
+
+test('ring-fenced cohort protections do not offset another cohort’s late deficit', () => {
+ const x=auditRewardTreasury(input({
+  sourceProtections:[
+   {cohortRound:119,sealedIncompleteCount:0,currentNonblockedIncompleteCount:0,
+    lateRewardWei:w(100),weightedLateProtectionWei:w(120),
+    promotionProtectionWei:'0',sweptWei:'0'},
+   {cohortRound:120,sealedIncompleteCount:1,currentNonblockedIncompleteCount:1,
+    lateRewardWei:w(200),weightedLateProtectionWei:'0',
+    promotionProtectionWei:'0',sweptWei:'0'},
+  ],
+  recordedSourceRetainedWei:w(120),recordedBankStressWei:w(90),
+ }));
+ assert.deepEqual(x.problems,[]);
+ assert.equal(x.historicalProtection.perCohortUncoveredStressWei,w(200));
+ assert.equal(x.historicalProtection.hypotheticalGapBeyondWeightedPlusBankStressWei,w(110));
+ assert.ok(x.alerts.includes('HISTORICAL_ALL_COMPLETE_STRESS_EXCEEDS_WEIGHTED_PROTECTION'));
+});
