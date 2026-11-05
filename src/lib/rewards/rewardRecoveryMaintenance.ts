@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { retryAdmissionGuaranteesAfterFinality } from '@/lib/rewards/admissionGuaranteeRecovery';
+
 import {
   runRewardReservationRecovery,
   type RewardReservationRecoverySweep,
@@ -23,6 +25,16 @@ export async function runRewardRecoveryMaintenance():
 Promise<RewardRecoveryMaintenanceResult> {
   const rewardRecovery =
     await runRewardReservationRecovery();
+  try {
+    const admission = await retryAdmissionGuaranteesAfterFinality();
+    if (admission.held > 0 || admission.errors > 0) {
+      console.info('Admission finality retry batch:', admission);
+    }
+  } catch (error) {
+    // The opt-in minimum is non-authoritative until funded. Never disrupt
+    // existing Claim, Sybil, X, or canonical reservation recovery.
+    console.error('Admission finality recovery deferred:', error);
+  }
   try {
     const shadowSync =
       await runRewardXPromotionShadowSync(250);

@@ -18,6 +18,16 @@ function positiveId(value: unknown): string | null {
   return /^[1-9]\d*$/.test(s) ? s : null;
 }
 
+// Prevent guarantees being silently assigned to historical unpaid invites.
+export function getAdmissionRolloutStart(): string | null {
+  const value = process.env.VEINVITE_ADMISSION_ROLLOUT_NOT_BEFORE;
+  if (!value || !/^20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z$/.test(value)) {
+    return null;
+  }
+  const t = Date.parse(value);
+  return Number.isFinite(t) && t <= Date.now() ? value : null;
+}
+
 /**
  * Called only AFTER an immutable, accepted wallet/entry-proof transaction.
  * It does not change the claim outcome and never promises an uncommitted quote.
@@ -46,6 +56,8 @@ export async function maybeReserveFundedReferralMinimumAfterActivation(input: {
     // Never infer a financial promise from an unconfigured forecast.
     return 'NOT_READY';
   }
+  const rollout = getAdmissionRolloutStart();
+  if (!rollout) return 'NOT_READY';
 
   const networkConfig = getVeBetterNetworkConfig();
   if (input.network !== networkConfig.network
@@ -84,6 +96,8 @@ export async function maybeReserveFundedReferralMinimumAfterActivation(input: {
   const cohort = positiveId(inv?.reward_cohort_round_id);
   const receipt = positiveId(inv?.reward_funding_allocation_receipt_id);
   if (!inv || !cohort || !receipt || !inv.activated_at ||
+      !Number.isFinite(Date.parse(inv.activated_at)) ||
+      Date.parse(inv.activated_at) < Date.parse(rollout) ||
       inv.eligibility_check_id == null || inv.ineligible_at ||
       inv.slot_released_at || inv.reward_eligible_at ||
       !['ACTIVATING','UNDER_REVIEW'].includes(inv.status) ||
