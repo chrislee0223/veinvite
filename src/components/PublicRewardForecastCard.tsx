@@ -633,7 +633,7 @@ export function PublicRewardForecastCard({
     };
   }, [rewardForecastPreview]);
 
-  const t = REWARD_FORECAST_COPY[resolvedLocale];
+  const baseCopy = REWARD_FORECAST_COPY[resolvedLocale];
   const e = resolvedLocale === 'ko' ? ELASTIC_UI_COPY.ko
     : resolvedLocale === 'vi' ? ELASTIC_UI_COPY.vi
     : ELASTIC_UI_COPY.en;
@@ -642,6 +642,11 @@ export function PublicRewardForecastCard({
     ? forecast.elasticEstimate
     : null;
   const elasticPending = ready && forecast.elasticEstimate?.mode === 'PENDING';
+  const t = {
+    ...baseCopy,
+    eyebrow: elastic || elasticPending ? e.title : baseCopy.eyebrow,
+    eligibility: elastic ? e.eligibility : baseCopy.eligibility,
+  };
   const stale = ready && forecast.stale === true;
   const amount = elastic
     ? `${formatRewardWei(elastic.oneWinnerWei)} B3TR`
@@ -671,7 +676,7 @@ export function PublicRewardForecastCard({
               : forecast?.status ?? 'initial'
       }
     >
-      <span className="estimateEyebrow">{elastic || elasticPending ? e.title : t.eyebrow}</span>
+      <span className="estimateEyebrow">{t.eyebrow}</span>
 
       <div
         className="estimateAmount"
@@ -680,9 +685,7 @@ export function PublicRewardForecastCard({
         <strong>{amount}</strong>
       </div>
 
-      <p className="estimateEligibility">
-        {elastic ? e.eligibility : t.eligibility}
-      </p>
+      <p className="estimateEligibility">{t.eligibility}</p>
       {elastic ? (
         <div className="elasticScenarios" data-elastic-reward-scenarios="true">
           <span>{e.two}: {formatRewardWei(elastic.twoWinnersWei)} B3TR</span>
