@@ -1064,7 +1064,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           throw new Error(`Invite slot refresh failed (${response.status}).`);
         }
 
-        const payload = await response.json().catch(() => null) as { slots?: unknown; canaryFixture?: unknown } | null;
+        const payload = await response.json().catch(() => null) as { slots?: unknown } | null;
         const slots = parseSlots(payload);
         if (!slots) {
           throw new Error('Invite slot response was incomplete.');
