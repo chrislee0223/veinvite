@@ -7,7 +7,7 @@ DO $patch$
 DECLARE
  fn text;
  old_check text := $old$
-  if new.reward_cohort_binding_source is not null then
+    if new.reward_cohort_binding_source is not null then
       raise exception 'REWARD_COHORT_BINDING_SOURCE_WITHOUT_BINDING';
     end if;
     return new;$old$;
