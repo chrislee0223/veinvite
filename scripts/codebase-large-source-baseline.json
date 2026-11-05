@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed inviter slot release (2026-11-05): Home uses 38px top-right × and the existing accessible confirmation modal, not an added detail view. API requires wallet session and fresh on-chain progress, SQL RPC is service-only, atomic and protects Sybil/reward history. Network UI updates and reward admission read-only module from current main are preserved.",
+  "note": "Reviewed owner-only canary X release preview (2026-11-05): Home adds safe in-memory synthetic release handling through the existing confirmation modal; AppNetwork mirrors released capacity while retaining live invite/reward isolation. New helper is small and separate; no Supabase or payout writes. Reviewed growth measured by CI audit.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -36,11 +36,11 @@
     "src/components/WalletSessionGate.tsx"
   ],
   "growthCeilingsBytes": {
-    "src/components/AppNetwork.tsx": 149239,
+    "src/components/AppNetwork.tsx": 149964,
     "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
-    "src/components/HomeClient.tsx": 57366,
+    "src/components/HomeClient.tsx": 58850,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
     "src/app/api/cron/vote-reconcile/route.ts": 29931,
     "src/components/AppSettings.tsx": 32280
