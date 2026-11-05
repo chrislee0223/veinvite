@@ -1078,7 +1078,6 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         const displayedSlots = payload?.canaryFixture === true
           ? applyCanarySlotDemoRelease(wallet, slots)
           : slots;
-        // Keep the shared cache authoritative; the demo projection is memory-only.
         rememberNetworkInviteSlots(wallet, slots);
         setInviteSlots(displayedSlots);
         setInviteSlotsReady(true);
