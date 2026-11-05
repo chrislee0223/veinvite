@@ -21,6 +21,67 @@ import {
   needsImmediateLiveForecastRefresh,
 } from '@/lib/rewards/rewardForecastCacheGuards';
 
+type ElasticEstimatePreview =
+  | { mode: 'PENDING' | 'LEGACY' }
+  | {
+      mode: 'ELASTIC_SCENARIOS';
+      oneWinnerWei: string;
+      twoWinnersWei: string;
+      threeWinnersWei: string;
+      acceptedParticipants: number;
+      rewardCohortRoundId: number;
+    };
+
+const ELASTIC_UI_COPY = {
+  en: {
+    title: 'ESTIMATED INVITE REWARD · IF 1 FINISHES',
+    eligibility: 'Scenario: only 1 verified participant finishes in this round.',
+    disclaimer: 'Not guaranteed. Final award after round close (at least 24h) and review. X +10 B3TR is separate if eligible.',
+    pending: 'New reward calculation is being verified.',
+    two: '2 finish',
+    three: '3 finish',
+  },
+  ko: {
+    title: '예상 초대 보상 · 1명 완료 시',
+    eligibility: '이 라운드에서 정상 완료자가 1명일 때의 예상치입니다.',
+    disclaimer: '확정 금액이 아닙니다. 라운드 종료 후 최소 24시간 및 심사 완료 시 확정됩니다. X 추가 10 B3TR은 별도 조건부 보상입니다.',
+    pending: '새 보상 예상 금액을 확인 중입니다.',
+    two: '2명 완료',
+    three: '3명 완료',
+  },
+  vi: {
+    title: 'THƯỞNG MỜI DỰ KIẾN · NẾU 1 NGƯỜI HOÀN THÀNH',
+    eligibility: 'Ước tính nếu chỉ 1 người vượt qua xác minh trong vòng này.',
+    disclaimer: 'Chưa đảm bảo. Chốt sau khi vòng kết thúc ít nhất 24 giờ và xét duyệt. Thưởng X 10 B3TR có điều kiện riêng.',
+    pending: 'Đang xác minh mức thưởng mới.',
+    two: '2 người',
+    three: '3 người',
+  },
+} as const;
+
+function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const r = value as Record<string, unknown>;
+  if (r.mode === 'PENDING' || r.mode === 'LEGACY') return { mode: r.mode };
+  if (r.mode !== 'ELASTIC_SCENARIOS' ||
+      !Number.isSafeInteger(r.acceptedParticipants) ||
+      !Number.isSafeInteger(r.rewardCohortRoundId) ||
+      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei]
+        .every((w) => typeof w === 'string' && /^[0-9]+$/.test(w))) {
+    return { mode: 'PENDING' };
+  }
+  return {
+    mode: 'ELASTIC_SCENARIOS',
+    oneWinnerWei: String(r.oneWinnerWei),
+    twoWinnersWei: String(r.twoWinnersWei),
+    threeWinnersWei: String(r.threeWinnersWei),
+    acceptedParticipants: Number(r.acceptedParticipants),
+    rewardCohortRoundId: Number(r.rewardCohortRoundId),
+  };
+}
+
 type RewardForecastResponse =
   | {
       generatedAt?: string;
@@ -34,6 +95,7 @@ type RewardForecastResponse =
       modelVersion?: string | null;
       status: 'ready';
       estimatedRewardWei: string;
+      elasticEstimate?: ElasticEstimatePreview;
       stale?: boolean;
     };
 
@@ -130,6 +192,7 @@ function normalizeForecastResponse(
       modelVersion,
       status: 'ready',
       estimatedRewardWei: record.estimatedRewardWei,
+      elasticEstimate: readElasticEstimate(record.elasticEstimate),
       stale: isRewardForecastStale({ generatedAt, nowMs: Date.now(), stale }),
     };
   }
@@ -188,7 +251,9 @@ function pickPreferredForecast(
     }
 
     if (
-      forecastGeneratedAtMs(candidate) >
+      // A live API result may contain newer elastic scenarios even when the
+      // underlying hourly allocation snapshot has the same timestamp.
+      forecastGeneratedAtMs(candidate) >=
       forecastGeneratedAtMs(preferred)
     ) {
       preferred = candidate;
