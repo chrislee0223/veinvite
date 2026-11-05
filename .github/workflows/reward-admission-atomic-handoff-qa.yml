@@ -19,6 +19,16 @@ on:
       - 'supabase/migrations/20261105113500_reward_elastic_closure_liveness_service_only.sql'
       - 'supabase/migrations/20261105114000_reward_elastic_source_unsettled_slots_reader.sql'
       - 'supabase/migrations/20261105114500_reward_boost_source_elastic_unswept_interlock.sql'
+      - 'supabase/migrations/20261105215300_reward_elastic_global_contingent_physical_collateral.sql'
+      - 'supabase/migrations/20261105215700_reward_elastic_own_contingent_exact_once_pricing.sql'
+      - 'tests/sql/reward-elastic-own-escrow-canonical-payout-assert.sql'
+      - 'supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql'
+      - 'supabase/migrations/20261105220500_reward_elastic_future_activation_binding_guard.sql'
+      - 'supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql'
+      - 'tests/sql/reward-elastic-blocked-vs-pending-assert.sql'
+      - 'tests/sql/reward-elastic-binding-guard-*.sql'
+      - 'tests/sql/reward-elastic-postclaim-x-sweep-*.sql'
+      - 'tests/sql/reward-elastic-global-physical-collateral-assert.sql'
       - 'src/lib/rewards/operationsMonitoring.ts'
       - 'tests/sql/reward-elastic-real-closure-*.sql'
       - 'src/lib/rewards/rewardReservation.ts'
@@ -143,3 +153,27 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105114500_reward_boost_source_elastic_unswept_interlock.sql
       - name: Reject SOURCE_SWEEP while any pending future referral holds a cohort share
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-source-sweep-protection-assert.sql
+      - name: Install global future-cohort physical hold into ALL base/X outstanding readers
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105215300_reward_elastic_global_contingent_physical_collateral.sql
+      - name: Verify global budget cannot be spent by X/other cohorts before or after Claim
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-global-physical-collateral-assert.sql
+      - name: Allow exact one cohort's own physical escrow for pricing but not for outside signers
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105215700_reward_elastic_own_contingent_exact_once_pricing.sql
+      - name: Ensure two early verified winners reserve from OWN escrow while third stays protected
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-own-escrow-canonical-payout-assert.sql
+      - name: Prepare synthetic X post publication and Claim timestamps for source-sweep QA
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-postclaim-x-sweep-fixture.sql
+      - name: Preserve 72h X-post eligibility and active LIVE X before source recycling
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql
+      - name: Reject source sweeps until pending X opportunities and verifications are terminal
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-postclaim-x-sweep-assert.sql
+      - name: Install fake Production-like referral funding binding trigger
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-binding-guard-lab.sql
+      - name: Harden accepting a future referral without a verified funding receipt
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105220500_reward_elastic_future_activation_binding_guard.sql
+      - name: Verify new unbound invites fail closed without blocking existing accepted users
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-binding-guard-assert.sql
+      - name: Exclude confirmed terminal Sybil BLOCKED from contingent slots
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql
+      - name: Prove blocked-but-ACTIVATING users cannot drain clean winner shares or poison funds
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-blocked-vs-pending-assert.sql
