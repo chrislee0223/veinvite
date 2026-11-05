@@ -127,7 +127,8 @@ test('visual x release affects Home and Network only for this wallet until page 
   const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
   const network = readFileSync('src/components/AppNetwork.tsx', 'utf8');
   assert.match(home, /!isCanarySlotDemoReleased\(requestWallet, invite\.inviteSlot as 1 \| 2\)/);
-  assert.match(network, /applyVerifiedCanarySlotDemoResponse\(wallet, payload, slots\)/);
+  assert.match(network, /const displaySlots = wallet \? applyCanarySlotDemoRelease\(wallet, inviteSlots\) : inviteSlots/);
+  assert.match(network, /rememberNetworkInviteSlots\(wallet, slots\);\s*setInviteSlots\(slots\)/);
   assert.doesNotMatch(network, /canaryFixture|isNetworkCanaryWallet/);
   assert.match(network, /CANARY_SLOT_DEMO_RELEASED_EVENT/);
 });
