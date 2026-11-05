@@ -343,6 +343,7 @@ Promise<RewardOperationsHealth> {
     planning,
     reserveAuditResult,
     latestForecastSnapshotResult,
+    elasticClosureLivenessResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('reward_queue_entries')
@@ -402,6 +403,10 @@ Promise<RewardOperationsHealth> {
       .order('generated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabaseAdmin.rpc('read_reward_elastic_closure_liveness_v1', {
+      p_network: pool.network,
+      p_app_id: pool.appId,
+    }),
   ]);
 
   if (queueResult.error) {
@@ -430,6 +435,39 @@ Promise<RewardOperationsHealth> {
     throw new Error(
       `Reward forecast reserve-alignment check failed: ${latestForecastSnapshotResult.error.message}`,
     );
+  }
+
+  if (elasticClosureLivenessResult.error) {
+    throw new Error('Elastic closure liveness could not be checked: ' +
+      elasticClosureLivenessResult.error.message);
+  }
+  const elasticRecord = record(
+    elasticClosureLivenessResult.data,
+    'elastic closure liveness',
+  );
+  if (boolean(elasticRecord.enabled, 'elastic.enabled')) {
+    const criticalCount = count(elasticRecord.criticalUnreserved,
+      'elastic.criticalUnreserved');
+    const warningCount = count(elasticRecord.warningUnreserved,
+      'elastic.warningUnreserved');
+    const readyCount = count(elasticRecord.readyUnreserved,
+      'elastic.readyUnreserved');
+    const unfinishedCount = count(elasticRecord.unfinishedInClosedCohorts,
+      'elastic.unfinishedInClosedCohorts');
+    if (criticalCount > readyCount || warningCount > readyCount) {
+      throw new Error('Elastic closure liveness counts are inconsistent.');
+    }
+    if (criticalCount > 0) {
+      addAlert(alerts, 'ELASTIC_COHORT_RESERVATION_CRITICAL', 'CRITICAL',
+        'A verified eligible elastic reward has been unreserved for more than 12 hours after the official closure grace period.');
+    } else if (warningCount > 0) {
+      addAlert(alerts, 'ELASTIC_COHORT_RESERVATION_DELAYED', 'WARNING',
+        'A verified eligible elastic reward has remained unreserved for over two hours after official closure.');
+    }
+    if (unfinishedCount > 0 && readyCount > 0) {
+      addAlert(alerts, 'ELASTIC_COHORT_UNFINISHED_PARTICIPANTS', 'WARNING',
+        'A closed elastic cohort has incomplete participants. Protect their entire prospective base/X allocation when settling any clear winner.');
+    }
   }
 
   const reserveRecord = record(
