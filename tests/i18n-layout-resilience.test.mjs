@@ -94,3 +94,34 @@ test('country leaderboard labels describe people rather than abstract traffic', 
     assert.ok(countryCopy.includes(expected), `missing reviewed wording: ${expected}`);
   }
 });
+
+test('manual friend-release modal is covered by the production QA state in all locales', () => {
+  const copy = readFileSync('src/lib/i18n/manualReleaseCopy.ts', 'utf8');
+  const harness = readFileSync('src/qa/QaHomeStateHarness.tsx', 'utf8');
+  const renderer = readFileSync('src/qa/directStateCoverage.ts', 'utf8');
+  const registry = readFileSync('src/qa/stateRegistry.ts', 'utf8');
+  const specs = readFileSync('tests/playwright/home-release-locale-layout.spec.ts', 'utf8');
+  const polish = readFileSync('src/app/localization-final-polish.css', 'utf8');
+
+  for (const locale of [
+    'en','ko','zh','hi','es','ja','it','tr','nl','de','fr','ar','bn','pt',
+    'ru','id','vi','zh-tw','sv','ro','ur','pcm','arz','mr','te','sw','ha','el','cs',
+  ]) {
+    assert.ok(
+      copy.includes('"' + locale + '": { title:'),
+      'release warning translation is missing for ' + locale,
+    );
+  }
+  assert.match(harness, /'HOME-RELEASE-CONFIRM'/);
+  assert.match(harness, /referralLinkId: QA_REFERRAL_LINK\.key/);
+  assert.match(harness, /rewardEligibility: 'PENDING'/);
+  assert.match(harness, /\.friendSlot\.releasable \.slotReleaseButton/);
+  assert.match(renderer, /stateId: 'HOME-RELEASE-CONFIRM'/);
+  assert.match(registry, /id: 'HOME-RELEASE-CONFIRM'/);
+  assert.match(specs, /for \(const locale of SUPPORTED_LOCALES\)/);
+  assert.match(specs, /width: 320, height: 740/);
+  assert.match(specs, /width: 320, height: 568/);
+  assert.match(specs, /page\.getByRole\('dialog'\)/);
+  assert.match(polish, /\.screen \.modalCard \.cancelConfirm \{[\s\S]*?min-height: 44px/);
+  assert.match(polish, /html\[dir='rtl'\] \.screen \.slotReleaseButton/);
+});
