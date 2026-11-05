@@ -35,3 +35,17 @@ export function applyCanarySlotDemoRelease(
       : slot,
   );
 }
+
+/**
+ * Caller received an authenticated owner-only slot response. Centralize the
+ * fixture discriminator outside the production Network canvas runtime.
+ */
+export function applyVerifiedCanarySlotDemoResponse(
+  wallet: string,
+  payload: unknown,
+  slots: NetworkInviteSlotState[],
+): NetworkInviteSlotState[] {
+  if (!payload || typeof payload !== 'object' ||
+      (payload as { canaryFixture?: unknown }).canaryFixture !== true) return slots;
+  return applyCanarySlotDemoRelease(wallet, slots);
+}
