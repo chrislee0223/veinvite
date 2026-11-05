@@ -12,6 +12,8 @@ ALTER TABLE reward_admission_bridge.settings
  ADD CONSTRAINT settings_future_rollout_policy_check
  CHECK (enabled=false OR
    (rollout_not_before IS NOT NULL
+    AND guarantee_minimum_wei IS NOT NULL
+    AND stress_reserve_floor_wei IS NOT NULL
     AND guarantee_minimum_wei>0
     AND guarantee_minimum_wei=trunc(guarantee_minimum_wei)
     AND stress_reserve_floor_wei>0
