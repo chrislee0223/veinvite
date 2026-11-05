@@ -43,6 +43,13 @@ function harness() {
     finalCheckStalled: false,
     payoutStalled: false,
   };
+  let elasticClosure = {
+    enabled: true,
+    readyUnreserved: 0,
+    warningUnreserved: 0,
+    criticalUnreserved: 0,
+    unfinishedInClosedCohorts: 0,
+  };
   let paused = false;
   let dbError = false;
   const errors = [];
@@ -126,6 +133,11 @@ function harness() {
           error: null,
         }));
       }
+      if (name === 'read_reward_elastic_closure_liveness_v1') {
+        assert.equal(args.p_network, 'mainnet');
+        assert.equal(args.p_app_id, '0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e');
+        return wrap(() => ({ data: { ...elasticClosure }, error: null }));
+      }
       if (name === 'read_sybil_v2_failed_scan_liveness') {
         assert.equal(args.p_network, 'mainnet');
         return wrap(() => ({ data: [{
@@ -154,6 +166,9 @@ function harness() {
       status: opts.status ?? 200, body,
     }) } },
     '@/lib/monitoring/reliabilityWatchPolicy': policy,
+    '@/lib/rewards/onchainPool': {
+      VEINVITE_APP_ID: '0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e',
+    },
     '@/lib/supabaseServer': { supabaseAdmin },
     '@/lib/vebetter/network': { getVeBetterNetworkConfig: () => ({ network: 'mainnet' }) },
   };
@@ -187,6 +202,7 @@ function harness() {
         : row);
     },
     setDelayed: (count) => { delayed = count; },
+    setElasticClosure: (value) => { elasticClosure = { ...elasticClosure, ...value }; },
     setHolds: (counts) => { held = counts; },
     setScanFailures: (counts) => { scanFailures = counts; },
     setXPromotion: (state) => { xPromotion = { ...xPromotion, ...state }; },
@@ -458,4 +474,29 @@ test('X bonus pipeline query failures fail closed without touching rewards', asy
   assert.doesNotMatch(routeSource, /create_reward_x_promotion_payout_intent_v1/);
   assert.doesNotMatch(routeSource, /record_reward_x_promotion_post_submission_v1/);
   assert.match(routeSource, /\.limit\(1\)/);
+});
+
+test('future verified elastic Claim delayed after official close signals at 15-minute cadence', async () => {
+  const h = harness();
+  const healthy = await h.GET(h.request);
+  assert.equal(healthy.status, 200);
+  h.setElasticClosure({ readyUnreserved: 1, warningUnreserved: 1 });
+  const late = await h.GET(h.request);
+  assert.equal(late.status, 200);
+  assert.equal(late.body.newAlerts, 1);
+  assert.ok(late.body.activeAlerts.includes('ELASTIC_CLOSEOUT_DELAY:2H'));
+  assert.equal(h.getState().last_failed_at, undefined);
+  h.setElasticClosure({ readyUnreserved: 1, warningUnreserved: 1, criticalUnreserved: 1 });
+  const critical = await h.GET(h.request);
+  assert.equal(critical.status, 503);
+  assert.ok(critical.body.activeAlerts.includes('ELASTIC_CLOSEOUT_STALLED:12H'));
+  assert.equal(critical.body.recoveredAlerts, 1);
+  h.setElasticClosure({ enabled: false, readyUnreserved: 0, warningUnreserved: 0, criticalUnreserved: 0 });
+  const recovered = await h.GET(h.request);
+  assert.equal(recovered.status, 200);
+  assert.equal(recovered.body.recoveredAlerts, 1);
+  h.setElasticClosure({ enabled: true, readyUnreserved: 1, warningUnreserved: 0, criticalUnreserved: 1 });
+  const malformed = await h.GET(h.request);
+  assert.equal(malformed.status, 503);
+  assert.equal(malformed.body.error, 'CRON_HEALTH_DB_UNAVAILABLE');
 });

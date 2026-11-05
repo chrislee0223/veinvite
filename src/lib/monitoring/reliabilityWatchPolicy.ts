@@ -43,6 +43,29 @@ export function delayedRewardCode(missingCount: number): string[] {
   return [`REWARD_RESERVATION_DELAY:${band}`];
 }
 
+export type ElasticClosureLiveness = {
+  enabled: boolean;
+  readyUnreserved: number;
+  warningUnreserved: number;
+  criticalUnreserved: number;
+  unfinishedInClosedCohorts: number;
+};
+
+export function elasticClosureDelayCodes(state: ElasticClosureLiveness): string[] {
+  if (typeof state.enabled !== 'boolean' ||
+      [state.readyUnreserved,state.warningUnreserved,
+       state.criticalUnreserved,state.unfinishedInClosedCohorts]
+        .some((v) => !Number.isSafeInteger(v) || v < 0) ||
+      state.criticalUnreserved > state.warningUnreserved ||
+      state.warningUnreserved > state.readyUnreserved) {
+    throw new Error('Invalid elastic settlement liveness counts.');
+  }
+  if (!state.enabled) return [];
+  if (state.criticalUnreserved > 0) return ['ELASTIC_CLOSEOUT_STALLED:12H'];
+  if (state.warningUnreserved > 0) return ['ELASTIC_CLOSEOUT_DELAY:2H'];
+  return [];
+}
+
 export type SybilHoldLiveness = {
   openHolds: number;
   incompleteCoreHolds: number;
@@ -175,6 +198,7 @@ export function isReliabilityDegraded(codes: readonly string[]): boolean {
     'X_PROMOTION_POST_VERIFICATION_STALLED',
     'X_PROMOTION_FINAL_CHECK_STALLED',
     'X_PROMOTION_PAYOUT_STALLED',
+    'ELASTIC_CLOSEOUT_DELAY:2H',
   ]);
   return codes.some((code) => !warnings.has(code));
 }
