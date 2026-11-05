@@ -6,6 +6,7 @@ import {
   alarmChanges,
   decodeAlarmState,
   delayedRewardCode,
+  elasticClosureDelayCodes,
   encodeAlarmState,
   RELIABILITY_JOBS,
   stableAlarmCodes,
@@ -16,11 +17,13 @@ import {
   xPromotionGateCodes,
   xPromotionPipelineCodes,
   type JobHeartbeat,
+  type ElasticClosureLiveness,
   type SybilHoldLiveness,
   type SybilScanFailureLiveness,
   type XPromotionLiveness,
   type XPromotionPipelineLiveness,
 } from '@/lib/monitoring/reliabilityWatchPolicy';
+import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -69,6 +72,31 @@ async function readRewardReservationDelay(): Promise<number> {
     throw new Error('Reward reservation delay result is invalid.');
   }
   return missingCount;
+}
+
+async function readElasticClosureLiveness(): Promise<ElasticClosureLiveness> {
+  // 15-minute read-only watch: official cohort end + configured grace precedes
+  // all warnings. Old referrals and non-cleared recipients are excluded by SQL.
+  const { network } = getVeBetterNetworkConfig();
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_elastic_closure_liveness_v1',
+    { p_network: network, p_app_id: VEINVITE_APP_ID },
+  ).abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
+  if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Elastic closure liveness could not be read.');
+  }
+  const row = data as Record<string, unknown>;
+  if (typeof row.enabled !== 'boolean') {
+    throw new Error('Elastic closure monitoring state is malformed.');
+  }
+  return {
+    enabled: row.enabled,
+    readyUnreserved: checkedCount(row.readyUnreserved, 'readyUnreserved'),
+    warningUnreserved: checkedCount(row.warningUnreserved, 'warningUnreserved'),
+    criticalUnreserved: checkedCount(row.criticalUnreserved, 'criticalUnreserved'),
+    unfinishedInClosedCohorts:
+      checkedCount(row.unfinishedInClosedCohorts, 'unfinishedInClosedCohorts'),
+  };
 }
 
 function checkedCount(value: unknown, name: string): number {
@@ -263,16 +291,18 @@ export async function GET(request: NextRequest) {
     const rows = data ?? [];
     const monitor = rows.find((row) => row.job_name === WATCH_JOB);
     const previous = decodeAlarmState(monitor?.last_error ?? null);
-    const [delayedRewards, sybilHolds, sybilScanFailures, xPromotion, xPromotionPipeline] = await Promise.all([
+    const [delayedRewards, sybilHolds, sybilScanFailures, xPromotion, xPromotionPipeline, elasticClosure] = await Promise.all([
       readRewardReservationDelay(),
       readSybilHoldLiveness(),
       readSybilScanFailureLiveness(),
       readXPromotionLiveness(),
       readXPromotionPipelineLiveness(),
+      readElasticClosureLiveness(),
     ]);
     const current = stableAlarmCodes([
       ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
       ...delayedRewardCode(delayedRewards),
+      ...elasticClosureDelayCodes(elasticClosure),
       ...staleSybilHoldCodes(sybilHolds),
       ...staleSybilScanFailureCodes(sybilScanFailures),
       ...xPromotionGateCodes(xPromotion),
@@ -313,6 +343,7 @@ export async function GET(request: NextRequest) {
         sybilScanFailures,
         xPromotion,
         xPromotionPipeline,
+        elasticClosure,
       });
     }
     if (changes.resolved.length) {
@@ -331,6 +362,7 @@ export async function GET(request: NextRequest) {
       sybilScanFailures,
       xPromotion,
       xPromotionPipeline,
+      elasticClosure,
       // Warning-only HOLD/X-gate states stay HTTP 200; critical reliability
       // faults still return 503.
       newAlerts: changes.newlyActive.length,
