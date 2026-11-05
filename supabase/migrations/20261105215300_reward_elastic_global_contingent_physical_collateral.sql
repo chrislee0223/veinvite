@@ -3,8 +3,8 @@
 -- Covers mainnet base, Claim, X and future cross-cohort signers through the
 -- single existing outstanding-liability reader (not a second signer).
 BEGIN;
-CREATE OR REPLACE FUNCTION public.read_reward_elastic_contingent_liability_wei_v1(
- p_network text,p_app_id text
+CREATE OR REPLACE FUNCTION public.read_reward_elastic_contingent_scope_liability_wei_v1(
+ p_network text,p_app_id text,p_target_cohort bigint,p_target_receipt bigint
 ) RETURNS numeric
 LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path TO pg_catalog,public,reward_admission_bridge
@@ -24,6 +24,9 @@ BEGIN
  p_app_id:=lower(btrim(coalesce(p_app_id,'')));
  IF p_network NOT IN ('mainnet','testnet','testnet-staging') OR p_app_id<>v_app
  THEN RAISE EXCEPTION 'ELASTIC_CONTINGENT_INVALID_SCOPE'; END IF;
+ IF (p_target_cohort IS NULL) <> (p_target_receipt IS NULL) THEN
+   RAISE EXCEPTION 'ELASTIC_CONTINGENT_TARGET_INCOMPLETE';
+ END IF;
  SELECT * INTO v_cfg FROM reward_admission_bridge.elastic_settlement_settings WHERE id=1;
  IF NOT FOUND OR NOT v_cfg.enabled OR NOT v_cfg.allow_protected_partial_settlement
  THEN RETURN 0; END IF;
@@ -43,6 +46,9 @@ BEGIN
    WHERE i.activation_network=p_network
      AND i.activated_at>=v_cfg.rollout_not_before
      AND i.status<>'CANCELLED'
+     AND (p_target_cohort IS NULL OR
+       (i.reward_cohort_round_id=p_target_cohort
+        AND i.reward_funding_allocation_receipt_id=p_target_receipt))
  LOOP
    v_budget:=public.read_reward_cohort_effective_budget_wei(
      p_network,v_app,v_cohort.round_id,v_cohort.receipt_id);
@@ -74,6 +80,20 @@ BEGIN
  END IF;
  RETURN v_total;
 END $fn$;
+REVOKE ALL ON FUNCTION public.read_reward_elastic_contingent_scope_liability_wei_v1(
+ text,text,bigint,bigint) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.read_reward_elastic_contingent_scope_liability_wei_v1(
+ text,text,bigint,bigint) TO service_role;
+
+-- Two-argument universal API intentionally delegates to the very same
+-- calculator used to subtract the paying cohort's already-encumbered money.
+CREATE OR REPLACE FUNCTION public.read_reward_elastic_contingent_liability_wei_v1(
+ p_network text,p_app_id text) RETURNS numeric
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO pg_catalog,public
+AS $fn$
+ SELECT public.read_reward_elastic_contingent_scope_liability_wei_v1(
+   p_network,p_app_id,NULL::bigint,NULL::bigint);
+$fn$;
 REVOKE ALL ON FUNCTION public.read_reward_elastic_contingent_liability_wei_v1(
  text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.read_reward_elastic_contingent_liability_wei_v1(
