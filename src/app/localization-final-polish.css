@@ -345,6 +345,11 @@ html[dir='rtl'] .screen .slotReleaseButton {
   right: auto;
   left: 7px;
 }
+/* Available-slot guidance is translated prose, not an LTR wallet identifier. */
+html[dir='rtl'] .screen .friendSlot.available .slotCopy small {
+  direction: rtl;
+  unicode-bidi: plaintext;
+}
 html[data-locale-typography='arabic'] .screen .modalCard :is(h2, p, button),
 html[data-locale-typography='indic'] .screen .modalCard :is(h2, p, button) {
   line-height: 1.5;
