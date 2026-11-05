@@ -14,7 +14,7 @@ import { useVechainDomain } from '@vechain/vechain-kit';
 import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
-import { applyCanarySlotDemoRelease, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
+import { applyCanarySlotDemoRelease, applyVerifiedCanarySlotDemoResponse, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
@@ -1075,9 +1075,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
-        const displayedSlots = payload?.canaryFixture === true
-          ? applyCanarySlotDemoRelease(wallet, slots)
-          : slots;
+        const displayedSlots = applyVerifiedCanarySlotDemoResponse(wallet, payload, slots);
         rememberNetworkInviteSlots(wallet, slots);
         setInviteSlots(displayedSlots);
         setInviteSlotsReady(true);
