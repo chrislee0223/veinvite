@@ -12,6 +12,8 @@ on:
       - 'tests/sql/reward-admission-service-handoff-gateway-assert.sql'
       - 'tests/sql/reward-admission-funded-entry-candidate*.sql'
       - 'supabase/migrations/20261104193600_reward_admission_funded_hold_entry_disabled.sql'
+      - 'supabase/migrations/20261105084500_reward_admission_future_only_db_policy_disabled.sql'
+      - 'tests/sql/reward-admission-future-only-db-policy-assert.sql'
       - 'supabase/migrations/20261105020645_reward_admission_terminal_hold_release_disabled.sql'
       - 'tests/sql/reward-admission-terminal-hold-release-assert.sql'
       - 'supabase/migrations/20261104191828_reward_admission_service_handoff_disabled.sql'
@@ -104,3 +106,7 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -c "UPDATE reward_admission_bridge.settings SET enabled=false WHERE id=1;"
           psql -X -v ON_ERROR_STOP=1 -c "ALTER TABLE reward_admission_bridge.settings ADD CONSTRAINT settings_enabled_check CHECK (enabled=false);"
+      - name: Install new future-only DB policy while admission remains disabled
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105084500_reward_admission_future_only_db_policy_disabled.sql
+      - name: Assert historical exclusion, minimum policy, and no financial writes
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-admission-future-only-db-policy-assert.sql
