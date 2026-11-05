@@ -14,7 +14,7 @@ import { useVechainDomain } from '@vechain/vechain-kit';
 import { createPortal } from 'react-dom';
 
 import { NETWORK_CANARY_UI_COPY } from '@/lib/i18n/networkCanaryUiCopy';
-import { applyCanarySlotDemoRelease, applyVerifiedCanarySlotDemoResponse, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
+import { applyCanarySlotDemoRelease, CANARY_SLOT_DEMO_RELEASED_EVENT } from '@/lib/canarySlotDemoState';
 import { NETWORK_CANVAS_CONTROL_COPY } from '@/lib/i18n/networkCanvasControlCopy';
 import { NETWORK_EXPERIENCE_COPY, NETWORK_TOTAL_COPY } from '@/lib/i18n/networkExperienceCopy';
 import { NETWORK_EXPLORE_COPY } from '@/lib/i18n/networkExploreCopy';
@@ -257,10 +257,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const [cacheVersion, setCacheVersion] = useState(0);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [loadError, setLoadError] = useState('');
-  const cachedInitialInviteSlots = getCachedNetworkInviteSlots(wallet);
-  const initialInviteSlots = wallet && cachedInitialInviteSlots
-    ? applyCanarySlotDemoRelease(wallet, cachedInitialInviteSlots)
-    : null;
+  const initialInviteSlots = getCachedNetworkInviteSlots(wallet);
   const [inviteSlots, setInviteSlots] = useState<InviteSlotState[]>(
     () => initialInviteSlots ?? [],
   );
@@ -435,7 +432,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return [];
     }
 
-    return inviteSlots.map((slot) => {
+    const displaySlots = wallet ? applyCanarySlotDemoRelease(wallet, inviteSlots) : inviteSlots;
+    return displaySlots.map((slot) => {
       const key = `slot:${slot.slot}`;
       const fallback = inviteSlotPoint(slot.slot - 1);
       const saved = activeWorkspace.positions[key];
@@ -446,7 +444,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         y: saved?.y ?? fallback.y,
       };
     });
-  }, [currentData, inviteSlots, activeWorkspace.positions]);
+  }, [currentData, inviteSlots, activeWorkspace.positions, wallet]);
 
   const {
     activeInviteeKeys,
@@ -920,9 +918,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     setMemberDropGroupId(null);
     setGroupingWallet(null);
     setWorkspaceNotice('');
-    setInviteSlots(wallet
-      ? applyCanarySlotDemoRelease(wallet, cachedInviteSlots ?? [])
-      : []);
+    setInviteSlots(cachedInviteSlots ?? []);
     setView({
       x: 260 - FOCUS_X,
       y: 300 - FOCUS_Y,
@@ -945,7 +941,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const onCanaryRelease = (event: Event) => {
       const detail = (event as CustomEvent<{ wallet?: string }>).detail;
       if (detail?.wallet?.toLowerCase() !== wallet.toLowerCase()) return;
-      setInviteSlots((current) => applyCanarySlotDemoRelease(wallet, current));
+      setInviteSlots((current) => [...current]);
     };
     window.addEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
     return () => window.removeEventListener(CANARY_SLOT_DEMO_RELEASED_EVENT, onCanaryRelease);
@@ -961,7 +957,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const cachedSlots = getCachedNetworkInviteSlots(wallet);
     let active = true;
     if (cachedSlots) {
-      setInviteSlots(applyCanarySlotDemoRelease(wallet, cachedSlots));
+      setInviteSlots(cachedSlots);
       setInviteSlotsReady(true);
     } else {
       setInviteSlots([]);
@@ -1075,9 +1071,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
           window.clearTimeout(retryTimer);
           retryTimer = null;
         }
-        const displayedSlots = applyVerifiedCanarySlotDemoResponse(wallet, payload, slots);
         rememberNetworkInviteSlots(wallet, slots);
-        setInviteSlots(displayedSlots);
+        setInviteSlots(slots);
         setInviteSlotsReady(true);
       } catch (error) {
         if (!active || controller.signal.aborted) return;
