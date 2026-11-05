@@ -90,3 +90,43 @@ test('canary UI has no extra test or public-network badges, while public explore
   assert.match(networkSync, /setNotice\(layoutSavedCopy, 1600\)/);
   assert.match(publicExplorer, /className="otherNetworkBadge"/);
 });
+
+test('2/5 owner-only visual slot gets the same x and confirmation, never a live release request', () => {
+  const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+  const projection = readFileSync('src/lib/canaryHomeDisplay.ts', 'utf8');
+  assert.match(home, /canaryReleaseEnabled=\{showingCanarySlots\}/);
+  assert.match(home, /canaryReleaseEnabled && invite\.code === 'CANARY_VISUAL_ONLY_1' && !allMissions/);
+  assert.match(home, /const isCanaryDemoRelease = Boolean\(canaryHomeDisplay/);
+  assert.match(home, /if \(isCanaryDemoRelease\) \{[\s\S]*releaseCanarySlotDemo\(requestWallet, 1\)[\s\S]*return;[\s\S]*clearFeedback\(\);[\s\S]*setLoading\(true\);[\s\S]*fetch\(/);
+  assert.match(home, /cancelTarget\.inviteeAddress[\s\S]*releaseAcceptedInvite\(\)/);
+  assert.match(home, /const displayedSlotInvites = useMemo/);
+  assert.match(projection, /rewardEligibility: 'NONE'/);
+  assert.match(projection, /CANARY_VISUAL_ONLY_/);
+  assert.doesNotMatch(projection, /rewardEligibility: 'PENDING'/);
+});
+
+test('visual x release affects Home and Network only for this wallet until page reload', async () => {
+  const { releaseCanarySlotDemo, isCanarySlotDemoReleased, applyCanarySlotDemoRelease } =
+    await import('../src/lib/canarySlotDemoState.ts');
+  const wallet = '0x1234567890abcdef1234567890abcdef12345678';
+  const another = '0x876543210abcdef1234567890abcdef123456789';
+  const slots = [
+    { slot: 1, state: 'IN_PROGRESS', inviteeWallet: '0xca11ab1e0000000000000000000000000000000a', completedSteps: 2, totalSteps: 5 },
+    { slot: 2, state: 'IN_PROGRESS', inviteeWallet: '0xca11ab1e00000000000000000000000000000003', completedSteps: 5, totalSteps: 5 },
+  ];
+  assert.equal(releaseCanarySlotDemo(wallet, 2), false);
+  assert.equal(isCanarySlotDemoReleased(wallet, 1), false);
+  assert.equal(releaseCanarySlotDemo(wallet, 1), true);
+  assert.equal(isCanarySlotDemoReleased(wallet, 1), true);
+  assert.equal(isCanarySlotDemoReleased(another, 1), false);
+  const view = applyCanarySlotDemoRelease(wallet, slots);
+  assert.deepEqual(view[0], { slot: 1, state: 'AVAILABLE', inviteeWallet: null, completedSteps: 0, totalSteps: 5 });
+  assert.deepEqual(view[1], slots[1]);
+  assert.deepEqual(applyCanarySlotDemoRelease(another, slots), slots);
+  assert.deepEqual(slots[0].inviteeWallet, '0xca11ab1e0000000000000000000000000000000a');
+  const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+  const network = readFileSync('src/components/AppNetwork.tsx', 'utf8');
+  assert.match(home, /!isCanarySlotDemoReleased\(requestWallet, invite\.inviteSlot as 1 \| 2\)/);
+  assert.match(network, /payload\?\.canaryFixture === true[\s\S]*applyCanarySlotDemoRelease\(wallet, slots\)/);
+  assert.match(network, /CANARY_SLOT_DEMO_RELEASED_EVENT/);
+});
