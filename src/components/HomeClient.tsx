@@ -933,6 +933,12 @@ export function HomeClient() {
       showFeedback('success', releaseCopy.success);
       return;
     }
+    // Never submit a visual-only fixture code if its owner overlay went stale.
+    if (code.startsWith('CANARY_VISUAL_ONLY_')) {
+      closeCancelModal();
+      showFeedback('error', releaseCopy.error);
+      return;
+    }
     clearFeedback();
     setLoading(true);
     try {
