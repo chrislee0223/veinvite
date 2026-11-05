@@ -307,3 +307,56 @@ html[lang='ur'] .bottomNavigation button {
     padding-inline: 8px;
   }
 }
+
+/*
+ * Invite release confirmation: use natural word breaks and a full-width
+ * touch target for the secondary action across all 29 language packs.
+ * This uses the real Home dialog, not a separate test-only lookalike.
+ */
+.screen .modalCard :is(h2, p, .primaryAction, .cancelConfirm) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.screen .modalCard h2 {
+  text-wrap: balance;
+  line-height: 1.35;
+}
+.screen .modalCard p { text-wrap: pretty; }
+.screen .modalCard .cancelConfirm {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+html[dir='rtl'] .screen .modalCard { direction: rtl; }
+/* In RTL, the removable slot action belongs at the inline end (left). */
+html[dir='rtl'] .screen .friendSlot.detailed.releasable {
+  padding-right: 12px;
+  padding-left: 50px;
+}
+html[dir='rtl'] .screen .slotReleaseButton {
+  right: auto;
+  left: 7px;
+}
+html[data-locale-typography='arabic'] .screen .modalCard :is(h2, p, button),
+html[data-locale-typography='indic'] .screen .modalCard :is(h2, p, button) {
+  line-height: 1.5;
+}
+html[lang='ur'] .screen .modalCard :is(h2, p, button) {
+  line-height: 1.65;
+}
+@media (max-width: 360px) {
+  .screen .modalBackdrop { padding: 12px; }
+  .screen .modalCard {
+    padding: 18px 16px;
+    border-radius: 20px;
+    max-height: calc(100dvh - 24px);
+  }
+}
