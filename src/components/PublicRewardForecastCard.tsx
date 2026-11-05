@@ -634,16 +634,25 @@ export function PublicRewardForecastCard({
   }, [rewardForecastPreview]);
 
   const t = REWARD_FORECAST_COPY[resolvedLocale];
+  const e = resolvedLocale === 'ko' ? ELASTIC_UI_COPY.ko
+    : resolvedLocale === 'vi' ? ELASTIC_UI_COPY.vi
+    : ELASTIC_UI_COPY.en;
   const ready = forecast?.status === 'ready';
+  const elastic = ready && forecast.elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
+    ? forecast.elasticEstimate
+    : null;
+  const elasticPending = ready && forecast.elasticEstimate?.mode === 'PENDING';
   const stale = ready && forecast.stale === true;
-  const amount = ready
-    ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
-    : '— B3TR';
-  const note = unavailable && !forecast
-    ? t.unavailable
-    : forecast?.status === 'pending'
-      ? t.pendingDescription
-      : t.disclaimer;
+  const amount = elastic
+    ? `${formatRewardWei(elastic.oneWinnerWei)} B3TR`
+    : elasticPending
+      ? '— B3TR'
+      : ready
+        ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
+        : '— B3TR';
+  const note = elastic ? e.disclaimer : elasticPending ? e.pending
+    : unavailable && !forecast ? t.unavailable
+    : forecast?.status === 'pending' ? t.pendingDescription : t.disclaimer;
 
   return (
     <section
@@ -662,16 +671,24 @@ export function PublicRewardForecastCard({
               : forecast?.status ?? 'initial'
       }
     >
-      <span className="estimateEyebrow">{t.eyebrow}</span>
+      <span className="estimateEyebrow">{elastic || elasticPending ? e.title : t.eyebrow}</span>
 
       <div
         className="estimateAmount"
-        aria-label={ready ? amount : t.pendingTitle}
+        aria-label={ready && !elasticPending ? amount : t.pendingTitle}
       >
         <strong>{amount}</strong>
       </div>
 
-      <p className="estimateEligibility">{t.eligibility}</p>
+      <p className="estimateEligibility">
+        {elastic ? e.eligibility : t.eligibility}
+      </p>
+      {elastic ? (
+        <div className="elasticScenarios" data-elastic-reward-scenarios="true">
+          <span>{e.two}: {formatRewardWei(elastic.twoWinnersWei)} B3TR</span>
+          <span>{e.three}: {formatRewardWei(elastic.threeWinnersWei)} B3TR</span>
+        </div>
+      ) : null}
       <p
         className={
           unavailable || forecast?.status === 'pending' || stale
@@ -762,6 +779,17 @@ export function PublicRewardForecastCard({
           word-break:normal;
           hyphens:none;
           text-wrap:pretty;
+        }
+        .elasticScenarios {
+          display:flex;
+          flex-wrap:wrap;
+          gap:4px 13px;
+          margin-top:6px;
+          font-size:.68rem;
+          color:#f0d68d;
+          font-weight:700;
+          line-height:1.45;
+          font-variant-numeric:tabular-nums;
         }
         .estimateDisclaimer {
           min-height:1.55em;
