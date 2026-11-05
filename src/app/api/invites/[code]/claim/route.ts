@@ -14,6 +14,7 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { maybeReserveFundedReferralMinimumAfterActivation } from '@/lib/rewards/admissionGuaranteeActivation';
 import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
 import { anyActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
 import { getVeBetterNetwork } from '@/lib/vebetter/network';
@@ -834,6 +835,17 @@ export async function POST(
     );
   }
 
+
+  try {
+    await maybeReserveFundedReferralMinimumAfterActivation({
+      inviteCode: normalizedCode,
+      network: entryCheck.network,
+    });
+  } catch (fundingError) {
+    // Claim is durable regardless of opt-in admission funding. A later
+    // worker may reconcile; users are never shown an uncommitted guarantee.
+    console.error('Post-activation funded admission was not committed:', fundingError);
+  }
   return NextResponse.json(
     {
       outcome: 'eligible',

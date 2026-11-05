@@ -7,6 +7,7 @@ import {
 import { isReferralKey } from '@/lib/referralLinks';
 import { createCode, normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { maybeReserveFundedReferralMinimumAfterActivation } from '@/lib/rewards/admissionGuaranteeActivation';
 import { enqueueSybilV2EvidenceCollection } from '@/lib/sybil/v2/evidenceQueue';
 import { anyActiveSybilV2Restriction } from '@/lib/sybil/v2/restrictions';
 import { getVeBetterNetwork } from '@/lib/vebetter/network';
@@ -520,6 +521,17 @@ export async function POST(
               error: queueError,
             },
           );
+        }
+
+        try {
+          await maybeReserveFundedReferralMinimumAfterActivation({
+            inviteCode: invite.code,
+            network: entryCheck.network,
+          });
+        } catch (fundingError) {
+          // The claim was already committed. Never turn successful onboarding
+          // into a retryable claim or promise an uncommitted B3TR guarantee.
+          console.error('Post-activation funded admission was not committed:', fundingError);
         }
 
         return NextResponse.json({
