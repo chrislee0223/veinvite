@@ -25,6 +25,15 @@ BEGIN
  IF NOT blocked THEN RAISE EXCEPTION 'Missing policy enabled future rewards'; END IF;
  IF (SELECT enabled FROM reward_admission_bridge.settings WHERE id=1)
  THEN RAISE EXCEPTION 'Policy CHECK did not preserve disabled value'; END IF;
+ -- A timestamp alone must not satisfy SQL CHECK with NULL amounts.
+ UPDATE reward_admission_bridge.settings SET rollout_not_before=now()-interval '5 minutes' WHERE id=1;
+ blocked:=false;
+ BEGIN
+  UPDATE reward_admission_bridge.settings SET enabled=true WHERE id=1;
+ EXCEPTION WHEN check_violation THEN
+  blocked:=true;
+ END;
+ IF NOT blocked THEN RAISE EXCEPTION 'Partial rollout config bypassed DB policy CHECK'; END IF;
  -- A future timestamp is not an active rollout.
  UPDATE reward_admission_bridge.settings SET
   rollout_not_before=now()+interval '1 day',
