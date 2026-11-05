@@ -1,6 +1,8 @@
 -- Disposable PG17 scaffolding for the *source sweep* migration itself.
 -- Function body anchors match Production, but these are fake versions.
 \set ON_ERROR_STOP on
+ALTER TABLE public.reward_boost_reserve_source_protections
+ ADD COLUMN IF NOT EXISTS source_allocation_receipt_id bigint;
 CREATE OR REPLACE FUNCTION public.read_reward_boost_reserve_source_candidate(
  p_network text,p_app_id text,
  p_source_reward_cohort_round_id bigint,p_source_allocation_receipt_id bigint
