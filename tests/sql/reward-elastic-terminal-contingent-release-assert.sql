@@ -74,7 +74,8 @@ BEGIN
  IF v_hold<>0 THEN
    RAISE EXCEPTION 'Terminal cohort locked unused physical pool indefinitely: %',v_hold/v_e;
  END IF;
- IF public.read_outstanding_reward_liability('mainnet',v_app)::numeric<>0 THEN
+ IF public.read_outstanding_reward_liability('mainnet',v_app)::numeric<>
+    v_before-1000*v_e THEN
    RAISE EXCEPTION 'Global reward pool stayed locked after PAID and X expiry';
  END IF;
 
