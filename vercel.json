@@ -60,6 +60,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/reward-claim-recovery",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/x-promotion-maintenance",
       "schedule": "*/15 * * * *"
     },
