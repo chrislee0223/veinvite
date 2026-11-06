@@ -86,7 +86,7 @@ BEGIN
  'ELASTIC-USER2','mainnet',physical,physical,300*e,
  'elastic-closed-cohort-v1',null,1000,basis) INTO r;
  IF r->>'reserved'<>'true' THEN
-  RAISE EXCEPTION 'Second valid user blocked by first user's escrow: %',r;
+  RAISE EXCEPTION 'Second valid user blocked by first participant escrow: %',r;
  END IF;
  IF public.read_outstanding_reward_liability('mainnet',app)::numeric<>
     physical THEN RAISE EXCEPTION 'Second reserve corrupted total liabilities'; END IF;
