@@ -14,6 +14,7 @@ AS $stub$
 DECLARE
   v_app constant text:='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e';
   v_invitation public.invitations%rowtype;
+  v_network text := lower(btrim(p_network));
   v_reserved numeric(78,0) := 0;
   v_net numeric(78,0) := 0;
 BEGIN
