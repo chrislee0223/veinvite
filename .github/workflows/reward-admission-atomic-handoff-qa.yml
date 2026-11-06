@@ -25,6 +25,8 @@ on:
       - 'supabase/migrations/20261105215900_reward_elastic_postclaim_x_source_sweep_guard.sql'
       - 'supabase/migrations/20261105220500_reward_elastic_future_activation_binding_guard.sql'
       - 'supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql'
+      - 'supabase/migrations/20261106020100_reward_elastic_terminal_contingent_release.sql'
+      - 'tests/sql/reward-elastic-terminal-contingent-release-assert.sql'
       - 'tests/sql/reward-elastic-blocked-vs-pending-assert.sql'
       - 'tests/sql/reward-elastic-binding-guard-*.sql'
       - 'tests/sql/reward-elastic-postclaim-x-sweep-*.sql'
@@ -177,3 +179,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261105221500_reward_elastic_terminal_sybil_candidate_exclusion.sql
       - name: Prove blocked-but-ACTIVATING users cannot drain clean winner shares or poison funds
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-blocked-vs-pending-assert.sql
+      - name: Release physical collateral only once Claim and 72h X rights have ended
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261106020100_reward_elastic_terminal_contingent_release.sql
+      - name: Verify full lifecycle of pending, first Claim, 72h X, terminal release and later X proof
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/reward-elastic-terminal-contingent-release-assert.sql
