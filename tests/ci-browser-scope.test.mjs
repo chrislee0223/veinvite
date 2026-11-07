@@ -120,19 +120,28 @@ test('any client or UI change keeps browser QA enabled', () => {
   }
 });
 
-test('editing CI/browser scope policy forces browser QA on PRs', () => {
+test('CI-only PRs use fast contract gates, while main rechecks the full browser suite', () => {
   for (const path of [
     '.github/workflows/ci.yml',
     'scripts/should-run-browser-qa.mjs',
-    'playwright.config.ts',
     'tests/ci-browser-scope.test.mjs',
   ]) {
     assert.equal(shouldRunBrowserQa({
       eventName: 'pull_request',
       ref: 'refs/pull/99/merge',
       changedPaths: ['docs/readme.md', path],
+    }), false, path);
+    assert.equal(shouldRunBrowserQa({
+      eventName: 'push',
+      ref: 'refs/heads/main',
+      changedPaths: ['docs/readme.md', path],
     }), true, path);
   }
+  assert.equal(shouldRunBrowserQa({
+    eventName: 'pull_request',
+    ref: 'refs/pull/99/merge',
+    changedPaths: ['playwright.config.ts'],
+  }), true);
 });
 
 test('mixed backend and client changes run browser QA', () => {
