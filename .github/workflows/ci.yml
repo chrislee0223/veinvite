@@ -1,6 +1,7 @@
 name: VeInvite CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -219,11 +220,19 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Fail closed: if either commit is unavailable, the push was
+          # force-rewritten, or git diff fails, the empty set runs full QA.
+          # For main pushes use the actual github.event.before -> github.sha
+          # change set, not a sentinel that unconditionally forces browser QA.
           changed_paths=''
-          if [ "$EVENT_NAME" = 'push' ] && [ "$REF_NAME" = 'refs/heads/main' ]; then
-            changed_paths='main-push'
-          elif [ -n "${BASE_SHA:-}" ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            changed_paths="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "${BASE_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]] &&
+             [[ "${HEAD_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]] &&
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null &&
+             git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null &&
+             git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"; then
+            if ! changed_paths="$(git diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA")"; then
+              changed_paths=''
+            fi
           fi
 
           result="$(
@@ -246,9 +255,9 @@ jobs:
             echo 'No reliable diff was available; classifier fails safe to browser QA.'
           fi
 
-      - name: Browser QA skipped for backend-only pull request
+      - name: Browser QA skipped for provably backend-only changes
         if: steps.browser-scope.outputs.run_browser == 'false'
-        run: echo 'Full browser QA is skipped on this pull request; main pushes always run it.'
+        run: echo 'Full browser QA skipped after reviewing the actual commit diff; full code, reward, security, and build checks still run.'
 
       - name: Restore Playwright browser cache
         if: steps.browser-scope.outputs.run_browser == 'true'
