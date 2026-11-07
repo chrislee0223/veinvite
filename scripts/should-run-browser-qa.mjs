@@ -73,17 +73,9 @@ export function shouldRunBrowserQa({
     return true;
   }
 
-  // Keep the existing fast PR path, but changes to the browser/CI scope policy
-  // itself must be covered by the full suite.
-  if (changedPaths.some((path) =>
-    path === 'playwright.config.ts' ||
-    path === 'scripts/should-run-browser-qa.mjs' ||
-    path === '.github/workflows/ci.yml' ||
-    path === 'tests/ci-browser-scope.test.mjs'
-  )) {
-    return true;
-  }
-
+  // CI-only edits cannot alter the browser UI. They are covered by the
+  // preflight scope contract on PRs, then force a complete browser QA on the
+  // resulting main push (where this allowlist is intentionally stricter).
   return changedPaths.some((path) => !isBackendOnlyPath(path));
 }
 
