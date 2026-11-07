@@ -32,6 +32,8 @@ const MAIN_SAFE_REWARD_FILES = new Set([
 ]);
 
 function isProvenMainBackendOnlyPath(path) {
+  // Changes to the test-selection contract must never exempt themselves.
+  if (path === 'tests/ci-browser-scope.test.mjs') return false;
   return (
     MAIN_SAFE_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
     MAIN_SAFE_REWARD_FILES.has(path) ||
