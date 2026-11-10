@@ -199,8 +199,13 @@ test('an open receipt refreshes when the X offer deadline or submission grace en
   assert.match(panel, /window\.setTimeout\([\s\S]*?\(\) => void load\(\)/);
   assert.match(panel, /window\.clearTimeout\(timer\)/);
   assert.match(panel, /transitionAt - Date\.now\(\) \+ 1_000/);
-  // Prevent a 24-hour interval poll from introducing unnecessary database load.
-  assert.doesNotMatch(panel, /\['OPEN', 'SUBMISSION_GRACE'\]\.includes\(promotion\?\.state/);
+  // A bonusOnly render guard is allowed; the frequent polling gate must
+  // still exclude OPEN and SUBMISSION_GRACE during the 24-hour window.
+  const start = panel.indexOf('const poll =');
+  const end = panel.indexOf('useEffect(() => {', start);
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(panel.slice(start, end), /\['OPEN', 'SUBMISSION_GRACE'\]/);
+  assert.match(panel, /bonusOnly &&[\s\S]*!\['OPEN', 'SUBMISSION_GRACE'\]/);
 });
 
 test('reward popup fails closed after expiry even if its share action was already cached', () => {

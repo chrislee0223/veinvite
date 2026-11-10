@@ -41,8 +41,11 @@ test('optional split inconsistency cannot take down all inviter actions', () => 
   const invites = source('src/app/api/invites/route.ts');
   const actions = source('src/app/api/notifications/reward-actions/route.ts');
   assert.match(invites, /Invalid LIVE X promotion split in invitation reward display/);
-  assert.match(invites, /return toInviteRecord\(invitation\);/);
-  assert.match(actions, /Invalid LIVE X promotion split in reward action display:[\s\S]*return \[\];/);
+  assert.match(invites, /return base;/);
+  assert.match(invites, /rewardQueueStatus: queue\.status/);
+  assert.match(invites, /rewardReservedAmountWei: reserved/);
+  assert.match(actions, /Invalid LIVE X promotion split in reward action display:[\s\S]*if \(queue\.status === 'AWAITING_CLAIM'\) return \[\]/);
+  assert.match(actions, /claimAmountWei = null;[\s\S]*promotionAmountWei = null;/);
   assert.match(invites, /requireWalletSession/);
   assert.match(actions, /requireWalletSession/);
 });
