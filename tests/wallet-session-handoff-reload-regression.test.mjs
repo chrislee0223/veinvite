@@ -39,12 +39,15 @@ test('a refresh, SDK event, pageshow or hidden tab never automatically DELETEs a
 test('the provider handoff must scope both deletes to the previous wallet, not the incoming signer',()=>{
   assert.match(files.handoff,/session\.authenticated !== true[\s\S]*sessionWallet === targetWallet/);
   assert.match(files.handoff,/cancelActiveWalletAuthentication\(\)/);
-  assert.match(files.handoff,/const clearBrowserSession = async \(\) =>/);
+  assert.match(files.handoff,/const clearBrowserSession = async \(\): Promise<boolean> =>/);
   assert.match(files.handoff,/X-VeInvite-Session-Handoff-Wallet': sessionWallet/);
-  assert.match(files.handoff,/if \(!\(await clearBrowserSession\(\)\)\.ok\) \{/);
-  assert.match(files.handoff,/const finalClearResponse = await clearBrowserSession\(\)/);
-  assert.match(files.handoff,/finalClearResponse\.status !== 409/);
-  assert.match(files.handoff,/currentSession\.authenticated !== false/);
+  assert.match(files.handoff,/clearResponse\.status !== 409/);
+  assert.match(files.handoff,/currentSession\.authenticated === false/);
+  assert.equal(
+    (files.handoff.match(/if \(!\(await clearBrowserSession\(\)\)\) \{/g) ?? []).length,
+    2,
+    'first and final DELETE must both safely recheck an already-revoked A session',
+  );
   assert.match(files.handoff,/canonicalWalletRef\.current !== targetWallet/);
   assert.match(files.handoff,/AUTH_HANDOFF_SETTLE_MS/);
   assert.match(files.handoff,/new Event\(WALLET_SESSION_INVALID_EVENT\)/);
