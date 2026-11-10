@@ -262,7 +262,7 @@ if (/\\.bottomNavigation button span,/.test(localizedTypography)) {
   failures.push('Navigation icon spans must not inherit multilingual label height or wrapping.');
 }
 const navigationSource = read('src/components/AppBottomNavigation.tsx');
-if (!/grid-template-rows:\\s*21px auto/.test(navigationSource)) {
+if (!/grid-template-rows:\s*21px auto/.test(navigationSource)) {
   failures.push('Bottom navigation must allocate an intrinsic-height row for multi-line labels.');
 }
 
