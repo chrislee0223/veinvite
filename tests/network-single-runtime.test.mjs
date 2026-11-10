@@ -134,7 +134,7 @@ test('node profile remains non-blocking and desktop keeps the mobile-width Netwo
   assert.doesNotMatch(homeSource, /\.networkScreen \.accountChip/);
   assert.match(bottomNavigationSource, /\.bottomNavigation \{[^}]*padding: 0 12px calc\(10px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(bottomNavigationSource, /\.bottomNavigation > div \{[^}]*min-height: 70px[^}]*padding: 6px[^}]*border-radius: 23px/);
-  assert.match(bottomNavigationSource, /button \{[^}]*min-height: 56px[^}]*padding: 6px 3px[^}]*grid-template-rows: 21px 13px/);
+  assert.match(bottomNavigationSource, /button \{[^}]*min-height: 56px[^}]*padding: 6px 3px[^}]*grid-template-rows: 21px auto/);
   assert.doesNotMatch(bottomNavigationSource, /\.bottomNavigation\[data-veinvite-active-tab='guide'\]/);
   assert.match(networkHubSource, /\.networkHubState\{[^}]*padding:27px 18px 25px/);
   assert.doesNotMatch(networkHubSource, /@media\(max-width:560px\)/);
