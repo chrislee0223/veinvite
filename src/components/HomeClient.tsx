@@ -539,7 +539,7 @@ export function HomeClient() {
       running = true;
       let hasSuccessfulSync = false;
       try {
-        // Serialize payout-capable syncs across both invite slots.
+        // Serialize payout-capable syncs.
         for (const invite of dueInvites) {
           if (!sameWallet(activeWalletRef.current, requestWallet)) break;
 
@@ -593,13 +593,12 @@ export function HomeClient() {
   const rewardItems = useMemo(
     () => invites.filter((invite) =>
       invite.status === 'COMPLETED' &&
-      Boolean(invite.rewardReservedAmountWei) &&
+      (invite.rewardReservedAmountWei || invite.rewardQueueStatus) &&
       invite.rewardEligibility !== 'FORFEITED' &&
       invite.rewardQueueStatus !== 'CANCELLED',
     ),
     [invites],
   );
-
   const outstandingRewards = useMemo(
     () => rewardItems.filter(
       (invite) => invite.rewardEligibility !== 'PAID',

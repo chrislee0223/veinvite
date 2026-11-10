@@ -8,6 +8,7 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { parseExactRewardCsv } from '@/lib/rewards/exactRewardCsv';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -101,8 +102,13 @@ function integerWei(
   value: string | number | null | undefined,
 ): string | null {
   if (value === null || value === undefined) return null;
-  const normalized = String(value);
-  return /^\d+$/u.test(normalized) ? normalized : null;
+  // A JavaScript number above MAX_SAFE_INTEGER is never exact Wei.
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value >= 0
+      ? String(value)
+      : null;
+  }
+  return /^\d+$/u.test(value) ? value : null;
 }
 
 function toInviteRecord(
@@ -111,7 +117,7 @@ function toInviteRecord(
   promotionSplit?: RewardXPromotionSplitRow,
   promotionLookupAvailable = false,
 ): InviteRecord {
-  const reservedAmountWei =
+  let reservedAmountWei =
     integerWei(rewardQueue?.reserved_amount_wei);
   let claimAmountWei: string | null =
     promotionLookupAvailable
@@ -138,13 +144,16 @@ function toInviteRecord(
       BigInt(splitPromotionWei) !==
         X_PROMOTION_FIXED_BONUS_WEI
     ) {
-      throw new Error(
-        `Invalid LIVE X promotion split for ${row.invite_code}.`,
-      );
+      // Withhold amounts rather than rounding money or hiding the entire
+      // authenticated invitation list. Claim retains its independent DB gate.
+      console.warn('Withholding inconsistent LIVE reward display amounts.');
+      reservedAmountWei = null;
+      claimAmountWei = null;
+      promotionAmountWei = null;
+    } else {
+      claimAmountWei = baseAmountWei;
+      promotionAmountWei = splitPromotionWei;
     }
-
-    claimAmountWei = baseAmountWei;
-    promotionAmountWei = splitPromotionWei;
   }
 
   return {
@@ -301,26 +310,46 @@ export async function GET(request: NextRequest) {
 
   const invitationRows = toInvitationRows(data).filter(isUserVisibleInvite);
   const inviteCodes = invitationRows.map((invitation) => invitation.invite_code);
-  const [queueResult, promotionResult] = inviteCodes.length > 0
-    ? await Promise.all([
-        supabaseAdmin
-          .from('reward_queue_entries')
-          .select(
-            'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
-          )
-          .in('invite_code', inviteCodes),
-        supabaseAdmin
-          .from('reward_x_promotion_splits')
-          .select(
-            'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
-          )
-          .in('invite_code', inviteCodes)
-          .eq('mode', 'LIVE'),
-      ])
-    : [
-        { data: [] as RewardQueueRow[], error: null },
-        { data: [] as RewardXPromotionSplitRow[], error: null },
-      ];
+  const queueWeiColumns = ['invite_code', 'reserved_amount_wei'];
+  const promotionWeiColumns = [
+    'invite_code', 'reservation_amount_wei', 'base_amount_wei',
+    'promotion_amount_wei',
+  ];
+  const [queueResult, promotionResult, queueWeiResult, promotionWeiResult] =
+    inviteCodes.length > 0
+      ? await Promise.all([
+          supabaseAdmin
+            .from('reward_queue_entries')
+            .select(
+              'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
+            )
+            .in('invite_code', inviteCodes),
+          supabaseAdmin
+            .from('reward_x_promotion_splits')
+            .select(
+              'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+            )
+            .in('invite_code', inviteCodes)
+            .eq('mode', 'LIVE'),
+          // Text/csv is lossless for PostgreSQL numeric(78,0) amounts.
+          supabaseAdmin
+            .from('reward_queue_entries')
+            .select(queueWeiColumns.join(','))
+            .in('invite_code', inviteCodes)
+            .csv(),
+          supabaseAdmin
+            .from('reward_x_promotion_splits')
+            .select(promotionWeiColumns.join(','))
+            .in('invite_code', inviteCodes)
+            .eq('mode', 'LIVE')
+            .csv(),
+        ])
+      : [
+          { data: [] as RewardQueueRow[], error: null },
+          { data: [] as RewardXPromotionSplitRow[], error: null },
+          { data: queueWeiColumns.join(','), error: null },
+          { data: promotionWeiColumns.join(','), error: null },
+        ];
 
   if (queueResult.error) {
     console.error('Failed to load invitation reward claims:', queueResult.error);
@@ -329,35 +358,59 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-  const promotionLookupAvailable =
-    promotionResult.error === null;
+  // Money is optional display enrichment, not payout authority. A broken
+  // projection must neither invent money nor hide the invitation/status.
+  let queueWeiAvailable = queueWeiResult.error === null;
+  let promotionLookupAvailable =
+    promotionResult.error === null && promotionWeiResult.error === null;
+  let exactQueueWei = new Map<string, Record<string, string | null>>();
+  let exactPromotionWei = new Map<string, Record<string, string | null>>();
 
-  if (promotionResult.error) {
-    // X promotion display enrichment is intentionally fail-soft. Core invite
-    // and Claim availability must not disappear because this optional read
-    // failed. The UI receives no resolved immediate-claim amount and must not
-    // guess one from the immutable maximum-total reservation.
-    console.warn(
-      'Invitation X promotion display enrichment unavailable:',
-      promotionResult.error,
+  try {
+    if (!queueWeiAvailable) throw new Error('Queue projection unavailable.');
+    exactQueueWei = parseExactRewardCsv(queueWeiResult.data, queueWeiColumns);
+  } catch {
+    queueWeiAvailable = false;
+    console.warn('Exact queue display amounts unavailable.');
+  }
+  try {
+    if (!promotionLookupAvailable) throw new Error('Split projection unavailable.');
+    exactPromotionWei = parseExactRewardCsv(
+      promotionWeiResult.data, promotionWeiColumns,
     );
+  } catch {
+    promotionLookupAvailable = false;
+    console.warn('Exact X promotion display amounts unavailable.');
   }
 
   const rewardQueueByInvite = new Map<string, RewardQueueRow>(
     ((queueResult.data ?? []) as RewardQueueRow[]).map((entry) => [
       entry.invite_code,
-      entry,
+      {
+        ...entry,
+        reserved_amount_wei: queueWeiAvailable
+          ? (exactQueueWei.get(entry.invite_code)?.reserved_amount_wei ?? null)
+          : null,
+      },
     ]),
   );
   const promotionRows: RewardXPromotionSplitRow[] =
     promotionLookupAvailable
-      ? (promotionResult.data ?? []) as RewardXPromotionSplitRow[]
+      ? ((promotionResult.data ?? []) as RewardXPromotionSplitRow[]).map(
+          (entry) => ({
+            ...entry,
+            reservation_amount_wei:
+              exactPromotionWei.get(entry.invite_code)?.reservation_amount_wei ?? '',
+            base_amount_wei:
+              exactPromotionWei.get(entry.invite_code)?.base_amount_wei ?? '',
+            promotion_amount_wei:
+              exactPromotionWei.get(entry.invite_code)?.promotion_amount_wei ?? '',
+          }),
+        )
       : [];
   const promotionSplitByInvite =
     new Map<string, RewardXPromotionSplitRow>(
-      promotionRows.map(
-        (entry) => [entry.invite_code, entry],
-      ),
+      promotionRows.map((entry) => [entry.invite_code, entry]),
     );
 
   let invites: InviteRecord[];
