@@ -29,8 +29,8 @@ test('share-followup translations cover all 29 registered app locales', () => {
   const registered = Array.from(locales.matchAll(/\{ locale: '([^']+)'/g), (m) => m[1]);
   assert.equal(registered.length, 29);
   assert.match(copy, /shareFollowupBody: string/);
-  assert.match(copy, /return to VeInvite\. Open your reward in Notifications/);
-  assert.match(copy, /X에 게시한 뒤 VeInvite로 돌아와/);
+  assert.match(copy, /return to the X bonus panel on VeInvite Home/);
+  assert.match(copy, /VeInvite 홈의 X 추가 보상 카드/);
   for (const locale of registered) {
     assert.match(copy, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale: ' + locale);
   }
