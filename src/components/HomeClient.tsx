@@ -593,7 +593,13 @@ export function HomeClient() {
   const rewardItems = useMemo(
     () => invites.filter((invite) =>
       invite.status === 'COMPLETED' &&
-      Boolean(invite.rewardReservedAmountWei) &&
+      // A fail-soft display projection may withhold an unverifiable Wei
+      // amount. Keep server-confirmed claim/processing status accessible;
+      // Claim itself still enforces immutable payout authority.
+      (Boolean(invite.rewardReservedAmountWei) ||
+        invite.rewardQueueStatus === 'AWAITING_CLAIM' ||
+        invite.rewardQueueStatus === 'QUEUED' ||
+        invite.rewardQueueStatus === 'ASSIGNED') &&
       invite.rewardEligibility !== 'FORFEITED' &&
       invite.rewardQueueStatus !== 'CANCELLED',
     ),
