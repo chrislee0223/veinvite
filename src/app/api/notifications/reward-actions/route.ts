@@ -291,12 +291,16 @@ export async function GET(request: NextRequest) {
           claimAmountWei = baseAmountWei;
           promotionAmountWei = splitPromotionWei;
         } else {
-          // Fail closed for this one action, without making all other
-          // claimable rewards disappear from the wallet's action list.
+          // Never advertise a claimable amount when the LIVE split is invalid.
+          // An already claimed transfer must remain visible so the wallet can
+          // see independently verified canonical progress. The immutable
+          // reservation and payout ledger are never modified by this display.
           console.error(
             `Invalid LIVE X promotion split in reward action display: ${queue.invite_code}`,
           );
-          return [];
+          if (queue.status === 'AWAITING_CLAIM') return [];
+          claimAmountWei = null;
+          promotionAmountWei = null;
         }
       }
 
