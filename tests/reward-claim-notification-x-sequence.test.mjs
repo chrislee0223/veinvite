@@ -70,7 +70,7 @@ test('all 29 X follow-up copies point to the Home bonus panel without waiting fo
     read('src/lib/i18n/rewardXPromotionExpandedCopyB.ts'),
   ]);
   const all = copies.join('\n');
-  assert.equal([...all.matchAll(/^\s*shareFollowupBody: [\"']/gmu)].length, 29);
+  assert.equal([...all.matchAll(/^\s*shareFollowupBody: ["']/gmu)].length, 29);
   assert.match(all, /VeInvite 홈의 X 추가 보상 카드/u);
   assert.match(all, /No need to wait for final settlement/u);
   assert.doesNotMatch(all, /Open your reward in Notifications|알림의 지급 완료 내역을 열고/u);
