@@ -39,9 +39,16 @@ test('a refresh, SDK event, pageshow or hidden tab never automatically DELETEs a
 test('the provider handoff must scope both deletes to the previous wallet, not the incoming signer',()=>{
   assert.match(files.handoff,/session\.authenticated !== true[\s\S]*sessionWallet === targetWallet/);
   assert.match(files.handoff,/cancelActiveWalletAuthentication\(\)/);
-  assert.match(files.handoff,/const clearBrowserSession = async \(\) =>/);
+  assert.match(files.handoff,/const clearBrowserSession = async \(\): Promise<boolean> =>/);
   assert.match(files.handoff,/X-VeInvite-Session-Handoff-Wallet': sessionWallet/);
-  assert.match(files.handoff,/if \(!\(await clearBrowserSession\(\)\)\) \{/);
+  assert.match(files.handoff,/clearResponse\.status !== 409/);
+  assert.match(files.handoff,/currentSession\.authenticated === false/);
+  assert.equal(
+    (files.handoff.match(/if \(!\(await clearBrowserSession\(\)\)\) \{/g) ?? []).length,
+    2,
+    'first and final DELETE must both safely recheck an already-revoked A session',
+  );
+  assert.match(files.handoff,/canonicalWalletRef\.current !== targetWallet/);
   assert.match(files.handoff,/AUTH_HANDOFF_SETTLE_MS/);
   assert.match(files.handoff,/new Event\(WALLET_SESSION_INVALID_EVENT\)/);
 });
@@ -165,6 +172,20 @@ test('missing cookie, malformed wallet or CSRF origin does not clear newer brows
     return null;
   }}});
   assert.equal(badOrigin.status,403);
+  assert.equal(app.cookies.length,0);
+});
+
+test('second scoped A DELETE returns 409 after revocation, but never touches newer B',async()=>{
+  const app=sessionRouteHarness(A);
+  assert.equal((await app.DELETE(req(A))).status,200);
+  app.setSessionWallet(null);
+  assert.equal((await app.DELETE(req(A))).status,409,
+    'already-revoked A is an expected idempotent handoff outcome');
+  app.setSessionWallet(B);
+  assert.equal((await app.DELETE(req(A))).status,409,
+    'a new B session must not be revoked by A cleanup');
+  assert.deepEqual(app.updatedWallets,[A]);
+  assert.equal(app.unscopedRevokes,0);
   assert.equal(app.cookies.length,0);
 });
 
