@@ -194,6 +194,26 @@ html body .leaderboardHub .countryError button {
  * Between the max rail and phone layout, reduce fixed metric tracks before the
  * country track becomes cramped while preserving the one-gap identity shift.
  */
+/* Match the desktop header's usable grid width to its scrolling rows.
+ * Classic scrollbars reduce the row content width while the header is outside
+ * the scroll container. Both sides now reserve the same native gutter, without
+ * inferring a pixel offset from a scaled screenshot. Mobile remains untouched. */
+@media (min-width: 501px) {
+  html body .leaderboardHub .countryHeader,
+  html body .leaderboardHub .countryScroll {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  html body .leaderboardHub .countryHeader {
+    overflow-y: hidden;
+  }
+
+  html body .leaderboardHub .countryHeader::-webkit-scrollbar {
+    width: 5px;
+  }
+}
+
 @media (max-width: 500px) {
   html body .leaderboardHub .countryHeader,
   html body .leaderboardHub .countryRow,
