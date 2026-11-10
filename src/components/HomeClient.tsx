@@ -539,7 +539,7 @@ export function HomeClient() {
       running = true;
       let hasSuccessfulSync = false;
       try {
-        // Serialize payout-capable syncs across both invite slots.
+        // Serialize payout-capable syncs.
         for (const invite of dueInvites) {
           if (!sameWallet(activeWalletRef.current, requestWallet)) break;
 
