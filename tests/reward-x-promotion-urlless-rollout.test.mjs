@@ -51,3 +51,22 @@ test('removed manual HTTP endpoint cannot bypass linked-author verification', ()
   assert.match(discovery, /record_reward_x_promotion_post_submission_v1/);
   assert.match(discovery, /boundAuthors/);
 });
+
+test('old manual instructions cannot resurface in any of the 29 localized X notices', () => {
+  const base = read('src/lib/i18n/rewardXPromotionCopy.ts');
+  const expanded = [
+    read('src/lib/i18n/rewardXPromotionExpandedCopyA.ts'),
+    read('src/lib/i18n/rewardXPromotionExpandedCopyB.ts'),
+  ].join('\n');
+  const oauth = read('src/lib/i18n/rewardXPromotionOAuthFeedbackCopy.ts');
+  const auto = read('src/lib/i18n/rewardXPromotionAutoCopyA.ts')
+    + read('src/lib/i18n/rewardXPromotionAutoCopyB.ts');
+  const hook = read('src/hooks/useXPromotionOAuthReturnFeedback.ts');
+  for (const source of [base, expanded]) {
+    assert.doesNotMatch(source, /^\s*(?:openBody|graceBody|postUrlPlaceholder|shareFollowupBody|verify|verifying):/m);
+  }
+  assert.doesNotMatch(auto, /^\s*connectedX:/m);
+  assert.doesNotMatch(oauth, /manual(?:ly)?|paste|붙여|직접 제출|手動提交|手动提交/i);
+  assert.match(hook, /\.autoConnectedX/);
+  assert.doesNotMatch(hook, /\.connectedX/);
+});
