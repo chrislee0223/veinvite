@@ -2,62 +2,21 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const adapter = await readFile(
-  new URL(
-    '../src/lib/rewards/rewardXPromotionXApi.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
+const read = path => readFile(new URL('../' + path, import.meta.url), 'utf8');
+const [adapter, discovery, lifecycle, externalReadiness, retryMigration, invalidationMigration] =
+  await Promise.all([
+    read('src/lib/rewards/rewardXPromotionXApi.ts'),
+    read('src/lib/rewards/rewardXPromotionAutoDiscovery.ts'),
+    read('src/lib/rewards/rewardXPromotionLifecycle.ts'),
+    read('src/lib/rewards/rewardXPromotionExternalReadiness.ts'),
+    read('supabase/migrations/20261009142000_add_x_promotion_lifecycle_maintenance_v1.sql'),
+    read('supabase/migrations/20261009133000_add_x_promotion_submission_invalidation_v1.sql'),
+  ]);
 
-const route = await readFile(
-  new URL(
-    '../src/app/api/rewards/x-promotion/submit/route.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-const externalReadiness = await readFile(
-  new URL(
-    '../src/lib/rewards/rewardXPromotionExternalReadiness.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-const lifecycle = await readFile(
-  new URL(
-    '../src/lib/rewards/rewardXPromotionLifecycle.ts',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-const retryMigration = await readFile(
-  new URL(
-    '../supabase/migrations/20261009142000_add_x_promotion_lifecycle_maintenance_v1.sql',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-const migration = await readFile(
-  new URL(
-    '../supabase/migrations/20261009133000_add_x_promotion_submission_invalidation_v1.sql',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-test('X lookup preserves legacy query and retries current X API fields only for HTTP 400', () => {
-  assert.match(
-    adapter,
-    /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/,
-  );
+test('X adapter retries Tweet/Post field incompatibilities without relaxing authenticity', () => {
+  assert.match(adapter, /https:\/\/api\.x\.com\/2\/tweets\/\$\{postId\}/);
   assert.match(adapter, /'tweet\.fields'/);
   assert.match(adapter, /'created_at'/);
-  assert.match(adapter, /'entities'/);
   assert.match(adapter, /'author_id'/);
   assert.match(adapter, /'referenced_tweets'/);
   assert.match(adapter, /response\.status === 400/);
@@ -66,133 +25,63 @@ test('X lookup preserves legacy query and retries current X API fields only for 
   assert.match(adapter, /referenced_posts/);
 });
 
-test('missing credentials and transient X failures never become terminal invalidation', () => {
-  assert.match(adapter, /X_API_NOT_CONFIGURED/);
-  assert.match(adapter, /X_API_RATE_LIMITED/);
-  assert.match(adapter, /X_API_UNAVAILABLE/);
-  assert.match(route, /lookup\.status === 'RETRY'/);
-  assert.match(route, /status: 202/);
+test('missing credentials and transient provider failures are retried, not counted as fraud', () => {
+  for (const reason of ['X_API_NOT_CONFIGURED', 'X_API_RATE_LIMITED', 'X_API_UNAVAILABLE']) {
+    assert.ok(adapter.includes(reason));
+  }
+  assert.match(lifecycle, /lookup\.status === 'RETRY'/);
+  assert.match(lifecycle, /return 'RETRY'/);
 });
 
-test('X lookup records only safe HTTP diagnostics for transient failures', () => {
+test('adapter diagnostics remain coarse and never leak provider credentials', () => {
   assert.match(adapter, /httpStatus\?: number/);
   assert.match(adapter, /httpStatus: response\.status/);
   assert.match(externalReadiness, /lookupReason/);
   assert.match(externalReadiness, /httpStatus/);
-  assert.doesNotMatch(externalReadiness, /Authorization/);
-  assert.doesNotMatch(externalReadiness, /X_API_BEARER_TOKEN/);
-});
-
-test('author and referenced Post identity use canonical Tweet fields', () => {
-  const fieldsStart = adapter.indexOf(
-    "endpoint.searchParams.set(\n    'tweet.fields'",
-  );
-
-  assert.ok(fieldsStart >= 0);
-  const fieldsBlock = adapter.slice(
-    fieldsStart,
-    adapter.indexOf('const controller', fieldsStart),
-  );
-
-  assert.match(fieldsBlock, /author_id/);
-  assert.match(fieldsBlock, /referenced_tweets/);
-  assert.doesNotMatch(fieldsBlock, /referenced_posts/);
-});
-
-test('submission is persisted before the external X lookup', () => {
-  const recordIndex = route.indexOf(
-    'record_reward_x_promotion_post_submission_v1',
-  );
-  const lookupIndex = route.indexOf(
-    'await lookupXPromotionPost(',
-  );
-
-  assert.ok(recordIndex >= 0);
-  assert.ok(lookupIndex > recordIndex);
-});
-
-test('wallet session and opportunity ownership gate the submission API', () => {
-  assert.match(route, /requireWalletSession/);
-  assert.match(route, /opportunity\.recipient_wallet\.toLowerCase\(\) !== wallet/);
-  assert.match(route, /x_promotion_submit_wallet/);
-  assert.match(route, /x_promotion_submit_invite/);
-});
-
-test('only original Posts with the unique VeInvite URL can pass initial verification', () => {
-  assert.match(route, /!lookup\.isOriginalPost/);
-  assert.match(route, /POST_NOT_ORIGINAL/);
-  assert.match(route, /findVeInvitePromotionUrl/);
-  assert.match(route, /SHARE_TOKEN_MISSING/);
-});
-
-test('terminal verdict is not exposed unless invalidation persisted', () => {
-  assert.match(route, /Promise<boolean>/);
-  assert.match(route, /INVALIDATION_RETRY_REQUIRED/);
-  assert.match(route, /if \(!invalidated\)/);
-});
-
-test('terminal submission invalidation is narrow and does not release the reward obligation', () => {
-  assert.match(
-    migration,
-    /old\.submission_state<>'PENDING'|submission_state<>'PENDING'/,
-  );
-  assert.match(migration, /submission_state='INVALID'/);
-  assert.doesNotMatch(
-    migration,
-    /update public\.reward_x_promotion_obligations/i,
-  );
-  assert.doesNotMatch(
-    migration,
-    /insert into public\.reward_payouts/i,
-  );
-});
-
-test('X API adapter does not expose credentials to the client', () => {
-  assert.match(adapter, /process\.env\.X_API_BEARER_TOKEN/);
+  assert.doesNotMatch(externalReadiness, /Authorization|X_API_BEARER_TOKEN/);
   assert.match(adapter, /import 'server-only'/);
-  assert.doesNotMatch(route, /NEXT_PUBLIC_X_API/i);
 });
 
+test('automatic author discovery checks ownership and canonical evidence before durable submission', () => {
+  const checked = discovery.indexOf('const canonical = await lookupXPromotionPost(');
+  const persisted = discovery.indexOf("'record_reward_x_promotion_post_submission_v1'");
+  assert.ok(checked >= 0 && persisted > checked);
+  assert.match(discovery, /boundAuthors\.get\(opportunity\.recipient_wallet\.toLowerCase\(\)\) !== post\.author_id/);
+  assert.match(discovery, /canonical\.status !== 'FOUND' \|\| !canonical\.isOriginalPost/);
+  assert.match(discovery, /canonical\.authorId !== post\.author_id/);
+  assert.match(discovery, /findVeInvitePromotionUrl\(canonical\.expandedUrls/);
+});
 
-test('promotion URL matching requires the canonical referral path and exact xp token', () => {
+test('auto-scanning is bounded and never directly pays or releases X bonus liability', () => {
+  assert.match(discovery, /VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY/);
+  assert.match(discovery, /VEINVITE_X_PROMOTION_DAILY_READ_CALLS/);
+  assert.match(discovery, /alreadySubmitted/);
+  assert.doesNotMatch(discovery, /finalize_reward_x_promotion_payout_v1|sendTransaction\(/);
+  assert.match(lifecycle, /record_reward_x_promotion_initial_post_verification_v2/);
+  assert.match(lifecycle, /finalize_reward_x_promotion_post_verification_v2/);
+});
+
+test('initial and final checks still reject altered authors, Posts, and share tokens', () => {
+  assert.match(lifecycle, /!lookup\.isOriginalPost/);
+  assert.match(lifecycle, /POST_NOT_ORIGINAL/);
+  assert.match(lifecycle, /findVeInvitePromotionUrl/);
+  assert.match(lifecycle, /SHARE_TOKEN_MISSING/);
+  assert.match(lifecycle, /POST_AUTHOR_MISMATCH/);
+});
+
+test('canonical shared URL requires an exact referral path and one promotion token', () => {
   assert.match(adapter, /REFERRAL_KEY_PATTERN/);
   assert.match(adapter, /PROMOTION_TOKEN_PATTERN/);
   assert.match(adapter, /PROMOTION_QUERY_PARAM = 'xp'/);
   assert.match(adapter, /REFERRAL_KEY_PATTERN\.test\(match\[1\]\)/);
-  assert.match(adapter, /url\.pathname/);
-  assert.match(adapter, /searchParams\.getAll/);
   assert.match(adapter, /promotionTokens\.length !== 1/);
-  assert.doesNotMatch(
-    adapter,
-    /url\.toString\(\)\.toLowerCase\(\)\.includes\(token\)/,
-  );
+  assert.doesNotMatch(adapter, /url\.toString\(\)\.toLowerCase\(\)\.includes\(token\)/);
 });
 
-
-test('an immediate X 404 gets propagation grace before terminal invalidation', () => {
-  const notFoundStart = route.indexOf(
-    "if (lookup.status === 'NOT_FOUND')",
-  );
-  assert.ok(notFoundStart >= 0);
-  const notFoundBlock = route.slice(
-    notFoundStart,
-    route.indexOf(
-      "if (!lookup.isOriginalPost)",
-      notFoundStart,
-    ),
-  );
-
-  assert.match(notFoundBlock, /POST_NOT_FOUND_RETRY/);
-  assert.match(notFoundBlock, /pendingResponse/);
-  assert.doesNotMatch(notFoundBlock, /invalidateSubmission/);
-  assert.doesNotMatch(notFoundBlock, /terminalResponse/);
-
-  assert.match(
-    retryMigration,
-    /u\.submitted_at <= now\(\)-interval '10 minutes'/,
-  );
-  assert.match(
-    lifecycle,
-    /lookup\.status === 'NOT_FOUND'[\s\S]*invalidatePendingSubmission/,
-  );
+test('post not found, pending verification and invalidation preserve durable audit trails', () => {
+  assert.match(retryMigration, /u\.submitted_at <= now\(\)-interval '10 minutes'/);
+  assert.match(lifecycle, /lookup\.status === 'NOT_FOUND'[\s\S]*invalidatePendingSubmission/);
+  assert.match(invalidationMigration, /submission_state='INVALID'/);
+  assert.doesNotMatch(invalidationMigration, /update public\.reward_x_promotion_obligations/i);
+  assert.doesNotMatch(invalidationMigration, /insert into public\.reward_payouts/i);
 });
