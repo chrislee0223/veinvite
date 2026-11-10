@@ -18,7 +18,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 type OpportunityRow = {
   id: string | number;
   obligation_id: string | number;
-  promotion_amount_wei: string | number;
+  promotion_amount_wei: string;
   opened_at: string;
   post_deadline_at: string;
   submission_grace_seconds: number;
@@ -192,7 +192,7 @@ export async function GET(
             'obligation_id',
             'invite_code',
             'recipient_wallet',
-            'promotion_amount_wei',
+            'promotion_amount_wei::text',
             'opened_at',
             'post_deadline_at',
             'submission_grace_seconds',
@@ -250,8 +250,11 @@ export async function GET(
       );
     }
 
+    // The PostgREST ::text cast prevents unsafe JS numeric rounding.
     const amountWei =
-      String(opportunityRow.promotion_amount_wei ?? '');
+      typeof opportunityRow.promotion_amount_wei === 'string'
+        ? opportunityRow.promotion_amount_wei
+        : '';
     const graceSeconds =
       Number(opportunityRow.submission_grace_seconds);
     const deadlineAt =
