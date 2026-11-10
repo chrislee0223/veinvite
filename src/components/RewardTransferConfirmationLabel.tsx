@@ -123,7 +123,10 @@ export function TransferStatus({
           );
 
           if (confirmed && !disposed) {
-            const amount = action?.claimAmountWei ?? action?.reservedAmountWei;
+            // X share text may use only a server-verified immediate-claim amount.
+            // Never substitute the full immutable reservation if an optional
+            // promotion split failed to validate. Transfer status still shows.
+            const amount = action?.claimAmountWei;
             if (amount && /^[0-9]+$/u.test(amount) && BigInt(amount) > 0n) {
               setConfirmedAmount({ identity, amountWei: amount });
             }
