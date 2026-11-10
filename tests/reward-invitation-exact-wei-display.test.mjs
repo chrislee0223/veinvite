@@ -57,3 +57,14 @@ test('a display-only split mismatch cannot take down all invites or bypass walle
   assert.match(auth, /verifyVeWorldCertificate\(/);
   assert.match(auth, /issue_wallet_session_after_verified_challenge/);
 });
+
+test('a safe display fallback does not hide an independently verified Claim action', async () => {
+  const home = await readFile(
+    new URL('../src/components/HomeClient.tsx', import.meta.url), 'utf8',
+  );
+  assert.match(home, /invite\.rewardQueueStatus === 'AWAITING_CLAIM'/);
+  assert.match(home, /invite\.rewardQueueStatus === 'QUEUED'/);
+  assert.match(home, /invite\.rewardQueueStatus === 'ASSIGNED'/);
+  assert.match(home, /invite\.rewardQueueStatus !== 'CANCELLED'/);
+  assert.match(home, /invite\.rewardEligibility !== 'FORFEITED'/);
+});
