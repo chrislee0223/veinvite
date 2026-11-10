@@ -55,7 +55,7 @@ test('country header uses a short localized country label', () => {
 test('country rows use five columns with country at inline start and compact metrics', () => {
   assert.match(
     layoutCss,
-    /grid-template-columns: 44px minmax\(0, 1fr\) 52px 52px 64px;/,
+    /grid-template-columns: 80px minmax\(0, 1fr\) 64px 64px 72px;/,
   );
   assert.match(
     layoutCss,
