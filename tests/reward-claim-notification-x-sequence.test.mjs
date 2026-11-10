@@ -61,3 +61,17 @@ test('all localized early notices describe an immediate conditional X bonus, not
   assert.match(earlyCopy, /X 추가 보상 기회가 열렸다면 지금 바로 참여할 수 있어요/u);
   assert.doesNotMatch(earlyCopy, /最終確認後に開放|最終確定後に開始|最终确认后开放|最終確認後に/u);
 });
+
+
+test('all 29 X follow-up copies point to the Home bonus panel without waiting for finality', async () => {
+  const copies = await Promise.all([
+    read('src/lib/i18n/rewardXPromotionCopy.ts'),
+    read('src/lib/i18n/rewardXPromotionExpandedCopyA.ts'),
+    read('src/lib/i18n/rewardXPromotionExpandedCopyB.ts'),
+  ]);
+  const all = copies.join('\n');
+  assert.equal([...all.matchAll(/^\s*shareFollowupBody: [\"']/gmu)].length, 29);
+  assert.match(all, /VeInvite 홈의 X 추가 보상 카드/u);
+  assert.match(all, /No need to wait for final settlement/u);
+  assert.doesNotMatch(all, /Open your reward in Notifications|알림의 지급 완료 내역을 열고/u);
+});
