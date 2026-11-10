@@ -231,11 +231,11 @@ export function WalletProviderAccountReconciler() {
                 'X-VeInvite-Session-Handoff-Wallet': sessionWallet,
               },
             });
-            return clearResponse.ok;
+            return clearResponse;
           };
 
           // First remove the known stale A session immediately.
-          if (!(await clearBrowserSession())) {
+          if (!(await clearBrowserSession()).ok) {
             return;
           }
 
@@ -259,7 +259,33 @@ export function WalletProviderAccountReconciler() {
             return;
           }
 
-          if (!(await clearBrowserSession())) {
+          const finalClearResponse = await clearBrowserSession();
+          if (!finalClearResponse.ok) {
+            // The first DELETE revoked A. A second scoped DELETE then
+            // correctly returns 409 when the browser still carries A's
+            // now-revoked cookie. That is not a failed handoff.
+            if (finalClearResponse.status !== 409) return;
+
+            // A second 409 also protects B if another tab has signed in.
+            // Re-arm verification only when there is no valid session;
+            // never clear or overwrite a newly verified wallet B.
+            const currentResponse = await fetch('/api/auth/session', {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'include',
+            });
+            if (!currentResponse.ok) return;
+            const currentSession =
+              (await currentResponse.json()) as SessionResponse;
+            if (currentSession.authenticated !== false) return;
+          }
+
+          if (
+            cancelled ||
+            sessionHandoffGenerationRef.current !== generation ||
+            canonicalWalletRef.current !== targetWallet ||
+            dappWalletRef.current !== targetWallet
+          ) {
             return;
           }
 
