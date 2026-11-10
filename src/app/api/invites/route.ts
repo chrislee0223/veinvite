@@ -8,6 +8,7 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -52,9 +53,9 @@ type RewardXPromotionSplitRow = {
   invite_code: string;
   mode: string;
   policy_version: string;
-  reservation_amount_wei: string | number;
-  base_amount_wei: string | number;
-  promotion_amount_wei: string | number;
+  reservation_amount_wei: string;
+  base_amount_wei: string;
+  promotion_amount_wei: string;
 };
 
 const X_PROMOTION_ADDITIVE_POLICY =
@@ -97,14 +98,6 @@ function toInvitationRow(value: unknown): InvitationRow | null {
   return value as InvitationRow;
 }
 
-function integerWei(
-  value: string | number | null | undefined,
-): string | null {
-  if (value === null || value === undefined) return null;
-  const normalized = String(value);
-  return /^\d+$/u.test(normalized) ? normalized : null;
-}
-
 function toInviteRecord(
   row: InvitationRow,
   rewardQueue?: RewardQueueRow,
@@ -112,7 +105,7 @@ function toInviteRecord(
   promotionLookupAvailable = false,
 ): InviteRecord {
   const reservedAmountWei =
-    integerWei(rewardQueue?.reserved_amount_wei);
+    exactWeiFromDb(rewardQueue?.reserved_amount_wei);
   let claimAmountWei: string | null =
     promotionLookupAvailable
       ? reservedAmountWei
@@ -121,11 +114,11 @@ function toInviteRecord(
 
   if (promotionSplit?.mode === 'LIVE') {
     const splitReservationWei =
-      integerWei(promotionSplit.reservation_amount_wei);
+      exactWeiFromDb(promotionSplit.reservation_amount_wei);
     const baseAmountWei =
-      integerWei(promotionSplit.base_amount_wei);
+      exactWeiFromDb(promotionSplit.base_amount_wei);
     const splitPromotionWei =
-      integerWei(promotionSplit.promotion_amount_wei);
+      exactWeiFromDb(promotionSplit.promotion_amount_wei);
 
     if (
       !reservedAmountWei ||
@@ -306,13 +299,13 @@ export async function GET(request: NextRequest) {
         supabaseAdmin
           .from('reward_queue_entries')
           .select(
-            'invite_code, status, claim_requested_at, reserved_amount_wei, reserved_at, reservation_basis',
+            'invite_code, status, claim_requested_at, reserved_amount_wei::text, reserved_at, reservation_basis',
           )
           .in('invite_code', inviteCodes),
         supabaseAdmin
           .from('reward_x_promotion_splits')
           .select(
-            'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+            'invite_code, mode, policy_version, reservation_amount_wei::text, base_amount_wei::text, promotion_amount_wei::text',
           )
           .in('invite_code', inviteCodes)
           .eq('mode', 'LIVE'),
@@ -360,26 +353,26 @@ export async function GET(request: NextRequest) {
       ),
     );
 
-  let invites: InviteRecord[];
-  try {
-    invites = invitationRows.map((invitation) =>
-      toInviteRecord(
+  // A corrupt optional LIVE split must never hide other invitations.
+  // Do not expose an unverified Claim amount or a claimable queue status
+  // for the affected item. The immutable reservation and payout ledger stay
+  // untouched and can be repaired independently after operator review.
+  const invites: InviteRecord[] = invitationRows.map((invitation) => {
+    try {
+      return toInviteRecord(
         invitation,
         rewardQueueByInvite.get(invitation.invite_code),
         promotionSplitByInvite.get(invitation.invite_code),
         promotionLookupAvailable,
-      ),
-    );
-  } catch (rewardError) {
-    console.error(
-      'Failed to resolve invitation reward display amounts:',
-      rewardError,
-    );
-    return NextResponse.json(
-      { error: 'Failed to load invitation reward status.' },
-      { status: 500 },
-    );
-  }
+      );
+    } catch (rewardError) {
+      console.error(
+        'Invalid LIVE X promotion split in invitation reward display:',
+        { inviteCode: invitation.invite_code, error: rewardError },
+      );
+      return toInviteRecord(invitation);
+    }
+  });
 
   return NextResponse.json(
     { invites },

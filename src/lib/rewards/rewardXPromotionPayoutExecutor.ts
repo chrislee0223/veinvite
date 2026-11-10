@@ -206,7 +206,7 @@ async function loadIntentState(intentId: string): Promise<IntentState> {
   ] = await Promise.all([
     supabaseAdmin
       .from('reward_x_promotion_payout_intents')
-      .select('id,network,invite_code,recipient_wallet,amount_wei,public_proof_id,created_at')
+      .select('id,network,invite_code,recipient_wallet,amount_wei::text,public_proof_id,created_at')
       .eq('id', intentId)
       .single(),
     supabaseAdmin

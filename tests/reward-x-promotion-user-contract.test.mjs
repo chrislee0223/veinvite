@@ -73,7 +73,7 @@ test('when enrichment is unavailable, explicit claim and promotion amounts are o
     inviteRoute,
     /let claimAmountWei: string \| null =[\s\S]*promotionLookupAvailable[\s\S]*\? reservedAmountWei[\s\S]*: null/,
   );
-  assert.match(inviteRoute, /promotionLookupAvailable,[\s\S]*\),/);
+  assert.match(inviteRoute, /promotionLookupAvailable,[\s\S]*\);/);
 });
 
 test('shared client type keeps reservation, core claim and optional promotion fields separate', () => {

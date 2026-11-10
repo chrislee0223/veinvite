@@ -1,4 +1,5 @@
 import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
+import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 
 export type RewardReceiptRow = {
   id: string | number;
@@ -10,7 +11,7 @@ export type RewardReceiptRow = {
   vebetter_round_id: string | number;
   invite_code: string;
   recipient_wallet: string;
-  amount_wei: string | number;
+  amount_wei: string;
   tx_id: string;
   paid_at: string;
   seen_at: string | null;
@@ -46,7 +47,7 @@ export const rewardReceiptColumns = `
   vebetter_round_id,
   invite_code,
   recipient_wallet,
-  amount_wei,
+  amount_wei::text,
   tx_id,
   paid_at,
   seen_at,
@@ -56,9 +57,9 @@ export const rewardReceiptColumns = `
 export function toRewardReceipt(
   row: RewardReceiptRow,
 ): RewardReceipt {
-  const amountWei = String(row.amount_wei);
+  const amountWei = exactWeiFromDb(row.amount_wei);
 
-  if (!/^\d+$/.test(amountWei) || BigInt(amountWei) < 1n) {
+  if (amountWei === null || BigInt(amountWei) < 1n) {
     throw new Error(
       'Stored reward receipt has an invalid B3TR amount.',
     );

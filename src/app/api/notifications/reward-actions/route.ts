@@ -8,6 +8,7 @@ import {
   type RewardActionItem,
 } from '@/lib/notifications/rewardAction';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 import {
   requireWalletSession,
   WalletAuthenticationError,
@@ -16,7 +17,7 @@ import {
 type QueueRow = {
   invite_code: string;
   status: string;
-  reserved_amount_wei: string | number | null;
+  reserved_amount_wei: string | null;
   reserved_at: string | null;
   eligible_at: string | null;
   assigned_round_id: string | number | null;
@@ -43,9 +44,9 @@ type RewardXPromotionSplitRow = {
   invite_code: string;
   mode: string;
   policy_version: string;
-  reservation_amount_wei: string | number;
-  base_amount_wei: string | number;
-  promotion_amount_wei: string | number;
+  reservation_amount_wei: string;
+  base_amount_wei: string;
+  promotion_amount_wei: string;
 };
 
 const X_PROMOTION_ADDITIVE_POLICY =
@@ -74,16 +75,8 @@ function noStoreJson(body: unknown, init?: ResponseInit) {
   });
 }
 
-function integerWei(
-  value: string | number | null | undefined,
-): string | null {
-  if (value === null || value === undefined) return null;
-  const normalized = String(value);
-  return /^\d+$/u.test(normalized) ? normalized : null;
-}
-
-function positiveWei(value: string | number | null): string | null {
-  const normalized = integerWei(value);
+function positiveWei(value: unknown): string | null {
+  const normalized = exactWeiFromDb(value);
   if (normalized === null) return null;
 
   try {
@@ -121,7 +114,7 @@ export async function GET(request: NextRequest) {
     const queueResult = await supabaseAdmin
       .from('reward_queue_entries')
       .select(
-        'invite_code, status, reserved_amount_wei, reserved_at, eligible_at, assigned_round_id, sybil_clearance_id',
+        'invite_code, status, reserved_amount_wei::text, reserved_at, eligible_at, assigned_round_id, sybil_clearance_id',
       )
       .eq('recipient_wallet', walletAddress)
       .in('status', ['AWAITING_CLAIM', 'QUEUED', 'ASSIGNED'])
@@ -174,7 +167,7 @@ export async function GET(request: NextRequest) {
     const promotionResult = await supabaseAdmin
       .from('reward_x_promotion_splits')
       .select(
-        'invite_code, mode, policy_version, reservation_amount_wei, base_amount_wei, promotion_amount_wei',
+        'invite_code, mode, policy_version, reservation_amount_wei::text, base_amount_wei::text, promotion_amount_wei::text',
       )
       .in('invite_code', inviteCodes)
       .eq('mode', 'LIVE');
@@ -280,11 +273,11 @@ export async function GET(request: NextRequest) {
 
       if (promotionSplit?.mode === 'LIVE' && amount) {
         const splitReservationWei =
-          integerWei(promotionSplit.reservation_amount_wei);
+          exactWeiFromDb(promotionSplit.reservation_amount_wei);
         const baseAmountWei =
-          integerWei(promotionSplit.base_amount_wei);
+          exactWeiFromDb(promotionSplit.base_amount_wei);
         const splitPromotionWei =
-          integerWei(promotionSplit.promotion_amount_wei);
+          exactWeiFromDb(promotionSplit.promotion_amount_wei);
 
         if (
           promotionSplit.policy_version ===
@@ -298,9 +291,12 @@ export async function GET(request: NextRequest) {
           claimAmountWei = baseAmountWei;
           promotionAmountWei = splitPromotionWei;
         } else {
-          throw new Error(
+          // Fail closed for this one action, without making all other
+          // claimable rewards disappear from the wallet's action list.
+          console.error(
             `Invalid LIVE X promotion split in reward action display: ${queue.invite_code}`,
           );
+          return [];
         }
       }
 
