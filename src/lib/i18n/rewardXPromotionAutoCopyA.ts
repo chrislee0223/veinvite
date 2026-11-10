@@ -4,7 +4,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
 
   en: {
     connectX: 'Connect X account',
-    connectedX: 'X account connected. You can still submit the Post link while automatic checks are being tested.',
     autoConnectBody: 'Connect your public X account first. Then share the post within 24 hours. No post URL is needed.',
     autoOpenBody: 'Post on X within 24 hours, then keep it public for at least 24 hours. VeInvite verifies it automatically before paying the bonus.',
     autoShareFollowupBody: 'No link or extra confirmation is needed after posting. Keep the post public for at least 24 hours; VeInvite verifies it before paying the bonus.',
@@ -13,7 +12,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   ko: {
     connectX: 'X 계정 연결',
-    connectedX: 'X 계정이 연결되었어요. 자동 검증이 준비되기 전까지는 게시물 링크를 제출할 수 있어요.',
     autoConnectBody: '먼저 공개 X 계정을 연결해 주세요. 그런 다음 24시간 안에 공유하면 게시물 URL을 따로 제출할 필요가 없어요.',
     autoOpenBody: '24시간 안에 X에 게시하고, 게시물을 24시간 이상 공개로 유지해 주세요. 링크 제출 없이 자동 검증 후 추가 보상이 지급돼요.',
     autoShareFollowupBody: 'X에 게시했다면 링크 제출이나 별도 확인은 필요 없어요. 게시물을 24시간 이상 공개로 유지하면 자동 검증 후 추가 보상이 지급돼요.',
@@ -22,7 +20,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   zh: {
     connectX: '连接 X 账号',
-    connectedX: 'X 账号已连接。自动验证启用前仍可提交帖子链接。',
     autoConnectBody: '请先连接你的公开 X 账号，然后在 24 小时内分享。无需另外提交帖文链接。',
     autoOpenBody: '请在 24 小时内分享到 X。VeInvite 会自动查找帖文。请至少保持公开 24 小时；验证通过后才会发放奖励。',
     autoShareFollowupBody: '发布到 X 后无需提交链接或再次确认。请至少保持帖文公开 24 小时；VeInvite 会自动检查并在满足条件后发放奖励。',
@@ -31,7 +28,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   'zh-tw': {
     connectX: '連接 X 帳號',
-    connectedX: 'X 帳號已連接。在自動驗證完全啟用前，仍可提交貼文連結。',
     autoConnectBody: '請先連接你的公開 X 帳號，再於 24 小時內分享。無需另外提交貼文連結。',
     autoOpenBody: '請在 24 小時內分享到 X。VeInvite 會自動尋找貼文。請至少保持公開 24 小時；驗證通過後才會發放獎勵。',
     autoShareFollowupBody: '發佈到 X 後無需提交連結或再次確認。請至少保持貼文公開 24 小時；VeInvite 會自動檢查並在符合條件後發放獎勵。',
@@ -40,7 +36,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   ja: {
     connectX: 'Xアカウントを連携',
-    connectedX: 'Xアカウントを連携しました。自動確認が有効になるまでは投稿URLを提出できます。',
     autoConnectBody: 'まず公開Xアカウントを接続し、その後24時間以内にシェアしてください。ポストURLの提出は不要です。',
     autoOpenBody: '24時間以内にXへシェアしてください。VeInviteがポストを自動で探します。少なくとも24時間公開を維持してください。確認後にのみボーナスが支払われます。',
     autoShareFollowupBody: 'Xに投稿した後はURL提出や追加確認は不要です。少なくとも24時間公開を維持すると、VeInviteが自動確認し条件を満たした場合にボーナスを支払います。',
@@ -49,7 +44,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   es: {
     connectX: 'Conectar cuenta de X',
-    connectedX: 'Cuenta de X conectada. Aún puedes enviar el enlace de tu publicación.',
     autoConnectBody: 'Conecta primero tu cuenta pública de X y comparte en un plazo de 24 horas. No hace falta enviar la URL de la publicación.',
     autoOpenBody: 'Publica en X en un plazo de 24 horas y mantén la publicación pública al menos 24 horas. VeInvite la verifica automáticamente antes de pagar el bono.',
     autoShareFollowupBody: 'Después de publicar, no tienes que enviar enlaces ni confirmar nada. Mantén la publicación pública al menos 24 horas; VeInvite verifica el bono automáticamente.',
@@ -58,7 +52,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   de: {
     connectX: 'X-Konto verbinden',
-    connectedX: 'Das X-Konto ist verbunden. Solange die automatische Prüfung getestet wird, kannst du weiterhin den Post-Link einreichen.',
     autoConnectBody: 'Verbinde zuerst dein öffentliches X-Konto und teile dann innerhalb von 24 Stunden. Eine Post-URL musst du nicht einreichen.',
     autoOpenBody: 'Poste innerhalb von 24 Stunden auf X und halte den Beitrag mindestens 24 Stunden öffentlich. VeInvite prüft ihn automatisch vor der Auszahlung.',
     autoShareFollowupBody: 'Nach dem Posten brauchst du keinen Link einzureichen. Halte den Beitrag mindestens 24 Stunden öffentlich; VeInvite prüft ihn vor der Auszahlung.',
@@ -67,7 +60,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   fr: {
     connectX: 'Connecter le compte X',
-    connectedX: 'Le compte X est connecté. Vous pouvez encore envoyer le lien du post pendant la phase de test de la vérification automatique.',
     autoConnectBody: 'Connectez d’abord votre compte X public, puis partagez dans les 24 heures. Il n’est pas nécessaire d’envoyer l’URL du post.',
     autoOpenBody: 'Publiez sur X dans les 24 heures, puis gardez le post public au moins 24 heures. VeInvite le vérifie automatiquement avant de verser le bonus.',
     autoShareFollowupBody: 'Après publication, aucun lien ni confirmation n’est nécessaire. Gardez le post public au moins 24 heures ; VeInvite le vérifie avant de verser le bonus.',
@@ -76,7 +68,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   it: {
     connectX: 'Collega account X',
-    connectedX: 'L’account X è collegato. Puoi ancora inviare il link del post mentre la verifica automatica è in fase di test.',
     autoConnectBody: 'Collega prima il tuo account X pubblico, poi condividi entro 24 ore. Non serve inviare l’URL del post.',
     autoOpenBody: 'Condividi su X entro 24 ore. VeInvite cercherà automaticamente il post. Mantienilo pubblico per almeno 24 ore; il bonus viene pagato solo dopo la verifica.',
     autoShareFollowupBody: 'Dopo aver pubblicato su X non devi inviare URL né confermare altro. Mantieni il post pubblico per almeno 24 ore; VeInvite lo verifica automaticamente e paga il bonus se rispetta le condizioni.',
@@ -85,7 +76,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   tr: {
     connectX: 'X hesabını bağla',
-    connectedX: 'X hesabın bağlandı. Otomatik kontrol başlamadan önce gönderi bağlantısını yine de iletebilirsin.',
     autoConnectBody: 'Önce herkese açık X hesabını bağla, ardından 24 saat içinde paylaş. Gönderi URL’sini ayrıca göndermene gerek yok.',
     autoOpenBody: '24 saat içinde X’te paylaş. VeInvite gönderiyi otomatik bulur. En az 24 saat herkese açık tut; bonus yalnızca doğrulamadan sonra ödenir.',
     autoShareFollowupBody: 'X’te yayınladıktan sonra URL göndermen veya ek onay vermen gerekmez. Gönderiyi en az 24 saat herkese açık tut; VeInvite otomatik kontrol eder ve şartlar sağlanırsa bonusu öder.',
@@ -94,7 +84,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   nl: {
     connectX: 'X-account koppelen',
-    connectedX: 'Het X-account is gekoppeld. Je kunt de postlink nog indienen zolang de automatische controle wordt getest.',
     autoConnectBody: 'Koppel eerst je openbare X-account en deel daarna binnen 24 uur. Je hoeft geen post-URL in te dienen.',
     autoOpenBody: 'Deel binnen 24 uur op X. VeInvite zoekt de post automatisch. Houd hem minstens 24 uur openbaar; de bonus wordt pas na verificatie betaald.',
     autoShareFollowupBody: 'Na het posten op X hoef je geen URL of extra bevestiging te versturen. Houd de post minstens 24 uur openbaar; VeInvite controleert hem automatisch en betaalt de bonus als aan de voorwaarden is voldaan.',
@@ -103,7 +92,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   pt: {
     connectX: 'Conectar conta X',
-    connectedX: 'A conta X está conectada. Você ainda pode enviar o link da publicação enquanto a verificação automática está em testes.',
     autoConnectBody: 'Conecte primeiro sua conta pública do X e compartilhe em até 24 horas. Não é necessário enviar a URL da publicação.',
     autoOpenBody: 'Publique no X em até 24 horas e mantenha a publicação pública por pelo menos 24 horas. O VeInvite verifica automaticamente antes de pagar o bônus.',
     autoShareFollowupBody: 'Depois de publicar no X, não é preciso enviar link nem confirmar. Mantenha a publicação pública por pelo menos 24 horas; o VeInvite verifica antes de pagar o bônus.',
@@ -112,7 +100,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   ru: {
     connectX: 'Подключить аккаунт X',
-    connectedX: 'Аккаунт X подключён. Пока автоматическая проверка тестируется, ссылку на пост всё ещё можно отправить вручную.',
     autoConnectBody: 'Сначала подключите публичный аккаунт X, затем поделитесь постом в течение 24 часов. Отдельно отправлять URL поста не нужно.',
     autoOpenBody: 'Поделитесь постом в X в течение 24 часов. VeInvite найдёт его автоматически. Оставьте пост публичным минимум на 24 часа; бонус выплачивается только после проверки.',
     autoShareFollowupBody: 'После публикации в X не нужно отправлять URL или подтверждать что-либо ещё. Оставьте пост публичным минимум на 24 часа; VeInvite проверит его автоматически и выплатит бонус при выполнении условий.',
@@ -121,7 +108,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   id: {
     connectX: 'Hubungkan akun X',
-    connectedX: 'Akun X terhubung. Anda masih dapat mengirim tautan Post selama pemeriksaan otomatis sedang diuji.',
     autoConnectBody: 'Hubungkan dulu akun X publik Anda, lalu bagikan dalam 24 jam. URL Post tidak perlu dikirim.',
     autoOpenBody: 'Bagikan ke X dalam 24 jam. VeInvite akan mencari Post secara otomatis. Biarkan tetap publik setidaknya 24 jam; bonus hanya dibayar setelah verifikasi.',
     autoShareFollowupBody: 'Setelah memposting di X, Anda tidak perlu mengirim URL atau konfirmasi tambahan. Biarkan Post tetap publik setidaknya 24 jam; VeInvite memeriksanya otomatis dan membayar bonus jika syarat terpenuhi.',
@@ -130,7 +116,6 @@ export const REWARD_X_PROMOTION_AUTO_COPY_A = {
   },
   vi: {
     connectX: 'Kết nối tài khoản X',
-    connectedX: 'Đã kết nối tài khoản X. Bạn vẫn có thể gửi liên kết bài đăng trong khi chờ xác minh tự động.',
     autoConnectBody: 'Trước tiên hãy kết nối tài khoản X công khai, sau đó chia sẻ trong vòng 24 giờ. Không cần gửi URL bài đăng.',
     autoOpenBody: 'Đăng lên X trong vòng 24 giờ và giữ bài viết công khai ít nhất 24 giờ. VeInvite sẽ tự động xác minh trước khi trả thưởng.',
     autoShareFollowupBody: 'Sau khi đăng lên X, không cần gửi liên kết hay xác nhận thêm. Giữ bài viết công khai ít nhất 24 giờ để VeInvite tự kiểm tra trước khi trả thưởng.',

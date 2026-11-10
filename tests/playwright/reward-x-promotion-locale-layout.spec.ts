@@ -5,16 +5,13 @@ import {
   isRtlLocale,
   type SupportedLocale,
 } from '../../src/lib/i18n/locales';
-import {
-  rewardXPromotionSubmitError,
-} from '../../src/lib/i18n/rewardXPromotionSubmitErrorCopy';
 
 // Avoid four simultaneous Next dev compilations for one new QA route.
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
 const SHARE_TOKEN = '123e4567-e89b-42d3-a456-426614174000';
 
-const MANUAL_OPEN = {
+const UNREADY_OPEN = {
   newOffersEnabled: true,
   promotionPending: false,
   xConnectAvailable: false,
@@ -36,7 +33,7 @@ const MANUAL_OPEN = {
 } as const;
 
 const AUTO_CONNECT = {
-  ...MANUAL_OPEN,
+  ...UNREADY_OPEN,
   xConnectAvailable: true,
   xConnected: false,
   xUrlLessEnabled: true,
@@ -139,14 +136,10 @@ async function layoutReport(
       '.promotionShare span',
       '.promotionShare b',
       '.promotionConnect',
-      '.promotionSubmit input',
-      '.promotionSubmit button',
-      '.promotionError',
     ]) {
       for (const el of visible(selector)) {
         const rect = el.getBoundingClientRect();
         if (
-          selector !== '.promotionSubmit input' &&
           el.scrollWidth > el.clientWidth + 2
         ) {
           issues.push(
@@ -183,12 +176,6 @@ async function layoutReport(
       issues.push('title overlaps amount');
     }
 
-    const input = root
-      .querySelector<HTMLElement>('.promotionSubmit input')
-      ?.getBoundingClientRect() ?? null;
-    const button = root
-      .querySelector<HTMLElement>('.promotionSubmit button')
-      ?.getBoundingClientRect() ?? null;
 
     const viewportOverflow =
       Math.max(
@@ -208,13 +195,6 @@ async function layoutReport(
             root.querySelector<HTMLElement>('.promotionHeading span')!,
           ).direction
         : null,
-      inputDirection: input
-        ? getComputedStyle(
-            root.querySelector<HTMLElement>('.promotionSubmit input')!,
-          ).direction
-        : null,
-      inputBottom: input?.bottom ?? null,
-      buttonTop: button?.top ?? null,
     };
   });
 }
@@ -230,7 +210,7 @@ for (const viewport of [
         'px / shard ' +
         (shard + 1),
       async ({ page }) => {
-        await routePromotion(page, MANUAL_OPEN);
+        await routePromotion(page, AUTO_CONNECT);
 
         for (const locale of locales) {
           await openPanel(page, locale, viewport);
@@ -241,21 +221,14 @@ for (const viewport of [
             JSON.stringify({ locale, viewport, report }),
           ).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
           expect(report.amountDirection).toBe('ltr');
-          expect(report.inputDirection).toBe('ltr');
           expect(
             report.issues,
             JSON.stringify({ locale, viewport, report }),
           ).toEqual([]);
 
-          if (viewport.width <= 430) {
-            expect(report.inputBottom).not.toBeNull();
-            expect(report.buttonTop).not.toBeNull();
-            expect(
-              (report.buttonTop ?? 0) >=
-                (report.inputBottom ?? 0) - 1,
-              JSON.stringify({ locale, viewport, report }),
-            ).toBe(true);
-          }
+          await expect(page.locator('.promotionConnect')).toBeVisible();
+          await expect(page.locator('.promotionSubmit')).toHaveCount(0);
+
         }
       },
     );
@@ -277,41 +250,16 @@ test('X promotion auto-connect high-risk locales stay contained', async ({ page 
   }
 });
 
-test('X promotion localized submit errors never expose raw API English', async ({ page }) => {
-  await routePromotion(page, MANUAL_OPEN);
-  await page.route(
-    '**/api/rewards/x-promotion/submit',
-    async (route) => {
-      await route.fulfill({
-        status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'This English internal error must never render.',
-        }),
-      });
-    },
-  );
+test('unready X offers never fall back to manual URL submission', async ({ page }) => {
+  await routePromotion(page, UNREADY_OPEN);
 
   for (const locale of HIGH_RISK_LOCALES) {
     await openPanel(page, locale, { width: 320, height: 568 });
-    await page
-      .locator('.promotionSubmit input')
-      .fill('https://x.com/test/status/1234567890123456789');
-    await page.locator('.promotionSubmit button').click();
-
-    const error = page.locator('.promotionError');
-    await expect(error).toBeVisible();
-    await expect(error).toHaveText(
-      rewardXPromotionSubmitError(locale, 409),
-    );
-    await expect(error).not.toContainText(
-      'This English internal error must never render.',
-    );
-
+    await expect(page.locator('.promotionSubmit')).toHaveCount(0);
+    await expect(page.locator('.promotionConnect')).toHaveCount(0);
+    await expect(page.locator('.promotionShare')).toHaveCount(0);
     const report = await layoutReport(page);
-    expect(
-      report.issues,
-      JSON.stringify({ locale, report }),
-    ).toEqual([]);
+    expect(report.direction).toBe(isRtlLocale(locale) ? 'rtl' : 'ltr');
+    expect(report.issues, JSON.stringify({ locale, report })).toEqual([]);
   }
 });

@@ -33,7 +33,7 @@ export function useXPromotionOAuthReturnFeedback(
     if (status === 'connected') {
       showFeedback(
         'success',
-        REWARD_X_PROMOTION_AUTO_COPY[displayLocale].connectedX,
+        REWARD_X_PROMOTION_AUTO_COPY[displayLocale].autoConnectedX,
       );
     } else if ([
       'invalid', 'wallet', 'offer', 'provider', 'private',

@@ -1331,7 +1331,7 @@ export function HomeClient() {
         .warningIcon { width:50px; height:50px; margin:0 auto 15px; border-radius:17px; display:grid; place-items:center; background:rgba(255,91,111,.1); color:#ff7186; font-size:1.2rem; font-weight:950; }
         .modalCard h2 { margin:0; font-size:1.4rem; letter-spacing:-.03em; overflow-wrap:anywhere; }
         .modalCard p { margin:11px 0 0; color:#a39eaf; font-size:.88rem; line-height:1.55; overflow-wrap:anywhere; }
-        .cancelConfirm { margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; transition:transform 90ms ease; }
+        .cancelConfirm { min-height:44px; margin-top:16px; border:0; background:transparent; color:#ff7186; font:inherit; font-size:.8rem; font-weight:900; cursor:pointer; transition:transform 90ms ease; }
         @media (prefers-reduced-motion: reduce) {
           .primaryAction,.secondaryAction,.claimButton,.cancelConfirm { transition:none; }
           .primaryAction:active:not(:disabled),.secondaryAction:active:not(:disabled),.claimButton:active:not(:disabled),.cancelConfirm:active:not(:disabled) { transform:none; }

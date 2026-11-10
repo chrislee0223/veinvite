@@ -2,37 +2,29 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
-const copyBase = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
-const copyExpandedA = readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopyA.ts', import.meta.url), 'utf8');
-const copyExpandedB = readFileSync(new URL('../src/lib/i18n/rewardXPromotionExpandedCopyB.ts', import.meta.url), 'utf8');
-const copy = copyBase + '\n' + copyExpandedA + '\n' + copyExpandedB;
-const locales = readFileSync(new URL('../src/lib/i18n/locales.ts', import.meta.url), 'utf8');
+const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+const popup = read('src/hooks/useRewardPaidTransientFeedback.ts');
+const auto = read('src/lib/i18n/rewardXPromotionAutoCopyA.ts')
+  + '\n' + read('src/lib/i18n/rewardXPromotionAutoCopyB.ts');
+const locales = read('src/lib/i18n/locales.ts');
 
-test('X sharing keeps the existing no-expired-bonus protection', () => {
-  assert.match(popup, /shareDeadlineMs !== null && Date\.now\(\) >= shareDeadlineMs/);
-  assert.match(popup, /shareExpiryTimerRef/);
-  assert.match(popup, /onShare: undefined/);
-});
-
-test('after opening X composer, reward popup explains how to submit the public Post URL', () => {
+test('X composer follow-up is automatic-only and never requests URL submission', () => {
   const handler = /onShare: \(\) => \{([\s\S]*?)\n\s*\},\n\s*\}/.exec(popup);
   assert.ok(handler);
   assert.match(handler[1], /window\.open\(/);
-  assert.match(handler[1], /REWARD_X_PROMOTION_COPY\[locale\]\.shareFollowupBody/);
+  assert.match(handler[1], /REWARD_X_PROMOTION_AUTO_COPY\[locale\]\.autoShareFollowupBody/);
+  assert.doesNotMatch(handler[1], /REWARD_X_PROMOTION_COPY|postUrl/);
   assert.doesNotMatch(handler[1], /acknowledgeReward\(/);
-  assert.doesNotMatch(handler[1], /\/api\/rewards\/claims/);
   assert.match(popup, /ACKNOWLEDGE_REWARD_RECEIPT/);
 });
 
-test('share-followup translations cover all 29 registered app locales', () => {
-  const registered = Array.from(locales.matchAll(/\{ locale: '([^']+)'/g), (m) => m[1]);
+test('automatic follow-up guidance covers all 29 application languages', () => {
+  const registered = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map(m => m[1]);
   assert.equal(registered.length, 29);
-  assert.match(copy, /shareFollowupBody: string/);
-  assert.match(copy, /return to the X bonus panel on VeInvite Home/);
-  assert.match(copy, /VeInvite 홈의 X 추가 보상 카드/);
   for (const locale of registered) {
-    assert.match(copy, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale: ' + locale);
+    assert.match(auto, new RegExp('(?:^|\\n)\\s*[\\x27\\x22]?' + locale + '[\\x27\\x22]?\\s*:'), 'missing locale ' + locale);
   }
-  assert.equal((copy.match(/shareFollowupBody:/g) ?? []).length, 30);
+  assert.equal((auto.match(/^\s*autoShareFollowupBody:/gm) ?? []).length, 29);
+  assert.match(auto, /X에 게시했다면 링크 제출이나 별도 확인은 필요 없어요/);
+  assert.doesNotMatch(auto, /^\s*connectedX:/m);
 });

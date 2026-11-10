@@ -54,19 +54,12 @@ test('reward receipt delegates all X sharing decisions to the promotion panel', 
   );
 });
 
-test('promotion panel reads durable state and submits a public X Post URL', () => {
-  assert.match(
-    panel,
-    /\/api\/rewards\/x-promotion\?inviteCode=/,
-  );
-  assert.match(
-    panel,
-    /fetch\([\s\S]*['"]\/api\/rewards\/x-promotion\/submit['"][\s\S]*method: 'POST'/,
-  );
-  assert.match(
-    panel,
-    /promotion\.state === 'OPEN'[\s\S]*promotion\.state === 'SUBMISSION_GRACE'/,
-  );
+test('promotion panel only offers X account-linked automatic verification', () => {
+  assert.match(panel, /\/api\/rewards\/x-promotion\?inviteCode=/);
+  assert.match(panel, /state\?\.xUrlLessEnabled !== true \|\|/);
+  assert.match(panel, /state\?\.xConnected !== true \|\|/);
+  assert.match(panel, /autoCopy\.autoOpenBody/);
+  assert.doesNotMatch(panel, /x-promotion\/submit|postUrl|promotionSubmit/);
 });
 
 test('legacy sharing is allowed only when this referral has no pending promotion authority', () => {
