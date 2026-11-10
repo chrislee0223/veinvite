@@ -48,20 +48,23 @@ test('LIVE additive-v2 split requires base equal to reservation and a fixed 10 B
   );
 });
 
-test('unknown or malformed LIVE split semantics fail closed instead of altering the core display', () => {
+test('unknown or malformed LIVE split withholds unsafe money without taking down the invitation list', () => {
   assert.match(inviteRoute, /splitReservationWei !== reservedAmountWei/);
-  assert.match(inviteRoute, /Invalid LIVE X promotion split/);
+  assert.match(inviteRoute, /Withholding inconsistent LIVE reward display amounts/);
+  assert.match(
+    inviteRoute,
+    /reservedAmountWei = null;\s*claimAmountWei = null;\s*promotionAmountWei = null;/,
+  );
+  assert.doesNotMatch(inviteRoute, /Invalid LIVE X promotion split for/);
 });
 
-test('X promotion enrichment failure never blocks the core invites response', () => {
+test('unavailable exact X amounts fail soft without inventing a payout or blocking invites', () => {
   assert.match(
     inviteRoute,
-    /const promotionLookupAvailable =[\s\S]*promotionResult\.error === null/,
+    /let promotionLookupAvailable =[\s\S]*promotionResult\.error === null && promotionWeiResult\.error === null/,
   );
-  assert.match(
-    inviteRoute,
-    /Invitation X promotion display enrichment unavailable/,
-  );
+  assert.match(inviteRoute, /Exact X promotion display amounts unavailable/);
+  assert.match(inviteRoute, /parseExactRewardCsv\(/);
   assert.doesNotMatch(
     inviteRoute,
     /if \(promotionResult\.error\)[\s\S]{0,500}status: 500/,
