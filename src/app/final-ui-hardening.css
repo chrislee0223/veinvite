@@ -82,6 +82,18 @@ main.screen .bottomNavigation > div {
   width:min(100%,520px) !important;
 }
 
+/* The 561-640px range inherits a stacked wallet/utility layout from the
+ * generic tablet header rule, despite the compact 520px main-app rail having
+ * enough room for the same one-row controls used on phones. Limit this fix to
+ * the real main-app shell; invite and QA headers keep their own geometry. */
+@media (min-width: 561px) and (max-width: 640px) {
+  main.screen > .topBar .topActions {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+}
+
 /* Keep the connected-wallet chip from pushing the header off very narrow
  * phones while retaining enough address context to identify the wallet. */
 .topBar .accountChip {

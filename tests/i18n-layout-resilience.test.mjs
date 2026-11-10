@@ -20,11 +20,11 @@ const countryCopy = readFileSync(
 test('primary navigation labels can wrap instead of being truncated', () => {
   assert.match(
     typography,
-    /\.bottomNavigation button span,[\s\S]*?white-space:\s*normal\s*!important/,
+    /\.bottomNavigation button \.navLabel,[\s\S]*?white-space:\s*normal\s*!important/,
   );
   assert.match(
     typography,
-    /\.bottomNavigation button span,[\s\S]*?text-wrap:\s*balance/,
+    /\.bottomNavigation button \.navLabel,[\s\S]*?text-wrap:\s*balance/,
   );
   assert.match(
     typography,
@@ -33,6 +33,17 @@ test('primary navigation labels can wrap instead of being truncated', () => {
   assert.match(
     typography,
     /\.rankingTabs button > span\s*\{[\s\S]*?text-wrap:\s*balance/,
+  );
+});
+
+test('the two-line navigation typography rule never expands the icon span', () => {
+  assert.doesNotMatch(
+    typography,
+    /\.bottomNavigation button span,/,
+  );
+  assert.match(
+    typography,
+    /\.bottomNavigation button \.navLabel,/,
   );
 });
 

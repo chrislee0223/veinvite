@@ -30,9 +30,21 @@ test('country layout guard loads after the card-height guard', () => {
 });
 
 test('country ranking uses stable five-column geometry at all reviewed breakpoints', () => {
-  assert.match(css, /grid-template-columns: 44px minmax\(0, 1fr\) 52px 52px 64px;/);
-  assert.match(css, /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 32px minmax\(0, 1fr\) 40px 40px 46px;/);
-  assert.match(css, /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 28px minmax\(0, 1fr\) 36px 36px 42px;/);
+  assert.match(css, /grid-template-columns: 80px minmax\(0, 1fr\) 64px 64px 72px;/);
+  assert.match(css, /@media \(max-width: 430px\)[\s\S]*grid-template-columns: 56px minmax\(0, 1fr\) 44px 44px 52px;/);
+  assert.match(css, /@media \(max-width: 360px\)[\s\S]*grid-template-columns: 49px minmax\(0, 1fr\) 40px 40px 46px;/);
+});
+
+test('desktop country header and rows reserve the same native scrollbar gutter', () => {
+  assert.match(
+    css,
+    /@media \(min-width: 501px\)[\s\S]*?\.countryHeader,[\s\S]*?\.countryScroll \{\s*scrollbar-gutter: stable;/,
+  );
+  assert.match(
+    css,
+    /@media \(min-width: 501px\)[\s\S]*?\.countryHeader \{\s*overflow-y: hidden;/,
+  );
+  assert.match(css, /@media \(max-width: 500px\)/);
 });
 
 test('country stays at inline start instead of being optically centered with manual offsets', () => {
@@ -58,7 +70,7 @@ test('five-column rows render rank country new returning and total in semantic o
 
 test('metric copy is complete for every supported locale and includes RTL languages', () => {
   const localeMatches = [...locales.matchAll(/\{ locale: '([^']+)'/g)].map((match) => match[1]);
-  assert.equal(localeMatches.length, 28);
+  assert.equal(localeMatches.length, 29);
 
   for (const locale of localeMatches) {
     const escaped = locale.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

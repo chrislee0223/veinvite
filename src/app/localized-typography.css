@@ -265,7 +265,7 @@ html[data-locale-typography='indic'] :where(
 /* Navigation destinations are important labels, so preserve the complete
  * translation instead of clipping it. Two balanced lines keep the bar stable
  * for German, French, Arabic/Urdu and other longer locales. */
-.bottomNavigation button span,
+.bottomNavigation button .navLabel,
 .labScreen .previewNavigation button span {
   min-height: 2.3em;
   max-width: 100%;
