@@ -55,13 +55,14 @@ import type { InviteRecord } from '@/lib/types';
 import {
   formatB3trWei,
   formatPositiveB3trWei,
+  canEndIncompleteReferral,
   missionFlags,
   nextMissionLabel,
   readCachedReferralLink,
   sameWallet,
 } from '@/lib/homeClientHelpers';
 import { TransferStatus } from './RewardTransferConfirmationLabel';
-import { RewardXPromotionPanel } from './RewardXPromotionPanel';
+import { RewardPaidXFollowups } from './RewardPaidXFollowups';
 import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useXPromotionOAuthReturnFeedback } from '@/hooks/useXPromotionOAuthReturnFeedback';
@@ -92,17 +93,6 @@ const ACTIVE_STATUSES = new Set([
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
 
-function canEndIncompleteReferral(invite: InviteRecord): boolean {
-  return Boolean(invite.referralLinkId) &&
-    Boolean(invite.inviteeAddress) &&
-    invite.status === 'ACTIVATING' &&
-    invite.rewardEligibility === 'PENDING' &&
-    !invite.rewardQueueStatus &&
-    !invite.slotReleasedAt &&
-    invite.sybilStatus !== 'REVIEW' &&
-    invite.sybilStatus !== 'BLOCKED' &&
-    !missionFlags(invite).every(Boolean);
-}
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const HOME_DATA_REFRESH_SETTLED_EVENT =
@@ -607,27 +597,6 @@ export function HomeClient() {
     ),
     [rewardItems],
   );
-
-  // X bonus opens after canonical confirmation, before final PAID settlement.
-  // Keep still-open offers accessible beyond that slower finality boundary.
-  const recentPaidXBonuses = useMemo(() => {
-    const now = Date.now();
-    const earliest = now - 26 * 60 * 60 * 1000;
-    return rewardItems
-      .filter((invite) => {
-        if (invite.rewardEligibility !== 'PAID') return false;
-        const requestedAt = Date.parse(invite.rewardClaimRequestedAt ?? '');
-        const amount = invite.rewardClaimAmountWei ?? '';
-        return Number.isFinite(requestedAt) &&
-          requestedAt >= earliest && requestedAt <= now &&
-          /^[0-9]+$/u.test(amount) && BigInt(amount) > 0n;
-      })
-      .sort((left, right) =>
-        Date.parse(right.rewardClaimRequestedAt ?? '') -
-        Date.parse(left.rewardClaimRequestedAt ?? ''),
-      )
-      .slice(0, 4);
-  }, [rewardItems]);
 
   const permanentInviteUrl = useMemo(() => {
     if (!referralLink || typeof window === 'undefined') return '';
@@ -1223,18 +1192,9 @@ export function HomeClient() {
               </div>
             </section>
           ) : null}
-          {referralLinkVerified && rewardShareUrl
-            ? recentPaidXBonuses.map((invite) => (
-                <RewardXPromotionPanel
-                  key={`paid-x-offer:${invite.code}`}
-                  locale={locale}
-                  inviteCode={invite.code}
-                  receiptAmountB3tr={formatB3trWei(invite.rewardClaimAmountWei!)}
-                  rewardShareUrl={rewardShareUrl}
-                  bonusOnly
-                />
-              ))
-            : null}
+          {referralLinkVerified && rewardShareUrl ? (
+            <RewardPaidXFollowups invites={invites} locale={locale} rewardShareUrl={rewardShareUrl} />
+          ) : null}
         </section>
       ) : activeTab === 'guide' ? (
         <div className="networkTabViewport">
@@ -1359,7 +1319,6 @@ export function HomeClient() {
         .rewardList { margin-top:11px; display:grid; gap:8px; }
         .rewardItem { min-width:0; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.07); border-radius:14px; background:rgba(5,8,7,.36); }
         .rewardItem.processing { grid-template-columns:minmax(0,1fr); align-items:stretch; }
-        .rewardItem.processing .processingBadge { max-width:none; }
         .rewardMeta { min-width:0; display:grid; gap:3px; }
         .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
         .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }

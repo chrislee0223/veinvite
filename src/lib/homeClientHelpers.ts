@@ -123,3 +123,16 @@ export function nextMissionLabel(
   if (next === 4) return 'Vote';
   return '';
 }
+
+// Releasing a friend slot must not change final reward eligibility.
+export function canEndIncompleteReferral(invite: InviteRecord): boolean {
+  return Boolean(invite.referralLinkId) &&
+    Boolean(invite.inviteeAddress) &&
+    invite.status === 'ACTIVATING' &&
+    invite.rewardEligibility === 'PENDING' &&
+    !invite.rewardQueueStatus &&
+    !invite.slotReleasedAt &&
+    invite.sybilStatus !== 'REVIEW' &&
+    invite.sybilStatus !== 'BLOCKED' &&
+    !missionFlags(invite).every(Boolean);
+}

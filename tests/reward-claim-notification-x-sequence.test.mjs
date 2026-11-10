@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [hook, state, panel, home, status, earlyCopy, queue, submit] = await Promise.all([
+const [hook, state, panel, home, status, earlyCopy, queue, submit, followup] = await Promise.all([
   read('src/hooks/useRewardPaidTransientFeedback.ts'),
   read('src/lib/rewards/earlyRewardTransferFeedback.ts'),
   read('src/components/RewardXPromotionPanel.tsx'),
@@ -12,6 +12,7 @@ const [hook, state, panel, home, status, earlyCopy, queue, submit] = await Promi
   read('src/lib/i18n/earlyRewardTransferCopy.ts'),
   read('src/app/api/notifications/reward-actions/route.ts'),
   read('src/app/api/rewards/x-promotion/submit/route.ts'),
+  read('src/components/RewardPaidXFollowups.tsx'),
 ]);
 
 test('canonical transfer uses immutable proof and is not misreported as finalized PAID', () => {
@@ -41,9 +42,10 @@ test('X posting and post URL submission are available from the claimed state, be
 });
 
 test('bonus remains available on Home after PAID and only while server offer is open', () => {
-  assert.match(home, /recentPaidXBonuses/u);
-  assert.match(home, /rewardEligibility !== 'PAID'/u);
-  assert.match(home, /paid-x-offer:/u);
+  assert.match(home, /RewardPaidXFollowups/u);
+  assert.match(followup, /recentPaidXBonuses/u);
+  assert.match(followup, /rewardEligibility !== 'PAID'/u);
+  assert.match(followup, /paid-x-offer:/u);
   assert.match(panel, /bonusOnly &&[\s\S]*!\['OPEN', 'SUBMISSION_GRACE'\]/u);
   assert.match(panel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/u);
 });
