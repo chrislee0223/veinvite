@@ -205,7 +205,7 @@ test('an open receipt refreshes when the X offer deadline or submission grace en
   const end = panel.indexOf('useEffect(() => {', start);
   assert.ok(start >= 0 && end > start);
   assert.doesNotMatch(panel.slice(start, end), /\['OPEN', 'SUBMISSION_GRACE'\]/);
-  assert.match(panel, /bonusOnly &&[\s\S]*!\['OPEN', 'SUBMISSION_GRACE'\]/);
+  assert.match(panel, /bonusOnly &&[\s\S]*'VERIFYING', 'RETENTION'/);
 });
 
 test('reward popup fails closed after expiry even if its share action was already cached', () => {

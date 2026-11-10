@@ -46,7 +46,7 @@ test('bonus remains available on Home after PAID and only while server offer is 
   assert.match(followup, /recentPaidXBonuses/u);
   assert.match(followup, /rewardEligibility !== 'PAID'/u);
   assert.match(followup, /paid-x-offer:/u);
-  assert.match(panel, /bonusOnly &&[\s\S]*!\['OPEN', 'SUBMISSION_GRACE'\]/u);
+  assert.match(panel, /bonusOnly &&[\s\S]*'VERIFYING', 'RETENTION'/u);
   assert.match(panel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/u);
 });
 
@@ -74,4 +74,13 @@ test('all 29 X follow-up copies point to the Home bonus panel without waiting fo
   assert.match(all, /VeInvite 홈의 X 추가 보상 카드/u);
   assert.match(all, /No need to wait for final settlement/u);
   assert.doesNotMatch(all, /Open your reward in Notifications|알림의 지급 완료 내역을 열고/u);
+});
+
+
+test('X offer stays visible through verification, and returning from X refreshes status', () => {
+  assert.match(panel, /document\.addEventListener\('visibilitychange', refreshOnFocus\)/u);
+  assert.match(panel, /window\.addEventListener\('focus', refreshOnFocus\)/u);
+  assert.match(panel, /now - lastFocusRefreshAtRef\.current < 15_000/u);
+  assert.match(panel, /bonusOnly &&[\s\S]*state\?\.promotionPending !== true/u);
+  assert.match(panel, /'VERIFYING', 'RETENTION',[\s\S]*'REVIEW_REQUIRED', 'PAYOUT_PENDING'/u);
 });
