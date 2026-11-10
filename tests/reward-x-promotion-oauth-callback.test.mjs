@@ -26,6 +26,7 @@ function setup({
   privateAccount = false, missingPrivacy = false, existingAuthor = null,
   returnedAuthor = '1234567890', noSession = false,
   insertConflict = false, proofConflict = false, proofAuthor = null, offerWallet = WALLET,
+  preflightReady = true, preflightError = false,
 } = {}) {
   const env = {
     NODE_ENV: 'production', X_OAUTH_CLIENT_ID: 'oauth-client',
@@ -47,8 +48,16 @@ function setup({
   const url = new URL(CALLBACK);
   url.searchParams.set('state', stateOverride ?? flow.state);
   url.searchParams.set('code', 'OAuth-code-from-X-12345');
-  const stats = { tokenCalls: 0, meCalls: 0, insertCount: 0, proofWrites: 0 };
+  const stats = { tokenCalls: 0, meCalls: 0, insertCount: 0, proofWrites: 0, preflightCalls: 0 };
   const supabaseAdmin = {
+    async rpc(name) {
+      assert.equal(name, 'reward_x_promotion_oauth_write_ready_v1');
+      stats.preflightCalls++;
+      return {
+        data: preflightReady,
+        error: preflightError ? { code: '42501' } : null,
+      };
+    },
     from(table) {
       if (table === 'reward_x_promotion_opportunities') {
         return {
@@ -159,6 +168,7 @@ test('valid OAuth result immutably binds verified X author to wallet', async () 
   assert.equal(x.stats.meCalls, 1);
   assert.equal(x.stats.insertCount, 1);
   assert.equal(x.stats.proofWrites, 1);
+  assert.equal(x.stats.preflightCalls, 1);
 });
 
 test('state mismatch is rejected before any X API call', async () => {
@@ -242,5 +252,24 @@ test('X privacy status must be explicit, missing protected field fails closed', 
   const x = setup({ missingPrivacy: true });
   assert.equal(status(await x.run()), 'private');
   assert.equal(x.stats.insertCount, 0);
+  assert.equal(x.stats.proofWrites, 0);
+});
+
+test('missing X identity INSERT permission halts before token exchange and any paid API read', async () => {
+  const x = setup({ preflightReady: false });
+  assert.equal(status(await x.run()), 'unavailable');
+  assert.equal(x.stats.preflightCalls, 1);
+  assert.equal(x.stats.tokenCalls, 0);
+  assert.equal(x.stats.meCalls, 0);
+  assert.equal(x.stats.insertCount, 0);
+  assert.equal(x.stats.proofWrites, 0);
+});
+
+test('database preflight RPC failure also fails closed without paid X calls', async () => {
+  const x = setup({ preflightError: true });
+  assert.equal(status(await x.run()), 'unavailable');
+  assert.equal(x.stats.preflightCalls, 1);
+  assert.equal(x.stats.tokenCalls, 0);
+  assert.equal(x.stats.meCalls, 0);
   assert.equal(x.stats.proofWrites, 0);
 });

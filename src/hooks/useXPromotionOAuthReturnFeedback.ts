@@ -42,7 +42,7 @@ export function useXPromotionOAuthReturnFeedback(
       const copy =
         REWARD_X_PROMOTION_OAUTH_FEEDBACK_COPY[displayLocale];
       showFeedback(
-        'info',
+        'error',
         status === 'conflict'
           ? copy.conflict
           : copy.failed,
