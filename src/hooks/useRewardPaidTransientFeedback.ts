@@ -87,6 +87,7 @@ export function useRewardPaidTransientFeedback({
     useState<RewardPaidToastPayload | null>(null);
   const [earlyTransfer, setEarlyTransfer] = useState<{
     inviteCode: string;
+    txId: string;
     feedbackId: number;
   } | null>(null);
   const feedbackIdRef = useRef(0);
@@ -173,10 +174,9 @@ export function useRewardPaidTransientFeedback({
     const shareUnavailable =
       referralLinkFailed && !shareReady;
 
-    // The core payout confirmation must never wait for optional sharing state.
-    // Wait only until permanent-link verification itself has resolved, then
-    // render the paid feedback immediately and enrich the X action afterward.
-    if (!shareReady && !shareUnavailable) return;
+    // The core payout confirmation never waits for optional referral-link
+    // state. Home and receipt history retain the authenticated X offer if
+    // the link is still loading when this PAID notice is displayed.
 
     const payload = pendingReward;
     if (shareExpiryTimerRef.current !== null) {
@@ -447,7 +447,7 @@ export function useRewardPaidTransientFeedback({
           const code = action.inviteCode;
           markEarlyRewardTransferShown(wallet, code, tx);
           const earlyFeedbackId = Date.now();
-          setEarlyTransfer({ inviteCode: code, feedbackId: earlyFeedbackId });
+          setEarlyTransfer({ inviteCode: code, txId: tx, feedbackId: earlyFeedbackId });
           setFeedback({
             id: earlyFeedbackId,
             kind: 'reward',
@@ -545,9 +545,14 @@ export function useRewardPaidTransientFeedback({
                 ? {
                     ...current,
                     shareLabel: REWARD_X_PROMOTION_AUTO_COPY[locale].connectX,
-                    onShare: () => window.location.assign(
-                      `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(earlyTransfer.inviteCode)}`,
-                    ),
+                    onShare: () => {
+                      markEarlyRewardTransferAcknowledged(
+                        wallet, earlyTransfer.inviteCode, earlyTransfer.txId,
+                      );
+                      window.location.assign(
+                        `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(earlyTransfer.inviteCode)}`,
+                      );
+                    },
                   }
                 : current
             );
@@ -578,6 +583,11 @@ export function useRewardPaidTransientFeedback({
                   `${rewardReceiptShareLabel(locale)} · +${offer.amountB3tr} B3TR`,
                 onShare: () => {
                   if (Date.now() >= deadline) return;
+                  // Explicit user interaction acknowledges the transfer, not
+                  // publication of an X Post. Final PAID must not pop up again.
+                  markEarlyRewardTransferAcknowledged(
+                    wallet, earlyTransfer.inviteCode, earlyTransfer.txId,
+                  );
                   window.open(intentUrl, '_blank', 'noopener,noreferrer');
                   setFeedback(visible =>
                     visible?.kind === 'reward' && visible.id === earlyTransfer.feedbackId

@@ -82,12 +82,15 @@ export function RewardXPromotionPanel({
   receiptAmountB3tr,
   rewardShareUrl,
   onRewardShare,
+  bonusOnly = false,
 }: {
   locale: SupportedLocale;
   inviteCode: string;
   receiptAmountB3tr: string;
   rewardShareUrl: string;
   onRewardShare?: (intentUrl: string) => void;
+  /** Only show an authenticated, still-active bonus in Home. */
+  bonusOnly?: boolean;
 }) {
   const copy = REWARD_X_PROMOTION_COPY[locale];
   const autoCopy = REWARD_X_PROMOTION_AUTO_COPY[locale];
@@ -317,6 +320,12 @@ export function RewardXPromotionPanel({
       setSubmitting(false);
     }
   }, [inviteCode, load, locale, postUrl, submitting]);
+
+  // Home must never present a generic X post as a qualified +10 B3TR.
+  if (
+    bonusOnly &&
+    !['OPEN', 'SUBMISSION_GRACE'].includes(promotion?.state ?? '')
+  ) return null;
 
   if (loading) {
     return null;

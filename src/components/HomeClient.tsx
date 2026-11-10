@@ -61,6 +61,7 @@ import {
   sameWallet,
 } from '@/lib/homeClientHelpers';
 import { TransferStatus } from './RewardTransferConfirmationLabel';
+import { RewardXPromotionPanel } from './RewardXPromotionPanel';
 import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useXPromotionOAuthReturnFeedback } from '@/hooks/useXPromotionOAuthReturnFeedback';
@@ -606,6 +607,27 @@ export function HomeClient() {
     ),
     [rewardItems],
   );
+
+  // X bonus opens after canonical confirmation, before final PAID settlement.
+  // Keep still-open offers accessible beyond that slower finality boundary.
+  const recentPaidXBonuses = useMemo(() => {
+    const now = Date.now();
+    const earliest = now - 26 * 60 * 60 * 1000;
+    return rewardItems
+      .filter((invite) => {
+        if (invite.rewardEligibility !== 'PAID') return false;
+        const requestedAt = Date.parse(invite.rewardClaimRequestedAt ?? '');
+        const amount = invite.rewardClaimAmountWei ?? '';
+        return Number.isFinite(requestedAt) &&
+          requestedAt >= earliest && requestedAt <= now &&
+          /^[0-9]+$/u.test(amount) && BigInt(amount) > 0n;
+      })
+      .sort((left, right) =>
+        Date.parse(right.rewardClaimRequestedAt ?? '') -
+        Date.parse(left.rewardClaimRequestedAt ?? ''),
+      )
+      .slice(0, 4);
+  }, [rewardItems]);
 
   const permanentInviteUrl = useMemo(() => {
     if (!referralLink || typeof window === 'undefined') return '';
@@ -1166,7 +1188,7 @@ export function HomeClient() {
                   const pending = claimPendingCode === invite.code;
 
                   return (
-                    <article key={invite.code} className="rewardItem">
+                    <article key={invite.code} className={`rewardItem${processing ? ' processing' : ''}`}>
                       <div className="rewardMeta">
                         <small>
                           {invite.inviteeAddress
@@ -1201,6 +1223,18 @@ export function HomeClient() {
               </div>
             </section>
           ) : null}
+          {referralLinkVerified && rewardShareUrl
+            ? recentPaidXBonuses.map((invite) => (
+                <RewardXPromotionPanel
+                  key={`paid-x-offer:${invite.code}`}
+                  locale={locale}
+                  inviteCode={invite.code}
+                  receiptAmountB3tr={formatB3trWei(invite.rewardClaimAmountWei!)}
+                  rewardShareUrl={rewardShareUrl}
+                  bonusOnly
+                />
+              ))
+            : null}
         </section>
       ) : activeTab === 'guide' ? (
         <div className="networkTabViewport">
@@ -1324,6 +1358,8 @@ export function HomeClient() {
         .rewardIcon { width:33px; height:33px; display:grid; place-items:center; border-radius:11px; background:rgba(64,222,156,.13); color:#77efb9; font-size:.68rem; }
         .rewardList { margin-top:11px; display:grid; gap:8px; }
         .rewardItem { min-width:0; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.07); border-radius:14px; background:rgba(5,8,7,.36); }
+        .rewardItem.processing { grid-template-columns:minmax(0,1fr); align-items:stretch; }
+        .rewardItem.processing .processingBadge { max-width:none; }
         .rewardMeta { min-width:0; display:grid; gap:3px; }
         .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
         .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }
