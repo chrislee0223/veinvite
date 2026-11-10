@@ -39,11 +39,11 @@ test('primary navigation labels can wrap instead of being truncated', () => {
 test('the two-line navigation typography rule never expands the icon span', () => {
   assert.doesNotMatch(
     typography,
-    /\\.bottomNavigation button span,/,
+    /\.bottomNavigation button span,/,
   );
   assert.match(
     typography,
-    /\\.bottomNavigation button \\.navLabel,/,
+    /\.bottomNavigation button \.navLabel,/,
   );
 });
 
