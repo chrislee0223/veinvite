@@ -25,6 +25,8 @@ test('Home shows transfer confirmation separately from final PAID receipt', () =
   assert.match(label, /copy\.claimQueued/u);
   assert.match(label, /broadcastConfirmedAt/u);
   assert.match(label, /TX_ID_PATTERN\.test\(action\.txId\)/u);
+  assert.match(label, /const amount = action\?\.claimAmountWei;/u);
+  assert.doesNotMatch(label, /action\?\.claimAmountWei \?\? action\?\.reservedAmountWei/u);
   assert.match(actionRoute, /broadcastConfirmedAt &&[\s\S]*submission\?\.tx_id/u);
   assert.doesNotMatch(label, /\/api\/rewards\/claims/u);
   assert.doesNotMatch(label, /method:\s*'POST'/u);
