@@ -219,10 +219,10 @@ export function WalletProviderAccountReconciler() {
           const staleAuthentication =
             cancelActiveWalletAuthentication();
 
-          const clearBrowserSession = async () => {
-            // Explicitly retire only wallet A. If another tab has already
-            // authenticated wallet B, the server returns 409 without
-            // revoking B or issuing a stale Set-Cookie clear.
+          const clearBrowserSession = async (): Promise<boolean> => {
+            // Retire only wallet A. A 409 may mean A was already revoked,
+            // or a newer B session now owns this browser cookie. Never
+            // infer which one happened from the 409 alone.
             const clearResponse = await fetch('/api/auth/session', {
               method: 'DELETE',
               cache: 'no-store',
@@ -231,11 +231,26 @@ export function WalletProviderAccountReconciler() {
                 'X-VeInvite-Session-Handoff-Wallet': sessionWallet,
               },
             });
-            return clearResponse;
+            if (clearResponse.ok) return true;
+            if (clearResponse.status !== 409) return false;
+
+            // A revoked/stale cookie is safe to continue past only when
+            // the server confirms no authenticated session. A concurrently
+            // verified B must not be cleared or invalidated.
+            const currentResponse = await fetch('/api/auth/session', {
+              method: 'GET',
+              cache: 'no-store',
+              credentials: 'include',
+            });
+            if (!currentResponse.ok) return false;
+            const currentSession =
+              (await currentResponse.json()) as SessionResponse;
+            return currentSession.authenticated === false;
           };
 
-          // First remove the known stale A session immediately.
-          if (!(await clearBrowserSession()).ok) {
+          // First retire A, including the race where another tab already
+          // revoked A before this request. Fail closed for a verified B.
+          if (!(await clearBrowserSession())) {
             return;
           }
 
@@ -259,25 +274,10 @@ export function WalletProviderAccountReconciler() {
             return;
           }
 
-          const finalClearResponse = await clearBrowserSession();
-          if (!finalClearResponse.ok) {
-            // The first DELETE revoked A. A second scoped DELETE then
-            // correctly returns 409 when the browser still carries A's
-            // now-revoked cookie. That is not a failed handoff.
-            if (finalClearResponse.status !== 409) return;
-
-            // A second 409 also protects B if another tab has signed in.
-            // Re-arm verification only when there is no valid session;
-            // never clear or overwrite a newly verified wallet B.
-            const currentResponse = await fetch('/api/auth/session', {
-              method: 'GET',
-              cache: 'no-store',
-              credentials: 'include',
-            });
-            if (!currentResponse.ok) return;
-            const currentSession =
-              (await currentResponse.json()) as SessionResponse;
-            if (currentSession.authenticated !== false) return;
+          // Recheck after any cancelled signing prompt settles. This
+          // repeat is deliberate: a late A proof must not re-authorize A.
+          if (!(await clearBrowserSession())) {
+            return;
           }
 
           if (
