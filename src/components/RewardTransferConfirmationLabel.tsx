@@ -40,7 +40,7 @@ export function TransferStatus({
 }: {
   inviteCode: string;
   wallet: string;
-  copy: Pick<ProgressClaimCopy, 'claimQueued' | 'finalCheck'>;
+  copy: Pick<ProgressClaimCopy, 'claimQueued' | 'transferConfirmed'>;
   locale: SupportedLocale;
   rewardShareUrl: string;
 }) {
@@ -249,7 +249,7 @@ export function TransferStatus({
     <div style={{ display: 'grid', justifyItems: 'end', gap: 6, minWidth: 0 }}>
       <span className="processingBadge" role="status" aria-live="polite">
         {confirmed
-          ? `✓ B3TR · ${copy.finalCheck}`
+          ? `✓ B3TR · ${copy.transferConfirmed}`
           : copy.claimQueued}
       </span>
       {bonusVisible ? (
