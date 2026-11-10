@@ -64,7 +64,8 @@ test('early incentive link waits for immutable OPEN offer and expires at deadlin
   assert.match(hook, /offer\.state !== 'OPEN'/u);
   assert.match(hook, /rewardXPromotionShareUrl\(\{/u);
   assert.match(hook, /!offer\.shareToken/u);
-  assert.match(hook, /body\.xUrlLessEnabled && body\.xConnected !== true/u);
+  assert.match(hook, /if \(body\.xUrlLessEnabled !== true\) return/u);
+  assert.match(hook, /if \(body\.xConnected !== true\)/u);
   assert.match(hook, /Date\.now\(\) >= deadline/u);
   assert.match(hook, /shareLabel: undefined, onShare: undefined/u);
   assert.doesNotMatch(early, /reward_x_promotion_post_submissions/u);

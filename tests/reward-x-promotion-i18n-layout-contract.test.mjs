@@ -27,10 +27,6 @@ const autoCopyB = readFileSync(
   'utf8',
 );
 const allAutoCopy = autoCopy + '\n' + autoCopyA + '\n' + autoCopyB;
-const submitErrors = readFileSync(
-  'src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts',
-  'utf8',
-);
 const oauthFeedback = readFileSync(
   'src/lib/i18n/rewardXPromotionOAuthFeedbackCopy.ts',
   'utf8',
@@ -83,18 +79,12 @@ test('X promotion copy has no English spread fallback and keeps all locale packs
       key,
       'missing automatic X copy for ' + locale,
     );
-    assert.match(
-      submitErrors,
-      key,
-      'missing localized X submit error for ' + locale,
-    );
   }
 });
 
 test('X promotion panel uses localized auto copy and never renders raw API errors', () => {
   assert.match(panel, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]/);
-  assert.match(panel, /rewardXPromotionSubmitError\(locale, response\.status\)/);
-  assert.match(panel, /rewardXPromotionSubmitError\(locale, 0\)/);
+  assert.doesNotMatch(panel, /x-promotion\/submit|postUrl|promotionSubmit|rewardXPromotionSubmitError/);
   assert.doesNotMatch(panel, /body\.error\s*\|\|/);
   assert.doesNotMatch(panel, /error instanceof Error[\s\S]*error\.message/);
   assert.doesNotMatch(panel, /REWARD_X_PROMOTION_COPY\.en\.auto/);

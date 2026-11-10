@@ -14,7 +14,6 @@ import type {
 } from '@/components/TransientSnackbar';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
-import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
@@ -226,7 +225,6 @@ export function useRewardPaidTransientFeedback({
       let shareIntentUrl = '';
       let shareLabel = '';
       let shareDeadlineMs: number | null = null;
-      let autoShareFollowup = false;
 
       try {
         const response = await fetch(
@@ -264,9 +262,8 @@ export function useRewardPaidTransientFeedback({
           // Author-targeted auto discovery needs an authenticated account.
           // A generic share before OAuth cannot qualify for the +10 bonus.
           // The reward receipt panel owns the one-time X connection action.
-          if (!usesAuto || body.xConnected === true) {
+          if (usesAuto && body.xConnected === true) {
             shareDeadlineMs = Date.parse(promotion.postDeadlineAt);
-            autoShareFollowup = usesAuto;
             const promotionUrl =
               rewardXPromotionShareUrl({
                 referralUrl,
@@ -342,17 +339,13 @@ export function useRewardPaidTransientFeedback({
               'noopener,noreferrer',
             );
             if (shareDeadlineMs !== null) {
-              // Opening an X composer does not prove publication.
-              // Legacy offers still require a Post URL; for newly enabled
-              // author-scanned offers we only remind users to keep the Post
-              // public, without requesting any additional user action.
+              // Opening X does not prove publication. The public Post is
+              // discovered automatically for the connected X account.
               setFeedback((visible) =>
                 visible?.kind === 'reward' && visible.id === feedbackId
                   ? {
                       ...visible,
-                      text: autoShareFollowup
-                        ? REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody
-                        : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                      text: REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody,
                     }
                   : visible,
               );
@@ -537,7 +530,8 @@ export function useRewardPaidTransientFeedback({
 
         // URL-less auto-discovery requires a linked X author before we offer
         // an incentive-qualified composer. Never show a misleading +10 link.
-        if (body.xUrlLessEnabled && body.xConnected !== true) {
+        if (body.xUrlLessEnabled !== true) return;
+        if (body.xConnected !== true) {
           if (body.xConnectAvailable) {
             shareReady = true;
             setFeedback(current =>
@@ -593,9 +587,7 @@ export function useRewardPaidTransientFeedback({
                     visible?.kind === 'reward' && visible.id === earlyTransfer.feedbackId
                       ? {
                           ...visible,
-                          text: body.xUrlLessEnabled
-                            ? REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody
-                            : REWARD_X_PROMOTION_COPY[locale].shareFollowupBody,
+                          text: REWARD_X_PROMOTION_AUTO_COPY[locale].autoShareFollowupBody,
                         }
                       : visible,
                   );

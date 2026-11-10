@@ -1,67 +1,53 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-const route = readFileSync(new URL('../src/app/api/rewards/x-promotion/route.ts', import.meta.url), 'utf8');
-const panel = readFileSync(new URL('../src/components/RewardXPromotionPanel.tsx', import.meta.url), 'utf8');
-const copy = readFileSync(new URL('../src/lib/i18n/rewardXPromotionCopy.ts', import.meta.url), 'utf8');
-const autoCopyA = readFileSync(new URL('../src/lib/i18n/rewardXPromotionAutoCopyA.ts', import.meta.url), 'utf8');
-const autoCopyB = readFileSync(new URL('../src/lib/i18n/rewardXPromotionAutoCopyB.ts', import.meta.url), 'utf8');
-const autoCopy = autoCopyA + '\n' + autoCopyB;
-const popup = readFileSync(new URL('../src/hooks/useRewardPaidTransientFeedback.ts', import.meta.url), 'utf8');
+const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const route = read('src/app/api/rewards/x-promotion/route.ts');
+const panel = read('src/components/RewardXPromotionPanel.tsx');
+const autoCopy = read('src/lib/i18n/rewardXPromotionAutoCopyA.ts')
+  + read('src/lib/i18n/rewardXPromotionAutoCopyB.ts');
+const popup = read('src/hooks/useRewardPaidTransientFeedback.ts');
 
-test('manual URL retirement requires a separate live + time-bounded rollout gate', () => {
+test('automatic X verification remains behind live, author and dated offer gates', () => {
   assert.match(route, /VEINVITE_X_PROMOTION_URLLESS_START_AT/);
   assert.match(route, /VEINVITE_X_PROMOTION_DISCOVERY_MODE === 'live'/);
   assert.match(route, /VEINVITE_X_PROMOTION_DISCOVERY_STRATEGY === 'author'/);
   assert.match(route, /VEINVITE_X_PROMOTION_DAILY_READ_CALLS/);
   assert.match(route, /xConnectAvailable &&/);
-  assert.match(route, /Number\.isFinite\(urlLessStart\)/);
   assert.match(route, /Date\.parse\(opportunityRow\.opened_at\) >= urlLessStart/);
   assert.match(route, /xUrlLessEnabled: urlLessConfigured/);
 });
 
-test('URL-less mode requires account link before publishing a qualifying share', () => {
-  assert.match(panel, /state\?\.xUrlLessEnabled === true && state\?\.xConnected !== true/);
-  assert.match(panel, /state\?\.xUrlLessEnabled === true/);
-  assert.match(panel, /canSubmit && !usesAuto/);
-  assert.match(panel, /\/api\/rewards\/x-promotion\/x-connect\/start/);
+test('an unlinked or unready offer never gets an incentive-qualified X composer', () => {
+  assert.match(panel, /state\?\.xUrlLessEnabled !== true \|\|/);
+  assert.match(panel, /state\?\.xConnected !== true \|\|/);
+  assert.match(panel, /x-connect\/start/);
+  assert.match(popup, /usesAuto && body\.xConnected === true/);
+  assert.match(popup, /if \(body\.xUrlLessEnabled !== true\) return/);
 });
 
-test('existing URL submit path remains available for legacy and disabled cohorts', () => {
-  assert.match(panel, /\/api\/rewards\/x-promotion\/submit/);
-  assert.match(panel, /canSubmit && !usesAuto/);
+test('manual URL form cannot appear for any offer cohort', () => {
+  assert.doesNotMatch(panel, /x-promotion\/submit|postUrl|promotionSubmit|canSubmit/);
+  assert.match(panel, /: copy\.preparingBody/);
+  assert.match(panel, /autoCopy\.autoOpenBody/);
+  assert.match(panel, /autoCopy\.autoGraceBody/);
 });
 
-test('auto-only instructions explain public X connection, detection and 24-hour retention', () => {
-  for (const field of ['autoConnectBody', 'autoOpenBody', 'autoGraceBody', 'autoConnectedX']) {
+test('automatic X guidance covers linked author, 24-hour posting and retention', () => {
+  for (const field of ['autoConnectBody', 'autoOpenBody', 'autoGraceBody', 'autoConnectedX', 'autoShareFollowupBody']) {
     assert.match(autoCopy, new RegExp(field + ':'));
   }
-  assert.match(autoCopy, /No post URL is needed/);
   assert.match(autoCopy, /24 hours/);
-  assert.match(autoCopy, /게시물 URL을 따로 제출할 필요가 없어요/);
+  assert.match(autoCopy, /게시물을 24시간 이상 공개로 유지해 주세요/);
+  assert.doesNotMatch(autoCopy, /^\s*connectedX:/m);
+  assert.doesNotMatch(popup, /REWARD_X_PROMOTION_COPY|shareFollowupBody\s*\?/);
 });
 
-test('automatic cohort reward popup never requires a URL or a return to VeInvite', () => {
-  assert.match(popup, /xUrlLessEnabled\?: boolean/);
-  assert.match(popup, /xConnected\?: boolean/);
-  assert.match(popup, /const usesAuto = body\.xUrlLessEnabled === true/);
-  assert.match(popup, /!usesAuto \|\| body\.xConnected === true/);
-  assert.match(popup, /autoShareFollowup = usesAuto/);
-  assert.match(popup, /text: autoShareFollowup/);
-  assert.match(popup, /REWARD_X_PROMOTION_AUTO_COPY\[locale\]\.autoShareFollowupBody/);
-  assert.match(autoCopy, /autoShareFollowupBody:/);
-  assert.match(autoCopy, /X에 게시했다면 링크 제출이나 별도 확인은 필요 없어요/);
-  assert.doesNotMatch(popup, /REWARD_X_PROMOTION_COPY\[locale\]\.autoOpenBody/);
-  assert.match(popup, /: REWARD_X_PROMOTION_COPY\[locale\]\.shareFollowupBody/);
-  assert.doesNotMatch(popup, /scan-request|I posted on X|X에 게시했어요/u);
-});
-
-test('manual verification remains confined to historical offers, not automatic cohorts', () => {
-  assert.match(panel, /canSubmit && !usesAuto/);
-  assert.match(panel, /state\?\.xUrlLessEnabled === true/);
-  assert.match(route, /Date\.parse\(opportunityRow\.opened_at\) >= urlLessStart/);
-  assert.match(popup, /!usesAuto \|\| body\.xConnected === true/);
-  assert.match(copy, /shareFollowupBody:/);
-  assert.match(autoCopy, /autoOpenBody:/);
+test('removed manual HTTP endpoint cannot bypass linked-author verification', () => {
+  assert.equal(existsSync(new URL('../src/app/api/rewards/x-promotion/submit/route.ts', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../src/lib/i18n/rewardXPromotionSubmitErrorCopy.ts', import.meta.url)), false);
+  const discovery = read('src/lib/rewards/rewardXPromotionAutoDiscovery.ts');
+  assert.match(discovery, /record_reward_x_promotion_post_submission_v1/);
+  assert.match(discovery, /boundAuthors/);
 });

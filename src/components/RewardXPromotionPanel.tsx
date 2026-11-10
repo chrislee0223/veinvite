@@ -14,7 +14,6 @@ import {
 } from '@/lib/i18n/locales';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
 import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
-import { rewardXPromotionSubmitError } from '@/lib/i18n/rewardXPromotionSubmitErrorCopy';
 import {
   rewardReceiptShareLabel,
   rewardReceiptXIntentUrl,
@@ -101,12 +100,6 @@ export function RewardXPromotionPanel({
     useState(true);
   const [loadError, setLoadError] =
     useState(false);
-  const [postUrl, setPostUrl] =
-    useState('');
-  const [submitting, setSubmitting] =
-    useState(false);
-  const [submitError, setSubmitError] =
-    useState('');
   const requestSequenceRef = useRef(0);
   const lastFocusRefreshAtRef = useRef(0);
 
@@ -154,8 +147,6 @@ export function RewardXPromotionPanel({
     setState(null);
     setLoading(true);
     setLoadError(false);
-    setPostUrl('');
-    setSubmitError('');
     void load();
     return () => {
       // A prior invite's response must not revive its share token/status
@@ -274,7 +265,8 @@ export function RewardXPromotionPanel({
   const promotionShareIntent = useMemo(() => {
     if (
       promotion?.state !== 'OPEN' ||
-      (state?.xUrlLessEnabled === true && state?.xConnected !== true) ||
+      state?.xUrlLessEnabled !== true ||
+      state?.xConnected !== true ||
       !promotion.shareToken ||
       !rewardShareUrl
     ) {
@@ -302,50 +294,6 @@ export function RewardXPromotionPanel({
     state?.xUrlLessEnabled,
     state?.xConnected,
   ]);
-
-  const submitPost = useCallback(async () => {
-    const normalized = postUrl.trim();
-
-    if (!normalized || submitting) return;
-
-    setSubmitting(true);
-    setSubmitError('');
-
-    try {
-      const response = await fetch(
-        '/api/rewards/x-promotion/submit',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inviteCode,
-            postUrl: normalized,
-          }),
-        },
-      );
-      if (response.status === 401 || response.status === 403) {
-        notifyRewardClaimSessionInvalid();
-      }
-
-      if (!response.ok && response.status !== 202) {
-        setSubmitError(
-          rewardXPromotionSubmitError(locale, response.status),
-        );
-        return;
-      }
-
-      setPostUrl('');
-      await load();
-    } catch {
-      setSubmitError(
-        rewardXPromotionSubmitError(locale, 0),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }, [inviteCode, load, locale, postUrl, submitting]);
 
   if (loading) {
     return null;
@@ -423,9 +371,6 @@ export function RewardXPromotionPanel({
     );
   }
 
-  const canSubmit =
-    promotion.state === 'OPEN' ||
-    promotion.state === 'SUBMISSION_GRACE';
   const usesAuto = state?.xUrlLessEnabled === true;
 
   const body =
@@ -434,11 +379,11 @@ export function RewardXPromotionPanel({
         ? state?.xConnected
           ? (autoCopy.autoOpenBody)
           : (autoCopy.autoConnectBody)
-        : copy.openBody
+        : copy.preparingBody
       : promotion.state === 'SUBMISSION_GRACE'
         ? usesAuto
           ? (autoCopy.autoGraceBody)
-          : copy.graceBody
+          : copy.preparingBody
         : promotion.state === 'VERIFYING'
           ? copy.verifyingBody
           : promotion.state === 'RETENTION'
@@ -483,12 +428,10 @@ export function RewardXPromotionPanel({
         </button>
       ) : null}
 
-      {promotion.state === 'OPEN' && state?.xConnectAvailable ? (
+      {promotion.state === 'OPEN' && usesAuto && state?.xConnectAvailable ? (
         state.xConnected ? (
           <p className="promotionConnectState" role="status">
-            {usesAuto
-              ? (autoCopy.autoConnectedX)
-              : (autoCopy.connectedX)}
+            {autoCopy.autoConnectedX}
           </p>
         ) : (
           <button
@@ -505,41 +448,6 @@ export function RewardXPromotionPanel({
         )
       ) : null}
 
-      {canSubmit && !usesAuto ? (
-        <div className="promotionSubmit">
-          <input
-            type="url"
-            dir="ltr"
-            value={postUrl}
-            placeholder={copy.postUrlPlaceholder}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            onChange={(event) =>
-              setPostUrl(event.target.value)
-            }
-          />
-          <button
-            type="button"
-            disabled={
-              submitting ||
-              postUrl.trim().length === 0
-            }
-            onClick={() => void submitPost()}
-          >
-            {submitting
-              ? copy.verifying
-              : copy.verify}
-          </button>
-        </div>
-      ) : null}
-
-      {submitError ? (
-        <p className="promotionError" role="alert">
-          {submitError}
-        </p>
-      ) : null}
-
       <style jsx>{`
         .promotionPanel{min-width:0;margin-top:14px;padding:13px;border:1px solid rgba(255,205,80,.18);border-radius:14px;background:rgba(255,205,80,.035)}
         .promotionHeading{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px 12px}
@@ -551,13 +459,8 @@ export function RewardXPromotionPanel({
         .promotionConnect{width:100%;min-width:0;min-height:42px;margin-top:10px;padding:9px 12px;border:1px solid rgba(255,205,80,.35);border-radius:11px;background:rgba(244,183,40,.10);color:#f1cf65;font:inherit;font-size:.7rem;font-weight:900;line-height:1.35;white-space:normal;overflow-wrap:anywhere;text-align:center;cursor:pointer}
         .promotionConnectState{margin-top:10px;color:#a6d5a5!important;overflow-wrap:break-word}
         .promotionConnect:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
-        .promotionSubmit{min-width:0;margin-top:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
-        .promotionSubmit input{min-width:0;width:100%;height:42px;box-sizing:border-box;padding:9px 10px;border:1px solid rgba(255,255,255,.1);border-radius:11px;background:rgba(0,0,0,.25);color:#eee8dd;font:inherit;font-size:.64rem;direction:ltr;text-align:left}
-        .promotionSubmit button{min-width:0;min-height:42px;padding:8px 11px;border:1px solid rgba(255,205,80,.18);border-radius:11px;background:rgba(244,183,40,.08);color:#f1cf65;font:inherit;font-size:.64rem;font-weight:900;line-height:1.3;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:center}
-        .promotionSubmit button:disabled{opacity:.45;cursor:not-allowed}
-        .promotionError{color:#d48b93!important;overflow-wrap:anywhere}
-        .promotionShare:focus-visible,.promotionSubmit input:focus-visible,.promotionSubmit button:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
-        @media(max-width:430px){.promotionSubmit{grid-template-columns:1fr}.promotionSubmit button{width:100%}}
+        .promotionShare:focus-visible{outline:2px solid rgba(255,208,74,.8);outline-offset:2px}
+        @media(max-width:430px){.promotionHeading{grid-template-columns:1fr}}
       `}</style>
     </section>
   );

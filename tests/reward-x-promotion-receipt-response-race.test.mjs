@@ -8,8 +8,9 @@ const receiptView = readFileSync(new URL('../src/components/RewardReceiptView.ts
 test('switching to a different paid receipt resets the X promotion panel identity', () => {
   assert.match(receiptView, /<RewardXPromotionPanel\s+key=\{\`x-promotion-receipt:\$\{receipt\.id\}\`\}/);
   assert.match(receiptView, /inviteCode=\{receipt\.inviteCode\}/);
-  assert.match(panel, /setPostUrl\(''\)/);
-  assert.match(panel, /setSubmitError\(''\)/);
+  assert.match(panel, /setState\(null\)/);
+  assert.match(panel, /setLoading\(true\)/);
+  assert.doesNotMatch(panel, /setPostUrl|setSubmitError/);
 });
 
 test('only the newest X promotion state response can update the receipt UI', () => {
@@ -27,12 +28,13 @@ test('an old 401/403 response cannot invalidate a newer wallet session', () => {
   assert.ok(staleGuard >= 0 && staleGuard < unauthorizedHandler);
 });
 
-test('status polling remains read-only; X submission still requires explicit user interaction', () => {
+test('status polling remains read-only; X sharing requires a connected account and user click', () => {
   const statusRead = panel.slice(panel.indexOf('const load = useCallback'), panel.indexOf('const promotion = state'));
   assert.match(statusRead, /\/api\/rewards\/x-promotion\?inviteCode=/);
   assert.doesNotMatch(statusRead, /\/api\/rewards\/x-promotion\/submit/);
   assert.doesNotMatch(statusRead, /method: 'POST'/);
-  assert.match(panel, /const submitPost = useCallback/);
-  assert.match(panel, /onClick=\{\(\) => void submitPost\(\)\}/);
+  assert.match(panel, /state\?\.xConnected !== true/);
+  assert.match(panel, /x-connect\/start/);
+  assert.doesNotMatch(panel, /submitPost|postUrl|promotionSubmit/);
   assert.match(panel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/);
 });

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [hook, state, panel, home, status, earlyCopy, queue, submit, followup] = await Promise.all([
+const [hook, state, panel, home, status, earlyCopy, queue, followup] = await Promise.all([
   read('src/hooks/useRewardPaidTransientFeedback.ts'),
   read('src/lib/rewards/earlyRewardTransferFeedback.ts'),
   read('src/components/RewardXPromotionPanel.tsx'),
@@ -11,7 +11,6 @@ const [hook, state, panel, home, status, earlyCopy, queue, submit, followup] = a
   read('src/components/RewardTransferConfirmationLabel.tsx'),
   read('src/lib/i18n/earlyRewardTransferCopy.ts'),
   read('src/app/api/notifications/reward-actions/route.ts'),
-  read('src/app/api/rewards/x-promotion/submit/route.ts'),
   read('src/components/RewardPaidXFollowups.tsx'),
 ]);
 
@@ -33,12 +32,12 @@ test('the early X share and X connection both acknowledge the exact canonical po
   assert.match(state, /const ACK_PREFIX = 'veinvite:early-transfer-acknowledged:v1:'/u);
 });
 
-test('X posting and post URL submission are available from the claimed state, before finality', () => {
+test('X linked account and auto sharing are available before finality', () => {
   assert.match(home, /<TransferStatus inviteCode=\{invite\.code\}/u);
   assert.match(status, /<RewardXPromotionPanel[\s\S]*bonusOnly/u);
   assert.match(panel, /'OPEN', 'SUBMISSION_GRACE'/u);
-  assert.match(panel, /\/api\/rewards\/x-promotion\/submit/u);
-  assert.match(submit, /record_reward_x_promotion_post_submission_v1/u);
+  assert.match(panel, /x-connect\/start/u);
+  assert.doesNotMatch(panel, /x-promotion\/submit|postUrl/u);
 });
 
 test('bonus remains available on Home after PAID and only while server offer is open', () => {
@@ -63,17 +62,15 @@ test('all localized early notices describe an immediate conditional X bonus, not
 });
 
 
-test('all 29 X follow-up copies point to the Home bonus panel without waiting for finality', async () => {
+test('X follow-up copy is automatic-only in all 29 locales', async () => {
   const copies = await Promise.all([
-    read('src/lib/i18n/rewardXPromotionCopy.ts'),
-    read('src/lib/i18n/rewardXPromotionExpandedCopyA.ts'),
-    read('src/lib/i18n/rewardXPromotionExpandedCopyB.ts'),
+    read('src/lib/i18n/rewardXPromotionAutoCopyA.ts'),
+    read('src/lib/i18n/rewardXPromotionAutoCopyB.ts'),
   ]);
   const all = copies.join('\n');
-  assert.equal([...all.matchAll(/^\s*shareFollowupBody: ["']/gmu)].length, 29);
-  assert.match(all, /VeInvite 홈의 X 추가 보상 카드/u);
-  assert.match(all, /No need to wait for final settlement/u);
-  assert.doesNotMatch(all, /Open your reward in Notifications|알림의 지급 완료 내역을 열고/u);
+  assert.equal([...all.matchAll(/^\s*autoShareFollowupBody: ["']/gmu)].length, 29);
+  assert.match(all, /X에 게시했다면 링크 제출이나 별도 확인은 필요 없어요/u);
+  assert.doesNotMatch(all, /^\s*connectedX:/mu);
 });
 
 
