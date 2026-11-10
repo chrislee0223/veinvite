@@ -38,13 +38,13 @@ test('country ranking uses stable five-column geometry at all reviewed breakpoin
 test('desktop country header and rows reserve the same native scrollbar gutter', () => {
   assert.match(
     css,
-    /@media \\(min-width: 501px\\)[\\s\\S]*?\\.countryHeader,[\\s\\S]*?\\.countryScroll \\{\\s*scrollbar-gutter: stable;/,
+    /@media \(min-width: 501px\)[\s\S]*?\.countryHeader,[\s\S]*?\.countryScroll \{\s*scrollbar-gutter: stable;/,
   );
   assert.match(
     css,
-    /@media \\(min-width: 501px\\)[\\s\\S]*?\\.countryHeader \\{\\s*overflow-y: hidden;/,
+    /@media \(min-width: 501px\)[\s\S]*?\.countryHeader \{\s*overflow-y: hidden;/,
   );
-  assert.match(css, /@media \\(max-width: 500px\\)/);
+  assert.match(css, /@media \(max-width: 500px\)/);
 });
 
 test('country stays at inline start instead of being optically centered with manual offsets', () => {
