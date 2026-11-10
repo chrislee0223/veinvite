@@ -379,7 +379,7 @@ export async function GET(request: NextRequest) {
       if (
         (queue?.status === 'QUEUED' || queue?.status === 'ASSIGNED') &&
         typeof reserved === 'string' &&
-        /^\\d+$/u.test(reserved) &&
+        /^\d+$/u.test(reserved) &&
         BigInt(reserved) > 0n
       ) {
         return {
