@@ -12,6 +12,7 @@ const guard = readFileSync(
 );
 const route = readFileSync('src/app/api/invites/[code]/release/route.ts', 'utf8');
 const home = readFileSync('src/components/HomeClient.tsx', 'utf8');
+const helpers = readFileSync('src/lib/homeClientHelpers.ts', 'utf8');
 const i18n = readFileSync('src/lib/i18n/manualReleaseCopy.ts', 'utf8');
 
 test('manual release is wallet-session authenticated before DB mutation', () => {
@@ -65,12 +66,13 @@ test('manual release RPC is not executable directly by visitors', () => {
 });
 
 test('top-right x only appears on unfinished, non-locked friend slots', () => {
-  assert.match(home, /function canEndIncompleteReferral\(invite: InviteRecord\)/);
-  assert.match(home, /invite\.status === 'ACTIVATING'/);
-  assert.match(home, /invite\.rewardEligibility === 'PENDING'/);
-  assert.match(home, /!invite\.rewardQueueStatus/);
-  assert.match(home, /invite\.sybilStatus !== 'REVIEW'/);
-  assert.match(home, /!missionFlags\(invite\)\.every\(Boolean\)/);
+  assert.match(home, /canEndIncompleteReferral,/);
+  assert.match(helpers, /export function canEndIncompleteReferral\(invite: InviteRecord\)/);
+  assert.match(helpers, /invite\.status === 'ACTIVATING'/);
+  assert.match(helpers, /invite\.rewardEligibility === 'PENDING'/);
+  assert.match(helpers, /!invite\.rewardQueueStatus/);
+  assert.match(helpers, /invite\.sybilStatus !== 'REVIEW'/);
+  assert.match(helpers, /!missionFlags\(invite\)\.every\(Boolean\)/);
   assert.match(home, /const showRelease = canEndIncompleteReferral\(invite\)/);
   assert.match(home, /className="slotReleaseButton"/);
   assert.match(home, /onClick=\{\(event\) => onReleaseInvite\(invite, event\.currentTarget\)\}/);

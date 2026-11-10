@@ -370,7 +370,28 @@ export async function GET(request: NextRequest) {
         'Invalid LIVE X promotion split in invitation reward display:',
         { inviteCode: invitation.invite_code, error: rewardError },
       );
-      return toInviteRecord(invitation);
+      // A corrupt optional X split must not hide an already requested
+      // transfer. Preserve only the immutable reservation and queue status;
+      // never guess the claim/X split or expose an unverified Claim button.
+      const queue = rewardQueueByInvite.get(invitation.invite_code);
+      const base = toInviteRecord(invitation);
+      const reserved = queue?.reserved_amount_wei;
+      if (
+        (queue?.status === 'QUEUED' || queue?.status === 'ASSIGNED') &&
+        typeof reserved === 'string' &&
+        /^\d+$/u.test(reserved) &&
+        BigInt(reserved) > 0n
+      ) {
+        return {
+          ...base,
+          rewardQueueStatus: queue.status,
+          rewardReservedAmountWei: reserved,
+          ...(queue.claim_requested_at
+            ? { rewardClaimRequestedAt: queue.claim_requested_at }
+            : {}),
+        };
+      }
+      return base;
     }
   });
 

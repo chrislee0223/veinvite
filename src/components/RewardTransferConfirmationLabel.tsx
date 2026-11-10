@@ -2,34 +2,26 @@
 
 import { useEffect, useState } from 'react';
 
-import type {
-  RewardActionResponse,
-} from '@/lib/notifications/rewardAction';
+import type { RewardActionResponse } from '@/lib/notifications/rewardAction';
 import type { ProgressClaimCopy } from '@/lib/i18n/progressClaimCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
-import { REWARD_X_PROMOTION_AUTO_COPY } from '@/lib/i18n/rewardXPromotionAutoCopy';
-import {
-  rewardReceiptShareLabel,
-  rewardReceiptXIntentUrl,
-  rewardXPromotionShareUrl,
-} from '@/lib/rewards/rewardReceiptShare';
 import { formatWeiAsB3tr } from '@/lib/reporting/roundReport';
 import {
   REWARD_ACTION_PENDING_TRANSFER_POLL_MS,
   REWARD_ACTION_IDLE_POLL_MS,
 } from '@/lib/notifications/rewardActionPolling';
-import {
-  notifyRewardClaimSessionInvalid,
-} from '@/lib/rewards/rewardClaimClient';
+import { notifyRewardClaimSessionInvalid } from '@/lib/rewards/rewardClaimClient';
+import { markEarlyRewardTransferAcknowledged } from '@/lib/rewards/earlyRewardTransferFeedback';
+import { RewardXPromotionPanel } from './RewardXPromotionPanel';
 
 const FAST_CONFIRMATION_WINDOW_MS = 2 * 60 * 1000;
 const TX_ID_PATTERN = /^0x[0-9a-f]{64}$/iu;
 
 /**
- * Read-only early feedback for an already-claimed B3TR transfer.
- * Only the server's manifest-verified canonical broadcast marker is trusted.
- * This never creates a PAID receipt or advances a payout. A guarded X
- * sharing option may be shown only after a canonical server proof.
+ * Read-only canonical transfer feedback. On-chain confirmation is separate
+ * from a finalized PAID receipt; this component never advances payout state.
+ * Reuse the authenticated X panel for immediate sharing and post submission
+ * during finality, without a second duplicated X button implementation.
  */
 export function TransferStatus({
   inviteCode,
@@ -40,26 +32,19 @@ export function TransferStatus({
 }: {
   inviteCode: string;
   wallet: string;
-  copy: Pick<ProgressClaimCopy, 'claimQueued' | 'finalCheck'>;
+  copy: Pick<ProgressClaimCopy, 'claimQueued' | 'transferConfirmed'>;
   locale: SupportedLocale;
   rewardShareUrl: string;
 }) {
   const identity = `${wallet.toLowerCase()}:${inviteCode.toUpperCase()}`;
-  const [confirmedIdentity, setConfirmedIdentity] = useState<string | null>(null);
-  const [confirmedAmount, setConfirmedAmount] = useState<{
+  const [confirmed, setConfirmed] = useState<{
     identity: string;
-    amountWei: string;
-  } | null>(null);
-  const [earlyX, setEarlyX] = useState<{
-    intentUrl: string | null;
-    deadline: number;
-    bonus: string;
-    connectX: boolean;
+    txId: string;
+    amountWei: string | null;
   } | null>(null);
 
   useEffect(() => {
     if (!wallet || !inviteCode) return;
-
     let disposed = false;
     let inFlight = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -67,13 +52,9 @@ export function TransferStatus({
 
     const scheduleNext = () => {
       if (disposed || timer !== null) return;
-
-      // Poll only briefly at 5s while a freshly claimed transfer appears on
-      // chain; fall back to the existing 60s cadence to limit DB/API costs.
       const interval = Date.now() - startedAt < FAST_CONFIRMATION_WINDOW_MS
         ? REWARD_ACTION_PENDING_TRANSFER_POLL_MS
         : REWARD_ACTION_IDLE_POLL_MS;
-
       timer = setTimeout(() => {
         timer = null;
         void poll();
@@ -86,9 +67,8 @@ export function TransferStatus({
         scheduleNext();
         return;
       }
-
       inFlight = true;
-      let confirmed = false;
+      let transferConfirmed = false;
       let terminalAuth = false;
       try {
         const response = await fetch('/api/notifications/reward-actions', {
@@ -96,45 +76,41 @@ export function TransferStatus({
           credentials: 'same-origin',
           signal: AbortSignal.timeout(8_000),
         });
-
         if (response.status === 401 || response.status === 403) {
           terminalAuth = true;
           notifyRewardClaimSessionInvalid();
           return;
         }
-
-        if (response.ok) {
-          const body = (await response.json()) as RewardActionResponse;
-
-          // Responses from a previous wallet session must never mark a new
-          // wallet's payment as confirmed after a rapid wallet switch.
-          if (body.walletAddress?.toLowerCase() !== wallet.toLowerCase()) {
-            return;
-          }
-
-          const action = body.actions?.find(
-            (candidate) => candidate.inviteCode === inviteCode.toUpperCase(),
-          );
-          confirmed = Boolean(
-            action?.status !== 'AWAITING_CLAIM' &&
-            action?.broadcastConfirmedAt &&
-            action?.txId &&
-            TX_ID_PATTERN.test(action.txId),
-          );
-
-          if (confirmed && !disposed) {
-            const amount = action?.claimAmountWei ?? action?.reservedAmountWei;
-            if (amount && /^[0-9]+$/u.test(amount) && BigInt(amount) > 0n) {
-              setConfirmedAmount({ identity, amountWei: amount });
-            }
-            setConfirmedIdentity(identity);
-          }
+        if (!response.ok) return;
+        const body = (await response.json()) as RewardActionResponse;
+        // Do not adopt another wallet's canonical proof on session switches.
+        if (body.walletAddress?.toLowerCase() !== wallet.toLowerCase()) return;
+        const action = body.actions?.find(
+          candidate => candidate.inviteCode === inviteCode.toUpperCase(),
+        );
+        transferConfirmed = Boolean(
+          action?.status !== 'AWAITING_CLAIM' &&
+          action?.broadcastConfirmedAt &&
+          action?.txId &&
+          TX_ID_PATTERN.test(action.txId),
+        );
+        if (transferConfirmed && action?.txId && !disposed) {
+          // Optional invalid X split must not fabricate an X share amount.
+          // The already proven transfer remains visible without that offer.
+          const amount = action?.claimAmountWei;
+          const verifiedAmount = amount && /^[0-9]+$/u.test(amount) &&
+            BigInt(amount) > 0n ? amount : null;
+          setConfirmed({
+            identity,
+            txId: action.txId.toLowerCase(),
+            amountWei: verifiedAmount,
+          });
         }
       } catch {
-        // Temporary read failures must never affect transfer authorization.
+        // Client status reads must never authorize or mutate a payout.
       } finally {
         inFlight = false;
-        if (!confirmed && !terminalAuth) scheduleNext();
+        if (!transferConfirmed && !terminalAuth) scheduleNext();
       }
     };
 
@@ -149,7 +125,6 @@ export function TransferStatus({
 
     void poll();
     document.addEventListener('visibilitychange', onVisible);
-
     return () => {
       disposed = true;
       if (timer !== null) clearTimeout(timer);
@@ -157,131 +132,29 @@ export function TransferStatus({
     };
   }, [identity, inviteCode, wallet]);
 
-  const confirmed = confirmedIdentity === identity;
-
-  // Persist the bonus action in the processing row. If the user closes the
-  // popup, switches tabs or completes X OAuth, the verified opportunity is
-  // still accessible before base payout finality. No payout mutation here.
-  useEffect(() => {
-    if (!confirmed || !rewardShareUrl || !wallet) {
-      setEarlyX(null);
-      return;
-    }
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
-    let resolvedOffer = false;
-    const end = Date.now() + 2 * 60_000;
-    const load = async () => {
-      try {
-        const response = await fetch(
-          `/api/rewards/x-promotion?inviteCode=${encodeURIComponent(inviteCode)}`,
-          { cache: 'no-store', credentials: 'include', signal: AbortSignal.timeout(8_000) },
-        );
-        if (response.status === 401 || response.status === 403) {
-          notifyRewardClaimSessionInvalid();
-          return;
-        }
-        if (!response.ok || disposed) return;
-        const data = await response.json() as {
-          promotion?: {
-            state?: string;
-            shareToken?: string | null;
-            postDeadlineAt?: string;
-            amountB3tr?: string;
-          } | null;
-          xUrlLessEnabled?: boolean;
-          xConnected?: boolean;
-          xConnectAvailable?: boolean;
-        };
-        const offer = data.promotion;
-        if (!offer || offer.state !== 'OPEN' ||
-            !offer.shareToken || !offer.amountB3tr || !offer.postDeadlineAt ||
-            Date.now() >= Date.parse(offer.postDeadlineAt) || disposed) return;
-        const deadline = Date.parse(offer.postDeadlineAt);
-        if (data.xUrlLessEnabled && !data.xConnected) {
-          if (data.xConnectAvailable) {
-            resolvedOffer = true;
-            setEarlyX({ intentUrl: null, deadline, bonus: offer.amountB3tr, connectX: true });
-            expiryTimer = setTimeout(() => setEarlyX(null), Math.max(1, Math.min(deadline - Date.now() + 100, 86_400_000)));
-          }
-          return;
-        }
-        const bonusUrl = rewardXPromotionShareUrl({
-          referralUrl: rewardShareUrl,
-          shareToken: offer.shareToken,
-        });
-        const amountWei = confirmedAmount?.identity === identity
-          ? confirmedAmount.amountWei
-          : null;
-        const amount = amountWei ? formatWeiAsB3tr(amountWei, 18) : null;
-        const intentUrl = bonusUrl && amount
-          ? rewardReceiptXIntentUrl({
-              locale,
-              amountB3tr: amount,
-              referralUrl: bonusUrl,
-            })
-          : null;
-        if (!intentUrl) return;
-        resolvedOffer = true;
-        setEarlyX({ intentUrl, deadline, bonus: offer.amountB3tr, connectX: false });
-        expiryTimer = setTimeout(() => setEarlyX(null), Math.max(1, Math.min(deadline - Date.now() + 100, 86_400_000)));
-      } catch {
-        // UI enhancement may fail; the canonical transfer stays verified.
-      } finally {
-        if (!disposed && !resolvedOffer && Date.now() < end) timer = setTimeout(() => void load(), 5_000);
-      }
-    };
-    void load();
-    return () => {
-      disposed = true;
-      if (timer !== null) clearTimeout(timer);
-      if (expiryTimer !== null) clearTimeout(expiryTimer);
-    };
-  }, [confirmed, confirmedAmount, identity, inviteCode, locale, rewardShareUrl, wallet]);
-
-  const bonusVisible = Boolean(
-    confirmed && earlyX && Date.now() < earlyX.deadline &&
-    (earlyX.intentUrl || earlyX.connectX)
-  );
+  const proof = confirmed?.identity === identity ? confirmed : null;
 
   return (
-    <div style={{ display: 'grid', justifyItems: 'end', gap: 6, minWidth: 0 }}>
+    <div style={{ display: 'grid', gap: 8, minWidth: 0, width: '100%' }}>
       <span className="processingBadge" role="status" aria-live="polite">
-        {confirmed
-          ? `✓ B3TR · ${copy.finalCheck}`
+        {proof
+          ? `✓ B3TR · ${copy.transferConfirmed}`
           : copy.claimQueued}
       </span>
-      {bonusVisible ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (!earlyX || Date.now() >= earlyX.deadline) return;
-            if (earlyX.connectX) {
-              window.location.assign(
-                `/api/rewards/x-promotion/x-connect/start?inviteCode=${encodeURIComponent(inviteCode)}`,
-              );
-            } else if (earlyX.intentUrl) {
-              window.open(earlyX.intentUrl, '_blank', 'noopener,noreferrer');
-            }
+      {proof?.amountWei && rewardShareUrl ? (
+        <RewardXPromotionPanel
+          key={identity}
+          locale={locale}
+          inviteCode={inviteCode}
+          receiptAmountB3tr={formatWeiAsB3tr(proof.amountWei, 18)}
+          rewardShareUrl={rewardShareUrl}
+          bonusOnly
+          onRewardShare={intentUrl => {
+            // X share click is an acknowledgment, not proof of publication.
+            markEarlyRewardTransferAcknowledged(wallet, inviteCode, proof.txId);
+            window.open(intentUrl, '_blank', 'noopener,noreferrer');
           }}
-          style={{
-            border: '1px solid rgba(255,205,80,.4)',
-            borderRadius: 8,
-            background: 'rgba(255,205,80,.12)',
-            padding: '7px 9px',
-            color: '#f1cf65',
-            font: 'inherit',
-            fontSize: '.69rem',
-            fontWeight: 850,
-            whiteSpace: 'normal',
-            overflowWrap: 'anywhere',
-          }}
-        >
-          {earlyX?.connectX
-            ? REWARD_X_PROMOTION_AUTO_COPY[locale].connectX
-            : `${rewardReceiptShareLabel(locale)} · +${earlyX?.bonus} B3TR`}
-        </button>
+        />
       ) : null}
     </div>
   );

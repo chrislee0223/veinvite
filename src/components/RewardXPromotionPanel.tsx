@@ -82,12 +82,15 @@ export function RewardXPromotionPanel({
   receiptAmountB3tr,
   rewardShareUrl,
   onRewardShare,
+  bonusOnly = false,
 }: {
   locale: SupportedLocale;
   inviteCode: string;
   receiptAmountB3tr: string;
   rewardShareUrl: string;
   onRewardShare?: (intentUrl: string) => void;
+  /** Only show an authenticated, still-active bonus in Home. */
+  bonusOnly?: boolean;
 }) {
   const copy = REWARD_X_PROMOTION_COPY[locale];
   const autoCopy = REWARD_X_PROMOTION_AUTO_COPY[locale];
@@ -105,6 +108,7 @@ export function RewardXPromotionPanel({
   const [submitError, setSubmitError] =
     useState('');
   const requestSequenceRef = useRef(0);
+  const lastFocusRefreshAtRef = useRef(0);
 
   const load = useCallback(async () => {
     // State requests can overlap (timers, focus, manual verification). The
@@ -180,6 +184,31 @@ export function RewardXPromotionPanel({
 
     return () => window.clearInterval(timer);
   }, [load, poll]);
+
+  // Returning from X (composer or OAuth) must refresh the server-owned
+  // bonus lifecycle immediately. OPEN offers are intentionally not polled
+  // every 30 seconds, so without this listener users can see stale guidance.
+  useEffect(() => {
+    const active = state?.promotionPending === true ||
+      ['OPEN', 'SUBMISSION_GRACE', 'VERIFYING', 'RETENTION',
+        'REVIEW_REQUIRED', 'PAYOUT_PENDING'].includes(promotion?.state ?? '');
+    if (!active) return;
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastFocusRefreshAtRef.current < 15_000) return;
+      lastFocusRefreshAtRef.current = now;
+      void load();
+    };
+
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [load, promotion?.state, state?.promotionPending]);
 
   // An open receipt may stay mounted past the 24-hour post deadline.
   // Refresh at each state boundary rather than polling every 30 seconds for
@@ -322,6 +351,8 @@ export function RewardXPromotionPanel({
     return null;
   }
 
+  // A transient server read failure must keep a visible retry action rather
+  // than silently making a still-open +10 B3TR opportunity disappear.
   if (loadError) {
     return (
       <div className="promotionStatus" lang={locale} dir={direction}>
@@ -344,6 +375,16 @@ export function RewardXPromotionPanel({
       </div>
     );
   }
+
+  // Home shows active X progress through retention and payout preparation.
+  // It hides generic, expired or already-paid promotions, never a valid
+  // opportunity or a current verification-in-progress state.
+  if (
+    bonusOnly &&
+    state?.promotionPending !== true &&
+    !['OPEN', 'SUBMISSION_GRACE', 'VERIFYING', 'RETENTION',
+      'REVIEW_REQUIRED', 'PAYOUT_PENDING'].includes(promotion?.state ?? '')
+  ) return null;
 
   if (!promotion) {
     if (state?.promotionPending === true) {

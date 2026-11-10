@@ -20,10 +20,13 @@ test('Home shows transfer confirmation separately from final PAID receipt', () =
   assert.match(home, /TransferStatus/u);
   assert.match(home, /inviteCode=\{invite\.code\}/u);
   assert.match(label, /✓ B3TR/u);
-  assert.match(label, /copy\.finalCheck/u);
+  assert.match(label, /copy\.transferConfirmed/u);
+  assert.doesNotMatch(label, /copy\.finalCheck/u);
   assert.match(label, /copy\.claimQueued/u);
   assert.match(label, /broadcastConfirmedAt/u);
   assert.match(label, /TX_ID_PATTERN\.test\(action\.txId\)/u);
+  assert.match(label, /const amount = action\?\.claimAmountWei;/u);
+  assert.doesNotMatch(label, /action\?\.claimAmountWei \?\? action\?\.reservedAmountWei/u);
   assert.match(actionRoute, /broadcastConfirmedAt &&[\s\S]*submission\?\.tx_id/u);
   assert.doesNotMatch(label, /\/api\/rewards\/claims/u);
   assert.doesNotMatch(label, /method:\s*'POST'/u);
@@ -82,4 +85,25 @@ test('monitor only escalates aged canonical finality and still catches missing t
     monitoring,
     /SIGNED_TX_CRITICAL_MS = 30 \* 60 \* 1000/u,
   );
+});
+
+
+test('optional X split errors cannot hide submitted transfer progress', async () => {
+  const [invites, actionRoute, progress] = await Promise.all([
+    read('src/app/api/invites/route.ts'),
+    read('src/app/api/notifications/reward-actions/route.ts'),
+    read('src/lib/i18n/progressClaimCopy.ts'),
+  ]);
+
+  // An invalid claim amount remains inaccessible before the actual Claim.
+  assert.match(actionRoute, /queue\.status === 'AWAITING_CLAIM'\) return \[\]/u);
+  // A submitted immutable transfer must stay visible with its canonical proof.
+  assert.match(actionRoute, /claimAmountWei = null;[\s\S]*promotionAmountWei = null;/u);
+  assert.match(actionRoute, /broadcastConfirmedAt,[\s\S]*txId,/u);
+  assert.match(invites, /queue\?\.status === 'QUEUED' \|\| queue\?\.status === 'ASSIGNED'/u);
+  assert.match(invites, /rewardQueueStatus: queue\.status/u);
+  assert.match(invites, /rewardReservedAmountWei: reserved/u);
+  assert.match(progress, /transferConfirmed: string;/u);
+  assert.match(progress, /transferConfirmed: '온체인 송금 확인 · 최종 확정 대기'/u);
+  assert.match(progress, /transferConfirmed: 'On-chain transfer confirmed · Finality pending'/u);
 });

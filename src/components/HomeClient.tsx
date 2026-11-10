@@ -55,12 +55,14 @@ import type { InviteRecord } from '@/lib/types';
 import {
   formatB3trWei,
   formatPositiveB3trWei,
+  canEndIncompleteReferral,
   missionFlags,
   nextMissionLabel,
   readCachedReferralLink,
   sameWallet,
 } from '@/lib/homeClientHelpers';
 import { TransferStatus } from './RewardTransferConfirmationLabel';
+import { RewardPaidXFollowups } from './RewardPaidXFollowups';
 import { nodeWallet } from '@/lib/networkAppViewHelpers';
 import { useRewardPaidTransientFeedback } from '@/hooks/useRewardPaidTransientFeedback';
 import { useXPromotionOAuthReturnFeedback } from '@/hooks/useXPromotionOAuthReturnFeedback';
@@ -91,17 +93,6 @@ const ACTIVE_STATUSES = new Set([
 const HOME_REFRESH_MS = 60_000;
 const EVIDENCE_REFRESH_MS = 120_000;
 
-function canEndIncompleteReferral(invite: InviteRecord): boolean {
-  return Boolean(invite.referralLinkId) &&
-    Boolean(invite.inviteeAddress) &&
-    invite.status === 'ACTIVATING' &&
-    invite.rewardEligibility === 'PENDING' &&
-    !invite.rewardQueueStatus &&
-    !invite.slotReleasedAt &&
-    invite.sybilStatus !== 'REVIEW' &&
-    invite.sybilStatus !== 'BLOCKED' &&
-    !missionFlags(invite).every(Boolean);
-}
 const HOME_DATA_REFRESH_REQUESTED_EVENT =
   'veinvite-home-data-refresh-requested';
 const HOME_DATA_REFRESH_SETTLED_EVENT =
@@ -1166,7 +1157,7 @@ export function HomeClient() {
                   const pending = claimPendingCode === invite.code;
 
                   return (
-                    <article key={invite.code} className="rewardItem">
+                    <article key={invite.code} className={`rewardItem${processing ? ' processing' : ''}`}>
                       <div className="rewardMeta">
                         <small>
                           {invite.inviteeAddress
@@ -1200,6 +1191,9 @@ export function HomeClient() {
                 })}
               </div>
             </section>
+          ) : null}
+          {referralLinkVerified && rewardShareUrl ? (
+            <RewardPaidXFollowups invites={invites} locale={locale} rewardShareUrl={rewardShareUrl} />
           ) : null}
         </section>
       ) : activeTab === 'guide' ? (
@@ -1324,6 +1318,7 @@ export function HomeClient() {
         .rewardIcon { width:33px; height:33px; display:grid; place-items:center; border-radius:11px; background:rgba(64,222,156,.13); color:#77efb9; font-size:.68rem; }
         .rewardList { margin-top:11px; display:grid; gap:8px; }
         .rewardItem { min-width:0; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:11px; border:1px solid rgba(255,255,255,.07); border-radius:14px; background:rgba(5,8,7,.36); }
+        .rewardItem.processing { grid-template-columns:minmax(0,1fr); align-items:stretch; }
         .rewardMeta { min-width:0; display:grid; gap:3px; }
         .rewardMeta small { color:#777e79; font-size:.59rem; direction:ltr; overflow:hidden; text-overflow:ellipsis; }
         .rewardMeta strong { color:#e4eee8; font-size:.75rem; overflow-wrap:anywhere; }

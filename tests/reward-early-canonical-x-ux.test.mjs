@@ -11,6 +11,7 @@ const migrations = read('supabase/migrations/20261027131000_allow_safe_early_x_p
 const notice = read('src/lib/notifications/rewardPaidToast.ts');
 const copy = read('src/lib/i18n/earlyRewardTransferCopy.ts');
 const processing = read('src/components/RewardTransferConfirmationLabel.tsx');
+const bonusPanel = read('src/components/RewardXPromotionPanel.tsx');
 const home = read('src/components/HomeClient.tsx');
 
 const locales = read('src/lib/i18n/locales.ts');
@@ -81,11 +82,12 @@ test('early reward copy is available for every VeInvite locale', () => {
 
 test('authenticated early offer remains discoverable after popup close or OAuth return', () => {
   assert.match(home, /<TransferStatus[\s\S]*rewardShareUrl=\{referralLinkVerified/u);
-  assert.match(processing, /confirmedIdentity === identity/u);
-  assert.match(processing, /offer\.state !== 'OPEN'/u);
-  assert.match(processing, /rewardXPromotionShareUrl/u);
+  assert.match(processing, /confirmed\?\.identity === identity/u);
+  assert.match(processing, /RewardXPromotionPanel/u);
+  assert.match(processing, /bonusOnly/u);
+  assert.match(bonusPanel, /rewardXPromotionShareUrl/u);
   assert.match(processing, /body\.walletAddress\?\.toLowerCase\(\) !== wallet\.toLowerCase\(\)/u);
-  assert.match(processing, /x-connect\/start\?inviteCode/u);
-  assert.match(processing, /Date\.now\(\) >= earlyX\.deadline/u);
+  assert.match(bonusPanel, /x-connect\/start\?inviteCode/u);
+  assert.match(bonusPanel, /Date\.now\(\) >= Date\.parse\(promotion\.postDeadlineAt\)/u);
   assert.doesNotMatch(processing, /status='PAID'|finalize_reward_payout_manifest/u);
 });
