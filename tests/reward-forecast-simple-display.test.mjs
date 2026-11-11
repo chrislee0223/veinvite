@@ -20,12 +20,16 @@ test('Home shows the original concise forecast wording for every locale', () => 
 test('simplifying the copy preserves the current elastic amount and safety states', () => {
   assert.match(card, /elasticEstimate: readElasticEstimate\(record\.elasticEstimate\)/);
   assert.match(card, /const elastic = ready && forecast\.elasticEstimate\?\.mode === 'ELASTIC_SCENARIOS'/);
-  assert.match(card, /formatRewardWei\(elastic\.oneWinnerWei\)/);
+  assert.match(card, /selectRealisticElasticRewardWei\(/);
+  assert.match(card, /historicalRecipientLow: forecast\.recipientLow/);
+  assert.match(card, /formatRewardWei\(elasticAmountWei\)/);
+  assert.doesNotMatch(card, /formatRewardWei\(elastic\.oneWinnerWei\)/);
   assert.match(card, /const elasticPending = ready && forecast\.elasticEstimate\?\.mode === 'PENDING'/);
   assert.match(card, /elasticPending\s*\? '— B3TR'/);
   assert.match(card, /elasticPending \|\| forecast\?\.status === 'pending'/);
   assert.match(card, /isRewardForecastStale/);
   assert.match(card, /readPersistedForecast/);
   assert.match(api, /readElasticPublicPreview\(network\)/);
+  assert.match(api, /recipientLow: snapshot\.recipientLow/);
   assert.match(api, /estimatedRewardWei: snapshot\.estimatedRewardWei/);
 });
