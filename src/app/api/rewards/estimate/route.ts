@@ -14,6 +14,7 @@ import {
 import {
   REWARD_FORECAST_MODEL_VERSION,
 } from '@/lib/rewards/rewardForecastPolicy';
+import { readElasticPublicPreview } from '@/lib/rewards/rewardElasticPublicPreviewServer';
 import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
@@ -70,49 +71,6 @@ function pendingResponse(
       },
     },
   );
-}
-
-type ElasticPublicPreview =
-  | { mode: 'LEGACY' | 'PENDING' }
-  | { mode: 'ELASTIC_SCENARIOS';
-      oneWinnerWei: string; twoWinnersWei: string; threeWinnersWei: string;
-      acceptedParticipants: number; rewardCohortRoundId: number; observedAt: string };
-
-async function readElasticPublicPreview(network: string): Promise<ElasticPublicPreview | null> {
-  if (process.env.VEINVITE_ELASTIC_COHORT_ENABLED !== 'true') return null;
-  try {
-    const { data, error } = await supabaseAdmin.rpc(
-      'read_reward_elastic_public_scenarios_v1',
-      { p_network: network, p_app_id: VEINVITE_APP_ID },
-    );
-    if (error) throw new Error(error.message);
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      throw new Error('Invalid elastic preview response.');
-    }
-    const x = data as Record<string, unknown>;
-    if (x.mode === 'PENDING' || x.mode === 'LEGACY') return { mode: x.mode };
-    const values = [x.oneWinnerWei, x.twoWinnersWei, x.threeWinnersWei];
-    if (x.mode !== 'ELASTIC_SCENARIOS' ||
-        !values.every((v) => typeof v === 'string' && /^\d+$/.test(v)) ||
-        !Number.isSafeInteger(x.acceptedParticipants) ||
-        !Number.isSafeInteger(x.rewardCohortRoundId) ||
-        typeof x.observedAt !== 'string' ||
-        Number.isNaN(Date.parse(x.observedAt))) {
-      throw new Error('Malformed elastic reward preview.');
-    }
-    return {
-      mode: 'ELASTIC_SCENARIOS',
-      oneWinnerWei: String(x.oneWinnerWei),
-      twoWinnersWei: String(x.twoWinnersWei),
-      threeWinnersWei: String(x.threeWinnersWei),
-      acceptedParticipants: Number(x.acceptedParticipants),
-      rewardCohortRoundId: Number(x.rewardCohortRoundId),
-      observedAt: x.observedAt,
-    };
-  } catch (error) {
-    console.error('Elastic reward preview unavailable:', error);
-    return { mode: 'PENDING' };
-  }
 }
 
 async function readyResponse(
