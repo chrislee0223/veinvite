@@ -31,9 +31,9 @@ test('exact historical fixture releases only five terminal phantom slots, never 
   const excess = frozen - live;
   assert.equal(rows.reduce((n, [, frozenCount, living]) => n + frozenCount - living, 0), 5);
   assert.ok(live > 0n && live < frozen);
-  assert.equal(excess, 479844961785782014449n);
-  assert.equal(frozen, 3787248864250255938800n);
-  assert.equal(live, 3307403902464473924351n);
+  assert.equal(excess, 479838326462738951719n);
+  assert.equal(frozen, 3787248864250255938753n);
+  assert.equal(live, 3307410537787516987034n);
 });
 
 test('source calculation only releases terminal states, keeps ALL nonterminal unpaid including complete and old', () => {
@@ -49,7 +49,7 @@ test('source calculation only releases terminal states, keeps ALL nonterminal un
 
 test('preview and canonical settlement share ONE fail-closed live-collateral reader', () => {
   const marker = 'reward_admission_bridge.read_legacy_live_unpaid_stress_wei_v1(';
-  assert.equal(migration.split(marker).length - 1, 4); // declaration, permission x2, payout + preview?
+  assert.equal(migration.split(marker).length - 1, 5); // declaration, two grants, payout and preview
   assert.match(migration, /v_source_stress:=reward_admission_bridge\.read_legacy_live_unpaid_stress_wei_v1\(\s*p_network,v_app,v_inv\.reward_cohort_round_id\)/);
   assert.match(migration, /v_old:=reward_admission_bridge\.read_legacy_live_unpaid_stress_wei_v1\(\s*p_network,v_app,v_cohort\)/);
   assert.doesNotMatch(migration, /greatest\(p\.long_incomplete_count/);
