@@ -44,6 +44,20 @@ export async function GET(request: NextRequest) {
       { status: 409, headers: { 'Cache-Control': 'no-store' } },
     );
 
+    // Read-only service-role readiness guard. Do not send users through X
+    // OAuth or consume paid API reads when the database cannot persist
+    // an authenticated binding (the former Production 42501 failure).
+    const writeReady = await supabaseAdmin.rpc(
+      'reward_x_promotion_oauth_write_ready_v1',
+    );
+    if (writeReady.error || writeReady.data !== true) {
+      console.error('X OAuth binding storage is unavailable.');
+      return NextResponse.json(
+        { error: 'X account connection is temporarily unavailable.' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     const state = createXConnectState(wallet, inviteCode);
     const response = NextResponse.redirect(xAuthorizationUrl(config, state));
     response.cookies.set(

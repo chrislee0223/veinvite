@@ -77,6 +77,16 @@ export async function GET(request: NextRequest) {
       return finish(request, 'offer');
     }
 
+    // Never exchange the OAuth code or reserve a billable X User read if
+    // service_role has lost its minimal identity/proof INSERT privileges.
+    const writeReady = await supabaseAdmin.rpc(
+      'reward_x_promotion_oauth_write_ready_v1',
+    );
+    if (writeReady.error || writeReady.data !== true) {
+      console.error('X OAuth binding storage is unavailable.');
+      return finish(request, 'unavailable');
+    }
+
     const form = new URLSearchParams({
       code, grant_type: 'authorization_code',
       redirect_uri: config.callbackUri,
