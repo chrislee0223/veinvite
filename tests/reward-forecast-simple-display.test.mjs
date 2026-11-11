@@ -24,7 +24,9 @@ test('simplifying the copy preserves the current elastic amount and safety state
   assert.match(card, /historicalRecipientLow: forecast\.recipientLow/);
   assert.match(card, /formatRewardWei\(elasticAmountWei\)/);
   assert.doesNotMatch(card, /formatRewardWei\(elastic\.oneWinnerWei\)/);
-  assert.match(card, /const elasticPending = ready && forecast\.elasticEstimate\?\.mode === 'PENDING'/);
+  assert.match(card, /const elasticPending = ready && \(/);
+  assert.match(card, /forecast\.elasticEstimate\?\.mode === 'PENDING'/);
+  assert.match(card, /elasticAmountWei === null \|\| stale/);
   assert.match(card, /elasticPending\s*\? '— B3TR'/);
   assert.match(card, /elasticPending \|\| forecast\?\.status === 'pending'/);
   assert.match(card, /isRewardForecastStale/);
