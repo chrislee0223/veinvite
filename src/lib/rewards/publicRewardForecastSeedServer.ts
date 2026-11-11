@@ -47,10 +47,15 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
 
       // The first render must use the same guarded scenarios as the API;
       // otherwise visitors briefly see a different legacy estimate.
-      const elasticEstimate = await readElasticPublicPreview(
+      const rawElasticEstimate = await readElasticPublicPreview(
         network,
         controller.signal,
       );
+      const elasticEstimate =
+        rawElasticEstimate?.mode === 'ELASTIC_SCENARIOS' &&
+        rawElasticEstimate.rewardCohortRoundId !== snapshot.projectedFundingRoundId
+          ? { mode: 'PENDING' as const }
+          : rawElasticEstimate;
       return {
         generatedAt: snapshot.generatedAt,
         modelVersion: snapshot.modelVersion,
