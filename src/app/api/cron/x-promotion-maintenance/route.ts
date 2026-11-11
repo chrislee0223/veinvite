@@ -279,6 +279,25 @@ Promise<JobResult> {
       );
     }
 
+    // Repeated 'RETRY' outcomes previously looked like successful cron runs.
+    // This read-only check uses the existing lifecycle failure heartbeat.
+    const { network } = getVeBetterNetworkConfig();
+    const stuck = await supabaseAdmin.rpc(
+      'read_reward_x_promotion_stuck_submissions_v1',
+      { p_network: network },
+    );
+    if (stuck.error || !Array.isArray(stuck.data)) {
+      throw new Error('X_PROMOTION_STUCK_RETRY_MONITOR_UNAVAILABLE');
+    }
+    if (stuck.data.length > 0) {
+      const codes = stuck.data.map((item: unknown) =>
+        typeof item === 'object' && item !== null &&
+        'inviteCode' in item && typeof item.inviteCode === 'string'
+          ? item.inviteCode : 'unknown'
+      ).slice(0, 5).join(',');
+      throw new Error(`X_PROMOTION_STUCK_INITIAL_VERIFICATION: ${codes}`);
+    }
+
     await markCronJobSucceeded(
       LIFECYCLE_JOB_NAME,
     );
