@@ -3,6 +3,24 @@
 -- snapshots, referral states, escrow/ledger, transfers or X obligations.
 -- Both canonical closed-cohort settlement and public preview must use the
 -- identical helper; update them atomically in one migration.
+
+-- Abort if another task changed either canonical function after review.
+-- A failed guard is an intentional fail-closed conflict, not a retry signal.
+DO $legacy_source_guard$
+BEGIN
+  IF coalesce((SELECT md5(pg_get_functiondef(p.oid))
+    FROM pg_proc p WHERE p.pronamespace='public'::regnamespace
+      AND p.proname='commit_reward_elastic_closed_cohort_v1'), '')
+    <> '07b9047c626fa4a2eed44200b4ed065a'
+  OR coalesce((SELECT md5(pg_get_functiondef(p.oid))
+    FROM pg_proc p WHERE p.pronamespace='public'::regnamespace
+      AND p.proname='read_reward_elastic_public_scenarios_v1'), '')
+    <> 'c1c788d9e7485419fb88eceb76f85147'
+  THEN
+    RAISE EXCEPTION 'LEGACY_STRESS_SOURCE_DRIFT_REVIEW_REQUIRED';
+  END IF;
+END;
+$legacy_source_guard$;
 -- Previously swept source liability/late quotes remain unchanged.
 -- Legacy held claims are protected by their CURRENT canonical recipient status,
 -- never by an immutable headcount captured at source sweep time.
