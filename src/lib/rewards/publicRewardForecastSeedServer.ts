@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import type { PublicRewardForecastSeed } from '@/lib/rewards/publicRewardForecastSeed';
 import { REWARD_FORECAST_MODEL_VERSION } from '@/lib/rewards/rewardForecastPolicy';
+import { readElasticPublicPreview } from '@/lib/rewards/rewardElasticPublicPreviewServer';
 import { readLatestRewardForecastSnapshot } from '@/lib/rewards/rewardForecastSnapshot';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -44,11 +45,19 @@ const readCachedPublicRewardForecastSeed = unstable_cache(
         return null;
       }
 
+      // The first render must use the same guarded scenarios as the API;
+      // otherwise visitors briefly see a different legacy estimate.
+      const elasticEstimate = await readElasticPublicPreview(
+        network,
+        controller.signal,
+      );
       return {
         generatedAt: snapshot.generatedAt,
         modelVersion: snapshot.modelVersion,
         status: 'ready',
         estimatedRewardWei: snapshot.estimatedRewardWei,
+        recipientLow: snapshot.recipientLow,
+        ...(elasticEstimate ? { elasticEstimate } : {}),
         stale: ageMs > FORECAST_SEED_STALE_MS,
       };
     } catch (error) {
