@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { SOCIAL_SHARE_CARD_VERSION } from '@/lib/socialShareCard';
+
 import { runXPromotionSearchProbeOnce } from '@/lib/rewards/rewardXPromotionSearchProbe';
 import { runXAuthorTimelineSmokeOnce } from '@/lib/rewards/rewardXPromotionAuthorSmoke';
 import {
@@ -371,11 +373,32 @@ function finalTerminalReason(
   return null;
 }
 
+// Fail closed before a billable X Post lookup if the website and DB no
+// longer agree on the exact owned referral URL, token, or current version.
+// No reward state, clocks, payout or audit records are mutated here.
+async function ensureXShareContract(inviteCode: string, final: boolean) {
+  const { data, error } = await supabaseAdmin.rpc(
+    'read_reward_x_promotion_share_contract_ready_v1',
+    {
+      p_invite_code: inviteCode,
+      p_card_version: SOCIAL_SHARE_CARD_VERSION,
+      p_final: final,
+    },
+  );
+  if (error || data !== true) {
+    throw new Error(
+      `X_PROMOTION_SHARE_URL_CONTRACT_NOT_READY: ${inviteCode}; phase=${final ? 'FINAL' : 'INITIAL'}`,
+    );
+  }
+}
+
 async function processPendingCandidate(
   candidate: PendingCandidate,
 ): Promise<
   'VERIFIED' | 'INVALIDATED' | 'RETRY'
 > {
+  await ensureXShareContract(candidate.inviteCode, false);
+
   const lookup =
     await lookupXPromotionPost(
       candidate.xPostId,
@@ -566,6 +589,8 @@ async function processFinalCandidate(
   'REVIEW_REQUIRED' |
   'RETRY'
 > {
+  await ensureXShareContract(candidate.inviteCode, true);
+
   const lookup =
     await lookupXPromotionPost(
       candidate.xPostId,
