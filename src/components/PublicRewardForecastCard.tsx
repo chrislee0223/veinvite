@@ -15,44 +15,22 @@ import {
 import { REWARD_FORECAST_COPY } from '@/lib/i18n/rewardForecastCopy';
 import { REWARD_FORECAST_MODEL_VERSION } from '@/lib/rewards/rewardForecastPolicy';
 import {
+  normalizeElasticRewardPreview,
+  selectRealisticElasticRewardWei,
+  type ElasticRewardPreview,
+} from '@/lib/rewards/rewardForecastDisplay';
+import {
   forecastSnapshotAgeMs,
   isRestorableRewardForecast,
   isRewardForecastStale,
   needsImmediateLiveForecastRefresh,
 } from '@/lib/rewards/rewardForecastCacheGuards';
 
-type ElasticEstimatePreview =
-  | { mode: 'PENDING' | 'LEGACY' }
-  | {
-      mode: 'ELASTIC_SCENARIOS';
-      oneWinnerWei: string;
-      twoWinnersWei: string;
-      threeWinnersWei: string;
-      acceptedParticipants: number;
-      rewardCohortRoundId: number;
-    };
+type ElasticEstimatePreview = ElasticRewardPreview;
 
 function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return undefined;
-  }
-  const r = value as Record<string, unknown>;
-  if (r.mode === 'PENDING' || r.mode === 'LEGACY') return { mode: r.mode };
-  if (r.mode !== 'ELASTIC_SCENARIOS' ||
-      !Number.isSafeInteger(r.acceptedParticipants) ||
-      !Number.isSafeInteger(r.rewardCohortRoundId) ||
-      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei]
-        .every((w) => typeof w === 'string' && /^[0-9]+$/.test(w))) {
-    return { mode: 'PENDING' };
-  }
-  return {
-    mode: 'ELASTIC_SCENARIOS',
-    oneWinnerWei: String(r.oneWinnerWei),
-    twoWinnersWei: String(r.twoWinnersWei),
-    threeWinnersWei: String(r.threeWinnersWei),
-    acceptedParticipants: Number(r.acceptedParticipants),
-    rewardCohortRoundId: Number(r.rewardCohortRoundId),
-  };
+  if (value === null || value === undefined) return undefined;
+  return normalizeElasticRewardPreview(value);
 }
 
 type RewardForecastResponse =
@@ -68,6 +46,7 @@ type RewardForecastResponse =
       modelVersion?: string | null;
       status: 'ready';
       estimatedRewardWei: string;
+      recipientLow?: number;
       elasticEstimate?: ElasticEstimatePreview;
       stale?: boolean;
     };
@@ -165,6 +144,10 @@ function normalizeForecastResponse(
       modelVersion,
       status: 'ready',
       estimatedRewardWei: record.estimatedRewardWei,
+      recipientLow:
+        Number.isSafeInteger(record.recipientLow) && Number(record.recipientLow) > 0
+          ? Number(record.recipientLow)
+          : undefined,
       elasticEstimate: readElasticEstimate(record.elasticEstimate),
       stale: isRewardForecastStale({ generatedAt, nowMs: Date.now(), stale }),
     };
@@ -606,19 +589,31 @@ export function PublicRewardForecastCard({
     };
   }, [rewardForecastPreview]);
 
-  // Keep the current elastic amount calculation and pending safeguards, but
-  // use the original simple, fully localized reward-card wording.
+  // The one-winner value is a maximum conditional scenario, not the
+  // expected payout. Display a historically informed, extra-entrant scenario
+  // instead; do not change reservation, claim or payout calculations.
   const t = REWARD_FORECAST_COPY[resolvedLocale];
   const ready = forecast?.status === 'ready';
   const elastic = ready && forecast.elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
     ? forecast.elasticEstimate
     : null;
-  const elasticPending = ready && forecast.elasticEstimate?.mode === 'PENDING';
   const stale = ready && forecast.stale === true;
-  const amount = elastic
-    ? `${formatRewardWei(elastic.oneWinnerWei)} B3TR`
-    : elasticPending
-      ? '— B3TR'
+  const elasticAmountWei = elastic
+    ? selectRealisticElasticRewardWei({
+        preview: elastic,
+        historicalRecipientLow: forecast.recipientLow,
+      })
+    : null;
+  // The three available scenarios cannot safely price four or more possible
+  // recipients. Fail closed, including for stale elastic browser snapshots.
+  const elasticPending = ready && (
+    forecast.elasticEstimate?.mode === 'PENDING' ||
+    (elastic !== null && (elasticAmountWei === null || stale))
+  );
+  const amount = elasticPending
+    ? '— B3TR'
+    : elasticAmountWei
+      ? `${formatRewardWei(elasticAmountWei)} B3TR`
       : ready
         ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
         : '— B3TR';
