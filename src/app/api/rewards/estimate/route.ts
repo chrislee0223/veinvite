@@ -79,7 +79,14 @@ async function readyResponse(
   network: string,
   cacheControl = CACHE_CONTROL,
 ) {
-  const elasticEstimate = await readElasticPublicPreview(network);
+  const rawElasticEstimate = await readElasticPublicPreview(network);
+  // Prevent the latest elastic cohort from being paired with an older
+  // historical forecast round during an allocation rollover.
+  const elasticEstimate =
+    rawElasticEstimate?.mode === 'ELASTIC_SCENARIOS' &&
+    rawElasticEstimate.rewardCohortRoundId !== snapshot.projectedFundingRoundId
+      ? { mode: 'PENDING' as const }
+      : rawElasticEstimate;
   const effectiveCacheControl = elasticEstimate && cacheControl === CACHE_CONTROL
     ? ELASTIC_CACHE_CONTROL
     : cacheControl;
