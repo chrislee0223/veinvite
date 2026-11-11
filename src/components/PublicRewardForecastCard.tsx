@@ -601,7 +601,7 @@ export function PublicRewardForecastCard({
   const elasticAmountWei = elastic
     ? selectRealisticElasticRewardWei({
         preview: elastic,
-        historicalRecipientLow: forecast.recipientLow,
+        historicalRecipientLow: forecast?.status === 'ready' ? forecast.recipientLow : undefined,
       })
     : null;
   // The three available scenarios cannot safely price four or more possible
