@@ -459,6 +459,54 @@ async function reserveCandidate({
       );
     }
 
+    // Shared physical-pool reservations are priced and committed atomically
+    // inside PostgreSQL under the existing network financial lock.
+    // The staging setting is OFF by default; legacy pricing is untouched
+    // until the reviewed cutover is explicitly activated.
+    const { data: sharedMode, error: sharedModeError } = await supabaseAdmin.rpc(
+      'read_reward_shared_pool_mode_v1',
+      { p_network: network },
+    );
+    if (sharedModeError || !sharedMode || typeof sharedMode !== 'object' ||
+        Array.isArray(sharedMode) ||
+        typeof (sharedMode as Record<string, unknown>).enabled !== 'boolean') {
+      throw new Error('Shared reward mode cannot be verified: ' +
+        (sharedModeError?.message ?? 'malformed mode'));
+    }
+    if ((sharedMode as { enabled: boolean }).enabled) {
+      const { data: sharedRaw, error: sharedError } = await supabaseAdmin.rpc(
+        'commit_reward_shared_pool_v1',
+        {
+          p_invite_code: candidate.invite_code,
+          p_network: network,
+          p_observed_pool_balance_wei: pool.effectiveRewardPoolWei,
+          p_observed_at: new Date().toISOString(),
+          p_finalized_block: finalizedBlock,
+        },
+      );
+      if (sharedError) {
+        throw new Error('Atomic shared-pool reservation failed: ' +
+          sharedError.message);
+      }
+      const shared = readRpcResult(sharedRaw);
+      const mode = String((sharedRaw as Record<string, unknown>).mode ?? '');
+      if (mode === 'SHARED_RESERVED' && shared.reserved === true) {
+        return 'reserved';
+      }
+      if (shared.reason === 'RECALCULATE') {
+        repriceResponses.push(shared);
+        continue;
+      }
+      if (shared.reason === 'AWAITING_FINALITY') return 'awaiting_finality';
+      if (mode === 'DEFER' || mode === 'BLOCKED' ||
+          mode === 'SHARED_REJECTED') {
+        return skipCandidate(candidate, 'SHARED_POOL_DEFERRED', {
+          reason: shared.reason ?? mode,
+        });
+      }
+      throw new Error('Unrecognized shared-pool settlement mode: ' + mode);
+    }
+
     const planning = await readPredictiveRewardPlanning({
       network,
       appId: VEINVITE_APP_ID,
