@@ -23,6 +23,11 @@ import {
   type RewardForecastSnapshot,
 } from '@/lib/rewards/rewardForecastSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import {
+  countActiveSharedPoolReferrals,
+  estimateProspectiveSharedPoolReward,
+  type ActiveReferralForecastRow,
+} from '@/lib/rewards/activeSharedPoolForecast';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +81,10 @@ type ElasticPublicPreview =
   | { mode: 'LEGACY' | 'PENDING' }
   | { mode: 'ELASTIC_SCENARIOS';
       oneWinnerWei: string; twoWinnersWei: string; threeWinnersWei: string;
-      acceptedParticipants: number; rewardCohortRoundId: number; observedAt: string };
+      acceptedParticipants: number; rewardCohortRoundId: number; observedAt: string;
+      xOptionReservePerWinnerWei: string;
+      activeParticipants: number; projectedRecipients: number;
+      displayEstimateWei: string };
 
 async function readElasticPublicPreview(network: string): Promise<ElasticPublicPreview | null> {
   if (process.env.VEINVITE_ELASTIC_COHORT_ENABLED !== 'true') return null;
@@ -91,7 +99,8 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     }
     const x = data as Record<string, unknown>;
     if (x.mode === 'PENDING' || x.mode === 'LEGACY') return { mode: x.mode };
-    const values = [x.oneWinnerWei, x.twoWinnersWei, x.threeWinnersWei];
+    const values = [x.oneWinnerWei, x.twoWinnersWei, x.threeWinnersWei,
+      x.xOptionReservePerWinnerWei];
     if (x.mode !== 'ELASTIC_SCENARIOS' ||
         !values.every((v) => typeof v === 'string' && /^\d+$/.test(v)) ||
         !Number.isSafeInteger(x.acceptedParticipants) ||
@@ -100,6 +109,28 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
         Number.isNaN(Date.parse(x.observedAt))) {
       throw new Error('Malformed elastic reward preview.');
     }
+    // Public copy is for a prospective new referral: use live, recent progress
+    // from all entry cohorts, not just the current acceptance cohort. Never
+    // count dormant, blocked, forfeited or already-paid invitations.
+    const { data: activeRows, error: activeError } = await supabaseAdmin
+      .from('invitations')
+      .select('status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id')
+      .eq('activation_network', network)
+      .in('status', ['ACTIVATING', 'COMPLETED'])
+      .limit(1000);
+    if (activeError || !activeRows || activeRows.length === 1000) {
+      throw new Error(activeError?.message ?? 'Public reward activity sample unavailable');
+    }
+    const activeParticipants = countActiveSharedPoolReferrals(
+      activeRows as ActiveReferralForecastRow[],
+      Number(x.rewardCohortRoundId),
+      Date.now(),
+    );
+    const projected = estimateProspectiveSharedPoolReward(
+      String(x.oneWinnerWei),
+      String(x.xOptionReservePerWinnerWei),
+      activeParticipants,
+    );
     return {
       mode: 'ELASTIC_SCENARIOS',
       oneWinnerWei: String(x.oneWinnerWei),
@@ -108,6 +139,10 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
       acceptedParticipants: Number(x.acceptedParticipants),
       rewardCohortRoundId: Number(x.rewardCohortRoundId),
       observedAt: x.observedAt,
+      xOptionReservePerWinnerWei: String(x.xOptionReservePerWinnerWei),
+      activeParticipants,
+      projectedRecipients: projected.projectedRecipients,
+      displayEstimateWei: projected.estimatedRewardWei,
     };
   } catch (error) {
     console.error('Elastic reward preview unavailable:', error);
