@@ -11,8 +11,9 @@ const compiled = ts.transpileModule(source, {
 const POST_ID = '1234567890';
 const AUTHOR = '9876543210';
 const DATE = '2026-10-21T01:02:03Z';
-function setup({ legacyStatus = 200, modernStatus = 200, references = [], field = 'referenced_posts' } = {}) {
+function setup({ legacyStatus = 200, modernStatus = 200, references = [], field = 'referenced_posts', allowFallbackBudget = true } = {}) {
   const urls = [];
+  let budgetReservations = 0;
   const exports = {};
   const data = {
     id: POST_ID, author_id: AUTHOR, created_at: DATE,
@@ -23,7 +24,7 @@ function setup({ legacyStatus = 200, modernStatus = 200, references = [], field 
     exports, URL, AbortController, Date, Array, Set, Buffer,
     setTimeout, clearTimeout,
     process: { env: { X_API_BEARER_TOKEN: 'test-only' } },
-    require(id) { if (id === 'server-only') return {}; if(id==='@/lib/rewards/rewardXPromotionApiBudget') return { async reserveXApiReadBudget(kind){ assert.equal(kind,'POST_LOOKUP');return true; } };throw new Error(id); },
+    require(id) { if (id === 'server-only') return {}; if(id==='@/lib/rewards/rewardXPromotionApiBudget') return { async reserveXApiReadBudget(kind){ assert.equal(kind,'POST_LOOKUP');budgetReservations += 1;return budgetReservations === 1 || allowFallbackBudget; } };throw new Error(id); },
     fetch: async (value, options) => {
       const url = new URL(value);
       urls.push(url);
@@ -36,7 +37,7 @@ function setup({ legacyStatus = 200, modernStatus = 200, references = [], field 
       };
     },
   });
-  return { lookup: () => exports.lookupXPromotionPost(POST_ID), urls };
+  return { lookup: () => exports.lookupXPromotionPost(POST_ID), urls, get budgetReservations(){ return budgetReservations; } };
 }
 
 test('successful legacy X lookup is unchanged with one request', async () => {
@@ -45,6 +46,7 @@ test('successful legacy X lookup is unchanged with one request', async () => {
   assert.equal(result.status, 'FOUND');
   assert.equal(result.isOriginalPost, true);
   assert.equal(x.urls.length, 1);
+  assert.equal(x.budgetReservations, 1);
   assert.equal(x.urls[0].searchParams.has('tweet.fields'), true);
 });
 
@@ -54,6 +56,7 @@ test('400 fallback uses the current post.fields and author/reference expansions'
   assert.equal(result.status, 'FOUND');
   assert.equal(result.authorId, AUTHOR);
   assert.equal(x.urls.length, 2);
+  assert.equal(x.budgetReservations, 2, 'both X network requests must count against $5 cap');
   assert.equal(x.urls[1].searchParams.has('tweet.fields'), false);
   assert.equal(x.urls[1].searchParams.get('post.fields'), 'created_at,entities');
   assert.equal(x.urls[1].searchParams.get('expansions'), 'author_id,referenced_posts');
@@ -77,6 +80,7 @@ test('401/429 do not trigger a paid fallback lookup', async () => {
     const result = await x.lookup();
     assert.equal(result.status, 'RETRY');
     assert.equal(x.urls.length, 1);
+    assert.equal(x.budgetReservations, 1);
   }
 });
 
@@ -85,4 +89,13 @@ test('400 followed by another error fails closed', async () => {
   const result = await x.lookup();
   assert.equal(result.status, 'RETRY');
   assert.equal(x.urls.length, 2);
+});
+
+test('400 fallback is blocked if the second provider request exceeds monthly budget', async () => {
+  const x = setup({ legacyStatus: 400, allowFallbackBudget: false });
+  const result = await x.lookup();
+  assert.equal(result.status, 'RETRY');
+  assert.equal(result.reason, 'X_API_BUDGET_EXHAUSTED');
+  assert.equal(x.budgetReservations, 2);
+  assert.equal(x.urls.length, 1, 'must not make unbudgeted fallback request');
 });

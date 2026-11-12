@@ -220,8 +220,11 @@ export async function lookupXPromotionPost(
     if (response.status === 400) {
       // Some X API versions accept legacy tweet.fields, while the current
       // documented contract uses post.fields + author/reference expansions.
-      // Only retry a malformed-field request; successful legacy lookups,
-      // missing Posts, auth errors, and rate limits keep their old behavior.
+      // Each network call gets its own worst-case budget reservation. The
+      // fallback is never sent if it would breach our $5/month cap.
+      if (!await reserveXApiReadBudget('POST_LOOKUP')) {
+        return { status: 'RETRY', reason: 'X_API_BUDGET_EXHAUSTED' };
+      }
       const currentEndpoint = new URL(endpoint);
       currentEndpoint.searchParams.delete('tweet.fields');
       currentEndpoint.searchParams.set('post.fields', 'created_at,entities');
