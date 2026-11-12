@@ -8,6 +8,7 @@ import { readStagedAdmissionFundingStatus } from '@/lib/rewards/readStagedAdmiss
 import { shouldReadRewardAdmissionShadow, compareRewardAdmissionShadow } from '@/lib/rewards/rewardAdmissionShadowParity';
 import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { withRewardReservationSweepLock } from '@/lib/rewards/reservationSweepLock';
+import { tryReserveVoteRoundBatch } from '@/lib/rewards/voteRoundCloseReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -459,72 +460,17 @@ async function reserveCandidate({
       );
     }
 
-    // Future-only equal awards for all verified completions of the SAME final
-    // vote round. Both server flag and DB setting must be explicitly enabled.
-    // If the DB migration/activation is absent, fail closed rather than let
-    // the old immediate shared-pool writer drain this round prematurely.
-    if (process.env.VEINVITE_VOTE_ROUND_CLOSE_ENABLED === 'true') {
-      const { data: roundMode, error: roundModeError } = await supabaseAdmin.rpc(
-        'read_reward_vote_round_close_mode_v1',
-        { p_network: network },
-      );
-      if (roundModeError || !roundMode || typeof roundMode !== 'object' ||
-          Array.isArray(roundMode) ||
-          typeof (roundMode as Record<string, unknown>).enabled !== 'boolean' ||
-          !Number.isSafeInteger((roundMode as Record<string, unknown>).firstVoteRoundId)) {
-        throw new Error('Vote-round settlement mode is unavailable: ' +
-          (roundModeError?.message ?? 'malformed mode'));
-      }
-      const { data: completion, error: completionError } = await supabaseAdmin
-        .from('invitations')
-        .select('vote_round_id')
-        .eq('invite_code', candidate.invite_code)
-        .maybeSingle();
-      if (completionError || !completion) {
-        throw new Error('Vote-round completion authority could not be verified: ' +
-          (completionError?.message ?? 'missing invitation'));
-      }
-      // Null would become 0 under Number(null), accidentally sending a
-      // completed future-round referral through the old immediate writer.
-      const rawVoteRoundId = completion.vote_round_id;
-      const voteRoundId = Number(rawVoteRoundId);
-      const firstRound = Number((roundMode as Record<string, unknown>).firstVoteRoundId);
-      if (rawVoteRoundId === null || rawVoteRoundId === undefined ||
-          !Number.isSafeInteger(voteRoundId) || voteRoundId < 1 ||
-          !Number.isSafeInteger(firstRound) || firstRound < 1) {
-        throw new Error('Vote-round settlement cannot resolve a verified completion round');
-      }
-      if (voteRoundId >= firstRound) {
-        if (!(roundMode as { enabled: boolean }).enabled) {
-          return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_NOT_ACTIVATED');
-        }
-        const { data: batchRaw, error: batchError } = await supabaseAdmin.rpc(
-          'commit_reward_vote_round_close_batch_v1',
-          {
-            p_invite_code: candidate.invite_code,
-            p_network: network,
-            p_observed_pool_balance_wei: pool.effectiveRewardPoolWei,
-            p_observed_at: new Date().toISOString(),
-            p_finalized_block: finalizedBlock,
-          },
-        );
-        if (batchError || !batchRaw || typeof batchRaw !== 'object' ||
-            Array.isArray(batchRaw)) {
-          throw new Error('Atomic vote-round batch failed: ' +
-            (batchError?.message ?? 'malformed result'));
-        }
-        const result = batchRaw as Record<string, unknown>;
-        const mode = String(result.mode ?? '');
-        if (mode === 'ROUND_BATCH_RESERVED' || mode === 'ALREADY_RESERVED') {
-          return 'reserved';
-        }
-        if (mode === 'DEFER' || mode === 'BLOCKED') {
-          return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
-            reason: String(result.reason ?? mode),
-          });
-        }
-        throw new Error('Vote-round batch returned unsafe mode: ' + mode);
-      }
+    const roundClose = await tryReserveVoteRoundBatch({
+      inviteCode: candidate.invite_code,
+      network,
+      observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+      finalizedBlock,
+    });
+    if (roundClose.kind === 'RESERVED') return 'reserved';
+    if (roundClose.kind === 'WAITING') {
+      return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
+        reason: roundClose.reason,
+      });
     }
 
     // Shared physical-pool reservations are priced and committed atomically
