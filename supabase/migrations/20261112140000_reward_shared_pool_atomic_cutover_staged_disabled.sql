@@ -782,54 +782,12 @@ begin
     raise exception 'REWARD_X_PROMOTION_CALCULATION_MISMATCH';
   end if;
 
-  -- Additive X is a separately committed 10 B3TR liability. For the new
-  -- global-pool settlement, validate it against the same observed physical
-  -- pool after the base queue reservation is inserted. No second round cap.
+  -- Protect the additional X 10 B3TR physically, but do not apply a
+  -- superseded round cap to a shared-pool reservation.
   if new.mode='LIVE'
      and v_queue.reservation_algorithm_version='shared-pool-v1' then
     if coalesce(v_queue.reservation_basis->>'poolPolicy','')<>'shared-pool-v1'
-       or coalesce(v_queue.reservation_basis->>'observedPoolBalanceWei','') !~ '^[0-9]+
-    from public.vebetter_round_allocations a
-    where a.id=new.source_allocation_receipt_id;
-
-    if not found
-       or v_receipt.network<>new.network
-       or v_receipt.vebetter_round_id+1<>new.source_reward_cohort_round_id then
-      raise exception 'REWARD_X_PROMOTION_SOURCE_MISMATCH';
-    end if;
-
-    -- The queue row already exists and is included in committed value. The
-    -- additive X bonus is not, so reserve it explicitly before promising it.
-    v_budget:=public.read_reward_cohort_effective_budget_wei(
-      new.network,
-      v_receipt.app_id,
-      new.source_reward_cohort_round_id,
-      new.source_allocation_receipt_id
-    );
-    v_committed:=public.read_reward_cohort_committed_wei(
-      new.network,
-      v_receipt.app_id,
-      new.source_reward_cohort_round_id,
-      new.source_allocation_receipt_id
-    );
-
-    if v_committed+new.promotion_amount_wei>v_budget then
-      raise exception 'REWARD_X_PROMOTION_BONUS_BUDGET_EXCEEDED';
-    end if;
-  end if;
-
-  if new.mode='LIVE' and exists (
-    select 1
-    from public.reward_payouts rp
-    where rp.invite_code=new.invite_code
-  ) then
-    raise exception 'REWARD_X_PROMOTION_SPLIT_TOO_LATE';
-  end if;
-
-  return new;
-end;
-$function$
-
+       or coalesce(v_queue.reservation_basis->>'observedPoolBalanceWei','') !~ '^[0-9]+$'
        or (v_queue.reservation_basis->>'observedPoolBalanceWei')::numeric <
           public.read_outstanding_reward_liability(
             new.network,
@@ -879,8 +837,8 @@ $function$
 
   return new;
 end;
-$function$;
-
+$function$
+;
 
 -- Original reviewed read_reward_elastic_contingent_scope_liability_wei_v1: 080b1fb30823e8f2f4450748583ae677
 CREATE OR REPLACE FUNCTION public.read_reward_elastic_contingent_scope_liability_wei_v1(p_network text, p_app_id text, p_target_cohort bigint, p_target_receipt bigint)
