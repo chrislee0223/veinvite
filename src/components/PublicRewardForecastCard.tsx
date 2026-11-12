@@ -28,6 +28,8 @@ type ElasticEstimatePreview =
       oneWinnerWei: string;
       twoWinnersWei: string;
       threeWinnersWei: string;
+      displayEstimateWei: string;
+      projectedRecipients: number;
       acceptedParticipants: number;
       rewardCohortRoundId: number;
     };
@@ -41,7 +43,9 @@ function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined
   if (r.mode !== 'ELASTIC_SCENARIOS' ||
       !Number.isSafeInteger(r.acceptedParticipants) ||
       !Number.isSafeInteger(r.rewardCohortRoundId) ||
-      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei]
+      !Number.isSafeInteger(r.projectedRecipients) ||
+      Number(r.projectedRecipients) < 1 ||
+      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei,r.displayEstimateWei]
         .every((w) => typeof w === 'string' && /^[0-9]+$/.test(w))) {
     return { mode: 'PENDING' };
   }
@@ -50,6 +54,8 @@ function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined
     oneWinnerWei: String(r.oneWinnerWei),
     twoWinnersWei: String(r.twoWinnersWei),
     threeWinnersWei: String(r.threeWinnersWei),
+    displayEstimateWei: String(r.displayEstimateWei),
+    projectedRecipients: Number(r.projectedRecipients),
     acceptedParticipants: Number(r.acceptedParticipants),
     rewardCohortRoundId: Number(r.rewardCohortRoundId),
   };
@@ -98,7 +104,7 @@ const LIVE_REFRESH_THROTTLE_MS = 60_000;
 const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  `veinvite_reward_forecast_${REWARD_FORECAST_MODEL_VERSION}`;
+  `veinvite_reward_forecast_${REWARD_FORECAST_MODEL_VERSION}_active_v1`;
 // Existing v2.1 storage sometimes held the v2.2 model. Restore it only after
 // verifying its actual model and original timestamps, not the legacy key name.
 const LEGACY_FORECAST_STORAGE_KEY = 'veinvite_reward_forecast_v2_1_cohort';
@@ -606,8 +612,8 @@ export function PublicRewardForecastCard({
     };
   }, [rewardForecastPreview]);
 
-  // Keep the current elastic amount calculation and pending safeguards, but
-  // use the original simple, fully localized reward-card wording.
+  // The headline shows the realistic participation-aware scenario, not the
+  // misleading maximum one-winner payout. Preserve the compact locale copy.
   const t = REWARD_FORECAST_COPY[resolvedLocale];
   const ready = forecast?.status === 'ready';
   const elastic = ready && forecast.elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
@@ -616,7 +622,7 @@ export function PublicRewardForecastCard({
   const elasticPending = ready && forecast.elasticEstimate?.mode === 'PENDING';
   const stale = ready && forecast.stale === true;
   const amount = elastic
-    ? `${formatRewardWei(elastic.oneWinnerWei)} B3TR`
+    ? `${formatRewardWei(elastic.displayEstimateWei)} B3TR`
     : elasticPending
       ? '— B3TR'
       : ready
