@@ -21,6 +21,9 @@ test('completion round, not original referral round, determines equal-pay batch 
   assert.match(sql,/a\.vebetter_round_id=v_vote_round/);
   assert.match(sql,/v_cfg\.grace_hours/);
   assert.match(sql,/read_reward_reservation_candidates_v2/);
+  assert.match(sql,/e\.event_type='ALLOCATION_VOTE'/);
+  assert.match(sql,/e\.vote_round_id=v_vote_round/);
+  assert.match(sql,/AWAIT_FINAL_VOTE_PROOFS/);
   assert.match(sql,/v_verified<>v_completed/);
   assert.match(sql,/v_quote:=floor\(v_available\/v_verified\)/);
   assert.match(sql,/v_count<>v_verified/);
