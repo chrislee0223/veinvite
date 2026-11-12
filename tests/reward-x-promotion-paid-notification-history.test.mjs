@@ -93,7 +93,7 @@ test('bell copy reuses localized X promotion copy and shows the paid amount sepa
   assert.match(historyCenter, /REWARD_X_PROMOTION_COPY/);
   assert.match(
     historyCenter,
-    /case 'X_PROMOTION_PAID':[\s\S]*xPromotion\.title[\s\S]*xPromotion\.paidBody/,
+    /case 'X_PROMOTION_PAID':[\s\S]*REWARD_X_PROMOTION_PAID_TITLE\[locale\][\s\S]*xPromotion\.paidBody/,
   );
   assert.match(
     historyCenter,

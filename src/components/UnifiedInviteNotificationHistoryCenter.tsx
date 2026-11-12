@@ -18,6 +18,7 @@ import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { REWARD_X_PROMOTION_PAID_TITLE } from '@/lib/i18n/rewardXPromotionPaidNotificationCopy';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
@@ -230,7 +231,7 @@ function itemCopy(
       };
     case 'X_PROMOTION_PAID':
       return {
-        title: xPromotion.title,
+        title: REWARD_X_PROMOTION_PAID_TITLE[locale],
         body: xPromotion.paidBody,
         hint: amount ? `+${amount} B3TR` : null,
       };
@@ -677,6 +678,11 @@ export function InviteNotificationHistoryCenter({
     const receiptAction =
       NOTIFICATION_POLICY[item.kind].readBehavior === 'receipt';
     const showMeta = Boolean(copy.hint || receiptAction);
+    const effectiveKind = item.presentationKind ?? item.kind;
+    const technicalHint =
+      effectiveKind === 'DAPP_PROGRESS' ||
+      effectiveKind === 'REWARD_READY' ||
+      effectiveKind === 'X_PROMOTION_PAID';
 
     return (
       <span className="notificationHistoryContent">
@@ -702,7 +708,7 @@ export function InviteNotificationHistoryCenter({
         <span className="notificationHistoryBody">{copy.body}</span>
         {showMeta ? (
           <span className="notificationHistoryMeta">
-            {copy.hint ? <b>{copy.hint}</b> : null}
+            {copy.hint ? <b dir={technicalHint ? 'ltr' : undefined}>{copy.hint}</b> : null}
             {receiptAction ? (
               <span className="notificationReceiptAction">
                 <span>{metaCopy.viewReceipt}</span>
