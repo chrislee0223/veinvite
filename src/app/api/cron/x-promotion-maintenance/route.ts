@@ -336,6 +336,41 @@ Promise<JobResult> {
   }
 }
 
+// Only a finalized, receipt-backed X payout may create a paid alert.
+// This is a separately idempotent notification reconciliation: failures do
+// not retry a signed transfer or change payout/receipt status.
+async function reconcileFinalXPromotionPaidNotice(
+  result: RewardXPromotionPayoutResult,
+): Promise<void> {
+  if (result.status !== 'PAID' || !result.intentId) return;
+
+  const { data: receipt, error: receiptError } = await supabaseAdmin
+    .from('reward_x_promotion_receipts')
+    .select('recipient_wallet')
+    .eq('network', result.network)
+    .eq('intent_id', result.intentId)
+    .maybeSingle();
+
+  if (receiptError || !receipt) {
+    throw new Error(
+      'Final X promotion receipt was not available for notification: ' +
+      (receiptError?.message ?? 'missing receipt'),
+    );
+  }
+  const wallet = String(receipt.recipient_wallet ?? '').toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/u.test(wallet)) {
+    throw new Error('Final X promotion receipt wallet was invalid.');
+  }
+
+  const { error } = await supabaseAdmin.rpc(
+    'reconcile_verified_x_promotion_paid_history',
+    { p_inviter_wallet: wallet },
+  );
+  if (error) {
+    throw new Error('X promotion receipt notification reconciliation failed: ' + error.message);
+  }
+}
+
 async function runPayoutJob():
 Promise<JobResult> {
   let claimed: boolean;
@@ -385,6 +420,22 @@ Promise<JobResult> {
       );
     }
 
+    // Core receipt settlement is the authority. Missing notifications must
+    // never turn a confirmed payment into a payout retry. The existing bell
+    // history first-page reader remains a safe idempotent fallback.
+    let notificationDeferred = false;
+    if (result.status === 'PAID') {
+      try {
+        await reconcileFinalXPromotionPaidNotice(result);
+      } catch (noticeError) {
+        notificationDeferred = true;
+        console.error(
+          'X promotion paid receipt notification deferred (no payout retry):',
+          noticeError,
+        );
+      }
+    }
+
     await markCronJobSucceeded(
       PAYOUT_JOB_NAME,
     );
@@ -392,6 +443,7 @@ Promise<JobResult> {
     return {
       ok: true,
       skipped: false,
+      ...(notificationDeferred ? { reason: 'PAID_NOTICE_RECONCILIATION_DEFERRED' } : {}),
       result,
     };
   } catch (error) {
