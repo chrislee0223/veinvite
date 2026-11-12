@@ -1092,6 +1092,40 @@ BEGIN
  );
 END $function$;
 
+-- Keep identical exact-wei arithmetic in writer, QA and optional diagnostics.
+CREATE OR REPLACE FUNCTION public.calculate_shared_pool_completion_quote_v1(
+ p_observed_pool_balance_wei numeric,
+ p_fixed_outstanding_wei numeric,
+ p_ready_completed_count bigint,
+ p_x_option_per_winner_wei numeric
+)
+RETURNS numeric
+LANGUAGE plpgsql IMMUTABLE STRICT
+SET search_path TO 'pg_catalog','public'
+AS $quote$
+DECLARE v_available numeric(78,0);
+BEGIN
+ IF p_observed_pool_balance_wei<0
+    OR p_observed_pool_balance_wei<>trunc(p_observed_pool_balance_wei)
+    OR p_fixed_outstanding_wei<0
+    OR p_fixed_outstanding_wei<>trunc(p_fixed_outstanding_wei)
+    OR p_ready_completed_count<1 OR p_ready_completed_count>=100
+    OR p_x_option_per_winner_wei<0
+    OR p_x_option_per_winner_wei<>trunc(p_x_option_per_winner_wei)
+ THEN RAISE EXCEPTION 'SHARED_POOL_QUOTE_INVALID_INPUT'; END IF;
+ IF p_observed_pool_balance_wei<p_fixed_outstanding_wei THEN
+   RETURN 0;
+ END IF;
+ v_available:=p_observed_pool_balance_wei-p_fixed_outstanding_wei
+  - p_ready_completed_count*p_x_option_per_winner_wei;
+ RETURN greatest(floor(v_available/p_ready_completed_count),0);
+END;
+$quote$;
+REVOKE ALL ON FUNCTION public.calculate_shared_pool_completion_quote_v1(numeric,numeric,bigint,numeric)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.calculate_shared_pool_completion_quote_v1(numeric,numeric,bigint,numeric)
+  TO service_role;
+
 -- A serializable-by-network, completion-only shared-pool quote.
 -- Historical late quote snapshots remain immutable archival evidence; they
 -- are not promises until actual valid completion has been reserved.
@@ -1177,7 +1211,8 @@ BEGIN
  IF v_headroom<=v_x_budget THEN
    RETURN jsonb_build_object('mode','DEFER','reserved',false,'reason','POOL_INSUFFICIENT_FOR_CURRENT_COMPLETIONS');
  END IF;
- v_quote:=floor((v_headroom-v_x_budget)/v_candidates);
+ v_quote:=public.calculate_shared_pool_completion_quote_v1(
+   p_observed_pool_balance_wei,v_reserved,v_candidates,v_cfg.x_option_reserve_wei);
  IF v_quote<v_cfg.min_real_reward_wei THEN
    RETURN jsonb_build_object('mode','DEFER','reserved',false,'reason','REWARD_FUNDING_UNAVAILABLE');
  END IF;
