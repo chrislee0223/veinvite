@@ -53,8 +53,10 @@ test('forecast refresh occurs only after a destination accounting release', () =
 
 test('disabled reserve mode performs no accounting mutations', () => {
   const disabledGate = execution.indexOf(
-    'if (!runtime.enabled)',
+    'if (!runtime.enabled || (sharedMode as { enabled: boolean }).enabled)',
   );
+  assert.match(execution, /read_reward_shared_pool_mode_v1/);
+  assert.match(execution, /Shared-pool reserve authority unavailable/);
   assert.ok(execution.includes('const runtime = await readReserveRuntime()'));
   const sourceRpc = execution.indexOf(
     'read_reward_boost_reserve_unprotected_sources',
