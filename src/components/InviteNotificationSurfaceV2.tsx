@@ -14,6 +14,7 @@ import { POST_PAYOUT_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/postPayoutSec
 import { SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/securityNotificationCopy';
 import { SECURITY_REVIEW_CLEARED_COPY } from '@/lib/i18n/securityReviewClearedCopy';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
+import { REWARD_X_PROMOTION_PAID_TITLE } from '@/lib/i18n/rewardXPromotionPaidNotificationCopy';
 import {
   isRtlLocale,
   type Locale,
@@ -290,7 +291,7 @@ function statusText(
           };
     case 'X_PROMOTION_PAID':
       return {
-        title: xPromotion.title,
+        title: REWARD_X_PROMOTION_PAID_TITLE[locale],
         body: xPromotion.paidBody,
         hint: notification.rewardAmountWei
           ? `+${formatB3trWei(notification.rewardAmountWei)} B3TR`
@@ -553,7 +554,7 @@ export function InviteNotificationSurfaceV2({
               {!multiple &&
               primary.rewardAmountWei &&
               (primary.kind === 'REWARD_READY' || primary.kind === 'REWARD_PAID') ? (
-                <strong className="rewardAmount">
+                <strong className="rewardAmount" dir="ltr">
                   +{formatB3trWei(primary.rewardAmountWei)} B3TR
                 </strong>
               ) : null}
@@ -562,7 +563,15 @@ export function InviteNotificationSurfaceV2({
                 {multiple ? v2.summaryBody : primaryText.body}
               </p>
               {!multiple && primaryText.hint ? (
-                <p className="notificationHint">{primaryText.hint}</p>
+                <p
+                  className="notificationHint"
+                  dir={
+                    primary.kind === 'DAPP_PROGRESS' ||
+                    primary.kind === 'X_PROMOTION_PAID'
+                      ? 'ltr'
+                      : undefined
+                  }
+                >{primaryText.hint}</p>
               ) : null}
             </div>
 
