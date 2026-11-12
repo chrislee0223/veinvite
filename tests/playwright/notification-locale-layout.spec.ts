@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { REWARD_X_PROMOTION_PAID_TITLE } from '../../src/lib/i18n/rewardXPromotionPaidNotificationCopy';
 
 import {
   SUPPORTED_LOCALES,
@@ -133,6 +134,14 @@ for (const locale of SUPPORTED_LOCALES) {
         timeout: 30_000,
       });
       await verifyNotificationLayout(page, locale);
+      if (state === 'NOTI-X-PROMOTION-PAID') {
+        // All supported languages distinguish paid from merely offered X
+        // bonuses; numeric tokens remain in reading order in RTL scripts.
+        await expect(page.locator('.notificationHistoryTitle').first())
+          .toHaveText(REWARD_X_PROMOTION_PAID_TITLE[locale]);
+        await expect(page.locator('.notificationHistoryMeta b').first())
+          .toHaveAttribute('dir', 'ltr');
+      }
       // Verify resizing the same real component to a typical phone width.
       await page.setViewportSize(MOBILE);
       await verifyNotificationLayout(page, locale);
