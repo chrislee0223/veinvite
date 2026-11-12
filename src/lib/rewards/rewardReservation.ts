@@ -484,9 +484,17 @@ async function reserveCandidate({
         throw new Error('Vote-round completion authority could not be verified: ' +
           (completionError?.message ?? 'missing invitation'));
       }
-      const voteRoundId = Number(completion.vote_round_id);
+      // Null would become 0 under Number(null), accidentally sending a
+      // completed future-round referral through the old immediate writer.
+      const rawVoteRoundId = completion.vote_round_id;
+      const voteRoundId = Number(rawVoteRoundId);
       const firstRound = Number((roundMode as Record<string, unknown>).firstVoteRoundId);
-      if (Number.isSafeInteger(voteRoundId) && voteRoundId >= firstRound) {
+      if (rawVoteRoundId === null || rawVoteRoundId === undefined ||
+          !Number.isSafeInteger(voteRoundId) || voteRoundId < 1 ||
+          !Number.isSafeInteger(firstRound) || firstRound < 1) {
+        throw new Error('Vote-round settlement cannot resolve a verified completion round');
+      }
+      if (voteRoundId >= firstRound) {
         if (!(roundMode as { enabled: boolean }).enabled) {
           return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_NOT_ACTIVATED');
         }
