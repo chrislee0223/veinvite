@@ -10,7 +10,9 @@
  * row. Keep title/unread + Close on the first row and give Mark-all the full
  * second row only on compact phone widths. Logical alignment mirrors in RTL. */
 @media (max-width: 560px) {
-  .notificationHistoryPanel .notificationHistoryHeader {
+  /* Without a Mark-all action the original one-row header is sufficient.
+   * Do not allocate a phantom second row on an empty/read-only inbox. */
+  .notificationHistoryPanel .notificationHistoryHeader:has(.notificationHistoryMarkAll) {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) 36px !important;
     grid-template-areas:
@@ -286,4 +288,28 @@
   max-width: 100% !important;
   white-space: normal !important;
   text-align: end !important;
+}
+
+
+/* Technical hint chips (dApp 1/3, +10 B3TR, quoted base rewards) are kept
+ * LTR independently from Arabic/Urdu paragraph direction. Ordinary hint
+ * text remains locale-driven and can still wrap naturally. */
+.notificationHistoryPanel .notificationHistoryMeta b[dir='ltr'] {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  text-align: start !important;
+}
+
+/* Keep technical hints and amounts on a single readable sequence in RTL
+ * transient popups without forcing the rest of the sentence to be LTR. */
+.notificationRoot .notificationCard[dir='rtl'] .notificationHint[dir='ltr'],
+.notificationRoot .notificationCard[dir='rtl'] .rewardAmount[dir='ltr'] {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
 }
