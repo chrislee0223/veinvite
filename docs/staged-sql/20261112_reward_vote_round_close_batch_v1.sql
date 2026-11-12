@@ -90,6 +90,7 @@ DECLARE
  v_allocation_close timestamptz;
  v_completed bigint;
  v_verified bigint;
+ v_vote_proofs bigint;
  v_prior bigint;
  v_prior_own bigint;
  v_held_count bigint;
@@ -186,6 +187,22 @@ BEGIN
  IF v_completed=0 OR v_completed>=100 THEN
    RETURN jsonb_build_object('mode','DEFER','reason','EMPTY_OR_UNBOUNDED_COMPLETIONS',
      'reserved',false);
+ END IF;
+
+ -- Vote completion must be proven on-chain IN the claimed final vote round,
+ -- not only inferred from an app-side timestamp or original invite cohort.
+ SELECT count(*) INTO v_vote_proofs FROM public.invitations i
+ WHERE i.activation_network=p_network AND i.vote_round_id=v_vote_round
+   AND i.vote_completed=true AND i.status<>'CANCELLED'
+   AND i.sybil_status<>'BLOCKED'
+   AND EXISTS (
+      SELECT 1 FROM public.invite_impact_events e
+      WHERE e.invite_code=i.invite_code AND e.network=p_network
+        AND e.event_type='ALLOCATION_VOTE' AND e.vote_round_id=v_vote_round
+        AND e.block_number<=p_finalized_block);
+ IF v_vote_proofs<>v_completed THEN
+   RETURN jsonb_build_object('mode','DEFER','reason','AWAIT_FINAL_VOTE_PROOFS',
+     'completed',v_completed,'proved',v_vote_proofs,'reserved',false);
  END IF;
 
  SELECT count(*) INTO v_verified
