@@ -596,7 +596,7 @@ begin
     'sybilClearanceId',case when v_sybil_v2_enforced then v_clearance.id else null end
   );
 end;
-$function$
+$function$;
 
 
 -- Original reviewed enforce_reward_queue_cohort_budget: a2e9df9e62eccc05f5b6157bbc82a225
@@ -684,7 +684,7 @@ begin
 
   return new;
 end;
-$function$
+$function$;
 
 
 -- Original reviewed validate_reward_x_promotion_split: a3f975602f0f33262f4e6732cd14571d
@@ -879,7 +879,7 @@ $function$
 
   return new;
 end;
-$function$
+$function$;
 
 
 -- Original reviewed read_reward_elastic_contingent_scope_liability_wei_v1: 080b1fb30823e8f2f4450748583ae677
@@ -974,7 +974,7 @@ BEGIN
    RAISE EXCEPTION 'ELASTIC_CONTINGENT_ACCOUNTING_INVALID';
  END IF;
  RETURN v_total;
-END $function$
+END $function$;
 
 
 -- Original reviewed read_reward_elastic_public_scenarios_v1: 98657b0218fc0fc7031682ff341a7980
@@ -1132,7 +1132,7 @@ BEGIN
   'settlementEarliestHoursAfterOfficialClose',v_cfg.close_grace_hours,
   'finalPayoutNotGuaranteed',true,'writesPerformed',false
  );
-END $function$
+END $function$;
 
 -- A serializable-by-network, completion-only shared-pool quote.
 -- Historical late quote snapshots remain immutable archival evidence; they
