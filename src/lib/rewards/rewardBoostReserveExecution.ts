@@ -118,8 +118,21 @@ export async function runRewardBoostReserveRebalance(
     );
   }
 
+  // Once the shared physical-pool policy is enabled, do not keep sweeping
+  // or replenishing obsolete per-round reserve bank balances. Keep the
+  // existing ledger intact for historical audits and reversals.
+  const { data: sharedMode, error: sharedModeError } = await supabaseAdmin.rpc(
+    'read_reward_shared_pool_mode_v1',
+    { p_network: pool.network },
+  );
+  if (sharedModeError || !sharedMode || typeof sharedMode !== 'object' ||
+      Array.isArray(sharedMode) ||
+      typeof (sharedMode as Record<string, unknown>).enabled !== 'boolean') {
+    throw new Error('Shared-pool reserve authority unavailable: ' +
+      (sharedModeError?.message ?? 'malformed mode'));
+  }
   const runtime = await readReserveRuntime();
-  if (!runtime.enabled) {
+  if (!runtime.enabled || (sharedMode as { enabled: boolean }).enabled) {
     return {
       enabled: false,
       network: pool.network,
