@@ -59,7 +59,7 @@ test('narrowed activity sample preserves the original forecast across edge cases
 test('public endpoint reads just recent activity and target-round completions in ONE snapshot', () => {
   assert.match(api, /new Date\(nowMs - ACTIVE_WINDOW_MS\)\.toISOString\(\)/);
   assert.match(api, /const quotedCutoff =/);
-  assert.match(api, /or\\(activated_at\\.gte/);
+  assert.match(api, /or\(activated_at\.gte/);
   assert.match(api, /apps_completed_at\.gte/);
   assert.match(api, /vote_completed_at\.gte/);
   assert.match(api, /and\(status\.eq\.ACTIVATING,/);
