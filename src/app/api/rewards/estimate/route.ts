@@ -24,6 +24,7 @@ import {
 } from '@/lib/rewards/rewardForecastSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
+  ACTIVE_WINDOW_MS,
   countActiveSharedPoolReferrals,
   estimateProspectiveSharedPoolReward,
   type ActiveReferralForecastRow,
@@ -112,19 +113,50 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     // Public copy is for a prospective new referral: use live, recent progress
     // from all entry cohorts, not just the current acceptance cohort. Never
     // count dormant, blocked, forfeited or already-paid invitations.
-    const { data: activeRows, error: activeError } = await supabaseAdmin
-      .from('invitations')
-      .select('status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id')
-      .eq('activation_network', network)
-      .in('status', ['ACTIVATING', 'COMPLETED'])
-      .limit(1000);
-    if (activeError || !activeRows || activeRows.length === 1000) {
-      throw new Error(activeError?.message ?? 'Public reward activity sample unavailable');
+    // Read only eligible activity-window candidates, rather than downloading
+    // every historical ACTIVATING/COMPLETED row on each Home forecast request.
+    // An older invitation completed in the current funding round still counts.
+    // SQL narrows the sample; the existing pure estimator retains all final
+    // Sybil/status/future-timestamp checks.
+    const nowMs = Date.now();
+    const cutoffIso = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString();
+    const fields =
+      'status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id';
+    const [recentResult, roundCompletedResult] = await Promise.all([
+      supabaseAdmin
+        .from('invitations')
+        .select(fields)
+        .eq('activation_network', network)
+        .eq('status', 'ACTIVATING')
+        .or(
+          `activated_at.gte.${cutoffIso},` +
+          `apps_completed_at.gte.${cutoffIso},` +
+          `vote_completed_at.gte.${cutoffIso}`,
+        )
+        .limit(1000),
+      supabaseAdmin
+        .from('invitations')
+        .select(fields)
+        .eq('activation_network', network)
+        .eq('status', 'COMPLETED')
+        .eq('vote_round_id', Number(x.rewardCohortRoundId))
+        .limit(1000),
+    ]);
+    const recentRows = recentResult.data;
+    const completedRows = roundCompletedResult.data;
+    if (recentResult.error || roundCompletedResult.error ||
+        !recentRows || !completedRows ||
+        recentRows.length + completedRows.length >= 1000) {
+      throw new Error(
+        recentResult.error?.message ??
+        roundCompletedResult.error?.message ??
+        'Public reward activity sample unavailable',
+      );
     }
     const activeParticipants = countActiveSharedPoolReferrals(
-      activeRows as ActiveReferralForecastRow[],
+      [...recentRows, ...completedRows] as ActiveReferralForecastRow[],
       Number(x.rewardCohortRoundId),
-      Date.now(),
+      nowMs,
     );
     const projected = estimateProspectiveSharedPoolReward(
       String(x.oneWinnerWei),
