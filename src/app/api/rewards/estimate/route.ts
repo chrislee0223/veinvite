@@ -120,10 +120,13 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     const nowMs = Date.now();
     const cutoffIso = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString();
     const roundId = Number(x.rewardCohortRoundId);
+    // PostgREST logical-filter values containing ":" / "." (ISO timestamps)
+    // must be quoted, then URL-encoded by supabase-js.
+    const quotedCutoff = `"${cutoffIso}"`;
     const activityFilter =
-      `or(activated_at.gte.${cutoffIso},` +
-      `apps_completed_at.gte.${cutoffIso},` +
-      `vote_completed_at.gte.${cutoffIso})`;
+      `or(activated_at.gte.${quotedCutoff},` +
+      `apps_completed_at.gte.${quotedCutoff},` +
+      `vote_completed_at.gte.${quotedCutoff})`;
     const boundedFilter =
       `and(status.eq.ACTIVATING,${activityFilter}),` +
       `and(status.eq.COMPLETED,vote_round_id.eq.${roundId})`;
