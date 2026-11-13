@@ -132,7 +132,7 @@ export const REWARD_X_PROMOTION_COPY: Record<SupportedLocale, RewardXPromotionCo
     reviewBody: 'Ek kontrol gerekiyor. Promosyon tutarı ayrılmış durumda.',
     payoutBody: 'Doğrulama tamamlandı. Promosyon ödemesi hazırlanıyor.',
     paidBody: 'X promosyon bonusun ödendi.',
-    expiredBody: 'X'te gönderi paylaşmak için verilen 24 saatlik süre doldu.',
+    expiredBody: 'X\'te gönderi paylaşmak için verilen 24 saatlik süre doldu.',
     releasedBody: 'Promosyon tutarı ödül havuzuna geri bırakıldı.',
     preparingBody: 'X promosyon fırsatın hazırlanıyor. Bu ödül kaydını biraz sonra tekrar kontrol et.',
     retry: 'Tekrar dene',
