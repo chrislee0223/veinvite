@@ -24,6 +24,7 @@ import {
 } from '@/lib/rewards/rewardForecastSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
+  ACTIVE_WINDOW_MS,
   countActiveSharedPoolReferrals,
   estimateProspectiveSharedPoolReward,
   type ActiveReferralForecastRow,
@@ -112,19 +113,40 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     // Public copy is for a prospective new referral: use live, recent progress
     // from all entry cohorts, not just the current acceptance cohort. Never
     // count dormant, blocked, forfeited or already-paid invitations.
+    // One atomic PostgREST query instead of two independent snapshots:
+    // status could change from ACTIVATING to COMPLETED during a refresh.
+    // Fetch only recently active invites OR completions in this round.
+    // The pure estimator still checks Sybil, forfeiture, payment and timing.
+    const nowMs = Date.now();
+    const cutoffIso = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString();
+    const roundId = Number(x.rewardCohortRoundId);
+    // PostgREST logical-filter values containing ":" / "." (ISO timestamps)
+    // must be quoted, then URL-encoded by supabase-js.
+    const quotedCutoff = `"${cutoffIso}"`;
+    const activityFilter =
+      `or(activated_at.gte.${quotedCutoff},` +
+      `apps_completed_at.gte.${quotedCutoff},` +
+      `vote_completed_at.gte.${quotedCutoff})`;
+    const boundedFilter =
+      `and(status.eq.ACTIVATING,${activityFilter}),` +
+      `and(status.eq.COMPLETED,vote_round_id.eq.${roundId})`;
     const { data: activeRows, error: activeError } = await supabaseAdmin
       .from('invitations')
-      .select('status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id')
+      .select(
+        'status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
+      )
       .eq('activation_network', network)
-      .in('status', ['ACTIVATING', 'COMPLETED'])
+      .or(boundedFilter)
       .limit(1000);
     if (activeError || !activeRows || activeRows.length === 1000) {
-      throw new Error(activeError?.message ?? 'Public reward activity sample unavailable');
+      throw new Error(
+        activeError?.message ?? 'Public reward activity sample unavailable',
+      );
     }
     const activeParticipants = countActiveSharedPoolReferrals(
       activeRows as ActiveReferralForecastRow[],
-      Number(x.rewardCohortRoundId),
-      Date.now(),
+      roundId,
+      nowMs,
     );
     const projected = estimateProspectiveSharedPoolReward(
       String(x.oneWinnerWei),

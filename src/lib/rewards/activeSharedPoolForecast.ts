@@ -15,7 +15,7 @@ export type ActiveReferralForecastRow = {
   vote_round_id: number | null;
 };
 
-const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 function isRecentlyActive(value: string | null, cutoff: number, nowMs: number): boolean {
