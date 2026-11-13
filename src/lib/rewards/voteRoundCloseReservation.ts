@@ -35,10 +35,12 @@ export async function readReadyVoteRoundBatchRepresentatives(
   const mode = rawMode as Record<string, unknown>;
   const firstRound = Number(mode.firstVoteRoundId);
   if (typeof mode.enabled !== 'boolean' ||
+      typeof mode.paused !== 'boolean' ||
       !Number.isSafeInteger(firstRound) || firstRound < 1) {
     throw new Error('Vote round scanner received invalid rollout settings');
   }
-  if (!mode.enabled) return [];
+  // Do not schedule a new round while its pricing is intentionally paused.
+  if (!mode.enabled || mode.paused) return [];
 
   const { data, error } = await supabaseAdmin.rpc(
     'read_reward_vote_round_batch_representatives_v1',
@@ -67,7 +69,7 @@ export async function readReadyVoteRoundBatchRepresentatives(
 
 type RoundCloseOutcome =
   | { kind: 'LEGACY' }
-  | { kind: 'RESERVED' }
+  | { kind: 'RESERVED'; count: number }
   | { kind: 'WAITING'; reason: string };
 
 /**
@@ -97,6 +99,7 @@ export async function tryReserveVoteRoundBatch({
   if (roundModeError || !roundMode || typeof roundMode !== 'object' ||
       Array.isArray(roundMode) ||
       typeof (roundMode as Record<string, unknown>).enabled !== 'boolean' ||
+      typeof (roundMode as Record<string, unknown>).paused !== 'boolean' ||
       !Number.isSafeInteger((roundMode as Record<string, unknown>).firstVoteRoundId)) {
     throw new Error('Vote-round settlement mode is unavailable: ' +
       (roundModeError?.message ?? 'malformed mode'));
@@ -125,6 +128,10 @@ export async function tryReserveVoteRoundBatch({
   if (!(roundMode as { enabled: boolean }).enabled) {
     return { kind: 'WAITING', reason: 'ROUND_CLOSE_NOT_ACTIVATED' };
   }
+  if ((roundMode as { paused: boolean }).paused) {
+    return { kind: 'WAITING', reason: 'ROUND_CLOSE_PAUSED' };
+  }
+
   const { data: batchRaw, error: batchError } = await supabaseAdmin.rpc(
     'commit_reward_vote_round_close_batch_v1',
     {
@@ -143,10 +150,19 @@ export async function tryReserveVoteRoundBatch({
 
   const result = batchRaw as Record<string, unknown>;
   const mode = String(result.mode ?? '');
-  if (mode === 'ROUND_BATCH_RESERVED' || mode === 'ALREADY_RESERVED') {
-    return { kind: 'RESERVED' };
+  if (mode === 'ROUND_BATCH_RESERVED') {
+    const count = Number(result.count);
+    if (!Number.isSafeInteger(count) || count < 1 || count > 5000 ||
+        result.reserved !== true) {
+      throw new Error('Vote-round batch count or reservation proof is invalid');
+    }
+    return { kind: 'RESERVED', count };
   }
-  if (mode === 'DEFER' || mode === 'BLOCKED') {
+  // A retry cannot be reported as another paid/awarded referral.
+  if (mode === 'ALREADY_RESERVED') {
+    return { kind: 'RESERVED', count: 0 };
+  }
+  if (mode === 'DEFER' || mode === 'BLOCKED' || mode === 'PAUSED') {
     return { kind: 'WAITING', reason: String(result.reason ?? mode) };
   }
   throw new Error('Vote-round batch returned unsafe mode: ' + mode);
