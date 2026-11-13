@@ -421,7 +421,7 @@ async function reserveCandidate({
   candidate: ReservationCandidate;
   network: string;
   finalizedBlock: number;
-}): Promise<'reserved' | 'awaiting_finality' | 'skipped' | 'pricing_conflict'> {
+}): Promise<'reserved' | 'awaiting_finality' | 'skipped' | 'pricing_conflict' | { kind: 'batch_reserved'; count: number }> {
   const completionBlock = safeBlock(
     candidate.completion_block,
     'reservation completion block',
@@ -475,7 +475,10 @@ async function reserveCandidate({
       observedPoolBalanceWei: pool.effectiveRewardPoolWei,
       finalizedBlock,
     });
-    if (roundClose.kind === 'RESERVED') return 'reserved';
+    if (roundClose.kind === 'RESERVED') {
+      if (roundClose.count === 0) return skipCandidate(candidate, 'ROUND_BATCH_ALREADY_RESERVED');
+      return { kind: 'batch_reserved', count: roundClose.count };
+    }
     if (roundClose.kind === 'WAITING') {
       return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
         reason: roundClose.reason,
@@ -883,6 +886,12 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
   for (const candidate of candidates) {
     const outcome = await reserveCandidate({ candidate, network, finalizedBlock });
     if (outcome === 'reserved') result.reserved += 1;
+    else if (typeof outcome === 'object' && outcome.kind === 'batch_reserved') {
+      // The batch worker is invoked once per round but fixes the amounts for
+      // every verified recipient. Track people, not just the single RPC call.
+      result.reserved += outcome.count;
+      result.attempted += outcome.count - 1;
+    }
     else if (outcome === 'awaiting_finality') result.awaitingFinality += 1;
     else {
       result.skipped += 1;
