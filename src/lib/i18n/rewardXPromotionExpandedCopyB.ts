@@ -56,7 +56,7 @@ export const REWARD_X_PROMOTION_EXPANDED_COPY_B = {
     reviewBody: 'Ana buƙatar ƙarin dubawa. Kyautar tallan tana nan a ajiye dominka.',
     payoutBody: 'An kammala tabbatarwa. Ana shirya biyan kyautar tallan.',
     paidBody: 'An biya kyautar tallan X ɗinka.',
-    expiredBody: 'Lokacin sa'o'i 24 na wallafa sako a X ya ƙare.',
+    expiredBody: 'Lokacin sa\'o\'i 24 na wallafa sako a X ya ƙare.',
     releasedBody: 'An mayar da kyautar tallan zuwa tafkin lada.',
     preparingBody: 'Ana shirya damar tallan X ɗinka. Ka sake duba wannan rasidin lada nan ba da jimawa ba.',
     retry: 'Sake gwadawa',
