@@ -56,16 +56,17 @@ test('narrowed activity sample preserves the original forecast across edge cases
   );
 });
 
-test('public endpoint reads just recent activity plus target-round completions', () => {
+test('public endpoint reads just recent activity and target-round completions in ONE snapshot', () => {
   assert.match(api, /new Date\(nowMs - ACTIVE_WINDOW_MS\)\.toISOString\(\)/);
-  assert.match(api, /\.eq\('status', 'ACTIVATING'\)/);
-  assert.match(api, /activated_at\.gte/);
+  assert.match(api, /or\(activated_at\.gte/);
   assert.match(api, /apps_completed_at\.gte/);
   assert.match(api, /vote_completed_at\.gte/);
-  assert.match(api, /\.eq\('status', 'COMPLETED'\)/);
-  assert.match(api, /\.eq\('vote_round_id', Number\(x\.rewardCohortRoundId\)\)/);
-  assert.match(api, /recentRows\.length \+ completedRows\.length >= 1000/);
+  assert.match(api, /and\(status\.eq\.ACTIVATING,/);
+  assert.match(api, /and\(status\.eq\.COMPLETED,vote_round_id\.eq\./);
+  assert.match(api, /\.or\(boundedFilter\)/);
+  assert.match(api, /activeRows\.length === 1000/);
   assert.match(api, /countActiveSharedPoolReferrals/);
+  assert.doesNotMatch(api, /Promise\.all\(\[\s*supabaseAdmin[\s\S]{0,1000}from\('invitations'\)/);
   assert.doesNotMatch(api, /\.in\('status', \['ACTIVATING', 'COMPLETED'\]\)/);
   assert.doesNotMatch(api, /commit_reward_reservation\(|commit_reward_shared_pool_v1\(/);
 });
