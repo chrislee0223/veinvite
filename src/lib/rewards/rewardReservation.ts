@@ -8,6 +8,7 @@ import { readStagedAdmissionFundingStatus } from '@/lib/rewards/readStagedAdmiss
 import { shouldReadRewardAdmissionShadow, compareRewardAdmissionShadow } from '@/lib/rewards/rewardAdmissionShadowParity';
 import { readRewardRuntimeSafety } from '@/lib/rewards/runtimeSafety';
 import { withRewardReservationSweepLock } from '@/lib/rewards/reservationSweepLock';
+import { readReadyVoteRoundBatchRepresentatives, tryReserveVoteRoundBatch } from '@/lib/rewards/voteRoundCloseReservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -310,7 +311,16 @@ async function loadCandidates(network: string): Promise<ReservationCandidate[]> 
     throw new Error(`Reward reservation candidates could not be loaded: ${error.message}`);
   }
 
-  return Array.isArray(data) ? (data as ReservationCandidate[]) : [];
+  const legacy = Array.isArray(data) ? (data as ReservationCandidate[]) : [];
+  // New completion rounds must make progress independently of old entries
+  // saturating the legacy global limit. Uniqueness prevents double attempts.
+  const futureRounds = await readReadyVoteRoundBatchRepresentatives(network);
+  const seen = new Set<string>();
+  return [...futureRounds, ...legacy].filter((candidate) => {
+    if (seen.has(candidate.invite_code)) return false;
+    seen.add(candidate.invite_code);
+    return true;
+  });
 }
 
 export async function readStaleEligibleRewardReservationLiveness(
@@ -457,6 +467,19 @@ async function reserveCandidate({
         candidate,
         'POOL_DISTRIBUTION_PAUSED',
       );
+    }
+
+    const roundClose = await tryReserveVoteRoundBatch({
+      inviteCode: candidate.invite_code,
+      network,
+      observedPoolBalanceWei: pool.effectiveRewardPoolWei,
+      finalizedBlock,
+    });
+    if (roundClose.kind === 'RESERVED') return 'reserved';
+    if (roundClose.kind === 'WAITING') {
+      return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
+        reason: roundClose.reason,
+      });
     }
 
     // Shared physical-pool reservations are priced and committed atomically
