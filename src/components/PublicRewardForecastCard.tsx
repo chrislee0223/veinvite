@@ -674,9 +674,6 @@ export function PublicRewardForecastCard({
             : 'estimateDisclaimer'
         }
       >
-        {stale ? (
-          <span className="staleIndicator" aria-hidden="true">◷</span>
-        ) : null}
         {note}
       </p>
 
@@ -771,13 +768,6 @@ export function PublicRewardForecastCard({
         }
         .estimatePending {
           color:#a49e91;
-        }
-        .staleIndicator {
-          display:inline-block;
-          margin-inline-end:4px;
-          font-size:.78em;
-          opacity:.78;
-          vertical-align:.06em;
         }
         @media (max-width:420px) {
           .homeRewardEstimateCard {
