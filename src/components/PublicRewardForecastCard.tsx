@@ -28,6 +28,10 @@ type ElasticEstimatePreview =
       twoWinnersWei: string;
       threeWinnersWei: string;
       displayEstimateWei: string;
+      scenarioLowWei: string;
+      scenarioHighWei: string;
+      potentialParticipants: number;
+      eligibleCompletedParticipants: number;
       projectedRecipients: number;
       acceptedParticipants: number;
       rewardCohortRoundId: number;
@@ -44,8 +48,15 @@ function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined
       !Number.isSafeInteger(r.rewardCohortRoundId) ||
       !Number.isSafeInteger(r.projectedRecipients) ||
       Number(r.projectedRecipients) < 1 ||
-      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei,r.displayEstimateWei]
-        .every((w) => typeof w === 'string' && /^[0-9]+$/.test(w))) {
+      !Number.isSafeInteger(r.potentialParticipants) ||
+      Number(r.potentialParticipants) < 0 ||
+      !Number.isSafeInteger(r.eligibleCompletedParticipants) ||
+      Number(r.eligibleCompletedParticipants) < 0 ||
+      ![r.oneWinnerWei,r.twoWinnersWei,r.threeWinnersWei,r.displayEstimateWei,
+        r.scenarioLowWei,r.scenarioHighWei]
+        .every((w) => typeof w === 'string' && /^[0-9]+$/.test(w)) ||
+      BigInt(String(r.scenarioLowWei)) > BigInt(String(r.scenarioHighWei)) ||
+      r.displayEstimateWei !== r.scenarioLowWei) {
     return { mode: 'PENDING' };
   }
   return {
@@ -54,6 +65,10 @@ function readElasticEstimate(value: unknown): ElasticEstimatePreview | undefined
     twoWinnersWei: String(r.twoWinnersWei),
     threeWinnersWei: String(r.threeWinnersWei),
     displayEstimateWei: String(r.displayEstimateWei),
+    scenarioLowWei: String(r.scenarioLowWei),
+    scenarioHighWei: String(r.scenarioHighWei),
+    potentialParticipants: Number(r.potentialParticipants),
+    eligibleCompletedParticipants: Number(r.eligibleCompletedParticipants),
     projectedRecipients: Number(r.projectedRecipients),
     acceptedParticipants: Number(r.acceptedParticipants),
     rewardCohortRoundId: Number(r.rewardCohortRoundId),
@@ -94,14 +109,18 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   generatedAt: '2026-01-01T00:00:00.000Z',
   modelVersion: 'preview',
   status: 'ready',
-  estimatedRewardWei: '147740500000000000000',
+  estimatedRewardWei: '73870250000000000000',
   elasticEstimate: {
     mode: 'ELASTIC_SCENARIOS',
     oneWinnerWei: '147740500000000000000',
     twoWinnersWei: '73870250000000000000',
     threeWinnersWei: '49246833333333333333',
-    displayEstimateWei: '147740500000000000000',
-    projectedRecipients: 1,
+    displayEstimateWei: '73870250000000000000',
+    scenarioLowWei: '73870250000000000000',
+    scenarioHighWei: '147740500000000000000',
+    potentialParticipants: 2,
+    eligibleCompletedParticipants: 0,
+    projectedRecipients: 2,
     acceptedParticipants: 1,
     rewardCohortRoundId: 124,
   },
@@ -113,7 +132,7 @@ const LIVE_REFRESH_THROTTLE_MS = 60_000;
 const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_active_v2`;
+  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_scenarios_v3`;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
@@ -601,8 +620,8 @@ export function PublicRewardForecastCard({
     };
   }, [rewardForecastPreview]);
 
-  // The headline shows the realistic participation-aware scenario, not the
-  // misleading maximum one-winner payout. Preserve the compact locale copy.
+  // The amount is an illustrative range, not a payout promise.
+  // It includes every unsettled older cohort, not only recent invitations.
   const t = REWARD_FORECAST_COPY[resolvedLocale];
   const ready = forecast?.status === 'ready';
   const elastic = ready && forecast.elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
@@ -610,8 +629,12 @@ export function PublicRewardForecastCard({
     : null;
   const elasticPending = !elastic;
   const stale = ready && forecast.stale === true;
+  const isScenarioRange = elastic &&
+    elastic.scenarioLowWei !== elastic.scenarioHighWei;
   const amount = elastic
-    ? `${formatRewardWei(elastic.displayEstimateWei)} B3TR`
+    ? isScenarioRange
+      ? `${formatRewardWei(elastic.scenarioLowWei)}–${formatRewardWei(elastic.scenarioHighWei)} B3TR`
+      : `${formatRewardWei(elastic.scenarioHighWei)} B3TR`
     : '— B3TR';
   const note = unavailable && !forecast
     ? t.unavailable
@@ -642,7 +665,7 @@ export function PublicRewardForecastCard({
         className="estimateAmount"
         aria-label={ready && !elasticPending ? amount : t.pendingTitle}
       >
-        <strong>{amount}</strong>
+        <strong className={isScenarioRange ? 'rewardScenarioRange' : undefined}>{amount}</strong>
       </div>
 
       <p className="estimateEligibility">{t.eligibility}</p>
@@ -725,6 +748,13 @@ export function PublicRewardForecastCard({
           white-space:nowrap;
           overflow:hidden;
           text-overflow:ellipsis;
+        }
+        .estimateAmount strong.rewardScenarioRange {
+          font-size:clamp(1.02rem,4.9vw,1.3rem);
+          letter-spacing:-.055em;
+          white-space:normal;
+          overflow-wrap:anywhere;
+          overflow:visible;
         }
         .estimateEligibility {
           margin:7px 0 0;
