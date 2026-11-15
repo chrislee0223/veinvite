@@ -143,3 +143,25 @@ test('security history events remain warm-cache compatible and directly QA-rende
     assert.ok(registry.includes(stateId), `QA registry is missing ${stateId}`);
   }
 });
+
+test('restriction copy is concise, appeal-ready, and independent of past payouts', () => {
+  assert.equal(
+    SECURITY_NOTIFICATION_COPY.ko.restrictionBody,
+    '보안 검토 결과 참여가 제한됐습니다. 이의가 있다면 이의신청을 제출해 주세요.',
+  );
+  assert.equal(
+    SECURITY_NOTIFICATION_COPY.en.restrictionBody,
+    'Following a security review, participation has been restricted. If you disagree, submit an appeal.',
+  );
+  assert.equal(
+    SECURITY_NOTIFICATION_COPY.tr.restrictionBody,
+    'Güvenlik incelemesi sonucunda katılım kısıtlandı. İtirazınız varsa itiraz başvurusu yapın.',
+  );
+  for (const locale of SUPPORTED_LOCALES) {
+    const body = SECURITY_NOTIFICATION_COPY[locale].restrictionBody;
+    assert.ok(body.trim().length > 20, `restriction copy too short for ${locale}`);
+    assert.ok(body.trim().length < 200, `restriction copy too long for ${locale}`);
+  }
+  assert.doesNotMatch(SECURITY_NOTIFICATION_COPY.ko.restrictionBody, /보상|지급/u);
+  assert.doesNotMatch(SECURITY_NOTIFICATION_COPY.en.restrictionBody, /reward|paid/ui);
+});
