@@ -126,6 +126,7 @@ let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
 let lastLiveRefreshAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
+let inFlightForecastWasForced = false;
 
 function formatRewardWei(value: string): string {
   if (!/^\d+$/.test(value)) return '0.00';
@@ -343,7 +344,15 @@ function requestForecast(
     return Promise.resolve(cachedForecast);
   }
 
-  if (inFlightForecast) return inFlightForecast;
+  if (inFlightForecast) {
+    if (force && !inFlightForecastWasForced) {
+      // The cheap 3-minute poll must never swallow a due funding/chain check.
+      // Queue the forced refresh after the lightweight request settles.
+      const runLiveAfterRead = () => requestForecast(true);
+      return inFlightForecast.then(runLiveAfterRead, runLiveAfterRead);
+    }
+    return inFlightForecast;
+  }
 
   if (
     force &&
@@ -356,6 +365,7 @@ function requestForecast(
   }
 
   if (force) lastLiveRefreshAt = now;
+  inFlightForecastWasForced = force;
 
   const endpoint = force
     ? '/api/rewards/estimate?refresh=1'
@@ -394,6 +404,7 @@ function requestForecast(
     })
     .finally(() => {
       inFlightForecast = null;
+      inFlightForecastWasForced = false;
     });
 
   return inFlightForecast;
