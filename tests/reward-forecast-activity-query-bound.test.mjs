@@ -31,8 +31,7 @@ function narrowLikeDatabase(rows, roundId) {
   return rows.filter((r) =>
     (r.status === 'COMPLETED' && r.vote_round_id === roundId) ||
     (r.status === 'ACTIVATING' &&
-      [r.activated_at, r.apps_completed_at, r.vote_completed_at]
-        .some((t) => t && Date.parse(t) >= cutoff)),
+      r.activated_at && Date.parse(r.activated_at) >= cutoff),
   );
 }
 
@@ -51,7 +50,7 @@ test('narrowed activity sample preserves the original forecast across edge cases
     row({status: 'COMPLETED', vote_round_id: 124, activated_at: fresh}),
     row({status: 'CANCELLED'}),
   ];
-  assert.equal(countActiveSharedPoolReferrals(rows, 125, now), 4);
+  assert.equal(countActiveSharedPoolReferrals(rows, 125, now), 3);
   assert.equal(
     countActiveSharedPoolReferrals(narrowLikeDatabase(rows, 125), 125, now),
     countActiveSharedPoolReferrals(rows, 125, now),
@@ -61,10 +60,8 @@ test('narrowed activity sample preserves the original forecast across edge cases
 test('public endpoint reads just recent activity and target-round completions in ONE snapshot', () => {
   assert.match(api, /new Date\(nowMs - ACTIVE_WINDOW_MS\)\.toISOString\(\)/);
   assert.match(api, /const quotedCutoff =/);
-  assert.match(api, /or\(activated_at\.gte/);
-  assert.match(api, /apps_completed_at\.gte/);
-  assert.match(api, /vote_completed_at\.gte/);
-  assert.match(api, /and\(status\.eq\.ACTIVATING,/);
+  assert.match(api, /and\(status\.eq\.ACTIVATING,activated_at\.gte/);
+  assert.doesNotMatch(api, /apps_completed_at\.gte|vote_completed_at\.gte/);
   assert.match(api, /and\(status\.eq\.COMPLETED,vote_round_id\.eq\./);
   assert.match(api, /\.or\(boundedFilter\)/);
   assert.match(api, /activeRows\.length === 1000/);

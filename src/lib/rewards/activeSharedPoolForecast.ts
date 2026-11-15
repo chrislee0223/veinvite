@@ -1,11 +1,11 @@
 /**
  * Public participation guidance, NEVER an immutable payout quote.
  *
- * Count only real invitees who have begun missions, not unopened slots,
- * accepted-but-idle invites or an invented future participant.
+ * Count recent accepted invitations, including people who have not begun
+ * a mission yet. Never count an unopened slot or a hypothetical newcomer.
  * Settlement remains exclusively with the canonical server-side writer.
  */
-export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-active-v2';
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v3';
 export type ActiveReferralForecastRow = {
   status: string | null;
   sybil_status: string | null;
@@ -47,29 +47,28 @@ export function countActiveSharedPoolReferrals(
       return true;
     }
     if (row.status !== 'ACTIVATING') return false;
-    // Simply accepting an invitation (0 dApps) does not enter the estimate.
-    if (!Number.isSafeInteger(row.apps_completed) || Number(row.apps_completed) < 1) return false;
-    return isRecentlyActive(row.activated_at, cutoff, nowMs) ||
-      isRecentlyActive(row.apps_completed_at, cutoff, nowMs) ||
-      isRecentlyActive(row.vote_completed_at, cutoff, nowMs);
+    // Accepting an actual invitation (even at 0 missions) enters the
+    // participation estimate. Old invitations never enter solely because
+    // a historical member later progressed a mission.
+    return isRecentlyActive(row.activated_at, cutoff, nowMs);
   }).length;
 }
 
 export function estimateActiveSharedPoolReward(
   oneWinnerWei: string,
   xReservePerWinnerWei: string,
-  activeInProgressCount: number,
+  recentAcceptedCount: number,
 ): { estimatedRewardWei: string; projectedRecipients: number } {
   if (!/^(0|[1-9][0-9]*)$/.test(oneWinnerWei) ||
       !/^(0|[1-9][0-9]*)$/.test(xReservePerWinnerWei) ||
-      !Number.isSafeInteger(activeInProgressCount) ||
-      activeInProgressCount < 0 || activeInProgressCount >= 999) {
+      !Number.isSafeInteger(recentAcceptedCount) ||
+      recentAcceptedCount < 0 || recentAcceptedCount >= 999) {
     throw new Error('Invalid public shared-pool estimate input');
   }
-  // The minimum one-winner scenario is illustrative when nobody has begun.
-  // Do not add a speculative future participant to real in-progress users.
+  // The minimum one-winner scenario is illustrative when nobody has joined.
+  // Count actual recent acceptances without inventing future participants.
   // This is a public guide, not a reservation or guaranteed payout.
-  const projectedRecipients = Math.max(1, activeInProgressCount);
+  const projectedRecipients = Math.max(1, recentAcceptedCount);
   if (oneWinnerWei === '0') {
     return { estimatedRewardWei: '0', projectedRecipients };
   }

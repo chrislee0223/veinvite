@@ -111,24 +111,18 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
         Number.isNaN(Date.parse(x.observedAt))) {
       throw new Error('Malformed elastic reward preview.');
     }
-    // Quote real mission progress from all cohorts, never a hypothetical new
-    // referral or idle acceptance. Do not count blocked/paid/forfeited users.
-    // One atomic PostgREST query instead of two independent snapshots:
-    // status could change from ACTIVATING to COMPLETED during a refresh.
-    // Fetch only recently active invites OR completions in this round.
-    // The pure estimator still checks Sybil, forfeiture, payment and timing.
+    // Count recent accepted invitations (including 0 missions), never
+    // hypothetical new users, plus completed unpaid users in this vote round.
+    // One bounded, read-only PostgREST snapshot keeps public display separate
+    // from settlement. Older invitees still retain their real payout rights.
     const nowMs = Date.now();
     const cutoffIso = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString();
     const roundId = Number(x.rewardCohortRoundId);
     // PostgREST logical-filter values containing ":" / "." (ISO timestamps)
     // must be quoted, then URL-encoded by supabase-js.
     const quotedCutoff = `"${cutoffIso}"`;
-    const activityFilter =
-      `or(activated_at.gte.${quotedCutoff},` +
-      `apps_completed_at.gte.${quotedCutoff},` +
-      `vote_completed_at.gte.${quotedCutoff})`;
     const boundedFilter =
-      `and(status.eq.ACTIVATING,${activityFilter}),` +
+      `and(status.eq.ACTIVATING,activated_at.gte.${quotedCutoff}),` +
       `and(status.eq.COMPLETED,vote_round_id.eq.${roundId})`;
     const { data: activeRows, error: activeError } = await supabaseAdmin
       .from('invitations')

@@ -19,7 +19,7 @@ function row(overrides = {}) {
   };
 }
 
-test('one actual mission participant produces a one-winner scenario, not a fictitious newcomer', () => {
+test('one recently accepted invite produces a one-winner scenario without inventing a newcomer', () => {
   const active = countActiveSharedPoolReferrals([row()], 124, NOW);
   assert.equal(active, 1);
   const one = 7400n * W;
@@ -40,7 +40,7 @@ test('only actually active users share capacity without double-counting X', () =
   }
 });
 
-test('idle, dormant, blocked, forfeited and already paid users do not dilute estimate', () => {
+test('recent accepted but idle users count; old, blocked, forfeited and already paid do not', () => {
   const refs = [
     row({apps_completed: 0}),
     row({activated_at: old}),
@@ -49,10 +49,24 @@ test('idle, dormant, blocked, forfeited and already paid users do not dilute est
     row({status:'COMPLETED',vote_round_id:124,reward_status:'PAID'}),
     row({reward_status:'FORFEITED'}),
     row({activated_at: old, apps_completed_at: recent, vote_round_id: null}),
-    row({status:'COMPLETED',activated_at: old, vote_round_id:124, reward_status:'ELIGIBLE'}),
-    row({status:'COMPLETED',activated_at: recent, vote_round_id:123}),
+    row({status:'COMPLETED',activated_at: old, vote_round_id:124,reward_status:'ELIGIBLE'}),
+    row({status:'COMPLETED',activated_at: recent,vote_round_id:123}),
   ];
   assert.equal(countActiveSharedPoolReferrals(refs,124,NOW),2);
+});
+
+test('two real acceptances include a 0-mission user; a third joiner immediately updates the estimate', () => {
+  const one = (7402867712268098494020n).toString();
+  const x = (10n * W).toString();
+  const accepted = [row({apps_completed:3}), row({apps_completed:0})];
+  const two = countActiveSharedPoolReferrals(accepted,124,NOW);
+  assert.equal(two, 2);
+  assert.equal(estimateActiveSharedPoolReward(one,x,two).projectedRecipients,2);
+  assert.equal(estimateActiveSharedPoolReward(one,x,two).estimatedRewardWei,'3696433856134049247010');
+  accepted.push(row({apps_completed:0}));
+  const three = countActiveSharedPoolReferrals(accepted,124,NOW);
+  assert.equal(three,3);
+  assert.equal(estimateActiveSharedPoolReward(one,x,three).estimatedRewardWei,'2460955904089366164673');
 });
 
 test('previous invitation cohort may still complete this settlement round', () => {
