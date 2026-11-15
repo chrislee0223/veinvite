@@ -555,7 +555,6 @@ export function PublicRewardForecastCard({
       );
       intervalId = window.setInterval(
         () => {
-          if (document.visibilityState !== 'visible') return;
           void loadForecast(true);
         },
         CLIENT_FORECAST_CACHE_MS,
