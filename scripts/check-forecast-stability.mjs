@@ -64,11 +64,11 @@ if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastCard)) {
 }
 
 if (
-  !/LIVE_REFRESH_THROTTLE_MS\s*=\s*60_000/.test(forecastCard) ||
-  !/lastLiveRefreshAt/.test(forecastCard)
+  !/now - cachedForecastAt < 60_000/.test(forecastCard) ||
+  !/if \(inFlightForecast\) return inFlightForecast;/.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast focus and visibility refreshes must stay rate-bounded.',
+    'Public reward forecast focus and visibility refreshes must stay rate-bounded and de-duplicated.',
   );
 }
 
