@@ -663,9 +663,10 @@ export function PublicRewardForecastCard({
 
       <div
         className="estimateAmount"
+        data-scenario-range={isScenarioRange ? 'true' : undefined}
         aria-label={ready && !elasticPending ? amount : t.pendingTitle}
       >
-        <strong className={isScenarioRange ? 'rewardScenarioRange' : undefined}>{amount}</strong>
+        <strong>{amount}</strong>
       </div>
 
       <p className="estimateEligibility">{t.eligibility}</p>
@@ -749,7 +750,7 @@ export function PublicRewardForecastCard({
           overflow:hidden;
           text-overflow:ellipsis;
         }
-        .estimateAmount strong.rewardScenarioRange {
+        .estimateAmount[data-scenario-range="true"] strong {
           font-size:clamp(1.02rem,4.9vw,1.3rem);
           letter-spacing:-.055em;
           white-space:normal;
