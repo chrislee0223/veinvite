@@ -24,11 +24,10 @@ import {
 } from '@/lib/rewards/rewardForecastSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
-  ACTIVE_WINDOW_MS,
-  countActiveSharedPoolReferrals,
-  estimateActiveSharedPoolReward,
+  summarizeUnsettledPoolReferrals,
+  estimateUnsettledRewardScenarios,
   PUBLIC_ACTIVE_FORECAST_MODEL_VERSION,
-  type ActiveReferralForecastRow,
+  type UnsettledReferralRow,
 } from '@/lib/rewards/activeSharedPoolForecast';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -86,6 +85,8 @@ type ElasticPublicPreview =
       acceptedParticipants: number; rewardCohortRoundId: number; observedAt: string;
       xOptionReservePerWinnerWei: string;
       activeParticipants: number; projectedRecipients: number;
+      potentialParticipants: number; eligibleCompletedParticipants: number;
+      scenarioLowWei: string; scenarioHighWei: string;
       displayEstimateWei: string };
 
 async function readElasticPublicPreview(network: string): Promise<ElasticPublicPreview | null> {
@@ -111,47 +112,27 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
         Number.isNaN(Date.parse(x.observedAt))) {
       throw new Error('Malformed elastic reward preview.');
     }
-    // Quote real mission progress from all cohorts, never a hypothetical new
-    // referral or idle acceptance. Do not count blocked/paid/forfeited users.
-    // One atomic PostgREST query instead of two independent snapshots:
-    // status could change from ACTIVATING to COMPLETED during a refresh.
-    // Fetch only recently active invites OR completions in this round.
-    // The pure estimator still checks Sybil, forfeiture, payment and timing.
-    const nowMs = Date.now();
-    const cutoffIso = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString();
-    const roundId = Number(x.rewardCohortRoundId);
-    // PostgREST logical-filter values containing ":" / "." (ISO timestamps)
-    // must be quoted, then URL-encoded by supabase-js.
-    const quotedCutoff = `"${cutoffIso}"`;
-    const activityFilter =
-      `or(activated_at.gte.${quotedCutoff},` +
-      `apps_completed_at.gte.${quotedCutoff},` +
-      `vote_completed_at.gte.${quotedCutoff})`;
-    const boundedFilter =
-      `and(status.eq.ACTIVATING,${activityFilter}),` +
-      `and(status.eq.COMPLETED,vote_round_id.eq.${roundId})`;
-    const { data: activeRows, error: activeError } = await supabaseAdmin
+    // Include all pending/eligible past AND current cohorts in one bounded,
+    // read-only snapshot. No seven-day exclusion, no assumed completion.
+    const { data: unsettledRows, error: unsettledError } = await supabaseAdmin
       .from('invitations')
-      .select(
-        'status,sybil_status,reward_status,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
-      )
+      .select('status,sybil_status,reward_status,apps_completed,ineligible_at')
       .eq('activation_network', network)
-      .or(boundedFilter)
+      .in('status', ['ACTIVATING', 'COMPLETED'])
+      .in('reward_status', ['PENDING', 'ELIGIBLE'])
       .limit(1000);
-    if (activeError || !activeRows || activeRows.length === 1000) {
+    if (unsettledError || !unsettledRows || unsettledRows.length === 1000) {
       throw new Error(
-        activeError?.message ?? 'Public reward activity sample unavailable',
+        unsettledError?.message ?? 'Unsettled reward scenarios unavailable',
       );
     }
-    const activeParticipants = countActiveSharedPoolReferrals(
-      activeRows as ActiveReferralForecastRow[],
-      roundId,
-      nowMs,
+    const summary = summarizeUnsettledPoolReferrals(
+      unsettledRows as UnsettledReferralRow[],
     );
-    const projected = estimateActiveSharedPoolReward(
+    const scenarios = estimateUnsettledRewardScenarios(
       String(x.oneWinnerWei),
       String(x.xOptionReservePerWinnerWei),
-      activeParticipants,
+      summary.possibleRecipients,
     );
     return {
       mode: 'ELASTIC_SCENARIOS',
@@ -162,9 +143,13 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
       rewardCohortRoundId: Number(x.rewardCohortRoundId),
       observedAt: x.observedAt,
       xOptionReservePerWinnerWei: String(x.xOptionReservePerWinnerWei),
-      activeParticipants,
-      projectedRecipients: projected.projectedRecipients,
-      displayEstimateWei: projected.estimatedRewardWei,
+      activeParticipants: summary.missionProgressParticipants,
+      potentialParticipants: summary.possibleRecipients,
+      eligibleCompletedParticipants: summary.eligibleCompletedRecipients,
+      projectedRecipients: scenarios.scenarioMaxRecipients,
+      scenarioLowWei: scenarios.scenarioLowWei,
+      scenarioHighWei: scenarios.scenarioHighWei,
+      displayEstimateWei: scenarios.scenarioLowWei,
     };
   } catch (error) {
     console.error('Elastic reward preview unavailable:', error);
@@ -201,8 +186,8 @@ async function readyResponse(
       // part of the public reward contract and must never be surfaced.
       estimatedRewardLowWei: null,
       estimatedRewardHighWei: null,
-      expectedRecipients: elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
-        ? elasticEstimate.projectedRecipients : null,
+      // Current unfinished users are possible, not predicted recipients.
+      expectedRecipients: null,
       recipientLow: null,
       recipientHigh: null,
       allocationSampleCount: snapshot.allocationSampleCount,
