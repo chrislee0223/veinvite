@@ -15,6 +15,7 @@ import {
 } from './AppBottomNavigation';
 import { AppHeader } from './AppHeader';
 import { PublicRewardForecastCard } from './PublicRewardForecastCard';
+import type { FirstPaintPublicRewardForecast } from '@/lib/rewards/publicRewardForecastFirstPaint';
 import {
   SOFT_FOCUS_MOTION_CSS,
   softFocusCloseDelay,
@@ -98,7 +99,9 @@ const HOME_DATA_REFRESH_REQUESTED_EVENT =
 const HOME_DATA_REFRESH_SETTLED_EVENT =
   'veinvite-home-data-refresh-settled';
 
-export function HomeClient() {
+export function HomeClient({ initialRewardForecast = null }: {
+  initialRewardForecast?: FirstPaintPublicRewardForecast | null;
+}) {
   const {
     wallet,
     openWallet,
@@ -110,7 +113,6 @@ export function HomeClient() {
 
   const [locale, setLocale] = useState<SupportedLocale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
-  // Presentation only: never mix synthetic entries into the real invites state.
   const [canaryHomeDisplay, setCanaryHomeDisplay] = useState<{
     wallet: string;
     invitations: InviteRecord[];
@@ -222,14 +224,12 @@ export function HomeClient() {
         VERCEL_SHARE_STORAGE_KEY,
       );
     } catch {
-      // The query token remains usable without session persistence.
     }
     const token = tokenFromUrl ?? storedToken ?? '';
     if (!token) return;
     try {
       window.sessionStorage.setItem(VERCEL_SHARE_STORAGE_KEY, token);
     } catch {
-      // An inaccessible storage backend is not a login failure.
     }
     setVercelShareToken(token);
   }, []);
@@ -288,7 +288,6 @@ export function HomeClient() {
     try {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
     } catch {
-      // Language remains changeable for this page session.
     }
     document.documentElement.lang = nextLocale;
     window.dispatchEvent(
@@ -374,7 +373,6 @@ export function HomeClient() {
           });
         }
       } catch {
-        // Optional visual demo must not impact actual Home or reward loading.
       }
     })();
     return () => {
@@ -998,7 +996,7 @@ export function HomeClient() {
             <h1>{referral.homeTitle}</h1>
           </div>
 
-          <PublicRewardForecastCard locale={locale} />
+          <PublicRewardForecastCard locale={locale} initialForecast={initialRewardForecast} />
 
           {!wallet ? (
             <button
