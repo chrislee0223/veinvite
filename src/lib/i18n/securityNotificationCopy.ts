@@ -17,7 +17,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'This referral needs an additional verification before the reward can be finalized. We’ll update you after the review.',
     restrictionTitle: 'VeInvite participation restricted',
     restrictionBody:
-      'This wallet’s future VeInvite participation has been restricted after review. Any reward already paid remains unchanged.',
+      'Following a security review, participation has been restricted. If you disagree, submit an appeal.',
   },
   ko: {
     reviewTitle: '추가 확인 중',
@@ -25,7 +25,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       '이 초대는 보상 확정 전에 추가 확인이 필요해요. 검토가 끝나면 알려드릴게요.',
     restrictionTitle: 'VeInvite 참여 제한',
     restrictionBody:
-      '검토 결과 이 지갑의 향후 VeInvite 참여가 제한됐어요. 이미 지급된 보상은 그대로 유지돼요.',
+      '보안 검토 결과 참여가 제한됐습니다. 이의가 있다면 이의신청을 제출해 주세요.',
   },
   zh: {
     reviewTitle: '正在进行额外核验',
@@ -33,7 +33,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       '此邀请在奖励确认前需要额外核验。审核完成后我们会通知你。',
     restrictionTitle: 'VeInvite 参与受限',
     restrictionBody:
-      '审核后，该钱包今后参与 VeInvite 的资格已被限制。已发放的奖励不会变更。',
+      '经安全审核，参与资格已受限。如有异议，请提交申诉。',
   },
   hi: {
     reviewTitle: 'अतिरिक्त जाँच जारी है',
@@ -41,7 +41,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'इनाम को अंतिम रूप देने से पहले इस रेफ़रल की अतिरिक्त जाँच आवश्यक है। समीक्षा पूरी होने पर आपको सूचित किया जाएगा।',
     restrictionTitle: 'VeInvite भागीदारी सीमित',
     restrictionBody:
-      'समीक्षा के बाद इस वॉलेट की भविष्य की VeInvite भागीदारी सीमित कर दी गई है। पहले से दिए गए इनाम में कोई बदलाव नहीं होगा।',
+      'सुरक्षा समीक्षा के बाद भागीदारी सीमित कर दी गई है। असहमति होने पर अपील करें।',
   },
   es: {
     reviewTitle: 'Verificación adicional',
@@ -49,7 +49,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Esta invitación necesita una verificación adicional antes de confirmar la recompensa. Te avisaremos cuando termine la revisión.',
     restrictionTitle: 'Participación en VeInvite restringida',
     restrictionBody:
-      'Tras la revisión, se restringió la participación futura de esta cartera en VeInvite. Las recompensas ya pagadas no cambian.',
+      'Tras una revisión de seguridad, se restringió la participación. Si no estás de acuerdo, presenta una apelación.',
   },
   ja: {
     reviewTitle: '追加確認中',
@@ -57,7 +57,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'この招待は報酬確定前に追加確認が必要です。確認が完了したらお知らせします。',
     restrictionTitle: 'VeInvite 参加制限',
     restrictionBody:
-      '確認の結果、このウォレットの今後の VeInvite 参加が制限されました。すでに支払われた報酬は変更されません。',
+      'セキュリティ審査の結果、参加が制限されました。異議がある場合は申し立ててください。',
   },
   it: {
     reviewTitle: 'Verifica aggiuntiva',
@@ -65,7 +65,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Questo invito richiede una verifica aggiuntiva prima di confermare la ricompensa. Ti avviseremo al termine della revisione.',
     restrictionTitle: 'Partecipazione a VeInvite limitata',
     restrictionBody:
-      'Dopo la revisione, la partecipazione futura di questo wallet a VeInvite è stata limitata. Le ricompense già pagate non cambiano.',
+      'Dopo una verifica di sicurezza, la partecipazione è stata limitata. Se non sei d’accordo, presenta ricorso.',
   },
   tr: {
     reviewTitle: 'Ek doğrulama yapılıyor',
@@ -73,7 +73,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Bu davet için ödül kesinleşmeden önce ek doğrulama gerekiyor. İnceleme tamamlandığında sana bildireceğiz.',
     restrictionTitle: 'VeInvite katılımı kısıtlandı',
     restrictionBody:
-      'İnceleme sonucunda bu cüzdanın gelecekteki VeInvite katılımı kısıtlandı. Daha önce ödenen ödüller değişmez.',
+      'Güvenlik incelemesi sonucunda katılım kısıtlandı. İtirazınız varsa itiraz başvurusu yapın.',
   },
   nl: {
     reviewTitle: 'Extra controle',
@@ -81,7 +81,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Deze uitnodiging heeft een extra controle nodig voordat de beloning definitief wordt. We laten het weten zodra de controle klaar is.',
     restrictionTitle: 'Deelname aan VeInvite beperkt',
     restrictionBody:
-      'Na controle is toekomstige deelname van deze wallet aan VeInvite beperkt. Reeds uitbetaalde beloningen blijven ongewijzigd.',
+      'Na een veiligheidscontrole is deelname beperkt. Ben je het er niet mee eens? Dien bezwaar in.',
   },
   de: {
     reviewTitle: 'Zusätzliche Prüfung',
@@ -89,7 +89,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Diese Einladung benötigt eine zusätzliche Prüfung, bevor die Belohnung endgültig bestätigt werden kann. Wir informieren dich nach Abschluss.',
     restrictionTitle: 'VeInvite-Teilnahme eingeschränkt',
     restrictionBody:
-      'Nach der Prüfung wurde die zukünftige VeInvite-Teilnahme dieses Wallets eingeschränkt. Bereits ausgezahlte Belohnungen bleiben unverändert.',
+      'Nach einer Sicherheitsprüfung wurde die Teilnahme eingeschränkt. Wenn du nicht einverstanden bist, lege Einspruch ein.',
   },
   fr: {
     reviewTitle: 'Vérification supplémentaire',
@@ -97,7 +97,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Cette invitation nécessite une vérification supplémentaire avant la validation de la récompense. Nous vous informerons à la fin de l’examen.',
     restrictionTitle: 'Participation à VeInvite restreinte',
     restrictionBody:
-      'Après examen, la participation future de ce portefeuille à VeInvite a été restreinte. Les récompenses déjà versées restent inchangées.',
+      'Après vérification de sécurité, la participation a été restreinte. Si vous contestez cette décision, faites appel.',
   },
   ar: {
     reviewTitle: 'جارٍ إجراء تحقق إضافي',
@@ -105,7 +105,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'تحتاج هذه الإحالة إلى تحقق إضافي قبل اعتماد المكافأة. سنبلغك عند انتهاء المراجعة.',
     restrictionTitle: 'تم تقييد المشاركة في VeInvite',
     restrictionBody:
-      'بعد المراجعة، تم تقييد مشاركة هذه المحفظة مستقبلاً في VeInvite. المكافآت التي دُفعت سابقاً لن تتغير.',
+      'بعد المراجعة الأمنية، تم تقييد المشاركة. إذا كنت تعترض، يُرجى تقديم طلب استئناف.',
   },
   bn: {
     reviewTitle: 'অতিরিক্ত যাচাই চলছে',
@@ -113,7 +113,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'পুরস্কার চূড়ান্ত করার আগে এই রেফারেলের অতিরিক্ত যাচাই প্রয়োজন। পর্যালোচনা শেষ হলে জানানো হবে।',
     restrictionTitle: 'VeInvite অংশগ্রহণ সীমিত',
     restrictionBody:
-      'পর্যালোচনার পর এই ওয়ালেটের ভবিষ্যৎ VeInvite অংশগ্রহণ সীমিত করা হয়েছে। ইতিমধ্যে দেওয়া পুরস্কার অপরিবর্তিত থাকবে।',
+      'নিরাপত্তা পর্যালোচনার পর অংশগ্রহণ সীমিত করা হয়েছে। আপত্তি থাকলে আপিল জমা দিন।',
   },
   pt: {
     reviewTitle: 'Verificação adicional',
@@ -121,7 +121,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Este convite precisa de uma verificação adicional antes da confirmação da recompensa. Avisaremos quando a análise terminar.',
     restrictionTitle: 'Participação no VeInvite restrita',
     restrictionBody:
-      'Após a análise, a participação futura desta carteira no VeInvite foi restringida. Recompensas já pagas não serão alteradas.',
+      'Após uma análise de segurança, a participação foi restringida. Se discordar, envie um recurso.',
   },
   ru: {
     reviewTitle: 'Дополнительная проверка',
@@ -129,7 +129,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Для этого приглашения нужна дополнительная проверка до окончательного подтверждения награды. Мы сообщим о результате.',
     restrictionTitle: 'Участие в VeInvite ограничено',
     restrictionBody:
-      'После проверки будущая активность этого кошелька в VeInvite ограничена. Уже выплаченные награды не изменяются.',
+      'По итогам проверки безопасности участие ограничено. Если вы не согласны, подайте апелляцию.',
   },
   id: {
     reviewTitle: 'Verifikasi tambahan',
@@ -137,7 +137,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Referral ini memerlukan verifikasi tambahan sebelum hadiah ditetapkan. Kami akan memberi tahu setelah peninjauan selesai.',
     restrictionTitle: 'Partisipasi VeInvite dibatasi',
     restrictionBody:
-      'Setelah peninjauan, partisipasi VeInvite di masa mendatang untuk dompet ini dibatasi. Hadiah yang sudah dibayar tidak berubah.',
+      'Setelah peninjauan keamanan, partisipasi dibatasi. Jika Anda tidak setuju, ajukan banding.',
   },
   vi: {
     reviewTitle: 'Đang xác minh thêm',
@@ -145,7 +145,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Lời mời này cần được xác minh thêm trước khi phần thưởng được xác nhận. Chúng tôi sẽ thông báo khi hoàn tất.',
     restrictionTitle: 'Quyền tham gia VeInvite bị hạn chế',
     restrictionBody:
-      'Sau khi xem xét, ví này bị hạn chế tham gia VeInvite trong tương lai. Phần thưởng đã thanh toán sẽ không thay đổi.',
+      'Sau khi kiểm tra bảo mật, quyền tham gia đã bị hạn chế. Nếu không đồng ý, hãy gửi đơn khiếu nại.',
   },
   'zh-tw': {
     reviewTitle: '正在進行額外驗證',
@@ -153,7 +153,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       '此邀請在獎勵確認前需要額外驗證。審查完成後我們會通知你。',
     restrictionTitle: 'VeInvite 參與受限',
     restrictionBody:
-      '審查後，此錢包未來參與 VeInvite 的資格已受限制。已發放的獎勵不會變更。',
+      '經安全審查，參與資格已受限。如有異議，請提出申訴。',
   },
   sv: {
     reviewTitle: 'Ytterligare verifiering',
@@ -161,7 +161,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Den här inbjudan behöver en extra verifiering innan belöningen kan fastställas. Vi meddelar dig när granskningen är klar.',
     restrictionTitle: 'VeInvite-deltagande begränsat',
     restrictionBody:
-      'Efter granskning har den här plånbokens framtida deltagande i VeInvite begränsats. Redan utbetalda belöningar ändras inte.',
+      'Efter en säkerhetsgranskning har deltagandet begränsats. Om du inte håller med, överklaga beslutet.',
   },
   ro: {
     reviewTitle: 'Verificare suplimentară',
@@ -169,7 +169,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Această invitație necesită o verificare suplimentară înainte ca recompensa să fie confirmată. Te vom anunța după finalizarea analizei.',
     restrictionTitle: 'Participarea la VeInvite a fost restricționată',
     restrictionBody:
-      'După analiză, participarea viitoare a acestui portofel la VeInvite a fost restricționată. Recompensele deja plătite rămân neschimbate.',
+      'În urma verificării de securitate, participarea a fost restricționată. Dacă nu ești de acord, depune o contestație.',
   },
   ur: {
     reviewTitle: 'اضافی تصدیق جاری ہے',
@@ -177,7 +177,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'انعام کو حتمی بنانے سے پہلے اس ریفرل کی اضافی تصدیق ضروری ہے۔ جائزہ مکمل ہونے پر آپ کو اطلاع دی جائے گی۔',
     restrictionTitle: 'VeInvite میں شرکت محدود',
     restrictionBody:
-      'جائزے کے بعد اس والیٹ کی آئندہ VeInvite شرکت محدود کر دی گئی ہے۔ پہلے سے ادا شدہ انعامات تبدیل نہیں ہوں گے۔',
+      'سیکیورٹی جائزے کے بعد شرکت محدود کر دی گئی ہے۔ اگر آپ کو اعتراض ہے تو اپیل جمع کرائیں۔',
   },
   pcm: {
     reviewTitle: 'Extra check dey happen',
@@ -185,7 +185,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Dis referral need extra check before reward fit final. We go tell you when review finish.',
     restrictionTitle: 'VeInvite participation don restrict',
     restrictionBody:
-      'After review, dis wallet future VeInvite participation don restrict. Reward wey don pay before no go change.',
+      'After security check, dem don restrict participation. If you no agree, submit appeal.',
   },
   arz: {
     reviewTitle: 'في مراجعة إضافية',
@@ -193,7 +193,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'الدعوة دي محتاجة تحقق إضافي قبل ما المكافأة تتأكد. هنبلغك لما المراجعة تخلص.',
     restrictionTitle: 'المشاركة في VeInvite اتقيّدت',
     restrictionBody:
-      'بعد المراجعة، مشاركة المحفظة دي في VeInvite قدّام اتقيّدت. أي مكافأة اتدفعت قبل كده مش هتتغير.',
+      'بعد مراجعة الأمان، المشاركة اتقيّدت. لو عندك اعتراض، قدّم تظلّم.',
   },
   mr: {
     reviewTitle: 'अतिरिक्त पडताळणी सुरू आहे',
@@ -201,7 +201,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'बक्षीस अंतिम करण्यापूर्वी या रेफरलची अतिरिक्त पडताळणी आवश्यक आहे. तपासणी पूर्ण झाल्यावर कळवले जाईल.',
     restrictionTitle: 'VeInvite सहभाग मर्यादित',
     restrictionBody:
-      'तपासणीनंतर या वॉलेटचा भविष्यातील VeInvite सहभाग मर्यादित करण्यात आला आहे. आधीच दिलेली बक्षिसे बदलणार नाहीत.',
+      'सुरक्षा तपासणीनंतर सहभाग मर्यादित करण्यात आला आहे. आक्षेप असल्यास अपील सादर करा.',
   },
   te: {
     reviewTitle: 'అదనపు ధృవీకరణ జరుగుతోంది',
@@ -209,7 +209,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'రివార్డు ఖరారు చేయడానికి ముందు ఈ రిఫరల్‌కు అదనపు ధృవీకరణ అవసరం. సమీక్ష పూర్తయ్యాక తెలియజేస్తాము.',
     restrictionTitle: 'VeInvite పాల్గొనడం పరిమితం',
     restrictionBody:
-      'సమీక్ష అనంతరం ఈ వాలెట్ భవిష్యత్ VeInvite పాల్గొనడం పరిమితం చేయబడింది. ఇప్పటికే చెల్లించిన రివార్డులు మారవు.',
+      'భద్రతా సమీక్ష అనంతరం పాల్గొనడం పరిమితం చేయబడింది. అభ్యంతరం ఉంటే అప్పీల్ సమర్పించండి.',
   },
   sw: {
     reviewTitle: 'Uhakiki wa ziada unaendelea',
@@ -217,7 +217,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Rufaa hii inahitaji uhakiki wa ziada kabla ya zawadi kuthibitishwa. Tutakujulisha ukaguzi ukikamilika.',
     restrictionTitle: 'Ushiriki wa VeInvite umewekewa kikomo',
     restrictionBody:
-      'Baada ya ukaguzi, ushiriki wa baadaye wa pochi hii kwenye VeInvite umewekewa kikomo. Zawadi zilizolipwa tayari hazitabadilika.',
+      'Baada ya ukaguzi wa usalama, ushiriki umewekewa kikomo. Ikiwa hukubaliani, wasilisha rufaa.',
   },
   ha: {
     reviewTitle: 'Ana ƙarin tantancewa',
@@ -225,7 +225,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Wannan gayyatar tana buƙatar ƙarin tantancewa kafin a tabbatar da lada. Za mu sanar da kai bayan an gama bita.',
     restrictionTitle: 'An takaita shiga VeInvite',
     restrictionBody:
-      'Bayan bita, an takaita shiga VeInvite na wannan walat a nan gaba. Ladan da aka riga aka biya ba zai canza ba.',
+      'Bayan binciken tsaro, an takaita shiga. Idan ba ka yarda ba, ka ɗaukaka ƙara.',
   },
   el: {
     reviewTitle: 'Πρόσθετος έλεγχος',
@@ -233,7 +233,7 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Αυτή η πρόσκληση χρειάζεται πρόσθετο έλεγχο πριν οριστικοποιηθεί η ανταμοιβή. Θα ενημερωθείς όταν ολοκληρωθεί.',
     restrictionTitle: 'Περιορισμός συμμετοχής στο VeInvite',
     restrictionBody:
-      'Μετά τον έλεγχο, περιορίστηκε η μελλοντική συμμετοχή αυτού του πορτοφολιού στο VeInvite. Οι ήδη καταβληθείσες ανταμοιβές δεν αλλάζουν.',
+      'Μετά από έλεγχο ασφαλείας, η συμμετοχή περιορίστηκε. Αν διαφωνείς, υπέβαλε ένσταση.',
   },
   cs: {
     reviewTitle: 'Probíhá dodatečné ověření',
@@ -241,6 +241,6 @@ export const SECURITY_NOTIFICATION_COPY: Record<
       'Toto pozvání vyžaduje dodatečné ověření před konečným potvrzením odměny. Po dokončení kontroly tě budeme informovat.',
     restrictionTitle: 'Účast ve VeInvite omezena',
     restrictionBody:
-      'Po kontrole byla budoucí účast této peněženky ve VeInvite omezena. Již vyplacené odměny zůstávají beze změny.',
+      'Po bezpečnostní kontrole byla účast omezena. Pokud nesouhlasíš, podej odvolání.',
   },
 };
