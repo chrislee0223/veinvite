@@ -5,11 +5,12 @@
  * a mission yet. Never count an unopened slot or a hypothetical newcomer.
  * Settlement remains exclusively with the canonical server-side writer.
  */
-export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v3';
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v4';
 export type ActiveReferralForecastRow = {
   status: string | null;
   sybil_status: string | null;
   reward_status: string | null;
+  ineligible_at: string | null;
   apps_completed: number | null;
   activated_at: string | null;
   apps_completed_at: string | null;
@@ -40,6 +41,7 @@ export function countActiveSharedPoolReferrals(
   return rows.filter((row) => {
     if (row.status !== 'ACTIVATING' && row.status !== 'COMPLETED') return false;
     if (row.sybil_status === 'BLOCKED' ||
+        row.ineligible_at != null ||
         row.reward_status === 'PAID' || row.reward_status === 'FORFEITED') return false;
     // A verified completion in this round remains a possible recipient even
     // if its original invitation was created in an older round.

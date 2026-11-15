@@ -13,7 +13,7 @@ const old = '2026-10-01T13:30:00.000Z';
 function row(overrides = {}) {
   return {
     status: 'ACTIVATING', sybil_status: 'NOT_CHECKED',
-    reward_status: 'PENDING', apps_completed: 1, activated_at: recent,
+    reward_status: 'PENDING', ineligible_at: null, apps_completed: 1, activated_at: recent,
     apps_completed_at: null, vote_completed_at: null,
     vote_round_id: null, ...overrides,
   };
@@ -48,6 +48,7 @@ test('recent accepted but idle users count; old, blocked, forfeited and already 
     row({status:'CANCELLED'}),
     row({status:'COMPLETED',vote_round_id:124,reward_status:'PAID'}),
     row({reward_status:'FORFEITED'}),
+    row({ineligible_at: recent}),
     row({activated_at: old, apps_completed_at: recent, vote_round_id: null}),
     row({status:'COMPLETED',activated_at: old, vote_round_id:124,reward_status:'ELIGIBLE'}),
     row({status:'COMPLETED',activated_at: recent,vote_round_id:123}),
@@ -67,6 +68,13 @@ test('two real acceptances include a 0-mission user; a third joiner immediately 
   const three = countActiveSharedPoolReferrals(accepted,124,NOW);
   assert.equal(three,3);
   assert.equal(estimateActiveSharedPoolReward(one,x,three).estimatedRewardWei,'2460955904089366164673');
+});
+
+test('both pending and completed ineligible referrals are never counted', () => {
+  const current = [row(), row({apps_completed:0,ineligible_at:recent}),
+    row({status:'COMPLETED',reward_status:'ELIGIBLE',vote_round_id:124,ineligible_at:recent}),
+    row({status:'COMPLETED',reward_status:'ELIGIBLE',vote_round_id:124})];
+  assert.equal(countActiveSharedPoolReferrals(current,124,NOW),2);
 });
 
 test('previous invitation cohort may still complete this settlement round', () => {

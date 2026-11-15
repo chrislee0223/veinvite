@@ -17,6 +17,7 @@ function row(overrides = {}) {
     status: 'ACTIVATING',
     sybil_status: 'CLEAR',
     reward_status: 'PENDING',
+    ineligible_at: null,
     apps_completed: 1,
     activated_at: fresh,
     apps_completed_at: null,
@@ -28,11 +29,11 @@ function row(overrides = {}) {
 
 function narrowLikeDatabase(rows, roundId) {
   const cutoff = now - ACTIVE_WINDOW_MS;
-  return rows.filter((r) =>
+  return rows.filter((r) => r.ineligible_at === null && (
     (r.status === 'COMPLETED' && r.vote_round_id === roundId) ||
     (r.status === 'ACTIVATING' &&
-      r.activated_at && Date.parse(r.activated_at) >= cutoff),
-  );
+      r.activated_at && Date.parse(r.activated_at) >= cutoff)
+  ));
 }
 
 test('narrowed activity sample preserves the original forecast across edge cases', () => {
@@ -46,6 +47,8 @@ test('narrowed activity sample preserves the original forecast across edge cases
     row({activated_at: future}),
     row({sybil_status: 'BLOCKED'}),
     row({reward_status: 'FORFEITED'}),
+    row({ineligible_at: fresh}),
+    row({status:'COMPLETED', vote_round_id:125, activated_at:old, ineligible_at:fresh}),
     row({status: 'COMPLETED', vote_round_id: 125, activated_at: old}),
     row({status: 'COMPLETED', vote_round_id: 124, activated_at: fresh}),
     row({status: 'CANCELLED'}),
@@ -64,6 +67,8 @@ test('public endpoint reads just recent activity and target-round completions in
   assert.doesNotMatch(api, /apps_completed_at\.gte|vote_completed_at\.gte/);
   assert.match(api, /and\(status\.eq\.COMPLETED,vote_round_id\.eq\./);
   assert.match(api, /\.or\(boundedFilter\)/);
+  assert.match(api, /\.is\('ineligible_at', null\)/);
+  assert.match(api, /reward_status,ineligible_at,apps_completed/);
   assert.match(api, /activeRows\.length === 1000/);
   assert.match(api, /countActiveSharedPoolReferrals/);
   assert.match(api, /apps_completed,activated_at/);

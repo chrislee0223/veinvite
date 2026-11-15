@@ -127,9 +127,10 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     const { data: activeRows, error: activeError } = await supabaseAdmin
       .from('invitations')
       .select(
-        'status,sybil_status,reward_status,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
+        'status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
       )
       .eq('activation_network', network)
+      .is('ineligible_at', null)
       .or(boundedFilter)
       .limit(1000);
     if (activeError || !activeRows || activeRows.length === 1000) {
