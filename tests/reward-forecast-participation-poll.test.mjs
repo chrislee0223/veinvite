@@ -12,6 +12,11 @@ test('participation refresh bypasses only client memory; no new chain refresh or
   assert.match(card,/!bypassMemoryCache &&\s*cachedForecast/);
   assert.match(card,/requestForecast\(force, bypassMemoryCache\)/);
   assert.match(card,/void loadForecast\(false, true\)/);
+  assert.match(card,/if \(force && !inFlightForecastWasForced\)/);
+  assert.match(card,/const runLiveAfterRead = \(\) => requestForecast\(true\)/);
+  assert.match(card,/inFlightForecast\.then\(runLiveAfterRead, runLiveAfterRead\)/);
+  assert.match(card,/inFlightForecastWasForced = force/);
+  assert.match(card,/inFlightForecastWasForced = false/);
   assert.match(card,/document\.visibilityState !== 'visible'/);
   assert.match(card,/window\.clearInterval\(participationPollId\)/);
   assert.match(card,/CLIENT_FORECAST_CACHE_MS = 15 \* 60_000/);
