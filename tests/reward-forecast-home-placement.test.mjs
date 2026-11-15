@@ -27,7 +27,7 @@ async function doesNotExist(relativePath) {
 test('Home visually prioritizes invite actions, then reward estimate, then progress slots', () => {
   assert.match(
     homeClient,
-    /<PublicRewardForecastCard locale=\{locale\} \/>/,
+    /<PublicRewardForecastCard locale=\{locale\} initialForecast=\{initialRewardForecast\} \/>/,
     'Home should keep rendering the reward forecast card.',
   );
   assert.match(
