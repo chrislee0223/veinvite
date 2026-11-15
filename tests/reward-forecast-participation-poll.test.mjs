@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const card = readFileSync('src/components/PublicRewardForecastCard.tsx', 'utf8');
 const api = readFileSync('src/app/api/rewards/estimate/route.ts','utf8');
+const reader = readFileSync('src/lib/rewards/publicElasticForecastReader.ts','utf8');
 const forecast = readFileSync('src/lib/rewards/activeSharedPoolForecast.ts','utf8');
 const writer = readFileSync('src/lib/rewards/rewardReservation.ts','utf8');
 
@@ -27,8 +28,9 @@ test('participation refresh bypasses only client memory; no new chain refresh or
 });
 
 test('read-only API excludes ineligible referrals at DB and calculation levels',()=>{
-  assert.match(api,/\.is\('ineligible_at', null\)/);
-  assert.match(api,/sybil_status,reward_status,ineligible_at,apps_completed/);
+  assert.match(api,/readElasticPublicPreview/);
+  assert.match(reader,/\.is\('ineligible_at', null\)/);
+  assert.match(reader,/sybil_status,reward_status,ineligible_at,apps_completed/);
   assert.match(forecast,/row\.ineligible_at != null/);
   assert.match(forecast,/PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v4'/);
   assert.match(card,/_recent_v4/);

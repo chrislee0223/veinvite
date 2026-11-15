@@ -6,7 +6,8 @@ import {
   countActiveSharedPoolReferrals,
 } from '../src/lib/rewards/activeSharedPoolForecast.ts';
 
-const api = readFileSync('src/app/api/rewards/estimate/route.ts', 'utf8');
+const api = readFileSync('src/lib/rewards/publicElasticForecastReader.ts', 'utf8');
+const endpoint = readFileSync('src/app/api/rewards/estimate/route.ts', 'utf8');
 const now = Date.parse('2026-11-13T12:00:00.000Z');
 const fresh = new Date(now - 60 * 60 * 1000).toISOString();
 const old = new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString();
@@ -61,6 +62,7 @@ test('narrowed activity sample preserves the original forecast across edge cases
 });
 
 test('public endpoint reads just recent activity and target-round completions in ONE snapshot', () => {
+  assert.match(endpoint, /readElasticPublicPreview/);
   assert.match(api, /new Date\(nowMs - ACTIVE_WINDOW_MS\)\.toISOString\(\)/);
   assert.match(api, /const quotedCutoff =/);
   assert.match(api, /and\(status\.eq\.ACTIVATING,activated_at\.gte/);

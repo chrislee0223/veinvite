@@ -3,18 +3,33 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [homePage, forecastCard, estimateRoute] = await Promise.all([
+const [homePage, homeClient, forecastCard, estimateRoute, serverSeed, sharedReader] = await Promise.all([
   read('src/app/page.tsx'),
+  read('src/components/HomeClient.tsx'),
   read('src/components/PublicRewardForecastCard.tsx'),
   read('src/app/api/rewards/estimate/route.ts'),
+  read('src/lib/rewards/publicRewardForecastFirstPaint.ts'),
+  read('src/lib/rewards/publicElasticForecastReader.ts'),
 ]);
 
-test('Home never injects the historical recipient-floor quote into initial paint', () => {
-  assert.doesNotMatch(homePage, /RewardForecastSeedProvider|readPublicRewardForecastSeed|HOME_FORECAST_PREFILL_BUDGET_MS/);
-  assert.match(homePage, /readWalletSessionBootstrapForFirstPaint/);
-  assert.match(homePage, /<HomeClient \/>/);
-  assert.doesNotMatch(forecastCard, /useRewardForecastSeed|serverSeed|LEGACY_FORECAST_STORAGE_KEY/);
-  assert.match(forecastCard, /pickPreferredForecast\(cachedForecast\)/);
+test('first HTML paint includes only the approved current-cohort estimate', () => {
+  assert.doesNotMatch(homePage, /RewardForecastSeedProvider|HOME_FORECAST_PREFILL_BUDGET_MS/);
+  assert.match(homePage, /Promise\.all\(\[/);
+  assert.match(homePage, /readPublicSharedPoolFirstPaintForecast\(\)/);
+  assert.match(homePage, /<HomeClient initialRewardForecast=\{initialRewardForecast\} \/>/);
+  assert.match(homeClient, /initialForecast=\{initialRewardForecast\}/);
+  assert.match(forecastCard, /normalizeForecastResponse\(initialForecast\)/);
+  assert.match(forecastCard, /pickPreferredForecast\([\s\S]*seeded/);
+  assert.match(serverSeed, /snapshot\.modelVersion !== REWARD_FORECAST_MODEL_VERSION/);
+  assert.match(serverSeed, /elastic\?\.mode !== 'ELASTIC_SCENARIOS'/);
+  assert.match(serverSeed, /estimatedRewardWei: elastic\.displayEstimateWei/);
+  assert.doesNotMatch(serverSeed, /estimatedRewardWei: snapshot\.estimatedRewardWei/);
+  assert.match(serverSeed, /unstable_cache/);
+  assert.match(serverSeed, /revalidate: 30/);
+  assert.match(serverSeed, /1_250/);
+  assert.match(estimateRoute, /readElasticPublicPreview/);
+  assert.match(estimateRoute, /FORECAST_REFRESH_WINDOW_SECONDS = 15 \* 60/);
+  assert.match(sharedReader, /countActiveSharedPoolReferrals/);
 });
 
 test('revised client storage ignores old-model quote and restores current-model values only', () => {

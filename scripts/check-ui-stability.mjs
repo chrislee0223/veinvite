@@ -288,8 +288,8 @@ const homeClient = read('src/components/HomeClient.tsx');
 const rewardForecastCard = read(
   'src/components/PublicRewardForecastCard.tsx',
 );
-const forecastIndex = homeClient.indexOf(
-  '<PublicRewardForecastCard locale={locale} />',
+const forecastIndex = homeClient.search(
+  /<PublicRewardForecastCard\s+locale=\{locale\}(?:\s+initialForecast=\{initialRewardForecast\})?\s*\/>/,
 );
 const walletBranchIndex = homeClient.indexOf('{!wallet ? (');
 if (forecastIndex < 0 || walletBranchIndex <= forecastIndex) {

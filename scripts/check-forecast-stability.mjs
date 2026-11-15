@@ -86,7 +86,7 @@ for (const legacyDetail of [
 
 if (
   !/data-home-reward-forecast="true"/.test(forecastCard) ||
-  !/<PublicRewardForecastCard locale=\{locale\} \/>/.test(homeClient)
+  !/<PublicRewardForecastCard\s+locale=\{locale\}(?:\s+initialForecast=\{initialRewardForecast\})?\s*\/>/.test(homeClient)
 ) {
   failures.push(
     'Public reward forecast must remain a direct Home surface instead of a Leaderboard attachment.',
