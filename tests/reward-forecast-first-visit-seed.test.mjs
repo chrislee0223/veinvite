@@ -19,7 +19,7 @@ test('Home never injects the historical recipient-floor quote into initial paint
 
 test('revised client storage ignores old-model quote and restores current-model values only', () => {
   assert.match(forecastCard, /PUBLIC_ACTIVE_FORECAST_MODEL_VERSION/);
-  assert.match(forecastCard, /_active_v2/);
+  assert.match(forecastCard, /_scenarios_v3/);
   assert.match(forecastCard, /isRestorableRewardForecast/);
   assert.match(forecastCard, /useIsomorphicLayoutEffect/);
   assert.match(forecastCard, /persistForecast\(result\)/);
