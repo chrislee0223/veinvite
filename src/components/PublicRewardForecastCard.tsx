@@ -6,14 +6,13 @@ import {
   useState,
 } from 'react';
 
-import { useRewardForecastSeed } from './RewardForecastSeedProvider';
 import {
   getLocaleDirection,
   isLocale,
   type SupportedLocale,
 } from '@/lib/i18n/locales';
 import { REWARD_FORECAST_COPY } from '@/lib/i18n/rewardForecastCopy';
-import { REWARD_FORECAST_MODEL_VERSION } from '@/lib/rewards/rewardForecastPolicy';
+import { PUBLIC_ACTIVE_FORECAST_MODEL_VERSION } from '@/lib/rewards/activeSharedPoolForecast';
 import {
   forecastSnapshotAgeMs,
   isRestorableRewardForecast,
@@ -96,6 +95,16 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
   modelVersion: 'preview',
   status: 'ready',
   estimatedRewardWei: '147740500000000000000',
+  elasticEstimate: {
+    mode: 'ELASTIC_SCENARIOS',
+    oneWinnerWei: '147740500000000000000',
+    twoWinnersWei: '73870250000000000000',
+    threeWinnersWei: '49246833333333333333',
+    displayEstimateWei: '147740500000000000000',
+    projectedRecipients: 1,
+    acceptedParticipants: 1,
+    rewardCohortRoundId: 124,
+  },
   stale: false,
 };
 
@@ -104,10 +113,7 @@ const LIVE_REFRESH_THROTTLE_MS = 60_000;
 const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  `veinvite_reward_forecast_${REWARD_FORECAST_MODEL_VERSION}_active_v1`;
-// Existing v2.1 storage sometimes held the v2.2 model. Restore it only after
-// verifying its actual model and original timestamps, not the legacy key name.
-const LEGACY_FORECAST_STORAGE_KEY = 'veinvite_reward_forecast_v2_1_cohort';
+  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_active_v2`;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
@@ -163,7 +169,9 @@ function normalizeForecastResponse(
     record.status === 'ready' &&
     typeof record.estimatedRewardWei === 'string' &&
     /^\d+$/.test(record.estimatedRewardWei) &&
-    modelVersion === REWARD_FORECAST_MODEL_VERSION &&
+    readElasticEstimate(record.elasticEstimate)?.mode === 'ELASTIC_SCENARIOS' &&
+    (record.elasticEstimate as { displayEstimateWei: string }).displayEstimateWei === record.estimatedRewardWei &&
+    modelVersion === PUBLIC_ACTIVE_FORECAST_MODEL_VERSION &&
     forecastSnapshotAgeMs(generatedAt, Date.now()) !== null
   ) {
     return {
@@ -211,7 +219,7 @@ function pickPreferredForecast(
     // Never prefer an expired ready snapshot over a valid pending/new result.
     if (
       candidate.status === 'ready' &&
-      (candidate.modelVersion !== REWARD_FORECAST_MODEL_VERSION ||
+      (candidate.modelVersion !== PUBLIC_ACTIVE_FORECAST_MODEL_VERSION ||
         forecastSnapshotAgeMs(candidate.generatedAt, Date.now()) === null)
     ) continue;
     if (!preferred) {
@@ -246,13 +254,9 @@ function readPersistedForecast(): RewardForecastResponse | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    const currentRaw = window.localStorage.getItem(
+    const raw = window.localStorage.getItem(
       PERSISTED_FORECAST_STORAGE_KEY,
     );
-    const legacyRaw = currentRaw ? null : window.localStorage.getItem(
-      LEGACY_FORECAST_STORAGE_KEY,
-    );
-    const raw = currentRaw ?? legacyRaw;
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as Partial<PersistedRewardForecast>;
@@ -267,25 +271,14 @@ function readPersistedForecast(): RewardForecastResponse | null {
         generatedAt: forecast.generatedAt,
         modelVersion: forecast.modelVersion,
         status: forecast.status,
-        expectedModelVersion: REWARD_FORECAST_MODEL_VERSION,
+        expectedModelVersion: PUBLIC_ACTIVE_FORECAST_MODEL_VERSION,
         nowMs,
       })
     ) {
       window.localStorage.removeItem(
-        currentRaw ? PERSISTED_FORECAST_STORAGE_KEY : LEGACY_FORECAST_STORAGE_KEY,
+        PERSISTED_FORECAST_STORAGE_KEY,
       );
       return null;
-    }
-
-    if (legacyRaw) {
-      // Move only an already validated snapshot, preserving its original
-      // savedAt and generatedAt. Migration must not re-age the estimate.
-      try {
-        window.localStorage.setItem(PERSISTED_FORECAST_STORAGE_KEY, raw);
-        window.localStorage.removeItem(LEGACY_FORECAST_STORAGE_KEY);
-      } catch {
-        // A read-only browser cache is still usable for this render.
-      }
     }
 
     return {
@@ -306,7 +299,7 @@ function persistForecast(result: RewardForecastResponse): void {
   if (
     typeof window === 'undefined' ||
     result.status !== 'ready' ||
-    result.modelVersion !== REWARD_FORECAST_MODEL_VERSION ||
+    result.modelVersion !== PUBLIC_ACTIVE_FORECAST_MODEL_VERSION ||
     forecastSnapshotAgeMs(result.generatedAt, Date.now()) === null
   ) {
     return;
@@ -322,8 +315,8 @@ function persistForecast(result: RewardForecastResponse): void {
       JSON.stringify(payload),
     );
   } catch {
-    // Storage may be unavailable in hardened/private browser modes. The
-    // in-memory cache and server snapshot remain authoritative fallbacks.
+    // Private browser modes may disable storage. Memory and a live API read
+    // remain safe; historical cohort estimates are never restored.
   }
 }
 
@@ -407,21 +400,18 @@ export function PublicRewardForecastCard({
   locale: SupportedLocale;
   rewardForecastPreview?: boolean;
 }) {
-  const serverSeed = useRewardForecastSeed();
   const resolvedLocale: SupportedLocale = isLocale(locale)
     ? locale
     : 'en';
   const [forecast, setForecast] = useState<RewardForecastResponse | null>(
     () => rewardForecastPreview
       ? PREVIEW_FORECAST
-      : pickPreferredForecast(serverSeed, cachedForecast),
+      : pickPreferredForecast(cachedForecast),
   );
   const [unavailable, setUnavailable] = useState(false);
 
-  // Prefer the newest known public estimate before paint. First-time visitors
-  // receive the server snapshot, while returning visitors may keep a newer
-  // browser value if one exists. This avoids both a blank first-login amount
-  // and a visible regression to an older cached server value.
+  // Restore ONLY a validated current-model estimate before paint. Never
+  // hydrate the deprecated server-side recipient-floor quote.
   useIsomorphicLayoutEffect(() => {
     if (rewardForecastPreview) {
       setUnavailable(false);
@@ -431,7 +421,6 @@ export function PublicRewardForecastCard({
 
     const restored = readPersistedForecast();
     const preferred = pickPreferredForecast(
-      serverSeed,
       cachedForecast,
       restored,
     );
@@ -442,7 +431,7 @@ export function PublicRewardForecastCard({
       setUnavailable(false);
       setForecast(preferred);
     }
-  }, [rewardForecastPreview, serverSeed]);
+  }, [rewardForecastPreview]);
 
   useEffect(() => {
     if (rewardForecastPreview) return;
@@ -619,15 +608,11 @@ export function PublicRewardForecastCard({
   const elastic = ready && forecast.elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
     ? forecast.elasticEstimate
     : null;
-  const elasticPending = ready && forecast.elasticEstimate?.mode === 'PENDING';
+  const elasticPending = !elastic;
   const stale = ready && forecast.stale === true;
   const amount = elastic
     ? `${formatRewardWei(elastic.displayEstimateWei)} B3TR`
-    : elasticPending
-      ? '— B3TR'
-      : ready
-        ? `${formatRewardWei(forecast.estimatedRewardWei)} B3TR`
-        : '— B3TR';
+    : '— B3TR';
   const note = unavailable && !forecast
     ? t.unavailable
     : elasticPending || forecast?.status === 'pending'

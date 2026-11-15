@@ -26,7 +26,8 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   ACTIVE_WINDOW_MS,
   countActiveSharedPoolReferrals,
-  estimateProspectiveSharedPoolReward,
+  estimateActiveSharedPoolReward,
+  PUBLIC_ACTIVE_FORECAST_MODEL_VERSION,
   type ActiveReferralForecastRow,
 } from '@/lib/rewards/activeSharedPoolForecast';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
@@ -110,9 +111,8 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
         Number.isNaN(Date.parse(x.observedAt))) {
       throw new Error('Malformed elastic reward preview.');
     }
-    // Public copy is for a prospective new referral: use live, recent progress
-    // from all entry cohorts, not just the current acceptance cohort. Never
-    // count dormant, blocked, forfeited or already-paid invitations.
+    // Quote real mission progress from all cohorts, never a hypothetical new
+    // referral or idle acceptance. Do not count blocked/paid/forfeited users.
     // One atomic PostgREST query instead of two independent snapshots:
     // status could change from ACTIVATING to COMPLETED during a refresh.
     // Fetch only recently active invites OR completions in this round.
@@ -133,7 +133,7 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
     const { data: activeRows, error: activeError } = await supabaseAdmin
       .from('invitations')
       .select(
-        'status,sybil_status,reward_status,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
+        'status,sybil_status,reward_status,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
       )
       .eq('activation_network', network)
       .or(boundedFilter)
@@ -148,7 +148,7 @@ async function readElasticPublicPreview(network: string): Promise<ElasticPublicP
       roundId,
       nowMs,
     );
-    const projected = estimateProspectiveSharedPoolReward(
+    const projected = estimateActiveSharedPoolReward(
       String(x.oneWinnerWei),
       String(x.xOptionReservePerWinnerWei),
       activeParticipants,
@@ -179,27 +179,36 @@ async function readyResponse(
   cacheControl = CACHE_CONTROL,
 ) {
   const elasticEstimate = await readElasticPublicPreview(network);
+  // The legacy forecast snapshot still supplies the verified physical-pool
+  // observation, but MUST NOT supply a public per-person reward amount.
+  const publicEstimateWei = elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
+    ? elasticEstimate.displayEstimateWei
+    : null;
   const effectiveCacheControl = elasticEstimate && cacheControl === CACHE_CONTROL
     ? ELASTIC_CACHE_CONTROL
     : cacheControl;
   return NextResponse.json(
     {
       generatedAt: snapshot.generatedAt,
-      status: 'ready' as const,
-      reason: null,
+      status: publicEstimateWei === null ? 'pending' as const : 'ready' as const,
+      reason: publicEstimateWei === null ? 'CURRENT_SHARED_POOL_ESTIMATE_UNAVAILABLE' : null,
       basisRoundId: snapshot.basisAllocationRoundId,
       projectedFundingRoundId: snapshot.projectedFundingRoundId,
       earliestCompletionRoundId: snapshot.earliestCompletionRoundId,
-      estimatedRewardWei: snapshot.estimatedRewardWei,
+      estimatedRewardWei: publicEstimateWei,
       elasticEstimate,
-      estimatedRewardLowWei: snapshot.estimatedRewardLowWei,
-      estimatedRewardHighWei: snapshot.estimatedRewardHighWei,
-      expectedRecipients: snapshot.expectedRecipients,
-      recipientLow: snapshot.recipientLow,
-      recipientHigh: snapshot.recipientHigh,
+      // Deprecated fallback quotes and historical recipient floors are not
+      // part of the public reward contract and must never be surfaced.
+      estimatedRewardLowWei: null,
+      estimatedRewardHighWei: null,
+      expectedRecipients: elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
+        ? elasticEstimate.projectedRecipients : null,
+      recipientLow: null,
+      recipientHigh: null,
       allocationSampleCount: snapshot.allocationSampleCount,
-      recipientHistoryRoundCount: snapshot.recipientHistoryRoundCount,
-      modelVersion: snapshot.modelVersion,
+      recipientHistoryRoundCount: 0,
+      modelVersion: publicEstimateWei === null
+        ? null : PUBLIC_ACTIVE_FORECAST_MODEL_VERSION,
       stale,
     },
     {

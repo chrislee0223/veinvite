@@ -1,14 +1,16 @@
 /**
- * Public recruitment guidance, never a payout quote.
+ * Public participation guidance, NEVER an immutable payout quote.
  *
- * A prospective invite counts as one participant in addition to distinct,
- * recently active existing referrals. Do not escrow or promise this estimate.
- * Settlement still exclusively uses the canonical server-side writer.
+ * Count only real invitees who have begun missions, not unopened slots,
+ * accepted-but-idle invites or an invented future participant.
+ * Settlement remains exclusively with the canonical server-side writer.
  */
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-active-v2';
 export type ActiveReferralForecastRow = {
   status: string | null;
   sybil_status: string | null;
   reward_status: string | null;
+  apps_completed: number | null;
   activated_at: string | null;
   apps_completed_at: string | null;
   vote_completed_at: string | null;
@@ -45,32 +47,34 @@ export function countActiveSharedPoolReferrals(
       return true;
     }
     if (row.status !== 'ACTIVATING') return false;
+    // Simply accepting an invitation (0 dApps) does not enter the estimate.
+    if (!Number.isSafeInteger(row.apps_completed) || Number(row.apps_completed) < 1) return false;
     return isRecentlyActive(row.activated_at, cutoff, nowMs) ||
       isRecentlyActive(row.apps_completed_at, cutoff, nowMs) ||
       isRecentlyActive(row.vote_completed_at, cutoff, nowMs);
   }).length;
 }
 
-export function estimateProspectiveSharedPoolReward(
+export function estimateActiveSharedPoolReward(
   oneWinnerWei: string,
   xReservePerWinnerWei: string,
-  activeExistingCount: number,
+  activeInProgressCount: number,
 ): { estimatedRewardWei: string; projectedRecipients: number } {
   if (!/^(0|[1-9][0-9]*)$/.test(oneWinnerWei) ||
       !/^(0|[1-9][0-9]*)$/.test(xReservePerWinnerWei) ||
-      !Number.isSafeInteger(activeExistingCount) ||
-      activeExistingCount < 0 || activeExistingCount >= 999) {
+      !Number.isSafeInteger(activeInProgressCount) ||
+      activeInProgressCount < 0 || activeInProgressCount >= 999) {
     throw new Error('Invalid public shared-pool estimate input');
   }
-  // One-winner quote equals available capacity minus one X-option reserve.
-  // Reconstruct gross capacity only while that quote is strictly positive.
-  // This is approximate guidance; do not use for immutable reservations.
+  // The minimum one-winner scenario is illustrative when nobody has begun.
+  // Do not add a speculative future participant to real in-progress users.
+  // This is a public guide, not a reservation or guaranteed payout.
+  const projectedRecipients = Math.max(1, activeInProgressCount);
   if (oneWinnerWei === '0') {
-    return { estimatedRewardWei: '0', projectedRecipients: activeExistingCount + 1 };
+    return { estimatedRewardWei: '0', projectedRecipients };
   }
   const one = BigInt(oneWinnerWei);
   const x = BigInt(xReservePerWinnerWei);
-  const projectedRecipients = activeExistingCount + 1;
   const count = BigInt(projectedRecipients);
   const capacity = one + x;
   const afterX = capacity - count * x;

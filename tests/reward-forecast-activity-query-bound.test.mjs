@@ -17,6 +17,7 @@ function row(overrides = {}) {
     status: 'ACTIVATING',
     sybil_status: 'CLEAR',
     reward_status: 'PENDING',
+    apps_completed: 1,
     activated_at: fresh,
     apps_completed_at: null,
     vote_completed_at: null,
@@ -39,6 +40,7 @@ test('narrowed activity sample preserves the original forecast across edge cases
   assert.equal(ACTIVE_WINDOW_MS, 7 * 24 * 60 * 60 * 1000);
   const rows = [
     row(),
+    row({apps_completed: 0}),
     row({activated_at: old, apps_completed_at: fresh}),
     row({activated_at: old, vote_completed_at: fresh}),
     row({activated_at: old}),
@@ -67,6 +69,7 @@ test('public endpoint reads just recent activity and target-round completions in
   assert.match(api, /\.or\(boundedFilter\)/);
   assert.match(api, /activeRows\.length === 1000/);
   assert.match(api, /countActiveSharedPoolReferrals/);
+  assert.match(api, /apps_completed,activated_at/);
   assert.doesNotMatch(api, /Promise\.all\(\[\s*supabaseAdmin[\s\S]{0,1000}from\('invitations'\)/);
   assert.doesNotMatch(api, /\.in\('status', \['ACTIVATING', 'COMPLETED'\]\)/);
   assert.doesNotMatch(api, /commit_reward_reservation\(|commit_reward_shared_pool_v1\(/);
