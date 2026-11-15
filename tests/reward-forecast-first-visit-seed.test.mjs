@@ -2,85 +2,33 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const homePage = await readFile(
-  new URL('../src/app/page.tsx', import.meta.url),
-  'utf8',
-);
-const forecastCard = await readFile(
-  new URL('../src/components/PublicRewardForecastCard.tsx', import.meta.url),
-  'utf8',
-);
-const seedProvider = await readFile(
-  new URL('../src/components/RewardForecastSeedProvider.tsx', import.meta.url),
-  'utf8',
-);
-const seedServer = await readFile(
-  new URL('../src/lib/rewards/publicRewardForecastSeedServer.ts', import.meta.url),
-  'utf8',
-);
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+const [homePage, forecastCard, estimateRoute] = await Promise.all([
+  read('src/app/page.tsx'),
+  read('src/components/PublicRewardForecastCard.tsx'),
+  read('src/app/api/rewards/estimate/route.ts'),
+]);
 
-test('first Home render receives a cached public reward forecast seed', () => {
-  assert.match(homePage, /readPublicRewardForecastSeed/);
-  assert.match(homePage, /Promise\.all\(/);
-  assert.match(
-    homePage,
-    /RewardForecastSeedProvider[\s\S]*initialForecast=\{initialRewardForecast\}[\s\S]*<HomeClient \/>/,
-  );
-
-  assert.match(seedServer, /unstable_cache/);
-  assert.match(seedServer, /FORECAST_SEED_CACHE_SECONDS = 5 \* 60/);
-  assert.match(seedServer, /REWARD_FORECAST_MODEL_VERSION/);
-  assert.match(seedServer, /FORECAST_SEED_MAX_AGE_MS = 24 \* 60 \* 60_000/);
-  assert.doesNotMatch(seedServer, /refreshRewardForecastSnapshot/);
-  assert.doesNotMatch(seedServer, /readVeInviteRewardPoolStatus/);
+test('Home never injects the historical recipient-floor quote into initial paint', () => {
+  assert.doesNotMatch(homePage, /RewardForecastSeedProvider|readPublicRewardForecastSeed|HOME_FORECAST_PREFILL_BUDGET_MS/);
+  assert.match(homePage, /readWalletSessionBootstrapForFirstPaint/);
+  assert.match(homePage, /<HomeClient \/>/);
+  assert.doesNotMatch(forecastCard, /useRewardForecastSeed|serverSeed|LEGACY_FORECAST_STORAGE_KEY/);
+  assert.match(forecastCard, /pickPreferredForecast\(cachedForecast\)/);
 });
 
-test('server seed is rendered before browser fallback and newer values win', () => {
-  assert.match(seedProvider, /createContext<PublicRewardForecastSeed \| null>/);
-  assert.match(forecastCard, /useRewardForecastSeed\(\)/);
-  assert.match(
-    forecastCard,
-    /pickPreferredForecast\(serverSeed, cachedForecast\)/,
-  );
-  assert.match(
-    forecastCard,
-    /pickPreferredForecast\([\s\S]*serverSeed,[\s\S]*cachedForecast,[\s\S]*restored/s,
-  );
-  assert.match(
-    forecastCard,
-    /forecastGeneratedAtMs\(candidate\) >[\s\S]*forecastGeneratedAtMs\(preferred\)/,
-  );
-  // A restored estimate must not reset the original cache age.
-  assert.doesNotMatch(forecastCard, /persistForecast\(preferred\)/);
-  assert.match(forecastCard, /persistForecast\(result\)/);
+test('revised client storage ignores old-model quote and restores current-model values only', () => {
+  assert.match(forecastCard, /PUBLIC_ACTIVE_FORECAST_MODEL_VERSION/);
+  assert.match(forecastCard, /_active_v2/);
   assert.match(forecastCard, /isRestorableRewardForecast/);
-  assert.match(forecastCard, /LEGACY_FORECAST_STORAGE_KEY/);
-  assert.match(forecastCard, /window\.localStorage\.setItem\(PERSISTED_FORECAST_STORAGE_KEY, raw\)/);
-  assert.match(forecastCard, /REWARD_FORECAST_MODEL_VERSION/);
+  assert.match(forecastCard, /useIsomorphicLayoutEffect/);
+  assert.match(forecastCard, /persistForecast\(result\)/);
+  assert.doesNotMatch(forecastCard, /formatRewardWei\(forecast\.estimatedRewardWei\)/);
+  assert.doesNotMatch(forecastCard, /window\.localStorage\.getItem\(\s*LEGACY_FORECAST_STORAGE_KEY/);
 });
 
-test('forecast seed failures and cold reads stay isolated from Home startup', () => {
-  assert.match(
-    seedServer,
-    /FORECAST_SEED_BACKGROUND_TIMEOUT_MS = 4_500/,
-  );
-  assert.match(seedServer, /const controller = new AbortController\(\)/);
-  assert.match(seedServer, /\(\) => controller\.abort\(\)/);
-  assert.match(seedServer, /signal: controller\.signal/);
-  assert.match(seedServer, /controller\.signal\.aborted/);
-  assert.match(
-    seedServer,
-    /Next\.js revalidates unstable_cache after the page can already have/,
-  );
-  assert.match(
-    seedServer,
-    /Public reward forecast seed could not be loaded/,
-  );
-  // A cache callback exception is logged by Next.js as a runtime error even
-  // when Home itself safely ignores the optional result.
-  assert.doesNotMatch(seedServer, /throw error;|throw new Error\(/);
-  assert.match(seedServer, /if \(!controller\.signal\.aborted\)/);
-  assert.match(homePage, /HOME_FORECAST_PREFILL_BUDGET_MS = 400/);
-  assert.match(seedServer, /return null;/);
-  assert.doesNotMatch(homePage, /throw new Error\([^)]*forecast/i);
+test('API exposes a new shared-pool amount, never the legacy snapshot estimate', () => {
+  assert.match(estimateRoute, /estimatedRewardWei: publicEstimateWei/);
+  assert.match(estimateRoute, /PUBLIC_ACTIVE_FORECAST_MODEL_VERSION/);
+  assert.doesNotMatch(estimateRoute, /estimatedRewardWei: snapshot\.estimatedRewardWei/);
 });
