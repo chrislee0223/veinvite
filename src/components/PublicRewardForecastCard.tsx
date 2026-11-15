@@ -109,11 +109,13 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
+// Cheap public participation reads; leave the costly funding/chain path at 15 min.
+const PARTICIPATION_REFRESH_MS = 3 * 60_000;
 const LIVE_REFRESH_THROTTLE_MS = 60_000;
 const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_recent_v3`;
+  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_recent_v4`;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
@@ -320,11 +322,15 @@ function persistForecast(result: RewardForecastResponse): void {
   }
 }
 
-function requestForecast(force = false): Promise<RewardForecastResponse> {
+function requestForecast(
+  force = false,
+  bypassMemoryCache = false,
+): Promise<RewardForecastResponse> {
   const now = Date.now();
 
   if (
     !force &&
+    !bypassMemoryCache &&
     cachedForecast &&
     cachedForecast.status === 'ready' &&
     !isRewardForecastStale({
@@ -357,7 +363,7 @@ function requestForecast(force = false): Promise<RewardForecastResponse> {
 
   inFlightForecast = fetch(
     endpoint,
-    force ? { cache: 'no-store' } : undefined,
+    force || bypassMemoryCache ? { cache: 'no-store' } : undefined,
   )
     .then(async (response) => {
       if (!response.ok) {
@@ -442,6 +448,7 @@ export function PublicRewardForecastCard({
     let timeoutId = 0;
     let backgroundRefreshTimeoutId = 0;
     let intervalId = 0;
+    let participationPollId = 0;
     let idleId: number | null = null;
 
     const applyForecast = (result: RewardForecastResponse) => {
@@ -458,9 +465,12 @@ export function PublicRewardForecastCard({
       applyForecast(detail);
     };
 
-    const loadForecast = async (force = false): Promise<boolean> => {
+    const loadForecast = async (
+      force = false,
+      bypassMemoryCache = false,
+    ): Promise<boolean> => {
       try {
-        const result = await requestForecast(force);
+        const result = await requestForecast(force, bypassMemoryCache);
         applyForecast(result);
         return true;
       } catch {
@@ -533,8 +543,19 @@ export function PublicRewardForecastCard({
         );
       });
 
+      // Poll the cached, read-only public estimate while the tab is visible.
+      // This bypasses only client memory; it never requests a forced on-chain
+      // funding refresh and adds no new scheduler, database writes, or service.
+      participationPollId = window.setInterval(
+        () => {
+          if (document.visibilityState !== 'visible') return;
+          void loadForecast(false, true);
+        },
+        PARTICIPATION_REFRESH_MS,
+      );
       intervalId = window.setInterval(
         () => {
+          if (document.visibilityState !== 'visible') return;
           void loadForecast(true);
         },
         CLIENT_FORECAST_CACHE_MS,
@@ -581,6 +602,7 @@ export function PublicRewardForecastCard({
       window.clearTimeout(timeoutId);
       window.clearTimeout(backgroundRefreshTimeoutId);
       window.clearInterval(intervalId);
+      window.clearInterval(participationPollId);
       const idleWindow = window as IdleWindow;
       if (idleId !== null && idleWindow.cancelIdleCallback) {
         idleWindow.cancelIdleCallback(idleId);
