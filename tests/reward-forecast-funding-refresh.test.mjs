@@ -47,14 +47,22 @@ test('normal public estimate serves a fresh snapshot before any live pool RPC', 
   );
 });
 
-test('explicit background refresh detects physical or logical funding changes', () => {
+test('legacy explicit funding check is globally rate-limited and still detects funding changes', () => {
   assert.match(
     estimateRoute,
-    /refreshRequested && previousSnapshot[\s\S]*await checkLiveFunding\(previousSnapshot, network\)/,
+    /refreshRequested && previousSnapshot && !sharedLiveCheckGate[\s\S]*await checkLiveFunding\(previousSnapshot, network\)/,
   );
   assert.match(
     estimateRoute,
     /const fundingChanged = fundingCheck === 'changed'/,
+  );
+  assert.match(
+    estimateRoute,
+    /scope: 'public-reward-forecast-live-read'/,
+  );
+  assert.match(
+    estimateRoute,
+    /FORECAST_REFRESH_WINDOW_SECONDS = 15 \* 60/,
   );
   assert.match(
     estimateRoute,
@@ -94,18 +102,18 @@ test('explicit background refresh detects physical or logical funding changes', 
   );
 });
 
-test('public forecast refreshes in the background without focus or visibility request storms', () => {
+test('public forecast refreshes via one shared CDN path without per-user chain checks', () => {
   assert.match(
     forecastCard,
-    /function requestForecast\(\s*force = false,\s*bypassMemoryCache = false,?\s*\)/,
+    /function requestForecast\(\s*bypassMemoryCache = false,?\s*\)/,
   );
   assert.match(
     forecastCard,
-    /!force\s*&&\s*!bypassMemoryCache\s*&&\s*cachedForecast/,
+    /!bypassMemoryCache\s*&&\s*cachedForecast/,
   );
-  assert.match(
+  assert.doesNotMatch(
     forecastCard,
-    /'\/api\/rewards\/estimate\?refresh=1'/,
+    /\/api\/rewards\/estimate\?refresh=1/,
   );
   assert.doesNotMatch(
     forecastCard,
@@ -113,11 +121,7 @@ test('public forecast refreshes in the background without focus or visibility re
   );
   assert.match(
     forecastCard,
-    /LIVE_REFRESH_THROTTLE_MS = 60_000/,
-  );
-  assert.match(
-    forecastCard,
-    /now - lastLiveRefreshAt < LIVE_REFRESH_THROTTLE_MS/,
+    /now - cachedForecastAt < 60_000/,
   );
   assert.match(
     forecastCard,
@@ -125,7 +129,7 @@ test('public forecast refreshes in the background without focus or visibility re
   );
   assert.match(
     forecastCard,
-    /setInterval\(\s*\(\) => \{\s*void loadForecast\(true\);\s*\},\s*CLIENT_FORECAST_CACHE_MS/s,
+    /setInterval\(\s*\(\) => \{\s*if \(document.visibilityState !== 'visible'\) return;\s*void loadForecast\(true\);\s*\},\s*PARTICIPATION_REFRESH_MS/s,
   );
   assert.match(
     forecastCard,
@@ -137,9 +141,10 @@ test('public forecast refreshes in the background without focus or visibility re
   );
   assert.match(
     forecastCard,
-    /void loadForecast\(false, true\)/,
-    'short participation refresh must not trigger chain verification',
+    /fetch\(\s*'\/api\/rewards\/estimate',/,
+    'short participation refresh must read the shared public endpoint',
   );
+  assert.doesNotMatch(forecastCard, /inFlightForecastWasForced/);
   assert.match(
     forecastCard,
     /clearInterval\(participationPollId\)/,
