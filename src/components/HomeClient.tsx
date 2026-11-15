@@ -15,6 +15,7 @@ import {
 } from './AppBottomNavigation';
 import { AppHeader } from './AppHeader';
 import { PublicRewardForecastCard } from './PublicRewardForecastCard';
+import type { FirstPaintPublicRewardForecast } from '@/lib/rewards/publicRewardForecastFirstPaint';
 import {
   SOFT_FOCUS_MOTION_CSS,
   softFocusCloseDelay,
@@ -98,7 +99,9 @@ const HOME_DATA_REFRESH_REQUESTED_EVENT =
 const HOME_DATA_REFRESH_SETTLED_EVENT =
   'veinvite-home-data-refresh-settled';
 
-export function HomeClient() {
+export function HomeClient({ initialRewardForecast = null }: {
+  initialRewardForecast?: FirstPaintPublicRewardForecast | null;
+}) {
   const {
     wallet,
     openWallet,
@@ -998,7 +1001,7 @@ export function HomeClient() {
             <h1>{referral.homeTitle}</h1>
           </div>
 
-          <PublicRewardForecastCard locale={locale} />
+          <PublicRewardForecastCard locale={locale} initialForecast={initialRewardForecast} />
 
           {!wallet ? (
             <button
