@@ -1,67 +1,85 @@
 /**
- * READ-ONLY public participation scenarios, not actual payout quotes.
- * Every unsettled referral (including long-idle older participants) may
- * finish later. Only the canonical reservation writer authorizes payments.
+ * Public participation guidance, NEVER an immutable payout quote.
+ *
+ * Count only real invitees who have begun missions, not unopened slots,
+ * accepted-but-idle invites or an invented future participant.
+ * Settlement remains exclusively with the canonical server-side writer.
  */
-export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-possibility-range-v3';
-
-export type UnsettledReferralRow = {
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-active-v2';
+export type ActiveReferralForecastRow = {
   status: string | null;
   sybil_status: string | null;
   reward_status: string | null;
   apps_completed: number | null;
-  ineligible_at: string | null;
+  activated_at: string | null;
+  apps_completed_at: string | null;
+  vote_completed_at: string | null;
+  vote_round_id: number | null;
 };
 
-export function summarizeUnsettledPoolReferrals(rows: readonly UnsettledReferralRow[]) {
-  let possibleRecipients = 0;
-  let missionProgressParticipants = 0;
-  let eligibleCompletedRecipients = 0;
-  for (const row of rows) {
-    if (row.ineligible_at !== null || row.sybil_status === 'BLOCKED' ||
-        row.reward_status === 'PAID' || row.reward_status === 'FORFEITED') continue;
-    if (row.status === 'COMPLETED' && row.reward_status === 'ELIGIBLE') {
-      possibleRecipients++;
-      eligibleCompletedRecipients++;
-    } else if (row.status === 'ACTIVATING' && row.reward_status === 'PENDING') {
-      possibleRecipients++;
-      if (typeof row.apps_completed === 'number' &&
-          Number.isSafeInteger(row.apps_completed) && row.apps_completed > 0) {
-        missionProgressParticipants++;
-      }
-    }
-  }
-  return { possibleRecipients, missionProgressParticipants, eligibleCompletedRecipients };
+export const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const FUTURE_SKEW_MS = 5 * 60 * 1000;
+
+function isRecentlyActive(value: string | null, cutoff: number, nowMs: number): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) &&
+    timestamp >= cutoff && timestamp <= nowMs + FUTURE_SKEW_MS;
 }
 
-/**
- * NOT a guaranteed payout interval:
- * high = only one eligible completer against today's pool;
- * low = every currently unsettled potentially eligible invite completing
- * together against that same pool. Future participation/funding can change it.
- */
-export function estimateUnsettledRewardScenarios(
+export function countActiveSharedPoolReferrals(
+  rows: readonly ActiveReferralForecastRow[],
+  currentRoundId: number,
+  nowMs: number,
+): number {
+  if (!Number.isSafeInteger(currentRoundId) || currentRoundId < 1 ||
+      !Number.isFinite(nowMs)) {
+    throw new Error('Invalid reward forecast context');
+  }
+  const cutoff = nowMs - ACTIVE_WINDOW_MS;
+  return rows.filter((row) => {
+    if (row.status !== 'ACTIVATING' && row.status !== 'COMPLETED') return false;
+    if (row.sybil_status === 'BLOCKED' ||
+        row.reward_status === 'PAID' || row.reward_status === 'FORFEITED') return false;
+    // A verified completion in this round remains a possible recipient even
+    // if its original invitation was created in an older round.
+    if (row.status === 'COMPLETED' && row.vote_round_id === currentRoundId) {
+      return true;
+    }
+    if (row.status !== 'ACTIVATING') return false;
+    // Simply accepting an invitation (0 dApps) does not enter the estimate.
+    if (!Number.isSafeInteger(row.apps_completed) || Number(row.apps_completed) < 1) return false;
+    return isRecentlyActive(row.activated_at, cutoff, nowMs) ||
+      isRecentlyActive(row.apps_completed_at, cutoff, nowMs) ||
+      isRecentlyActive(row.vote_completed_at, cutoff, nowMs);
+  }).length;
+}
+
+export function estimateActiveSharedPoolReward(
   oneWinnerWei: string,
   xReservePerWinnerWei: string,
-  possibleRecipients: number,
-): { scenarioLowWei: string; scenarioHighWei: string; scenarioMaxRecipients: number } {
+  activeInProgressCount: number,
+): { estimatedRewardWei: string; projectedRecipients: number } {
   if (!/^(0|[1-9][0-9]*)$/.test(oneWinnerWei) ||
       !/^(0|[1-9][0-9]*)$/.test(xReservePerWinnerWei) ||
-      !Number.isSafeInteger(possibleRecipients) ||
-      possibleRecipients < 0 || possibleRecipients >= 1000) {
-    throw new Error('Invalid public reward scenario inputs');
+      !Number.isSafeInteger(activeInProgressCount) ||
+      activeInProgressCount < 0 || activeInProgressCount >= 999) {
+    throw new Error('Invalid public shared-pool estimate input');
   }
-  const scenarioMaxRecipients = Math.max(1, possibleRecipients);
+  // The minimum one-winner scenario is illustrative when nobody has begun.
+  // Do not add a speculative future participant to real in-progress users.
+  // This is a public guide, not a reservation or guaranteed payout.
+  const projectedRecipients = Math.max(1, activeInProgressCount);
   if (oneWinnerWei === '0') {
-    return { scenarioLowWei: '0', scenarioHighWei: '0', scenarioMaxRecipients };
+    return { estimatedRewardWei: '0', projectedRecipients };
   }
   const one = BigInt(oneWinnerWei);
-  const reserve = BigInt(xReservePerWinnerWei);
-  const n = BigInt(scenarioMaxRecipients);
-  const afterOptions = one + reserve - n * reserve;
+  const x = BigInt(xReservePerWinnerWei);
+  const count = BigInt(projectedRecipients);
+  const capacity = one + x;
+  const afterX = capacity - count * x;
   return {
-    scenarioLowWei: (afterOptions > 0n ? afterOptions / n : 0n).toString(),
-    scenarioHighWei: oneWinnerWei,
-    scenarioMaxRecipients,
+    estimatedRewardWei: (afterX > 0n ? afterX / count : 0n).toString(),
+    projectedRecipients,
   };
 }

@@ -20,8 +20,7 @@ test('Home shows the original concise forecast wording for every locale', () => 
 test('simplifying the copy preserves the current elastic amount and safety states', () => {
   assert.match(card, /elasticEstimate: readElasticEstimate\(record\.elasticEstimate\)/);
   assert.match(card, /const elastic = ready && forecast\.elasticEstimate\?\.mode === 'ELASTIC_SCENARIOS'/);
-  assert.match(card, /formatRewardWei\(elastic\.scenarioLowWei\)/);
-  assert.match(card, /formatRewardWei\(elastic\.scenarioHighWei\)/);
+  assert.match(card, /formatRewardWei\(elastic\.displayEstimateWei\)/);
   assert.doesNotMatch(card, /formatRewardWei\(elastic\.oneWinnerWei\)/);
   assert.match(card, /const elasticPending = !elastic/);
   assert.match(card, /: '— B3TR'/);
