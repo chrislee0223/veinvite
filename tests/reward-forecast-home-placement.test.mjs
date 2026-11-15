@@ -84,7 +84,9 @@ test('last-good forecast failure fallback keeps a value visible as stale', () =>
     /cachedForecast\?\.status === 'ready'[\s\S]*stale:\s*true[\s\S]*setForecast\(staleForecast\)/,
   );
   assert.match(forecastCard, /data-forecast-state=/);
-  assert.match(forecastCard, /className="staleIndicator"/);
+  assert.match(forecastCard, /forecast\.stale === true/);
+  assert.match(forecastCard, /\{note\}/);
+  assert.doesNotMatch(forecastCard, /staleIndicator|◷/);
 });
 
 test('reward amount keeps the previously proven in-card geometry after the move', () => {
