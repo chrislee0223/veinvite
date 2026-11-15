@@ -13,6 +13,7 @@ import {
 } from '@/lib/i18n/locales';
 import { REWARD_FORECAST_COPY } from '@/lib/i18n/rewardForecastCopy';
 import { PUBLIC_ACTIVE_FORECAST_MODEL_VERSION } from '@/lib/rewards/activeSharedPoolForecast';
+import type { FirstPaintPublicRewardForecast } from '@/lib/rewards/publicRewardForecastFirstPaint';
 import {
   forecastSnapshotAgeMs,
   isRestorableRewardForecast,
@@ -413,17 +414,21 @@ function requestForecast(
 export function PublicRewardForecastCard({
   locale,
   rewardForecastPreview = false,
+  initialForecast = null,
 }: {
   locale: SupportedLocale;
   rewardForecastPreview?: boolean;
+  initialForecast?: FirstPaintPublicRewardForecast | null;
 }) {
   const resolvedLocale: SupportedLocale = isLocale(locale)
     ? locale
     : 'en';
+  // SSR and first client render use the SAME validated server seed, preventing
+  // hydration mismatch and the initial "— B3TR" flash on a cold visit.
   const [forecast, setForecast] = useState<RewardForecastResponse | null>(
     () => rewardForecastPreview
       ? PREVIEW_FORECAST
-      : pickPreferredForecast(cachedForecast),
+      : normalizeForecastResponse(initialForecast),
   );
   const [unavailable, setUnavailable] = useState(false);
 
@@ -437,18 +442,30 @@ export function PublicRewardForecastCard({
     }
 
     const restored = readPersistedForecast();
+    const seeded = normalizeForecastResponse(initialForecast);
     const preferred = pickPreferredForecast(
       cachedForecast,
       restored,
+      seeded,
     );
     if (preferred) {
       cachedForecast = preferred;
+      // The server already performed this public read. Do not immediately
+      // repeat the same Supabase query unless its source is stale.
+      if (seeded && preferred === seeded &&
+          !isRewardForecastStale({
+            generatedAt: seeded.generatedAt,
+            stale: seeded.stale,
+            nowMs: Date.now(),
+          })) {
+        cachedForecastAt = Date.now();
+      }
       // Hydration restores an existing value, not a new successful network read.
       // Never renew either the network cache clock or the persisted savedAt.
       setUnavailable(false);
       setForecast(preferred);
     }
-  }, [rewardForecastPreview]);
+  }, [rewardForecastPreview, initialForecast]);
 
   useEffect(() => {
     if (rewardForecastPreview) return;
