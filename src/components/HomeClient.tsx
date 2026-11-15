@@ -113,7 +113,6 @@ export function HomeClient({ initialRewardForecast = null }: {
 
   const [locale, setLocale] = useState<SupportedLocale>('en');
   const [invites, setInvites] = useState<InviteRecord[]>([]);
-  // Presentation only: never mix synthetic entries into the real invites state.
   const [canaryHomeDisplay, setCanaryHomeDisplay] = useState<{
     wallet: string;
     invitations: InviteRecord[];
@@ -225,7 +224,6 @@ export function HomeClient({ initialRewardForecast = null }: {
         VERCEL_SHARE_STORAGE_KEY,
       );
     } catch {
-      // The query token remains usable without session persistence.
     }
     const token = tokenFromUrl ?? storedToken ?? '';
     if (!token) return;
@@ -291,7 +289,6 @@ export function HomeClient({ initialRewardForecast = null }: {
     try {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
     } catch {
-      // Language remains changeable for this page session.
     }
     document.documentElement.lang = nextLocale;
     window.dispatchEvent(
@@ -377,7 +374,6 @@ export function HomeClient({ initialRewardForecast = null }: {
           });
         }
       } catch {
-        // Optional visual demo must not impact actual Home or reward loading.
       }
     })();
     return () => {
