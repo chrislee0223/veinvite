@@ -3,11 +3,14 @@ import { HomeClient } from '@/components/HomeClient';
 import { InviteStatusAutoRefresh } from '@/components/InviteStatusAutoRefresh';
 import { WalletSessionGate } from '@/components/WalletSessionGate';
 import { readWalletSessionBootstrapForFirstPaint } from '@/lib/walletSessionBootstrapServer';
+import { readPublicSharedPoolFirstPaintForecast } from '@/lib/rewards/publicRewardForecastFirstPaint';
 
-// The current shared-pool preview is fetched client-side after app readiness.
-// Do not server-seed the retired recipient-floor per-person quote.
+// Seed only the approved current-cohort quote, never historical reward estimates.
 export default async function HomePage() {
-  const bootstrap = await readWalletSessionBootstrapForFirstPaint();
+  const [bootstrap, initialRewardForecast] = await Promise.all([
+    readWalletSessionBootstrapForFirstPaint(),
+    readPublicSharedPoolFirstPaintForecast(),
+  ]);
 
   const initialSessionWallet =
     bootstrap.initialSessionWallet;
@@ -39,7 +42,7 @@ export default async function HomePage() {
         }
       >
         <InviteStatusAutoRefresh />
-        <HomeClient />
+        <HomeClient initialRewardForecast={initialRewardForecast} />
         <ActiveWalletRewardReceiptNotice />
       </WalletSessionGate>
     </>
