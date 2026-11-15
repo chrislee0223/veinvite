@@ -24,6 +24,10 @@ const forecastCard = readFileSync(
   join(root, 'src/components/PublicRewardForecastCard.tsx'),
   'utf8',
 );
+const forecastRoute = readFileSync(
+  join(root, 'src/app/api/rewards/estimate/route.ts'),
+  'utf8',
+);
 const homeClient = readFileSync(
   join(root, 'src/components/HomeClient.tsx'),
   'utf8',
@@ -43,10 +47,13 @@ const typography = readFileSync(
 
 if (
   !/CLIENT_FORECAST_CACHE_MS\s*=\s*15\s*\*\s*60_000/.test(forecastCard) ||
-  !/setInterval\(\s*\(\) => \{\s*void loadForecast\(true\);\s*\},\s*CLIENT_FORECAST_CACHE_MS\s*,?\s*\)/s.test(forecastCard)
+  !/PARTICIPATION_REFRESH_MS\s*=\s*3\s*\*\s*60_000/.test(forecastCard) ||
+  !/setInterval\(\s*\(\) => \{\s*if \(document.visibilityState !== 'visible'\) return;\s*void loadForecast\(true\);\s*\},\s*PARTICIPATION_REFRESH_MS\s*,?\s*\)/s.test(forecastCard) ||
+  !/FORECAST_REFRESH_WINDOW_SECONDS\s*=\s*15\s*\*\s*60/.test(forecastRoute) ||
+  /\/api\/rewards\/estimate\?refresh=1/.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast live refresh must stay at the reviewed 15-minute cadence.',
+    'Public reward forecast must use shared CDN reads and one bounded 15-minute server funding refresh.',
   );
 }
 
@@ -57,11 +64,11 @@ if (/setInterval\([^)]*,\s*60_000\s*,?\s*\)/s.test(forecastCard)) {
 }
 
 if (
-  !/LIVE_REFRESH_THROTTLE_MS\s*=\s*60_000/.test(forecastCard) ||
-  !/lastLiveRefreshAt/.test(forecastCard)
+  !/now - cachedForecastAt < 60_000/.test(forecastCard) ||
+  !/if \(inFlightForecast\) return inFlightForecast;/.test(forecastCard)
 ) {
   failures.push(
-    'Public reward forecast focus and visibility refreshes must stay rate-bounded.',
+    'Public reward forecast focus and visibility refreshes must stay rate-bounded and de-duplicated.',
   );
 }
 
@@ -212,11 +219,6 @@ if (
     'Public reward forecast copy contains a retired mechanical translation.',
   );
 }
-
-const forecastRoute = readFileSync(
-  join(root, 'src/app/api/rewards/estimate/route.ts'),
-  'utf8',
-);
 
 if (!/s-maxage=300/.test(forecastRoute)) {
   failures.push(

@@ -37,7 +37,7 @@ export const dynamic = 'force-dynamic';
 const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=3600';
 const FORCE_CACHE_CONTROL = 'private, no-store, max-age=0';
 const ELASTIC_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=120';
-const FORECAST_REFRESH_WINDOW_SECONDS = 60 * 60;
+const FORECAST_REFRESH_WINDOW_SECONDS = 15 * 60;
 
 type EstimateReason =
   | 'awaiting_first_allocation'
@@ -396,8 +396,20 @@ export async function GET(request: NextRequest) {
       return await readyResponse(previousSnapshot, false, network, responseCacheControl);
     }
 
-    const fundingCheck =
+    // Legacy manual refresh endpoint remains compatible, but public callers
+    // share one distributed heavy funding check per forecast window. The Home
+    // client uses only the shared CDN path, never this expensive private path.
+    const sharedLiveCheckGate =
       refreshRequested && previousSnapshot
+        ? await enforceRateLimits([{
+            scope: 'public-reward-forecast-live-read',
+            subject: `${network}:${VEINVITE_APP_ID}`,
+            limit: 1,
+            windowSeconds: FORECAST_REFRESH_WINDOW_SECONDS,
+          }])
+        : null;
+    const fundingCheck =
+      refreshRequested && previousSnapshot && !sharedLiveCheckGate
         ? await checkLiveFunding(previousSnapshot, network)
         : 'unchanged';
     const fundingChanged = fundingCheck === 'changed';

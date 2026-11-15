@@ -109,10 +109,10 @@ const PREVIEW_FORECAST: RewardForecastResponse = {
 };
 
 const CLIENT_FORECAST_CACHE_MS = 15 * 60_000;
-// Cheap public participation reads; leave the costly funding/chain path at 15 min.
+// Participation polling shares the public CDN. The server alone owns
+// the 15-minute funding refresh, independent of the number of viewers.
 const PARTICIPATION_REFRESH_MS = 3 * 60_000;
-const LIVE_REFRESH_THROTTLE_MS = 60_000;
-const BACKGROUND_LIVE_REFRESH_DELAY_MS = 600;
+const BACKGROUND_PUBLIC_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
   `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_recent_v4`;
@@ -124,9 +124,7 @@ const useIsomorphicLayoutEffect =
 
 let cachedForecast: RewardForecastResponse | null = null;
 let cachedForecastAt = 0;
-let lastLiveRefreshAt = 0;
 let inFlightForecast: Promise<RewardForecastResponse> | null = null;
-let inFlightForecastWasForced = false;
 
 function formatRewardWei(value: string): string {
   if (!/^\d+$/.test(value)) return '0.00';
@@ -324,13 +322,11 @@ function persistForecast(result: RewardForecastResponse): void {
 }
 
 function requestForecast(
-  force = false,
   bypassMemoryCache = false,
 ): Promise<RewardForecastResponse> {
   const now = Date.now();
 
   if (
-    !force &&
     !bypassMemoryCache &&
     cachedForecast &&
     cachedForecast.status === 'ready' &&
@@ -344,36 +340,27 @@ function requestForecast(
     return Promise.resolve(cachedForecast);
   }
 
-  if (inFlightForecast) {
-    if (force && !inFlightForecastWasForced) {
-      // The cheap 3-minute poll must never swallow a due funding/chain check.
-      // Queue the forced refresh after the lightweight request settles.
-      const runLiveAfterRead = () => requestForecast(true);
-      return inFlightForecast.then(runLiveAfterRead, runLiveAfterRead);
-    }
-    return inFlightForecast;
-  }
+  if (inFlightForecast) return inFlightForecast;
 
+  // Focus and visibility events often arrive together. Reuse a recent
+  // successful read instead of generating redundant HTTP requests.
   if (
-    force &&
-    cachedForecast &&
-    cachedForecast.status === 'ready' &&
-    forecastSnapshotAgeMs(cachedForecast.generatedAt, now) !== null &&
-    now - lastLiveRefreshAt < LIVE_REFRESH_THROTTLE_MS
+    bypassMemoryCache &&
+    cachedForecast?.status === 'ready' &&
+    !isRewardForecastStale({
+      generatedAt: cachedForecast.generatedAt,
+      stale: cachedForecast.stale,
+      nowMs: now,
+    }) &&
+    now - cachedForecastAt < 60_000
   ) {
     return Promise.resolve(cachedForecast);
   }
 
-  if (force) lastLiveRefreshAt = now;
-  inFlightForecastWasForced = force;
-
-  const endpoint = force
-    ? '/api/rewards/estimate?refresh=1'
-    : '/api/rewards/estimate';
-
+  // Never force a per-user funding/chain check. The server's shared public
+  // cache and bounded snapshot writer handle scale without new infra.
   inFlightForecast = fetch(
-    endpoint,
-    force || bypassMemoryCache ? { cache: 'no-store' } : undefined,
+    '/api/rewards/estimate',
   )
     .then(async (response) => {
       if (!response.ok) {
@@ -404,7 +391,6 @@ function requestForecast(
     })
     .finally(() => {
       inFlightForecast = null;
-      inFlightForecastWasForced = false;
     });
 
   return inFlightForecast;
@@ -458,7 +444,6 @@ export function PublicRewardForecastCard({
     let started = false;
     let timeoutId = 0;
     let backgroundRefreshTimeoutId = 0;
-    let intervalId = 0;
     let participationPollId = 0;
     let idleId: number | null = null;
 
@@ -477,11 +462,10 @@ export function PublicRewardForecastCard({
     };
 
     const loadForecast = async (
-      force = false,
       bypassMemoryCache = false,
     ): Promise<boolean> => {
       try {
-        const result = await requestForecast(force, bypassMemoryCache);
+        const result = await requestForecast(bypassMemoryCache);
         applyForecast(result);
         return true;
       } catch {
@@ -530,13 +514,11 @@ export function PublicRewardForecastCard({
       );
       window.addEventListener('focus', refreshWhenFocused);
 
-      // First read the cheap server snapshot. Once that is settled, perform a
-      // live funding check in the background so pool changes still propagate
-      // quickly without blocking the value already shown on screen.
+      // First render from the warm cache, then read the shared public
+      // snapshot again if the value is old. No per-user on-chain checks.
       void loadForecast().then((loaded) => {
         if (!active || !loaded) return;
-        // Fresh snapshots need no second expensive on-chain read at startup.
-        // Otherwise keep the existing background live funding verification.
+        // Fresh snapshots do not need a duplicate public read at startup.
         if (
           cachedForecast &&
           !needsImmediateLiveForecastRefresh({
@@ -550,27 +532,20 @@ export function PublicRewardForecastCard({
           () => {
             void loadForecast(true);
           },
-          BACKGROUND_LIVE_REFRESH_DELAY_MS,
+          BACKGROUND_PUBLIC_REFRESH_DELAY_MS,
         );
       });
 
-      // Poll the cached, read-only public estimate while the tab is visible.
-      // This bypasses only client memory; it never requests a forced on-chain
-      // funding refresh and adds no new scheduler, database writes, or service.
+      // All viewers share one CDN-cached public quote. Bypass only local
+      // memory while visible; no paid service, new cron or per-user chain RPC.
       participationPollId = window.setInterval(
         () => {
           if (document.visibilityState !== 'visible') return;
-          void loadForecast(false, true);
+          void loadForecast(true);
         },
         PARTICIPATION_REFRESH_MS,
       );
-      intervalId = window.setInterval(
-        () => {
-          void loadForecast(true);
-        },
-        CLIENT_FORECAST_CACHE_MS,
-      );
-    };
+     };
     const scheduleForecastActivity = () => {
       if (!active || scheduled) return;
       scheduled = true;
@@ -611,7 +586,6 @@ export function PublicRewardForecastCard({
       active = false;
       window.clearTimeout(timeoutId);
       window.clearTimeout(backgroundRefreshTimeoutId);
-      window.clearInterval(intervalId);
       window.clearInterval(participationPollId);
       const idleWindow = window as IdleWindow;
       if (idleId !== null && idleWindow.cancelIdleCallback) {
