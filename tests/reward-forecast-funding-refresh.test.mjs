@@ -97,11 +97,11 @@ test('explicit background refresh detects physical or logical funding changes', 
 test('public forecast refreshes in the background without focus or visibility request storms', () => {
   assert.match(
     forecastCard,
-    /function requestForecast\(force = false\)/,
+    /function requestForecast\(\s*force = false,\s*bypassMemoryCache = false,?\s*\)/,
   );
   assert.match(
     forecastCard,
-    /\!force\s*&&\s*cachedForecast/,
+    /!force\s*&&\s*!bypassMemoryCache\s*&&\s*cachedForecast/,
   );
   assert.match(
     forecastCard,
@@ -130,6 +130,19 @@ test('public forecast refreshes in the background without focus or visibility re
   assert.match(
     forecastCard,
     /CLIENT_FORECAST_CACHE_MS = 15 \* 60_000/,
+  );
+  assert.match(
+    forecastCard,
+    /PARTICIPATION_REFRESH_MS = 3 \* 60_000/,
+  );
+  assert.match(
+    forecastCard,
+    /void loadForecast\(false, true\)/,
+    'short participation refresh must not trigger chain verification',
+  );
+  assert.match(
+    forecastCard,
+    /clearInterval\(participationPollId\)/,
   );
   assert.doesNotMatch(
     forecastCard,
