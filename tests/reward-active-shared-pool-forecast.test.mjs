@@ -93,12 +93,14 @@ test('bounded, fail-closed quote arithmetic never creates negative rewards', () 
 
 test('public API and home UI use a single participation-aware value and preserve payout separation', () => {
   const api=readFileSync('src/app/api/rewards/estimate/route.ts','utf8');
+  const reader=readFileSync('src/lib/rewards/publicElasticForecastReader.ts','utf8');
   const card=readFileSync('src/components/PublicRewardForecastCard.tsx','utf8');
   const writer=readFileSync('src/lib/rewards/rewardReservation.ts','utf8');
-  assert.match(api,/estimateActiveSharedPoolReward/);
+  assert.match(api,/readElasticPublicPreview/);
+  assert.match(reader,/estimateActiveSharedPoolReward/);
   assert.match(api, /estimatedRewardWei: publicEstimateWei/);
   assert.doesNotMatch(api, /estimatedRewardWei: snapshot\.estimatedRewardWei/);
-  assert.match(api,/countActiveSharedPoolReferrals/);
+  assert.match(reader,/countActiveSharedPoolReferrals/);
   assert.match(card,/formatRewardWei\(elastic\.displayEstimateWei\)/);
   assert.doesNotMatch(card,/formatRewardWei\(elastic\.oneWinnerWei\)/);
   assert.match(writer,/commit_reward_shared_pool_v1/);
