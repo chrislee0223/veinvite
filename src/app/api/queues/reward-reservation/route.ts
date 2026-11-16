@@ -228,6 +228,14 @@ const queueCallback = handleCallback(
       return;
     }
 
+    // Normal, verified round-close waiting must not consume ten Queue retries.
+    // The existing five-minute durable recovery owns the later settlement.
+    // This acknowledgement happens only after current Sybil/eligibility checks
+    // and after confirming that no immutable reservation already exists.
+    if (sweep.roundCloseWaitingInviteCodes.includes(message.inviteCode)) {
+      return;
+    }
+
     // Repeating the same refused immutable quote every few seconds cannot
     // clear a cohort-commitment mismatch. Acknowledge only this invitation's
     // pricing conflict; the five-minute durable reservation recovery still
