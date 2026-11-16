@@ -126,7 +126,7 @@ DECLARE
  i public.invitations%rowtype;
  prior reward_admission_bridge.mission_retry_attempts_v1%rowtype;
  latest_funding public.vebetter_round_allocations%rowtype;
- state jsonb;
+ v_mission_state jsonb;
  next_attempt integer;
 BEGIN
  IF p_network NOT IN('mainnet','testnet','testnet-staging')
@@ -157,10 +157,10 @@ BEGIN
     OR p_start_block<latest_funding.claim_block_number THEN
   RETURN jsonb_build_object('started',false,'reason','UNVERIFIED_CURRENT_ROUND');
  END IF;
- state:=public.read_invitation_mission_retry_state_v1(i.invite_code,p_network);
- IF state->>'state'<>'EXPIRED' OR coalesce((state->>'restartEligible')::boolean,false)=false THEN
+ v_mission_state:=public.read_invitation_mission_retry_state_v1(i.invite_code,p_network);
+ IF v_mission_state->>'state'<>'EXPIRED' OR coalesce((v_mission_state->>'restartEligible')::boolean,false)=false THEN
    RETURN jsonb_build_object('started',false,'reason','NOT_RESTART_ELIGIBLE',
-      'state',state->>'state');
+      'state',v_mission_state->>'state');
  END IF;
  SELECT * INTO prior FROM reward_admission_bridge.mission_retry_attempts_v1
  WHERE invite_code=i.invite_code ORDER BY attempt_no DESC LIMIT 1 FOR UPDATE;
