@@ -49,6 +49,8 @@ export type RewardReservationSweepResult = {
   skipped: number;
   // Price-consistency refusals are retried by the durable cron, not hot Queue loops.
   pricingConflictInviteCodes: string[];
+  // Official round-close waits are deliberate, not transient Queue failures.
+  roundCloseWaitingInviteCodes: string[];
 };
 
 export type RewardReservationLiveness = {
@@ -67,6 +69,7 @@ function emptySweepResult(): RewardReservationSweepResult {
     awaitingFinality: 0,
     skipped: 0,
     pricingConflictInviteCodes: [],
+    roundCloseWaitingInviteCodes: [],
   };
 }
 
@@ -421,7 +424,7 @@ async function reserveCandidate({
   candidate: ReservationCandidate;
   network: string;
   finalizedBlock: number;
-}): Promise<'reserved' | 'awaiting_finality' | 'skipped' | 'pricing_conflict' | { kind: 'batch_reserved'; count: number }> {
+}): Promise<'reserved' | 'awaiting_finality' | 'round_close_waiting' | 'skipped' | 'pricing_conflict' | { kind: 'batch_reserved'; count: number }> {
   const completionBlock = safeBlock(
     candidate.completion_block,
     'reservation completion block',
@@ -480,6 +483,18 @@ async function reserveCandidate({
       return { kind: 'batch_reserved', count: roundClose.count };
     }
     if (roundClose.kind === 'WAITING') {
+      // The official receipt, chain finality and scanner catch-up are expected
+      // parts of the round-close policy. The durable recovery sweep will retry.
+      // Do not log a warning or force fast Queue retries for this normal wait.
+      if (
+        roundClose.reason === 'WAIT_FOR_OFFICIAL_ROUND_CLOSE' ||
+        roundClose.reason === 'WAIT_FOR_ROUND_CLOSE_FINALITY' ||
+        roundClose.reason === 'WAIT_FOR_VOTE_SCAN_CATCHUP'
+      ) {
+        return 'round_close_waiting';
+      }
+      // Pauses, financial guards, missing proof or unexpected deferrals remain
+      // visible as warnings and cannot silently turn into a reservation.
       return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
         reason: roundClose.reason,
       });
@@ -879,6 +894,7 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
     awaitingFinality: 0,
     skipped: 0,
     pricingConflictInviteCodes: [],
+    roundCloseWaitingInviteCodes: [],
   };
 
   // Actual chain completion order remains the fairness ordering. Sequential
@@ -893,6 +909,10 @@ export async function reserveEligibleReferralRewards(): Promise<RewardReservatio
       result.attempted += outcome.count - 1;
     }
     else if (outcome === 'awaiting_finality') result.awaitingFinality += 1;
+    else if (outcome === 'round_close_waiting') {
+      result.skipped += 1;
+      result.roundCloseWaitingInviteCodes.push(candidate.invite_code);
+    }
     else {
       result.skipped += 1;
       if (outcome === 'pricing_conflict') {
