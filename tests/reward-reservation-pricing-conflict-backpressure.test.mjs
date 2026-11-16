@@ -49,3 +49,19 @@ test('durable five-minute recovery remains responsible for re-checking the unres
   assert.match(voteCron, /RECOVERY_INTERVAL_SECONDS = 5 \* 60/);
   assert.match(voteCron, /runRewardRecoveryMaintenance\(\)/);
 });
+
+test('official round-close waiting is acknowledged without fast Queue retries, while unsafe deferrals stay visible', () => {
+  assert.match(reservation, /roundCloseWaitingInviteCodes: string\[\]/);
+  assert.match(reservation, /roundClose\.reason === 'WAIT_FOR_OFFICIAL_ROUND_CLOSE'/);
+  assert.match(reservation, /roundClose\.reason === 'WAIT_FOR_ROUND_CLOSE_FINALITY'/);
+  assert.match(reservation, /roundClose\.reason === 'WAIT_FOR_VOTE_SCAN_CATCHUP'/);
+  assert.match(reservation, /return 'round_close_waiting'/);
+  assert.match(reservation, /return skipCandidate\(candidate, 'VOTE_ROUND_CLOSE_WAITING'/);
+  assert.match(reservation, /result\.roundCloseWaitingInviteCodes\.push\(candidate\.invite_code\)/);
+  const invitationCheck = consumer.indexOf('const refreshedInvitation =');
+  const deferredAck = consumer.indexOf('sweep.roundCloseWaitingInviteCodes.includes(message.inviteCode)');
+  const pendingError = consumer.indexOf('Reward reservation continuation remains pending');
+  assert.ok(invitationCheck >= 0 && deferredAck > invitationCheck && pendingError > deferredAck);
+  assert.match(consumer, /runRewardReservationRecovery|five-minute durable recovery/);
+  assert.match(recovery, /reserveEligibleReferralRewards\(\)/);
+});
