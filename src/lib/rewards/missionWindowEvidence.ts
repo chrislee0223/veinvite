@@ -33,7 +33,7 @@ export type MissionAttemptProofResult = {
   countedAppIds: string[];
 };
 const positiveSafe = (value: number) => Number.isSafeInteger(value) && value >= 1;
-function isPosition(value: MissionChainPosition | null): value is MissionChainPosition {
+function isPosition(value: MissionChainPosition | null): boolean {
   return !!value && positiveSafe(value.blockNumber) &&
     Number.isSafeInteger(value.txIndex) && value.txIndex >= 0 &&
     Number.isSafeInteger(value.clauseIndex) && value.clauseIndex >= 0;
