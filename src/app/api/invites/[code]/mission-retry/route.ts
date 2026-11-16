@@ -70,7 +70,7 @@ async function loadAuthorizedInvite(
       { outcome: 'invalid_invitation' }, { status: 404, headers: noCache }) };
   }
   const row = data as MissionInvite;
-  const isInvitee = row.invitee_wallet.toLowerCase() === sessionWallet;
+  const isInvitee = row.invitee_wallet?.toLowerCase() === sessionWallet;
   const isInviter = row.inviter_wallet.toLowerCase() === sessionWallet;
   if (!(isInvitee || (!inviteeOnly && isInviter))) {
     return { ok: false, response: NextResponse.json(
