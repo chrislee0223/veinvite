@@ -20,6 +20,7 @@ type PayoutItem = {
   amountWei: string;
   status: string;
   txId: string | null;
+  broadcastConfirmedAt: string | null;
   attemptCount: number;
   errorMessage: string | null;
   createdAt: string;
@@ -63,6 +64,7 @@ type HistoryResponse = {
     trackedPayouts: number;
     paidPayouts: number;
     pendingPayouts: number;
+    onchainTransferredPayouts: number;
     payoutsWithErrors: number;
     latestPaidAt: string | null;
     latestPaidTxId: string | null;
@@ -381,7 +383,8 @@ export function RewardPayoutHistoryClient() {
             {[
               ['추적 지급', data.summary.trackedPayouts],
               ['지급 완료', data.summary.paidPayouts],
-              ['처리 중', data.summary.pendingPayouts],
+              ['최종 확정 대기', data.summary.pendingPayouts],
+              ['온체인 송금 확인', data.summary.onchainTransferredPayouts],
               ['오류 기록', data.summary.payoutsWithErrors],
             ].map(([label, value]) => (
               <div
@@ -466,7 +469,9 @@ export function RewardPayoutHistoryClient() {
                             fontSize: '12px',
                           }}
                         >
-                          {payout.status}
+                          {payout.status !== 'PAID' && payout.broadcastConfirmedAt && payout.txId
+                            ? '온체인 송금 확인 · 최종 확정 대기'
+                            : payout.status}
                         </strong>
                         <div
                           style={{
@@ -475,7 +480,7 @@ export function RewardPayoutHistoryClient() {
                             fontSize: '10px',
                           }}
                         >
-                          {formatTime(payout.paidAt ?? payout.updatedAt)}
+                          {formatTime(payout.paidAt ?? payout.broadcastConfirmedAt ?? payout.updatedAt)}
                         </div>
                       </div>
                     </div>
