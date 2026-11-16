@@ -132,6 +132,62 @@ export async function tryReserveVoteRoundBatch({
     return { kind: 'WAITING', reason: 'ROUND_CLOSE_PAUSED' };
   }
 
+  // An independently gated, fixed-cohort quote may settle before official
+  // vote-round close. Missing RPC during rolling rollout stays on old mode.
+  const { data: earlyModeRaw, error: earlyModeError } =
+    await supabaseAdmin.rpc('read_vote_window_immediate_mode_v1', {
+      p_network: network,
+    });
+  if (earlyModeError && earlyModeError.code !== 'PGRST202') {
+    throw new Error('Immediate window settings unavailable: ' + earlyModeError.message);
+  }
+  if (!earlyModeError) {
+    if (!earlyModeRaw || typeof earlyModeRaw !== 'object' ||
+        Array.isArray(earlyModeRaw)) {
+      throw new Error('Immediate window settings malformed');
+    }
+    const early = earlyModeRaw as Record<string, unknown>;
+    const first = Number(early.firstVoteRoundId);
+    const last = Number(early.lastVoteRoundId);
+    if (typeof early.enabled !== 'boolean' ||
+        !Number.isSafeInteger(first) || first < 1 ||
+        !Number.isSafeInteger(last) || last < first) {
+      throw new Error('Immediate window settings invalid');
+    }
+    if (early.enabled && voteRoundId >= first && voteRoundId <= last) {
+      const { data: raw, error } = await supabaseAdmin.rpc(
+        'commit_reward_vote_window_immediate_v1', {
+          p_invite_code: inviteCode,
+          p_network: network,
+          p_observed_pool_balance_wei: observedPoolBalanceWei,
+          p_observed_at: new Date().toISOString(),
+          p_finalized_block: finalizedBlock,
+        });
+      if (error || !raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new Error('Immediate window commitment failed: ' +
+          (error?.message ?? 'malformed result'));
+      }
+      const reply = raw as Record<string, unknown>;
+      if (reply.mode === 'IMMEDIATE_RESERVED') {
+        if (reply.reserved !== true || reply.count !== 1 ||
+            typeof reply.amountWei !== 'string' ||
+            !/^[1-9][0-9]*$/.test(reply.amountWei)) {
+          throw new Error('Immediate window immutable quote proof invalid');
+        }
+        return { kind: 'RESERVED', count: 1 };
+      }
+      if (reply.mode === 'ALREADY_RESERVED' && reply.reserved === true) {
+        return { kind: 'RESERVED', count: 0 };
+      }
+      if (reply.mode === 'DEFER' || reply.mode === 'BLOCKED' ||
+          reply.mode === 'DISABLED') {
+        return { kind: 'WAITING', reason: String(reply.reason ?? reply.mode) };
+      }
+      throw new Error('Unexpected immediate window outcome: ' +
+        String(reply.mode ?? 'UNKNOWN'));
+    }
+  }
+
   const { data: batchRaw, error: batchError } = await supabaseAdmin.rpc(
     'commit_reward_vote_round_close_batch_v1',
     {
