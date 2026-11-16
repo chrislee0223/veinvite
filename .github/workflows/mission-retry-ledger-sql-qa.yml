@@ -1,0 +1,52 @@
+name: Mission Retry Ledger Isolated SQL QA
+on:
+  pull_request:
+    paths:
+      - 'docs/staged-sql/20261117_mission_retry_ledger_disabled_v1.sql'
+      - 'supabase/migrations/*mission_retry_ledger_disabled_v1.sql'
+      - 'tests/sql/mission-retry-ledger-*.sql'
+      - '.github/workflows/mission-retry-ledger-sql-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: qa-local-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: qa-local-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install isolated PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Install fake referral and financial schema
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-retry-ledger-fixture.sql
+      - name: Apply prospective disabled migration to fake DB
+        run: |
+          if test -f supabase/migrations/20261117024000_mission_retry_ledger_disabled_v1.sql; then
+            psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261117024000_mission_retry_ledger_disabled_v1.sql
+          else
+            psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261117_mission_retry_ledger_disabled_v1.sql
+          fi
+      - name: Verify retry-state, immutable wallet, safety and exact-once guards
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-retry-ledger-assert.sql
