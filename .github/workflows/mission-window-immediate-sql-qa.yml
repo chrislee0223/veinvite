@@ -1,0 +1,49 @@
+name: Mission Window Immediate SQL QA
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261117013000_reward_vote_window_immediate_disabled_v1.sql'
+      - 'tests/sql/mission-window-immediate-*.sql'
+      - '.github/workflows/mission-window-immediate-sql-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-qa-not-live
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: isolated-qa-not-live
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install local PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create isolated fake accounting authority
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-window-immediate-fixture.sql
+      - name: Apply the exact disabled-by-default future-only migration
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261117013000_reward_vote_window_immediate_disabled_v1.sql
+      - name: Prove no premature payout, equal pricing, Sybil scope and forged quote rejection
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-window-immediate-assert.sql
