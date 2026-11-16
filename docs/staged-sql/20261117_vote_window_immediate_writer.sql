@@ -102,8 +102,9 @@ BEGIN
    IF fixed<0 OR fixed>p_observed_pool_balance_wei THEN
      RETURN jsonb_build_object('mode','DEFER','reason','POOL_UNDERFUNDED','reserved',false);
    END IF;
-   amount:=floor((p_observed_pool_balance_wei-fixed
-     -eligible_potential*xcfg.x_option_reserve_wei)/eligible_potential);
+   amount:=div(p_observed_pool_balance_wei-fixed
+     -eligible_potential*xcfg.x_option_reserve_wei,
+     eligible_potential::numeric);
    IF amount<xcfg.min_real_reward_wei THEN
      RETURN jsonb_build_object('mode','DEFER','reason','POOL_INSUFFICIENT','reserved',false);
    END IF;
