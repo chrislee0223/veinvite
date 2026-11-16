@@ -24,6 +24,7 @@ export type RewardPayoutHistoryItem = {
   amountWei: string;
   status: string;
   txId: string | null;
+  broadcastConfirmedAt: string | null;
   attemptCount: number;
   errorMessage: string | null;
   createdAt: string;
@@ -54,6 +55,7 @@ export type RewardPayoutObservability = {
     trackedPayouts: number;
     paidPayouts: number;
     pendingPayouts: number;
+    onchainTransferredPayouts: number;
     payoutsWithErrors: number;
     latestPaidAt: string | null;
     latestPaidTxId: string | null;
@@ -349,7 +351,7 @@ export async function readRewardPayoutObservability(
     await Promise.all([
       supabaseAdmin
         .from('reward_rounds')
-        .select('id, network, status, vebetter_round_id, created_at, started_at, completed_at')
+        .select('id, network, status, vebetter_round_id, created_at, started_at, completed_at, broadcast_confirmed_at')
         .eq('network', network)
         .order('id', { ascending: false })
         .limit(60),
@@ -400,9 +402,10 @@ export async function readRewardPayoutObservability(
 
   let payoutRows: Row[] = [];
   let failureRows: Row[] = [];
+  let submissionRows: Row[] = [];
 
   if (roundIds.length > 0) {
-    const [payoutResult, failureResult] = await Promise.all([
+    const [payoutResult, failureResult, submissionResult] = await Promise.all([
       supabaseAdmin
         .from('reward_payouts')
         .select('id, round_id, invite_code, recipient_wallet, amount_wei, status, tx_id, attempt_count, error_message, created_at, updated_at, paid_at')
@@ -416,6 +419,10 @@ export async function readRewardPayoutObservability(
         .not('error_message', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(20),
+      supabaseAdmin
+        .from('reward_payout_transaction_submissions')
+        .select('round_id, tx_id')
+        .in('round_id', roundIds),
     ]);
 
     if (payoutResult.error) {
@@ -424,13 +431,25 @@ export async function readRewardPayoutObservability(
     if (failureResult.error) {
       throw new Error(`Reward payout failures could not be loaded: ${failureResult.error.message}`);
     }
+    if (submissionResult.error) {
+      throw new Error(`Reward payout submissions could not be loaded: ${submissionResult.error.message}`);
+    }
 
+    submissionRows = (submissionResult.data ?? []) as unknown as Row[];
     payoutRows = (payoutResult.data ?? []) as unknown as Row[];
     failureRows = (failureResult.data ?? []) as unknown as Row[];
   }
 
   const settlements = (settlementResult.data ?? []) as unknown as Row[];
   const receipts = (receiptResult.data ?? []) as unknown as Row[];
+  const submissionByRound = new Map<string, string>();
+  for (const row of submissionRows) {
+    const roundId = integerText(row.round_id);
+    const txId = optionalText(row.tx_id)?.toLowerCase() ?? null;
+    if (roundId && txId && /^0x[0-9a-f]{64}$/.test(txId)) {
+      submissionByRound.set(roundId, txId);
+    }
+  }
   const settlementByRound = new Map<string, Row>();
   for (const row of settlements) {
     const id = integerText(row.round_id);
@@ -452,6 +471,13 @@ export async function readRewardPayoutObservability(
     const round = roundMap.get(roundId);
     const settlement = settlementByRound.get(roundId);
     const receipt = receiptByPayout.get(payoutId);
+    // Broadcast-confirmed is written only after the exact canonical receipt
+    // and RewardDistributed proof have been verified by the payout worker.
+    // It is NOT final settlement authority: PAID still requires full finality.
+    const broadcastConfirmedAt = round ? timestamp(round.broadcast_confirmed_at) : null;
+    const onchainSubmittedTxId = broadcastConfirmedAt
+      ? submissionByRound.get(roundId) ?? null
+      : null;
 
     return {
       payoutId,
@@ -461,7 +487,8 @@ export async function readRewardPayoutObservability(
       recipientWallet: text(row.recipient_wallet).toLowerCase(),
       amountWei: requireWei(row.amount_wei),
       status: text(row.status),
-      txId: optionalText(row.tx_id)?.toLowerCase() ?? null,
+      txId: optionalText(row.tx_id)?.toLowerCase() ?? onchainSubmittedTxId,
+      broadcastConfirmedAt,
       attemptCount: count(row.attempt_count),
       errorMessage: optionalText(row.error_message),
       createdAt: requireTimestamp(row.created_at, 'payout created_at'),
@@ -522,6 +549,9 @@ export async function readRewardPayoutObservability(
       trackedPayouts: recentPayouts.length,
       paidPayouts: paid.length,
       pendingPayouts: pending.length,
+      onchainTransferredPayouts: pending.filter((item) =>
+        Boolean(item.broadcastConfirmedAt && item.txId)
+      ).length,
       payoutsWithErrors: withErrors.length,
       latestPaidAt: latestPaid?.paidAt ?? null,
       latestPaidTxId: latestPaid?.txId ?? null,

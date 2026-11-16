@@ -369,7 +369,7 @@ export function RestrictedApprovedRewardClaims({
               >
                 {action.broadcastConfirmedAt &&
                 action.txId
-                  ? copy.finalCheck
+                  ? copy.transferConfirmed
                   : copy.claimQueued}
               </span>
             )}
