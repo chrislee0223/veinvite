@@ -12,7 +12,7 @@ test('mission retry cannot be enabled accidentally by a database-only change',()
 });
 test('retry endpoint restricts action to authenticated original invitee',()=>{
   assert.match(route,/requireWalletSession\(\{ request \}\)/);
-  assert.match(route,/const isInvitee = row\.invitee_wallet\.toLowerCase\(\) === sessionWallet/);
+  assert.match(route,/const isInvitee = row\.invitee_wallet\?\.toLowerCase\(\) === sessionWallet/);
   assert.match(route,/loadAuthorizedInvite\(request, context, true\)/);
   assert.match(route,/enforceRateLimits\(/);
   assert.match(route,/round\.status !== 'ACTIVE'/);
