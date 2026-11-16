@@ -49,7 +49,6 @@ export type RewardReservationSweepResult = {
   skipped: number;
   // Price-consistency refusals are retried by the durable cron, not hot Queue loops.
   pricingConflictInviteCodes: string[];
-  // Official round-close waits are deliberate, not transient Queue failures.
   roundCloseWaitingInviteCodes: string[];
 };
 
@@ -315,8 +314,7 @@ async function loadCandidates(network: string): Promise<ReservationCandidate[]> 
   }
 
   const legacy = Array.isArray(data) ? (data as ReservationCandidate[]) : [];
-  // New completion rounds must make progress independently of old entries
-  // saturating the legacy global limit. Uniqueness prevents double attempts.
+  // Include future rounds beyond the capped legacy page; deduplicate.
   const futureRounds = await readReadyVoteRoundBatchRepresentatives(network);
   const seen = new Set<string>();
   return [...futureRounds, ...legacy].filter((candidate) => {
@@ -446,10 +444,7 @@ async function reserveCandidate({
   let lastExpectedCohortCommittedWei: string | null = null;
   let lastExpectedOutstandingWei: string | null = null;
   for (let attempt = 0; attempt < MAX_REPRICE_ATTEMPTS; attempt += 1) {
-    // Emergency pause and the mainnet funded-reward gate apply to creation of
-    // new immutable reward liabilities as well as token settlement. Re-read
-    // the runtime gate for every pricing attempt so a pause activated during a
-    // sweep stops the next reservation instead of waiting for the sweep to end.
+    // Recheck the runtime pause before every immutable quote.
     if (!(await rewardReservationRuntimeOpen(network))) {
       return skipCandidate(
         candidate,
@@ -457,9 +452,7 @@ async function reserveCandidate({
       );
     }
 
-    // Financial authority is cohort-scoped. The public estimate is not trusted
-    // here; the live pool and the exact funding receipt bound at onboarding are
-    // re-read immediately before the immutable completion-time reservation.
+    // The live on-chain pool, not a public forecast, governs the quote.
     const pool = await readVeInviteRewardPoolStatus();
     if (pool.network !== network || pool.appId !== VEINVITE_APP_ID) {
       throw new Error('Reward reservation pool identity mismatch.');
@@ -483,9 +476,7 @@ async function reserveCandidate({
       return { kind: 'batch_reserved', count: roundClose.count };
     }
     if (roundClose.kind === 'WAITING') {
-      // The official receipt, chain finality and scanner catch-up are expected
-      // parts of the round-close policy. The durable recovery sweep will retry.
-      // Do not log a warning or force fast Queue retries for this normal wait.
+      // Official close/finality waits retry through durable recovery, not the Queue.
       if (
         roundClose.reason === 'WAIT_FOR_OFFICIAL_ROUND_CLOSE' ||
         roundClose.reason === 'WAIT_FOR_ROUND_CLOSE_FINALITY' ||
@@ -493,17 +484,13 @@ async function reserveCandidate({
       ) {
         return 'round_close_waiting';
       }
-      // Pauses, financial guards, missing proof or unexpected deferrals remain
-      // visible as warnings and cannot silently turn into a reservation.
+      // Other holds remain visible and fail closed.
       return skipCandidate(candidate, 'VOTE_ROUND_CLOSE_WAITING', {
         reason: roundClose.reason,
       });
     }
 
-    // Shared physical-pool reservations are priced and committed atomically
-    // inside PostgreSQL under the existing network financial lock.
-    // The staging setting is OFF by default; legacy pricing is untouched
-    // until the reviewed cutover is explicitly activated.
+    // Shared-pool commit is atomic; legacy remains available when disabled.
     const { data: sharedMode, error: sharedModeError } = await supabaseAdmin.rpc(
       'read_reward_shared_pool_mode_v1',
       { p_network: network },
@@ -574,9 +561,7 @@ async function reserveCandidate({
       throw new Error('Reward reservation cohort planning mismatch.');
     }
 
-    // Read-only bridge rehearsal in the isolated Preview database, opt-in only.
-    // This never authorizes, replaces, delays on failure, or changes the legacy
-    // reservation, Claim, Sybil or X payout paths.
+    // Optional Preview shadow must never block canonical reservation.
     if (
       attempt === 0 &&
       shouldReadRewardAdmissionShadow(network, process.env)
