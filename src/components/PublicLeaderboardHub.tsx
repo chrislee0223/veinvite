@@ -447,7 +447,7 @@ export function PublicLeaderboardHub({
         entry.rankMovement === 'SAME') return null;
     if (entry.rankMovement === 'NEW') {
       return (
-        <small className="countryRankMovement new" aria-hidden="true">
+        <small className="countryRankMovement new" dir="auto" aria-hidden="true">
           {movementCopy.newEntry}
         </small>
       );
