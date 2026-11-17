@@ -121,7 +121,6 @@ html body .leaderboardHub .countryRankMovement {
   font-weight: 850;
   line-height: 1;
   white-space: nowrap;
-  direction: ltr;
   unicode-bidi: isolate;
 }
 
