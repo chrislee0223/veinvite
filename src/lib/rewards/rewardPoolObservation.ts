@@ -3,6 +3,7 @@ import 'server-only';
 import { readPredictiveRewardPlanning } from '@/lib/rewards/predictivePlanning';
 import { readVeInviteRewardPoolStatus } from '@/lib/rewards/onchainPool';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { parseExactPoolWei } from '@/lib/rewards/exactPoolWei';
 
 // This is ONLY a verified physical-pool observation. It is not a per-person
 // reward forecast, payout quote, or payout authority.
@@ -25,12 +26,6 @@ function positiveRound(value: unknown, field: string): number {
   return n;
 }
 
-function asWei(value: unknown): string {
-  const s = String(value ?? '');
-  if (!/^\\d+$/.test(s)) throw new Error('Invalid physical pool Wei');
-  return BigInt(s).toString();
-}
-
 function mapRow(row: Record<string, unknown>): RewardPoolObservation {
   const generatedAt = String(row.generated_at ?? '');
   if (!generatedAt || Number.isNaN(Date.parse(generatedAt))) {
@@ -47,7 +42,7 @@ function mapRow(row: Record<string, unknown>): RewardPoolObservation {
     basisAllocationRoundId,
     projectedFundingRoundId,
     earliestCompletionRoundId: projectedFundingRoundId + 1,
-    observedPoolBalanceWei: asWei(row.observed_pool_balance_wei),
+    observedPoolBalanceWei: parseExactPoolWei(row.observed_pool_balance_wei),
     modelVersion: REWARD_POOL_OBSERVATION_MODEL_VERSION,
   };
 }
@@ -57,15 +52,14 @@ export async function readLatestRewardPoolObservation(input: {
   appId: string;
   signal?: AbortSignal;
 }): Promise<RewardPoolObservation | null> {
-  let query = supabaseAdmin.from('reward_pool_observations')
-    .select('generated_at,basis_allocation_round_id,projected_funding_round_id,observed_pool_balance_wei')
-    .eq('network', input.network)
-    .eq('app_id', input.appId)
-    .order('generated_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(1);
+  // An exact-text SQL reader is required: PostgREST NUMERIC -> JSON Number
+  // would silently round large token Wei. Never parse that as JS number.
+  let query = supabaseAdmin.rpc('read_latest_reward_pool_observation', {
+    p_network: input.network,
+    p_app_id: input.appId,
+  });
   if (input.signal) query = query.abortSignal(input.signal);
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query;
   if (error) throw new Error('Physical pool observation read failed: ' + error.message);
   return data ? mapRow(data as Record<string, unknown>) : null;
 }
@@ -98,7 +92,7 @@ export async function refreshRewardPoolObservation(input: {
     network: input.network,
     app_id: input.appId,
     generated_at: new Date().toISOString(),
-    observed_pool_balance_wei: asWei(pool.effectiveRewardPoolWei),
+    observed_pool_balance_wei: parseExactPoolWei(pool.effectiveRewardPoolWei),
     basis_allocation_round_id: basisAllocationRoundId,
     projected_funding_round_id: projectedFundingRoundId,
     input_snapshot: {
