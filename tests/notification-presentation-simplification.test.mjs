@@ -29,7 +29,7 @@ test('paid notices must never append an earlier claim-ready message',()=>{
   assert.match(modal,/case 'REWARD_PAID'/);
 });
 test('all supported locales have updated reward-ready wording',()=>{
-  const readyLines=copy.split('\n').filter(x=>x.includes('rewardReadyBody:'));
+  const readyLines=copy.split('\n').filter(x=>/^  (?:'[^']+'|[a-z]+): \{.*rewardReadyBody:/u.test(x));
   assert.equal(readyLines.length,29);
   for (const line of readyLines) {
     assert.match(line,/VeInvite/);

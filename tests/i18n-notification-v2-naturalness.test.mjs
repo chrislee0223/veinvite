@@ -41,7 +41,7 @@ test('reward-ready notifications avoid mechanical friend-slot translations', () 
 });
 
 test('reward-ready notifications tell users to check claim status, never claim paid', () => {
-  const readyLines = source.split('\n').filter((line) => line.includes('rewardReadyBody:'));
+  const readyLines = source.split('\n').filter((line) => /^  (?:'[^']+'|[a-z]+): \{.*rewardReadyBody:/u.test(line));
   assert.equal(readyLines.length, 29);
   for (const expected of [
     "rewardReadyBody: 'Your friend completed all missions. Check your reward claim status in VeInvite.'",
