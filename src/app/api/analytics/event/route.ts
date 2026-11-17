@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -298,16 +298,17 @@ export async function POST(request: NextRequest) {
   ]);
   if (limited) return limited;
 
+  // Verified wallet identity exists only server-side. A cookie-free browser event
+  // remains an ordinary daily anonymous event and cannot be counted as one
+  // lifetime wallet user. Failures never interrupt a real Network edit.
+  let networkVerifiedWallet: string | null = null;
   try {
     const walletSession = await getWalletSession(request);
-    if (
-      walletSession &&
-      (await excludeAdminVisitor(
-        walletSession.walletAddress,
-        hashedVisitor,
-      ))
-    ) {
-      return noStore();
+    if (walletSession) {
+      if (await excludeAdminVisitor(walletSession.walletAddress, hashedVisitor)) {
+        return noStore();
+      }
+      networkVerifiedWallet = walletSession.walletAddress;
     }
   } catch (error) {
     // Product analytics is observational only. A temporary wallet-session check
@@ -354,6 +355,31 @@ export async function POST(request: NextRequest) {
       error,
     );
     return noStore(503);
+  }
+
+  // Distinct verified wallets are counted once across dates and browser tabs.
+  // HMAC uses a dedicated private Production key; never persist/send a raw
+  // wallet address, daily visitor key, or reusable pseudonym to the browser.
+  if (
+    (eventName === 'network_node_repositioned' ||
+      eventName === 'network_group_modified') &&
+    networkVerifiedWallet
+  ) {
+    const pepper = process.env.VEINVITE_NETWORK_ANALYTICS_PEPPER ?? '';
+    if (pepper.length >= 32) {
+      const walletKey = createHmac('sha256', pepper)
+        .update(`veinvite:network-engagement:v1\n${networkVerifiedWallet.toLowerCase()}`)
+        .digest('hex');
+      const { error: engagementError } = await supabaseAdmin.rpc(
+        'record_app_network_wallet_engagement',
+        { p_wallet_key: walletKey, p_event_name: eventName },
+      );
+      if (engagementError) {
+        console.error('Network lifetime engagement could not be recorded:', engagementError);
+      }
+    } else {
+      console.error('Network lifetime engagement private key is not configured.');
+    }
   }
 
   await capturePostHogEvent({

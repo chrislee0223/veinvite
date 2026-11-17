@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
       productDevice,
       productSource,
       networkDaily,
+      networkLifetime,
     ] = await Promise.all([
       rpc(
         'read_app_usage_daily_summary',
@@ -188,6 +189,15 @@ export async function GET(request: NextRequest) {
         'read_app_network_daily_unique_visitors',
         range,
       ),
+      rpc(
+        'read_app_network_lifetime_engagement',
+        {},
+      ).catch((error) => {
+        // A new optional statistic must not break existing visit,
+        // product, reward, or daily Network reports on temporary outages.
+        console.error('Network lifetime analytics temporarily unavailable:', error);
+        return null;
+      }),
     ]);
 
     const networkToday = (networkDaily as Array<{
@@ -196,6 +206,18 @@ export async function GET(request: NextRequest) {
       node_movers: string | number;
       group_editors: string | number;
     }>).find((row) => row.usage_date === toDate);
+
+    const lifetimeRows = (networkLifetime ?? []) as Array<{
+      total_verified_wallets: string | number;
+      returning_wallets: string | number;
+      node_movers: string | number;
+      group_editors: string | number;
+      total_active_days: string | number;
+    }>;
+    const lifetime = lifetimeRows[0];
+    const lifetimeAvailable = networkLifetime !== null && lifetime !== undefined;
+    const lifetimeUsers = Number(lifetime?.total_verified_wallets ?? 0);
+    const returningUsers = Number(lifetime?.returning_wallets ?? 0);
 
     return NextResponse.json(
       {
@@ -219,7 +241,7 @@ export async function GET(request: NextRequest) {
           productEvents:
             '제품 행동 횟수입니다. 같은 방문자의 원 이동·그룹 수정 이용자 수는 별도의 networkEngagement 고유 방문자 지표로 확인합니다.',
           networkEngagement:
-            '같은 날 같은 익명 브라우저가 원을 여러 번 이동하거나 그룹도 수정해도 전체 사용자 수는 1명입니다. 두 활동별 사용자 수를 단순히 더하면 중복됩니다. 날짜나 브라우저가 바뀐 동일인을 구분할 수 없으므로 여러 날의 합계는 실제 고유 인원으로 표시하지 않습니다.',
+            '일별 기록은 익명 브라우저 기준입니다. 별도 누적 기록은 인증된 지갑을 서버에서 비밀키로 가명화하여 원 이동 또는 그룹 수정을 실제 수행한 지갑을 평생 1회 집계합니다. 여러 날짜·기기에서 동일 지갑은 1명, 재사용은 서로 다른 서울 날짜에 2회 이상 사용한 경우입니다. 인증 없는 사용과 한 사람이 여러 지갑을 쓰는 경우는 동일인으로 결합할 수 없습니다.',
         },
         privacy: {
           rawIpStored: false,
@@ -235,6 +257,9 @@ export async function GET(request: NextRequest) {
           rawArchiveRequiredBeforeCleanup: true,
           permanentAggregateHistory: true,
           userCanOptOut: true,
+          networkVerifiedWalletPseudonyms: true,
+          networkWalletAddressStored: false,
+          networkTrackingAcrossDays: true,
           rewardAuthority: false,
         },
         verifiedOperator: session.walletAddress,
@@ -246,6 +271,23 @@ export async function GET(request: NextRequest) {
           views,
         },
         networkEngagement: {
+          lifetime: {
+            available: lifetimeAvailable,
+            unit: 'distinct-verified-wallet',
+            uniqueUsers: lifetimeAvailable ? lifetimeUsers : null,
+            returningUsers: lifetimeAvailable ? returningUsers : null,
+            returningRatePercent: lifetimeAvailable
+              ? (lifetimeUsers === 0 ? 0 : Math.round(returningUsers / lifetimeUsers * 1000) / 10)
+              : null,
+            nodeMovers: lifetimeAvailable ? Number(lifetime?.node_movers ?? 0) : null,
+            groupEditors: lifetimeAvailable ? Number(lifetime?.group_editors ?? 0) : null,
+            activeWalletDays: lifetimeAvailable ? Number(lifetime?.total_active_days ?? 0) : null,
+            crossDayUniqueUsersSupported: true,
+            crossDeviceSameWalletSupported: true,
+            multipleWalletsPerHumanCannotBeMerged: true,
+            anonymousOnlyEventsNotIncluded: true,
+            startsAt: '2026-11-18',
+          },
           unit: 'daily-anonymous-browser',
           today: {
             date: toDate,

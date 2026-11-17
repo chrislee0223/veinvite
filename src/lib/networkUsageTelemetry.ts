@@ -10,10 +10,26 @@ export type NetworkInteractionName =
 // Count engaged sessions, not pointer-move frames. The daily anonymous visitor
 // identity is managed by the existing consent-gated analytics tracker.
 const emitted = new Set<NetworkInteractionName>();
+let recordedDay = '';
+
+function currentSeoulDay(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 export function reportNetworkInteractionOnce(eventName: NetworkInteractionName): void {
   try {
-    if (emitted.has(eventName) || !readUsageAnalyticsEnabled()) return;
+    if (!readUsageAnalyticsEnabled()) return;
+    const day = currentSeoulDay();
+    if (day !== recordedDay) {
+      emitted.clear();
+      recordedDay = day;
+    }
+    if (emitted.has(eventName)) return;
     emitted.add(eventName);
     reportProductAnalyticsEvent({ eventName, outcome: 'success' });
   } catch {
