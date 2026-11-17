@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 
 // A regression guard: legacy recipient forecasts must never silently return
@@ -37,4 +38,19 @@ test('SQL separates source observations and protects historical top-up receipts'
   assert.match(migration, /seal_and_topup_current_reward_cohort/);
   assert.match(migration, /pool_observation_id/);
   assert.doesNotMatch(migration, /delete from public\.reward_forecast_snapshots|truncate public\.reward_forecast_snapshots/i);
+});
+
+test('no active application source can resurrect the retired forecast', () => {
+  const sourceFiles = [];
+  function walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\\.[mc]?[tj]sx?$/.test(entry.name)) sourceFiles.push(path);
+    }
+  }
+  walk('src');
+  const old = /reward_forecast_snapshots|rewardForecastSnapshot|rewardForecastPolicy|rewardForecastPendingWeights|read_latest_reward_forecast_snapshot/;
+  const offenders = sourceFiles.filter((path) => old.test(readFileSync(path, 'utf8')));
+  assert.deepEqual(offenders, [], 'Live sources still reference retired legacy forecast: ' + offenders.join(', '));
 });
