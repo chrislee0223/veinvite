@@ -16,7 +16,9 @@ export type ProductAnalyticsEventName =
   | 'mission_action_opened'
   | 'reward_claim_started'
   | 'reward_claim_succeeded'
-  | 'reward_claim_failed';
+  | 'reward_claim_failed'
+  | 'network_node_repositioned'
+  | 'network_group_modified';
 
 export type ProductAnalyticsOutcome =
   | 'none'
