@@ -58,7 +58,7 @@ test('recipient history is single Sybil-clean authority for actual pricing', asy
   assert.match(reader,/read_reward_forecast_history/);
   assert.match(reader,/p_recipient_limit: RECIPIENT_DEMAND_HISTORY_LIMIT/);
   assert.match(payout,/await readRewardFundingHistory/);
-  assert.doesNotMatch(reader,/(?:insert|update|delete)\\s*\\(/);
+  assert.ok(!reader.includes('.insert(') && !reader.includes('.update(') && !reader.includes('.delete('));
 });
 
 test('randomized fixed payouts never exceed available funded budget', () => {
