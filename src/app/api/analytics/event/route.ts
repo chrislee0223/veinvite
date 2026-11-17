@@ -28,6 +28,8 @@ const EVENT_NAMES = new Set([
   'reward_claim_started',
   'reward_claim_succeeded',
   'reward_claim_failed',
+  'network_node_repositioned',
+  'network_group_modified',
 ]);
 const USAGE_VIEWS = new Set([
   'home',
