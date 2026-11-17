@@ -39,6 +39,17 @@ where not exists (
 )
 order by s.network, s.app_id, s.generated_at desc, s.id desc;
 
+-- Preserve existing top-up audit FKs while moving *future* top-ups to the
+-- independent pool observation. Never rewrite historical plan evidence.
+alter table public.reward_boost_current_topup_plans
+  add column if not exists pool_observation_id bigint
+  references public.reward_pool_observations(id);
+alter table public.reward_boost_current_topup_plans
+  alter column forecast_snapshot_id drop not null;
+alter table public.reward_boost_current_topup_plans
+  add constraint reward_current_topup_exactly_one_pool_observation
+  check (num_nonnulls(forecast_snapshot_id, pool_observation_id) = 1);
+
 -- Both quote readers depend on a fresh on-chain physical observation, but
 -- MUST NOT depend on legacy recipient-forecast rows or their price fields.
 do $migration$
@@ -49,7 +60,8 @@ declare
 begin
   foreach v_proc in array array[
     'public.read_reward_shared_pool_capacity_shadow_v1(text,text)'::regprocedure,
-    'public.read_reward_elastic_public_scenarios_v1(text,text)'::regprocedure
+    'public.read_reward_elastic_public_scenarios_v1(text,text)'::regprocedure,
+    'public.seal_and_topup_current_reward_cohort(text,text,numeric)'::regprocedure
   ]
   loop
     v_definition := pg_get_functiondef(v_proc::oid);
@@ -61,6 +73,17 @@ begin
       'public.reward_forecast_snapshots',
       'public.reward_pool_observations'
     );
+    if v_proc = 'public.seal_and_topup_current_reward_cohort(text,text,numeric)'::regprocedure then
+      if position('global_reserved_wei,forecast_snapshot_id' in v_rewritten) = 0 then
+        raise exception 'Current top-up writer schema has changed; abort safely';
+      end if;
+      v_rewritten := replace(
+        v_rewritten,
+        'global_reserved_wei,forecast_snapshot_id',
+        'global_reserved_wei,pool_observation_id'
+      );
+      v_rewritten := replace(v_rewritten, '''forecastSnapshotId''', '''poolObservationId''');
+    end if;
     execute v_rewritten;
   end loop;
 end
