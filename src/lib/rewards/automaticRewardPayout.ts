@@ -1089,14 +1089,8 @@ async function countQueuedRewards(
 }
 
 /**
- * Runs one idempotent automatic payout iteration. The function is deliberately
- * fail-closed: without an explicit enable flag, matching server-only key,
- * registered on-chain Reward Distributor address, funded runtime gate, healthy
- * pool and immutable financial evidence, it cannot sign or transfer B3TR.
- *
- * A signed raw transaction is journaled before broadcast. If the serverless
- * process or RPC fails after signing, the next iteration rebroadcasts the exact
- * same transaction id instead of creating a second payment.
+ * Executes one idempotent payout iteration, gated by signer, funding, chain
+ * and immutable transaction journals. Replays the same signed tx if needed.
  */
 export async function runAutomaticRewardPayout(
   {
