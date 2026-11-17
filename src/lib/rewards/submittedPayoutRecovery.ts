@@ -13,6 +13,7 @@ import {
   verifyCanonicalRewardTransactionOnChain,
   verifyFinalizedRewardTransactionOnChain,
 } from '@/lib/rewards/transactionVerification';
+import { safelyMaterializePaidRewardNoticesForRound } from '@/lib/notifications/materializePaidRewardNotices';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -533,6 +534,10 @@ Promise<SubmittedPayoutRecoveryResult> {
         `Submitted payout settlement failed: ${finalizeError.message}`,
       );
     }
+
+    // Generate the existing receipt-verified REWARD_PAID notice at settlement,
+    // rather than depending only on a later wallet history-page visit.
+    await safelyMaterializePaidRewardNoticesForRound(roundId);
 
     return {
       status: 'PAID',

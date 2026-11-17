@@ -29,6 +29,7 @@ import {
 import {
   refreshQueuedReferralSignalChecks,
 } from '@/lib/sybil/vePassportSignals';
+import { safelyMaterializePaidRewardNoticesForRound } from '@/lib/notifications/materializePaidRewardNotices';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   getVeBetterNetworkConfig,
@@ -1059,6 +1060,11 @@ async function finalizeIfPossible({
       `Automatic payout settlement failed: ${error.message}`,
     );
   }
+
+  // Shared idempotent notice writer also handles direct finalization.
+  await safelyMaterializePaidRewardNoticesForRound(
+    String(state.round?.id ?? ''),
+  );
 
   return 'PAID';
 }
