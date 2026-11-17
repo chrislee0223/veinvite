@@ -39,6 +39,9 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Country ranking movement regression gate
+        run: node --experimental-strip-types --test tests/country-leaderboard-rank-movement.test.mjs
+
       - name: Migration history gate
         run: node scripts/check-migration-history.mjs
 
@@ -60,7 +63,7 @@ jobs:
           retention-days: 7
 
       - name: Browser QA scope policy gate
-        run: node --test tests/ci-browser-scope.test.mjs
+        run: node --test tests/ci-browser-scope.test.mjs tests/ci-country-browser-scope.test.mjs
 
       - name: UI stability gate
         run: node scripts/check-ui-stability.mjs
@@ -249,7 +252,15 @@ jobs:
           fi
 
           echo "run_browser=$result" >> "$GITHUB_OUTPUT"
-          printf 'Browser QA required: %s\n' "$result"
+          browser_mode="$(
+            CHANGED_PATHS="$changed_paths" node scripts/select-country-browser-qa.mjs
+          )"
+          if [ "$browser_mode" != 'country' ] && [ "$browser_mode" != 'full' ]; then
+            echo "Invalid browser QA mode: $browser_mode" >&2
+            exit 1
+          fi
+          echo "browser_mode=$browser_mode" >> "$GITHUB_OUTPUT"
+          printf 'Browser QA required: %s; mode: %s\n' "$result" "$browser_mode"
           if [ -n "$changed_paths" ]; then
             printf '%s\n' "$changed_paths"
           else
@@ -310,7 +321,14 @@ jobs:
         if: steps.browser-scope.outputs.run_browser == 'true'
         env:
           VEINVITE_PLAYWRIGHT_PREBUILT: 'true'
-        run: npm run test:playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.browser-scope.outputs.browser_mode }}" = 'country' ]; then
+            npx playwright test tests/playwright/shell-and-country-alignment.spec.ts
+          else
+            npm run test:playwright
+          fi
 
       - name: Upload Playwright QA evidence
         if: always() && steps.browser-scope.outputs.run_browser == 'true'

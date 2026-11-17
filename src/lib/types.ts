@@ -99,6 +99,9 @@ export type PublicCountryArrivalEntry = {
   newUsers: number;
   returningUsers: number;
   currentRoundCompleted: number;
+  previousRank: number | null;
+  rankChange: number | null;
+  rankMovement: RankMovement;
 };
 
 export type PublicCountryArrivalResponse = {

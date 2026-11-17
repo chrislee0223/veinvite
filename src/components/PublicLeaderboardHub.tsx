@@ -6,6 +6,7 @@ import { COUNTRY_ARRIVAL_METRIC_COPY } from '@/lib/i18n/countryArrivalMetricCopy
 import { COUNTRY_LEADERBOARD_COPY } from '@/lib/i18n/countryLeaderboardCopy';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
+import { getLeaderboardMovementCopy } from '@/lib/i18n/leaderboardMovementCopy';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedPublicLeaderboard,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/leaderboardClientCache';
 import type {
   PublicCountryArrivalResponse,
+  PublicCountryArrivalEntry,
   PublicLeaderboardEntry,
   PublicLeaderboardResponse,
 } from '@/lib/types';
@@ -426,6 +428,46 @@ export function PublicLeaderboardHub({
     });
     setPersonalizationRetryKey((current) => current + 1);
   }, [walletKey]);
+  const movementCopy = getLeaderboardMovementCopy(locale);
+  const countryMovementDescription = (
+    entry: PublicCountryArrivalEntry,
+  ): string | null => {
+    if (entry.rankMovement === 'NEW') return movementCopy.newEntryAria;
+    if (entry.rankMovement === 'SAME') return movementCopy.same;
+    if (entry.rankMovement === 'UP' && entry.rankChange !== null) {
+      return movementCopy.up(entry.rankChange);
+    }
+    if (entry.rankMovement === 'DOWN' && entry.rankChange !== null) {
+      return movementCopy.down(Math.abs(entry.rankChange));
+    }
+    return null;
+  };
+  const renderCountryMovement = (entry: PublicCountryArrivalEntry) => {
+    if (entry.rankMovement === 'UNAVAILABLE' ||
+        entry.rankMovement === 'SAME') return null;
+    if (entry.rankMovement === 'NEW') {
+      return (
+        <small className="countryRankMovement new" dir="auto" aria-hidden="true">
+          {movementCopy.newEntry}
+        </small>
+      );
+    }
+    const change = entry.rankChange;
+    if (change === null || change === 0) return null;
+    const goingUp = entry.rankMovement === 'UP' && change > 0;
+    const goingDown = entry.rankMovement === 'DOWN' && change < 0;
+    if (!goingUp && !goingDown) return null;
+    return (
+      <small
+        className={`countryRankMovement ${goingUp ? 'up' : 'down'}`}
+        aria-hidden="true"
+      >
+        <bdi dir="ltr">
+          {goingUp ? '▲' : '▼'}{Math.abs(change).toLocaleString('en-US')}
+        </bdi>
+      </small>
+    );
+  };
   const countryCopy = COUNTRY_LEADERBOARD_COPY[locale];
   const countryMetricCopy = COUNTRY_ARRIVAL_METRIC_COPY[locale];
   const leaderboardCopy = LEADERBOARD_COPY[locale] ?? LEADERBOARD_COPY.en;
@@ -541,8 +583,14 @@ export function PublicLeaderboardHub({
                     data-rank={row.rank <= 3 ? row.rank : undefined}
                     key={row.countryCode}
                   >
-                    <strong className="countryRank">
-                      {row.countryCode === 'ZZ' ? '—' : row.rank}
+                    <strong
+                      className="countryRank"
+                      title={countryMovementDescription(row) ?? undefined}
+                    >
+                      <span className="countryRankValue" dir="ltr">
+                        {row.countryCode === 'ZZ' ? '—' : row.rank}
+                      </span>
+                      {renderCountryMovement(row)}
                     </strong>
                     <div className="countryIdentity">
                       <CountryFlag countryCode={row.countryCode} />

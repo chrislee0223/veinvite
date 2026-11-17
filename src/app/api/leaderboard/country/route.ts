@@ -4,6 +4,7 @@ import {
 } from 'next/server';
 
 import { normalizeIsoCountryCode } from '@/lib/countryCodes';
+import { attachCountryRankMovement } from '@/lib/countryRankMovement';
 import {
   enforceRateLimits,
   getClientIpSubject,
@@ -100,6 +101,9 @@ function normalizePayload(value: unknown): {
           row.currentRoundCompleted,
           'Country current-round completions',
         ),
+        previousRank: null,
+        rankChange: null,
+        rankMovement: 'UNAVAILABLE',
       };
     },
   );
@@ -150,6 +154,9 @@ function normalizePayload(value: unknown): {
       newUsers: unknownNewUsers,
       returningUsers: unknownReturningUsers,
       currentRoundCompleted: unknownCurrentRoundCompleted,
+      previousRank: null,
+      rankChange: null,
+      rankMovement: 'UNAVAILABLE',
     });
   }
 
@@ -158,6 +165,42 @@ function normalizePayload(value: unknown): {
     unknownCompleted,
     leaders,
   };
+}
+
+/**
+ * A missing/invalid historical baseline must hide movement, never affect
+ * the live country totals or produce misleading NEW arrows.
+ */
+function parsePreviousRanks(
+  value: unknown,
+  expectedRoundId: number,
+): Map<string, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  if (payload.available !== true ||
+      Number(payload.roundId) !== expectedRoundId ||
+      !Array.isArray(payload.ranks)) {
+    return null;
+  }
+  const ranks = new Map<string, number>();
+  for (const item of payload.ranks) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return null;
+    }
+    const row = item as Record<string, unknown>;
+    const countryCode = row.countryCode;
+    const rank = Number(row.rank);
+    if (typeof countryCode !== 'string' ||
+        normalizeIsoCountryCode(countryCode) !== countryCode ||
+        !Number.isSafeInteger(rank) || rank < 1 ||
+        ranks.has(countryCode)) {
+      return null;
+    }
+    ranks.set(countryCode, rank);
+  }
+  return ranks;
 }
 
 export async function GET(request: NextRequest) {
@@ -193,11 +236,37 @@ export async function GET(request: NextRequest) {
     }
 
     const normalized = normalizePayload(data);
+
+    let previousRanks: Map<string, number> | null = null;
+    if (round.currentRoundId > 1) {
+      try {
+        const { data: comparison, error: comparisonError } =
+          await supabaseAdmin.rpc(
+            'get_public_country_previous_round_ranks',
+            {
+              p_network: round.network,
+              p_previous_round_id: round.currentRoundId - 1,
+            },
+          );
+        if (comparisonError) {
+          throw comparisonError;
+        }
+        previousRanks = parsePreviousRanks(
+          comparison,
+          round.currentRoundId - 1,
+        );
+      } catch (comparisonError) {
+        // Country totals remain live even when historical movement fails.
+        console.error('Country rank movement unavailable:', comparisonError);
+      }
+    }
+
     const response: PublicCountryArrivalResponse = {
       generatedAt: new Date().toISOString(),
       network: round.network,
       currentRoundId: round.currentRoundId,
       ...normalized,
+      leaders: attachCountryRankMovement(normalized.leaders, previousRanks),
     };
 
     return NextResponse.json(response, {

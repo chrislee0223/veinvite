@@ -100,6 +100,42 @@ html body .leaderboardHub .countryRank {
   transition: color 120ms ease-out;
 }
 
+/* Stack the compact movement mark below the rank inside its existing
+ * grid track. No added columns or horizontal displacement on mobile. */
+html body .leaderboardHub .countryRank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  direction: ltr;
+}
+
+html body .leaderboardHub .countryRankMovement {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size: .49rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+
+html body .leaderboardHub .countryRankMovement.new {
+  color: #d8b76a;
+}
+
+html body .leaderboardHub .countryRankMovement.up {
+  color: #68b995;
+}
+
+html body .leaderboardHub .countryRankMovement.down {
+  color: #db8d89;
+}
+
 html body .leaderboardHub .countryRow[data-rank='1'] .countryRank {
   color: #f1c84c;
   font-weight: 950;
