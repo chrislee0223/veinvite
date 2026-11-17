@@ -12,6 +12,7 @@ import {
 } from '@/lib/i18n/legalCopy';
 import { PRIVACY_COUNTRY_OBSERVATION_COPY } from '@/lib/i18n/privacyCountryObservationCopy';
 import { PRIVACY_PRODUCT_ANALYTICS_COPY } from '@/lib/i18n/privacyProductAnalyticsCopy';
+import { PRIVACY_NETWORK_ENGAGEMENT_COPY } from '@/lib/i18n/privacyNetworkEngagementCopy';
 import { PRIVACY_SECURITY_CLIENT_COPY } from '@/lib/i18n/privacySecurityClientCopy';
 import { PRIVACY_USAGE_ANALYTICS_COPY } from '@/lib/i18n/privacyUsageAnalyticsCopy';
 import { PRIVACY_WALLET_LANGUAGE_COPY } from '@/lib/i18n/privacyWalletLanguageCopy';
@@ -94,6 +95,8 @@ export function LocalizedLegalPage({
     kind === 'privacy' ? PRIVACY_USAGE_ANALYTICS_COPY[locale] : null;
   const productAnalyticsCopy =
     kind === 'privacy' ? PRIVACY_PRODUCT_ANALYTICS_COPY[locale] : null;
+  const networkEngagementCopy =
+    kind === 'privacy' ? PRIVACY_NETWORK_ENGAGEMENT_COPY[locale] : null;
   const walletLanguageCopy =
     kind === 'privacy' ? PRIVACY_WALLET_LANGUAGE_COPY[locale] : null;
   const securityClientCopy =
@@ -118,7 +121,7 @@ export function LocalizedLegalPage({
       <header className="legalHeader">
         <span>{copy.eyebrow}</span>
         <h1>{copy.title}</h1>
-        <p>{countryObservationCopy?.updated ?? securityClientCopy?.updated ?? productAnalyticsCopy?.updated ?? walletLanguageCopy?.updated ?? usageAnalyticsCopy?.updated ?? copy.updated}</p>
+        <p>{networkEngagementCopy ? '2026-11-18' : countryObservationCopy?.updated ?? securityClientCopy?.updated ?? productAnalyticsCopy?.updated ?? walletLanguageCopy?.updated ?? usageAnalyticsCopy?.updated ?? copy.updated}</p>
       </header>
 
       <p className="legalIntro">{copy.intro}</p>
@@ -146,6 +149,12 @@ export function LocalizedLegalPage({
           <section key="product-analytics-privacy">
             <h2>{productAnalyticsCopy.heading}</h2>
             <p>{productAnalyticsCopy.body}</p>
+          </section>
+        ) : null}
+        {networkEngagementCopy ? (
+          <section key="network-engagement-privacy">
+            <h2>{networkEngagementCopy.heading}</h2>
+            <p>{networkEngagementCopy.body}</p>
           </section>
         ) : null}
         {walletLanguageCopy ? (
