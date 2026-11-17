@@ -20,3 +20,15 @@ export function reportNetworkInteractionOnce(eventName: NetworkInteractionName):
     // Observational telemetry must never interrupt drags, edits or autosave.
   }
 }
+
+/** Count completed workspace changes, not camera pans or cancelled drags. */
+export function reportCompletedNetworkDrag(
+  kind: 'node' | 'slot' | 'group' | 'group-member',
+  before: import('@/lib/networkWorkspace').NetworkFocusWorkspace,
+  after: import('@/lib/networkWorkspace').NetworkFocusWorkspace | null,
+): void {
+  if (!after || JSON.stringify(before) === JSON.stringify(after)) return;
+  reportNetworkInteractionOnce(
+    kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
+  );
+}

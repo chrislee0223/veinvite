@@ -29,7 +29,8 @@ test('record only completed changes, not camera movement or canceled drags', () 
   assert.doesNotMatch(pointerMove, /reportNetworkInteractionOnce/);
   const drop = network.split('const finishWorkspaceDrop =')[1].split('const onPointerDownCapture =')[0];
   assert.match(drop, /event\.type !== 'pointerup'/);
-  assert.match(drop, /JSON\.stringify\(draftWorkspaceRef\.current\) !== JSON\.stringify\(drag\.originalWorkspace\)/);
+  assert.match(drop, /reportCompletedNetworkDrag/);
+  assert.match(telemetry, /JSON\.stringify\(before\) === JSON\.stringify\(after\)/);
   assert.match(drop, /reportNetworkInteractionOnce\('network_group_modified'\)/);
   const end = network.split('const onPointerEndCapture =')[1].split('const onWheel =')[0];
   assert.match(end, /event\.type === 'pointerup'/);

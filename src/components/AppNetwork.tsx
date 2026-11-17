@@ -141,7 +141,7 @@ import {
   type NetworkPinchState,
 } from '@/lib/networkGestureGeometry';
 import { useWalletLauncher } from './WalletControl';
-import { reportNetworkInteractionOnce } from '@/lib/networkUsageTelemetry';
+import { reportNetworkInteractionOnce, reportCompletedNetworkDrag } from '@/lib/networkUsageTelemetry';
 
 type NavigationDirection = 'forward' | 'back';
 
@@ -1933,16 +1933,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
 
     const memberDrag = drag.kind === 'node' || drag.kind === 'group-member';
     if (!memberDrag) {
-      const changed = Boolean(
-        draftWorkspaceRef.current &&
-        JSON.stringify(draftWorkspaceRef.current) !== JSON.stringify(drag.originalWorkspace)
-      );
       commitCurrentDraftWorkspace();
-      if (changed) {
-        reportNetworkInteractionOnce(
-          drag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
-        );
-      }
+      reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
       return;
     }
 
@@ -1998,14 +1990,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       return;
     }
 
-    const changed = Boolean(
-      draftWorkspaceRef.current &&
-      JSON.stringify(draftWorkspaceRef.current) !== JSON.stringify(drag.originalWorkspace)
-    );
     commitCurrentDraftWorkspace();
-    if (changed) {
-      reportNetworkInteractionOnce('network_node_repositioned');
-    }
+    reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
   }, [
     groupDraft,
     findGroupDropTarget,
@@ -2316,11 +2302,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         suppressClickRef.current = true;
       } else if (holdDrag.moved) {
         flushWorkspaceStore();
-        if (event.type === 'pointerup') {
-          reportNetworkInteractionOnce(
-            holdDrag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
-          );
-        }
+        if (event.type === 'pointerup') reportNetworkInteractionOnce(
+          holdDrag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
+        );
         suppressClickRef.current = true;
       }
       holdDragRef.current = null;
