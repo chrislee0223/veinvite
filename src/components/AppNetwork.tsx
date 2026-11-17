@@ -141,6 +141,7 @@ import {
   type NetworkPinchState,
 } from '@/lib/networkGestureGeometry';
 import { useWalletLauncher } from './WalletControl';
+import { reportNetworkInteractionOnce, reportCompletedNetworkDrag } from '@/lib/networkUsageTelemetry';
 
 type NavigationDirection = 'forward' | 'back';
 
@@ -1678,12 +1679,17 @@ export function AppNetwork({ locale }: { locale: Locale }) {
   const updateManagedWorkspace = useCallback((
     update: (workspace: NetworkFocusWorkspace) => NetworkFocusWorkspace,
   ) => {
+    const previous = editingLayout ? draftWorkspaceRef.current : committedWorkspace;
+    if (!previous) return;
+    const next = update(previous);
+    if (next === previous) return;
     if (editingLayout) {
-      mutateEditingWorkspace(update);
-      return;
+      commitEditingWorkspace(next);
+    } else {
+      persistFocusWorkspace(next);
     }
-    persistFocusWorkspace(update(committedWorkspace));
-  }, [editingLayout, committedWorkspace, mutateEditingWorkspace, persistFocusWorkspace]);
+    reportNetworkInteractionOnce('network_group_modified');
+  }, [editingLayout, committedWorkspace, commitEditingWorkspace, persistFocusWorkspace]);
 
   const beginManagedGroupRename = useCallback(() => {
     if (!managedGroup) return;
@@ -1776,6 +1782,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (nextWorkspace === workspace) return;
 
     commitEditingWorkspace(nextWorkspace);
+    reportNetworkInteractionOnce('network_group_modified');
     markGroupCreated(groupDraft.id);
     setGroupDropActive(false);
     setGroupDraft(null);
@@ -1927,6 +1934,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const memberDrag = drag.kind === 'node' || drag.kind === 'group-member';
     if (!memberDrag) {
       commitCurrentDraftWorkspace();
+      reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
       return;
     }
 
@@ -1975,6 +1983,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (nextWorkspace !== drag.originalWorkspace) {
         animateRestoredWallets([drag.key]);
         commitEditingWorkspace(nextWorkspace);
+        reportNetworkInteractionOnce('network_group_modified');
       } else {
         setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
       }
@@ -1982,6 +1991,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
 
     commitCurrentDraftWorkspace();
+    reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
   }, [
     groupDraft,
     findGroupDropTarget,
@@ -2281,6 +2291,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         );
         if (nextWorkspace !== holdDrag.originalWorkspace) {
           persistFocusWorkspace(nextWorkspace);
+          reportNetworkInteractionOnce('network_group_modified');
           animateRestoredWallets([holdDrag.key]);
         } else {
           persistFocusWorkspace(holdDrag.originalWorkspace);
@@ -2291,6 +2302,9 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         suppressClickRef.current = true;
       } else if (holdDrag.moved) {
         flushWorkspaceStore();
+        if (event.type === 'pointerup') reportNetworkInteractionOnce(
+          holdDrag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
+        );
         suppressClickRef.current = true;
       }
       holdDragRef.current = null;
