@@ -30,9 +30,9 @@ test('real funded cohort keeps exact three-slot safety floor', () => {
 test('unbound pending invite never changes fixed cohort pricing', () => {
  const reservation=readFileSync(new URL('../src/lib/rewards/rewardReservation.ts',import.meta.url),'utf8');
  const planning=readFileSync(new URL('../src/lib/rewards/predictivePlanning.ts',import.meta.url),'utf8');
- assert.match(reservation,/includePendingAcceptance:\\s*false/);
- assert.match(planning,/input\\.includePendingAcceptance === false/);
- assert.match(planning,/pendingAcceptanceCount:\\s*0/);
+ assert.match(reservation,/includePendingAcceptance:\s*false/);
+ assert.match(planning,/input\.includePendingAcceptance === false/);
+ assert.match(planning,/pendingAcceptanceCount:\s*0/);
  assert.doesNotMatch(reservation,/ageWeightPendingAcceptanceForReservation/);
 });
 
