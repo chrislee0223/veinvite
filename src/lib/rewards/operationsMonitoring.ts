@@ -396,8 +396,8 @@ Promise<RewardOperationsHealth> {
       },
     ),
     supabaseAdmin
-      .from('reward_forecast_snapshots')
-      .select('input_snapshot, model_version')
+      .from('reward_pool_observations')
+      .select('input_snapshot')
       .eq('network', pool.network)
       .eq('app_id', pool.appId)
       .order('generated_at', { ascending: false })
@@ -433,7 +433,7 @@ Promise<RewardOperationsHealth> {
   }
   if (latestForecastSnapshotResult.error) {
     throw new Error(
-      `Reward forecast reserve-alignment check failed: ${latestForecastSnapshotResult.error.message}`,
+      `Pool observation reserve-alignment check failed: ${latestForecastSnapshotResult.error.message}`,
     );
   }
 
@@ -607,7 +607,7 @@ Promise<RewardOperationsHealth> {
         alerts,
         'REWARD_BOOST_RESERVE_FORECAST_STALE',
         'WARNING',
-        'The public reward forecast does not yet reflect the current reserve-adjusted cohort funding.',
+        'The current physical pool observation is older than the reserve-adjusted funding ledger.',
       );
     }
   }
