@@ -3,6 +3,8 @@
 const COUNTRY_ONLY_PATHS = new Set([
   '.github/workflows/ci.yml',
   'scripts/select-country-browser-qa.mjs',
+  'src/app/qa/country-rank-movement/page.tsx',
+  'tests/playwright/country-rank-movement-real-ui.spec.ts',
   'src/app/api/leaderboard/country/route.ts',
   'src/app/leaderboard-country-horizontal-balance.css',
   'src/components/PublicLeaderboardHub.tsx',
@@ -22,10 +24,13 @@ export function selectCountryBrowserQa(changedPaths) {
   if (!changedPaths.every((path) => COUNTRY_ONLY_PATHS.has(path))) {
     return 'full';
   }
-  if (
-    !changedPaths.includes('src/components/PublicLeaderboardHub.tsx') ||
-    !changedPaths.includes('src/app/leaderboard-country-horizontal-balance.css')
-  ) {
+  const realUiFeatureChanged =
+    changedPaths.includes('src/components/PublicLeaderboardHub.tsx') &&
+    changedPaths.includes('src/app/leaderboard-country-horizontal-balance.css');
+  const isolatedCountryQaChanged =
+    changedPaths.includes('src/app/qa/country-rank-movement/page.tsx') &&
+    changedPaths.includes('tests/playwright/country-rank-movement-real-ui.spec.ts');
+  if (!realUiFeatureChanged && !isolatedCountryQaChanged) {
     return 'full';
   }
   return 'country';

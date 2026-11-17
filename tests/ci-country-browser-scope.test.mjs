@@ -15,6 +15,8 @@ const base = [
   'tests/country-leaderboard-rank-movement.test.mjs',
   'tests/ci-country-browser-scope.test.mjs',
   'scripts/select-country-browser-qa.mjs',
+  'src/app/qa/country-rank-movement/page.tsx',
+  'tests/playwright/country-rank-movement-real-ui.spec.ts',
 ];
 
 test('isolated country leaderboard change uses focused browser QA', () => {
