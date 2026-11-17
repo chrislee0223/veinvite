@@ -15,6 +15,7 @@ import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
+import { notificationPresentationGroup } from '@/lib/notifications/notificationPresentationGroups';
 import { rewardPaidNotificationBody } from '@/lib/i18n/rewardPaidNotificationCopy';
 import { REWARD_RECEIPT_COPY } from '@/lib/i18n/rewardReceiptCopy';
 import { REWARD_X_PROMOTION_COPY } from '@/lib/i18n/rewardXPromotionCopy';
@@ -193,25 +194,27 @@ function itemCopy(
   const adjusted = rewardAdjustedCopy(locale);
   const xPromotion = REWARD_X_PROMOTION_COPY[locale];
   const effectiveKind = item.presentationKind ?? item.kind;
+  const progressTitle = notificationPresentationGroup(effectiveKind) === 'FRIEND_PROGRESS'
+    ? v2.summaryTitle : copy.acceptedTitle;
 
   switch (effectiveKind) {
     case 'INVITE_ACCEPTED':
-      return { title: copy.acceptedTitle, body: copy.acceptedBody, hint: null };
+      return { title: progressTitle, body: copy.acceptedBody, hint: null };
     case 'DAPP_PROGRESS':
       return {
-        title: v2.dappProgressTitle,
+        title: progressTitle,
         body: v2.dappProgressBody,
         hint: `dApp ${item.dappProgress ?? 0}/3`,
       };
     case 'VOT3_CONVERTED':
       return item.collapsedProgress
         ? {
-            title: copy.progressTitle,
+            title: progressTitle,
             body: copy.progressVot3Body,
             hint: copy.vot3Hint,
           }
         : {
-            title: copy.vot3Title,
+            title: progressTitle,
             body: copy.vot3Body,
             hint: copy.vot3Hint,
           };
