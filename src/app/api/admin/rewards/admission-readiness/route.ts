@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           .limit(1)
           .maybeSingle(),
         supabaseAdmin
-          .from('reward_forecast_snapshots')
+          .from('reward_pool_observations')
           .select('created_at')
           .eq('network', pool.network)
           .eq('app_id', pool.appId)
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     for (const [name, error] of [
       ['reserve audit', auditResult.error],
       ['allocation receipt', latestReceipt.error],
-      ['forecast observation', latestForecast.error],
+      ['physical pool observation', latestForecast.error],
       ['unreviewed invites', pending.error],
       ['eligible invites', eligible.error],
       ['three app incomplete votes', threeApps.error],
