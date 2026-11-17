@@ -13,6 +13,7 @@ test('transient Supabase retries remain limited to safe reads', () => {
     source,
     /'\/rest\/v1\/rpc\/read_latest_reward_forecast_snapshot'/,
   );
+  assert.match(source, /'\/rest\/v1\/rpc\/read_latest_reward_pool_observation'/);
   assert.match(
     source,
     /'\/rest\/v1\/rpc\/read_reward_forecast_history'/,
