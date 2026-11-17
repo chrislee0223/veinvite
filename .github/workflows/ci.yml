@@ -74,6 +74,9 @@ jobs:
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 
+      - name: Country ranking movement regression gate
+        run: node --experimental-strip-types --test tests/country-leaderboard-rank-movement.test.mjs
+
       - name: Profile avatar parity gate
         run: >-
           node --test
