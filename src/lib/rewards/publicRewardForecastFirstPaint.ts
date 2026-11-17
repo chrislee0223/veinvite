@@ -2,8 +2,8 @@ import { unstable_cache } from 'next/cache';
 import { PUBLIC_ACTIVE_FORECAST_MODEL_VERSION } from '@/lib/rewards/activeSharedPoolForecast';
 import { readElasticPublicPreview, type ElasticPublicPreview } from '@/lib/rewards/publicElasticForecastReader';
 import { forecastSnapshotAgeMs, isRewardForecastStale } from '@/lib/rewards/rewardForecastCacheGuards';
-import { REWARD_FORECAST_MODEL_VERSION } from '@/lib/rewards/rewardForecastPolicy';
-import { readLatestRewardForecastSnapshot } from '@/lib/rewards/rewardForecastSnapshot';
+import { REWARD_POOL_OBSERVATION_MODEL_VERSION } from '@/lib/rewards/rewardPoolObservation';
+import { readLatestRewardPoolObservation } from '@/lib/rewards/rewardPoolObservation';
 import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
@@ -25,13 +25,13 @@ const readCachedFirstPaintForecast = unstable_cache(
     const timer = setTimeout(() => controller.abort(), 1_200);
     try {
       const [snapshot, elastic] = await Promise.all([
-        readLatestRewardForecastSnapshot({
+        readLatestRewardPoolObservation({
           network, appId: VEINVITE_APP_ID, signal: controller.signal,
         }),
         readElasticPublicPreview(network, controller.signal),
       ]);
       if (!snapshot ||
-          snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION ||
+          snapshot.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION ||
           forecastSnapshotAgeMs(snapshot.generatedAt, Date.now()) === null ||
           elastic?.mode !== 'ELASTIC_SCENARIOS' ||
           elastic.displayEstimateWei !==
