@@ -195,7 +195,8 @@ jobs:
   browser:
     name: browser QA
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Full 812-case multilingual visual suite exceeds 25 minutes on slower runners.
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
