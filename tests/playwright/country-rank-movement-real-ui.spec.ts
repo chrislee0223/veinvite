@@ -169,7 +169,10 @@ for (const locale of SUPPORTED_LOCALES) {
     );
 
     const tab = page.locator('.leaderboardHub .rankingTabs button[role="tab"]').nth(1);
-    await expect(tab).toBeVisible();
+    // Hydration of the shared wallet-heavy leaderboard can exceed the global
+    // 5-second expect timeout on a cold, parallel CI worker. Waiting for the
+    // real tab is not a test skip: all display and geometry assertions follow.
+    await expect(tab).toBeVisible({ timeout: 20_000 });
     await tab.click();
 
     const rows = page.locator('.leaderboardHub .countryRow');
