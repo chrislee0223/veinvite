@@ -305,3 +305,4 @@
 20261116164626 reward_vote_window_immediate_disabled_v1
 20261116183143 mission_retry_ledger_disabled_v1
 20261117042708 pool_observation_cutover
+20261117045636 reward_pool_observation_exact_wei_reader
