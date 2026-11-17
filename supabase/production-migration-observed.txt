@@ -304,3 +304,4 @@
 20261113055635 round_close_retire_legacy_pause_v2
 20261116164626 reward_vote_window_immediate_disabled_v1
 20261116183143 mission_retry_ledger_disabled_v1
+20261117042708 pool_observation_cutover

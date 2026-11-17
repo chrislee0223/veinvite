@@ -47,7 +47,7 @@ test('reserve execution re-reads physical pool before boost release', () => {
 test('forecast refresh occurs only after a destination accounting release', () => {
   assert.match(
     execution,
-    /destinationResult\.changed === true[\s\S]*refreshRewardForecastSnapshot/,
+    /destinationResult\.changed === true[\s\S]*refreshRewardPoolObservation/,
   );
 });
 

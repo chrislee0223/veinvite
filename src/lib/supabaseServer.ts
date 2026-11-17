@@ -14,7 +14,6 @@ const RETRIABLE_READ_METHODS = new Set([
   'HEAD',
 ]);
 const RETRIABLE_READ_RPC_PATHS = new Set([
-  '/rest/v1/rpc/read_latest_reward_forecast_snapshot',
   '/rest/v1/rpc/read_reward_forecast_history',
 ]);
 

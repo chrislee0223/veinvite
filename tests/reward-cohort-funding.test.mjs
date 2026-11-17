@@ -22,8 +22,8 @@ const claimedCohortMigration = await readFile(
   new URL('../supabase/migrations/20260904203400_harden_claimed_cohort_selection.sql', import.meta.url),
   'utf8',
 );
-const forecastPolicy = await readFile(
-  new URL('../src/lib/rewards/rewardForecastPolicy.ts', import.meta.url),
+const poolObservation = await readFile(
+  new URL('../src/lib/rewards/rewardPoolObservation.ts', import.meta.url),
   'utf8',
 );
 const predictivePolicy = await readFile(
@@ -110,17 +110,11 @@ test('round boundary never substitutes a newest allocation for missing exact fun
   assert.match(roundSafeMigration, /e\.details ->> 'currentRoundId' = \(new\.vebetter_round_id \+ 1\)::text/);
 });
 
-test('public forecast and actual fixed pricing both use designated cohort funding', () => {
-  assert.match(forecastPolicy, /reward-forecast-v2\.6-aged-demand-three-slot-floor/);
-  assert.match(forecastPolicy, /remainingCohortBudget/);
+test('public physical pool observations do not reintroduce deprecated per-person forecasts', () => {
+  assert.match(poolObservation, /readPredictiveRewardPlanning/);
+  assert.match(poolObservation, /observed_pool_balance_wei/);
+  assert.doesNotMatch(poolObservation, /calculateRewardForecastPolicy|estimated_reward_wei|expected_recipients/);
   assert.match(predictivePolicy, /predictive-reserve-v6-aged-demand-three-slot-floor/);
-  assert.match(
-    predictivePolicy,
-    /latestAllocation \+ fundingAdjustment \+ reserveNetFlow/,
-  );
-  assert.match(
-    forecastPolicy,
-    /officialAllocation \+ fundingAdjustment \+ reserveNetFlow/,
-  );
+  assert.match(predictivePolicy, /latestAllocation \+ fundingAdjustment \+ reserveNetFlow/);
   assert.match(predictivePolicy, /cohortAvailableBudget/);
 });

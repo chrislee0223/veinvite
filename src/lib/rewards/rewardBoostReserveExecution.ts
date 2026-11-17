@@ -6,10 +6,10 @@ import {
   VEINVITE_APP_ID,
 } from '@/lib/rewards/onchainPool';
 import {
-  refreshRewardForecastSnapshot,
-  readLatestRewardForecastSnapshot,
-  type RewardForecastSnapshot,
-} from '@/lib/rewards/rewardForecastSnapshot';
+  refreshRewardPoolObservation,
+  readLatestRewardPoolObservation,
+  type RewardPoolObservation,
+} from '@/lib/rewards/rewardPoolObservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const REWARD_BOOST_RESERVE_POLICY_VERSION =
@@ -38,7 +38,7 @@ export type RewardBoostReserveExecutionResult = {
   sourceResults: MutationPayload[];
   destinationResult: MutationPayload | null;
   currentTopUpResult: MutationPayload | null;
-  forecast: RewardForecastSnapshot | null;
+  forecast: RewardPoolObservation | null;
 };
 
 function positiveId(
@@ -263,7 +263,7 @@ export async function runRewardBoostReserveRebalance(
 
   let forecast =
     destinationResult.changed === true
-      ? await refreshRewardForecastSnapshot({
+      ? await refreshRewardPoolObservation({
           network: releasePool.network,
           appId: releasePool.appId,
         })
@@ -275,7 +275,7 @@ export async function runRewardBoostReserveRebalance(
   let currentTopUpResult: MutationPayload | null = null;
   if (runtime.currentTopUpTargetRoundId !== null) {
     const latestForecast = forecast ??
-      await readLatestRewardForecastSnapshot({
+      await readLatestRewardPoolObservation({
         network: releasePool.network,
         appId: releasePool.appId,
       });
@@ -302,7 +302,7 @@ export async function runRewardBoostReserveRebalance(
 
       if (existingTopup) {
         // A previous attempt may have committed the immutable top-up but
-        // failed to persist the public estimate. Repair it on the next
+        // failed to persist the physical pool observation. Repair it on the next
         // scheduled run rather than leaving payouts ahead of the UI.
         const postedAt = Date.parse(String(existingTopup.created_at));
         const forecastAt = Date.parse(latestForecast.generatedAt);
@@ -311,7 +311,7 @@ export async function runRewardBoostReserveRebalance(
           Number.isNaN(forecastAt) ||
           forecastAt <= postedAt
         ) {
-          forecast = await refreshRewardForecastSnapshot({
+          forecast = await refreshRewardPoolObservation({
             network: releasePool.network,
             appId: releasePool.appId,
           });
@@ -320,7 +320,7 @@ export async function runRewardBoostReserveRebalance(
         // Creates a live-pool-observed, matching-funding snapshot.
         // The DB re-checks the observation, zero commitments, caps and
         // exact round under transaction locks before moving one Wei.
-        await refreshRewardForecastSnapshot({
+        await refreshRewardPoolObservation({
           network: releasePool.network,
           appId: releasePool.appId,
         });
@@ -350,7 +350,7 @@ export async function runRewardBoostReserveRebalance(
           'current reward cohort top-up',
         );
         if (currentTopUpResult.changed === true) {
-          forecast = await refreshRewardForecastSnapshot({
+          forecast = await refreshRewardPoolObservation({
             network: currentPool.network,
             appId: currentPool.appId,
           });

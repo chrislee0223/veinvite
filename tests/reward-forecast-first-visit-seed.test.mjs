@@ -20,7 +20,7 @@ test('first HTML paint includes only the approved current-cohort estimate', () =
   assert.match(homeClient, /initialForecast=\{initialRewardForecast\}/);
   assert.match(forecastCard, /normalizeForecastResponse\(initialForecast\)/);
   assert.match(forecastCard, /pickPreferredForecast\([\s\S]*seeded/);
-  assert.match(serverSeed, /snapshot\.modelVersion !== REWARD_FORECAST_MODEL_VERSION/);
+  assert.match(serverSeed, /snapshot\.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION/);
   assert.match(serverSeed, /elastic\?\.mode !== 'ELASTIC_SCENARIOS'/);
   assert.match(serverSeed, /estimatedRewardWei: elastic\.displayEstimateWei/);
   assert.doesNotMatch(serverSeed, /estimatedRewardWei: snapshot\.estimatedRewardWei/);

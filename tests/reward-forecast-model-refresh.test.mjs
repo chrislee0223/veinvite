@@ -7,17 +7,17 @@ const estimateRoute = await readFile(
   'utf8',
 );
 
-test('public estimate invalidates a fresh snapshot from the previous model', () => {
+test('public estimate invalidates a fresh snapshot from the previous physical-pool observation model', () => {
   assert.match(
     estimateRoute,
-    /snapshot\.modelVersion !== REWARD_FORECAST_MODEL_VERSION/,
+    /snapshot\.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION/,
   );
   assert.match(
     estimateRoute,
-    /previousSnapshot\.modelVersion !== REWARD_FORECAST_MODEL_VERSION/,
+    /previousSnapshot\.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION/,
   );
   assert.match(
     estimateRoute,
-    /await refreshRewardForecastSnapshot/,
+    /await refreshRewardPoolObservation/,
   );
 });

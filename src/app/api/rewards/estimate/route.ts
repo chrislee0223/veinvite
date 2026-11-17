@@ -12,16 +12,16 @@ import {
   VEINVITE_APP_ID,
 } from '@/lib/rewards/onchainPool';
 import {
-  REWARD_FORECAST_MODEL_VERSION,
-} from '@/lib/rewards/rewardForecastPolicy';
+  REWARD_POOL_OBSERVATION_MODEL_VERSION,
+} from '@/lib/rewards/rewardPoolObservation';
 import {
   readPredictiveRewardPlanning,
 } from '@/lib/rewards/predictivePlanning';
 import {
-  readLatestRewardForecastSnapshot,
-  refreshRewardForecastSnapshot,
-  type RewardForecastSnapshot,
-} from '@/lib/rewards/rewardForecastSnapshot';
+  readLatestRewardPoolObservation,
+  refreshRewardPoolObservation,
+  type RewardPoolObservation,
+} from '@/lib/rewards/rewardPoolObservation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { PUBLIC_ACTIVE_FORECAST_MODEL_VERSION } from '@/lib/rewards/activeSharedPoolForecast';
 import { readElasticPublicPreview } from '@/lib/rewards/publicElasticForecastReader';
@@ -75,14 +75,14 @@ function pendingResponse(
 }
 
 async function readyResponse(
-  snapshot: RewardForecastSnapshot,
+  snapshot: RewardPoolObservation,
   stale: boolean,
   network: string,
   cacheControl = CACHE_CONTROL,
 ) {
   const elasticEstimate = await readElasticPublicPreview(network);
-  // The legacy forecast snapshot still supplies the verified physical-pool
-  // observation, but MUST NOT supply a public per-person reward amount.
+  // The physical-pool observation supplies the verified physical-pool
+  // observation, but MUST NOT supply a per-person reward amount.
   const publicEstimateWei = elasticEstimate?.mode === 'ELASTIC_SCENARIOS'
     ? elasticEstimate.displayEstimateWei
     : null;
@@ -107,7 +107,7 @@ async function readyResponse(
         ? elasticEstimate.projectedRecipients : null,
       recipientLow: null,
       recipientHigh: null,
-      allocationSampleCount: snapshot.allocationSampleCount,
+      allocationSampleCount: 0,
       recipientHistoryRoundCount: 0,
       modelVersion: publicEstimateWei === null
         ? null : PUBLIC_ACTIVE_FORECAST_MODEL_VERSION,
@@ -121,8 +121,8 @@ async function readyResponse(
   );
 }
 
-function isFresh(snapshot: RewardForecastSnapshot): boolean {
-  if (snapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION) {
+function isFresh(snapshot: RewardPoolObservation): boolean {
+  if (snapshot.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION) {
     return false;
   }
 
@@ -156,7 +156,7 @@ async function readLatestForecastFundingInput(input: {
   appId: string;
 }): Promise<Record<string, unknown> | null> {
   const { data, error } = await supabaseAdmin
-    .from('reward_forecast_snapshots')
+    .from('reward_pool_observations')
     .select('input_snapshot')
     .eq('network', input.network)
     .eq('app_id', input.appId)
@@ -186,7 +186,7 @@ async function readLatestForecastFundingInput(input: {
 }
 
 async function checkLiveFunding(
-  snapshot: RewardForecastSnapshot,
+  snapshot: RewardPoolObservation,
   network: string,
 ): Promise<FundingCheckResult> {
   try {
@@ -284,10 +284,10 @@ export async function GET(request: NextRequest) {
   const responseCacheControl = refreshRequested
     ? FORCE_CACHE_CONTROL
     : CACHE_CONTROL;
-  let previousSnapshot: RewardForecastSnapshot | null = null;
+  let previousSnapshot: RewardPoolObservation | null = null;
 
   try {
-    previousSnapshot = await readLatestRewardForecastSnapshot({
+    previousSnapshot = await readLatestRewardPoolObservation({
       network,
       appId: VEINVITE_APP_ID,
     });
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
       return await readyResponse(previousSnapshot, false, network, responseCacheControl);
     }
 
-    // Legacy manual refresh endpoint remains compatible, but public callers
+    // Manual refresh endpoint remains compatible, but public callers
     // share one distributed heavy funding check per forecast window. The Home
     // client uses only the shared CDN path, never this expensive private path.
     const sharedLiveCheckGate =
@@ -355,12 +355,12 @@ export async function GET(request: NextRequest) {
       fundingChanged ||
       !limited ||
       !previousSnapshot ||
-      previousSnapshot.modelVersion !== REWARD_FORECAST_MODEL_VERSION
+      previousSnapshot.modelVersion !== REWARD_POOL_OBSERVATION_MODEL_VERSION
     ) {
       await bestEffortAllocationSync();
 
       try {
-        const refreshed = await refreshRewardForecastSnapshot({
+        const refreshed = await refreshRewardPoolObservation({
           network,
           appId: VEINVITE_APP_ID,
         });
