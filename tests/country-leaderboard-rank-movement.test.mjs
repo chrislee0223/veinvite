@@ -83,3 +83,36 @@ test('country API fails closed on comparison errors without affecting totals', (
   assert.match(api, /attachCountryRankMovement\(normalized\.leaders, previousRanks\)/);
   assert.match(api, /normalized = normalizePayload\(data\)/);
 });
+
+test('country movement reuses all localized inviter labels, including RTL text', () => {
+  const component = readFileSync(
+    new URL('../src/components/PublicLeaderboardHub.tsx', import.meta.url),
+    'utf8',
+  );
+  const movementCopy = readFileSync(
+    new URL('../src/lib/i18n/leaderboardMovementCopy.ts', import.meta.url),
+    'utf8',
+  );
+  const css = readFileSync(
+    new URL('../src/app/leaderboard-country-horizontal-balance.css', import.meta.url),
+    'utf8',
+  );
+  const supported = readFileSync(
+    new URL('../src/lib/i18n/locales.ts', import.meta.url),
+    'utf8',
+  );
+  const locales = [...supported.matchAll(/locale:\s*'([^']+)'/g)].map((match) => match[1]);
+  assert.equal(locales.length, 29);
+  assert.equal(
+    [...movementCopy.matchAll(/\bnewEntry:\s*'/g)].length,
+    29,
+  );
+  assert.match(component, /getLeaderboardMovementCopy\(locale\)/);
+  assert.match(component, /movementCopy\.newEntry/);
+  assert.match(component, /movementCopy\.up\(entry\.rankChange\)/);
+  assert.match(component, /movementCopy\.down\(Math\.abs\(entry\.rankChange\)\)/);
+  assert.match(component, /className="countryRankMovement new" dir="auto"/);
+  assert.match(component, /title=\{countryMovementDescription\(row\) \?\? undefined\}/);
+  assert.match(css, /\.countryRankMovement \{[\s\S]*unicode-bidi: isolate/);
+  assert.doesNotMatch(css, /\.countryRankMovement \{[^}]*direction:\s*ltr/s);
+});
