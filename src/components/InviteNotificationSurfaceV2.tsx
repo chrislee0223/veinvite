@@ -7,6 +7,7 @@ import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificati
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
+import { notificationPresentationGroup } from '@/lib/notifications/notificationPresentationGroups';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
 import { REFERRAL_RESTORED_COPY } from '@/lib/i18n/referralRestoredCopy';
 import { rewardAdjustedCopy } from '@/lib/i18n/rewardAdjustedCopy';
@@ -245,29 +246,31 @@ function statusText(
   const postPayout = POST_PAYOUT_SECURITY_NOTIFICATION_COPY[locale];
   const adjusted = rewardAdjustedCopy(locale);
   const xPromotion = REWARD_X_PROMOTION_COPY[locale];
+  const progressTitle = notificationPresentationGroup(notification.kind) === 'FRIEND_PROGRESS'
+    ? v2.summaryTitle : copy.acceptedTitle;
 
   switch (notification.kind) {
     case 'INVITE_ACCEPTED':
       return {
-        title: copy.acceptedTitle,
+        title: progressTitle,
         body: copy.acceptedBody,
         hint: null,
       };
     case 'DAPP_PROGRESS':
       return {
-        title: v2.dappProgressTitle,
+        title: progressTitle,
         body: v2.dappProgressBody,
         hint: `dApp ${notification.dappProgress ?? 0}/3`,
       };
     case 'VOT3_CONVERTED':
       return notification.collapsedProgress
         ? {
-            title: copy.progressTitle,
+            title: progressTitle,
             body: copy.progressVot3Body,
             hint: copy.vot3Hint,
           }
         : {
-            title: copy.vot3Title,
+            title: progressTitle,
             body: copy.vot3Body,
             hint: copy.vot3Hint,
           };
@@ -281,7 +284,8 @@ function statusText(
       return notification.collapsedProgress
         ? {
             title: copy.rewardTitle,
-            body: `${v2.rewardReadyBody} ${copy.rewardBody}`,
+            // A paid receipt must not replay the earlier claim-ready message.
+            body: copy.rewardBody,
             hint: null,
           }
         : {

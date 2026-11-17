@@ -208,7 +208,9 @@ export function deriveUnreadInviteNotificationV2({
     };
   }
 
-  if (appsCompleted > readState.dappProgressAcknowledged) {
+  // A 1/3 or 2/3 activity update belongs on the progress dashboard, not
+  // in the notification bell. Only the meaningful 3/3 milestone is durable.
+  if (appsCompleted === 3 && appsCompleted > readState.dappProgressAcknowledged) {
     return {
       inviteCode: invitation.invite_code,
       kind: 'DAPP_PROGRESS',

@@ -40,20 +40,26 @@ test('reward-ready notifications avoid mechanical friend-slot translations', () 
   }
 });
 
-test('reward-ready copy says the user can invite another friend in reviewed locales', () => {
+test('reward-ready notifications tell users to check claim status, never claim paid', () => {
+  const readyLines = source.split('\n').filter((line) => /^  (?:'[^']+'|[a-z]+): \{.*rewardReadyBody:/u.test(line));
+  assert.equal(readyLines.length, 29);
   for (const expected of [
+    "rewardReadyBody: 'Your friend completed all missions. Check your reward claim status in VeInvite.'",
+    "rewardReadyBody: '친구가 미션을 완료했어요. VeInvite에서 보상 수령 상태를 확인해 주세요.'",
+    "rewardReadyBody: '好友已完成任务。请在 VeInvite 中查看奖励领取状态。'",
+    "rewardReadyBody: '友だちがミッションを完了しました。VeInviteで報酬の受け取り状況を確認してください。'",
+    "rewardReadyBody: 'Tu amigo completó las misiones. Consulta el estado del cobro de tu recompensa en VeInvite.'",
+    "rewardReadyBody: 'Votre ami a terminé les missions. Vérifiez le statut de votre récompense dans VeInvite.'",
+    "rewardReadyBody: 'Bạn của bạn đã hoàn thành nhiệm vụ. Hãy kiểm tra trạng thái nhận thưởng trên VeInvite.'",
+    "rewardReadyBody: '好友已完成任務。請在 VeInvite 查看獎勵領取狀態。'",
+  ]) {
+    assert.ok(source.includes(expected), `missing translated claim-ready copy: ${expected}`);
+  }
+  for (const outdated of [
     'Your reward is confirmed, and you can invite another friend now.',
     '보상이 확정됐고 이제 다른 친구를 초대할 수 있어요.',
-    '奖励已确认，现在可以邀请下一位好友了。',
-    '報酬額が確定しました。これで次の友だちを招待できます。',
-    'Tu recompensa está confirmada y ya puedes invitar a otro amigo.',
-    'Votre récompense est confirmée et vous pouvez maintenant inviter un autre ami.',
-    'Phần thưởng của bạn đã được xác nhận và giờ bạn có thể mời thêm một người bạn.',
-    '獎勵已確認，現在可以邀請下一位好友了。',
-    'تم تأكيد مكافأتك ويمكنك الآن دعوة صديق آخر.',
-    'آپ کا انعام طے ہو گیا ہے اور اب آپ کسی اور دوست کو دعوت دے سکتے ہیں۔',
   ]) {
-    assert.ok(source.includes(expected), `missing reviewed reward-ready wording: ${expected}`);
+    assert.ok(!source.includes(outdated));
   }
 });
 
