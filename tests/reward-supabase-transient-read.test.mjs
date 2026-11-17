@@ -9,7 +9,7 @@ const source = await readFile(
 
 test('transient Supabase retries remain limited to safe reads', () => {
   assert.match(source, /const RETRIABLE_READ_METHODS = new Set\(\[\s*'GET',\s*'HEAD',\s*\]\)/s);
-  assert.match(
+  assert.doesNotMatch(
     source,
     /'\/rest\/v1\/rpc\/read_latest_reward_forecast_snapshot'/,
   );
