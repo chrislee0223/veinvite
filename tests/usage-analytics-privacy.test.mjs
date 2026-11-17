@@ -413,3 +413,30 @@ test(
     );
   },
 );
+
+test(
+  'Network unique engagement counts people once per day across action types',
+  async () => {
+    const [sql, admin] = await Promise.all([
+      read('supabase/migrations/20261117143709_network_daily_unique_visitors_v1.sql'),
+      read('src/app/api/admin/usage-analytics/route.ts'),
+    ]);
+    // One anonymous visitor moves twice and edits a group: still one visitor.
+    assert.match(sql, /count\(distinct e\.visitor_key\)::bigint as unique_visitors/);
+    assert.match(sql, /count\(distinct e\.visitor_key\) filter \(/);
+    assert.match(sql, /network_node_repositioned/);
+    assert.match(sql, /network_group_modified/);
+    assert.match(sql, /app_usage_excluded_visitors/);
+    assert.match(sql, /security invoker/);
+    assert.match(sql, /revoke all on function[^]*from public, anon, authenticated/);
+    assert.match(sql, /grant execute on function[^]*to service_role/);
+    assert.match(admin, /read_app_network_daily_unique_visitors/);
+    assert.match(admin, /networkEngagement: \{/);
+    assert.match(admin, /crossDayUniquePeopleSupported: false/);
+    assert.match(admin, /crossBrowserUniquePeopleSupported: false/);
+    assert.match(admin, /Number\(networkToday\?\.unique_visitors \?\? 0\)/);
+    // The existing daily-anonymous privacy identity is unchanged.
+    assert.match(operatorReport, /dailyAnonymousIdentity: true/);
+    assert.match(operatorReport, /crossDayIdentityLinking: false/);
+  },
+);

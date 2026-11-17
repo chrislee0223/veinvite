@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
       productLocale,
       productDevice,
       productSource,
+      networkDaily,
     ] = await Promise.all([
       rpc(
         'read_app_usage_daily_summary',
@@ -183,7 +184,18 @@ export async function GET(request: NextRequest) {
           p_dimension: 'source',
         },
       ),
+      rpc(
+        'read_app_network_daily_unique_visitors',
+        range,
+      ),
     ]);
+
+    const networkToday = (networkDaily as Array<{
+      usage_date: string;
+      unique_visitors: string | number;
+      node_movers: string | number;
+      group_editors: string | number;
+    }>).find((row) => row.usage_date === toDate);
 
     return NextResponse.json(
       {
@@ -205,7 +217,9 @@ export async function GET(request: NextRequest) {
           views:
             '관리자 사용을 정확히 제거할 수 없는 초기 부트스트랩 날짜는 뷰 분포 합계에서 제외하고 dataQualityExclusions에 표시합니다.',
           productEvents:
-            '지갑 연결 시도, 초대 공유·수락, 미션 이동, 보상 청구 같은 제한된 제품 행동만 익명 집계합니다. 실제 참여·미션·보상 사실은 기존 운영·온체인 데이터가 기준입니다.',
+            '제품 행동 횟수입니다. 같은 방문자의 원 이동·그룹 수정 이용자 수는 별도의 networkEngagement 고유 방문자 지표로 확인합니다.',
+          networkEngagement:
+            '같은 날 같은 익명 브라우저가 원을 여러 번 이동하거나 그룹도 수정해도 전체 사용자 수는 1명입니다. 두 활동별 사용자 수를 단순히 더하면 중복됩니다. 날짜나 브라우저가 바뀐 동일인을 구분할 수 없으므로 여러 날의 합계는 실제 고유 인원으로 표시하지 않습니다.',
         },
         privacy: {
           rawIpStored: false,
@@ -230,6 +244,19 @@ export async function GET(request: NextRequest) {
           device,
           source,
           views,
+        },
+        networkEngagement: {
+          unit: 'daily-anonymous-browser',
+          today: {
+            date: toDate,
+            uniqueVisitors: Number(networkToday?.unique_visitors ?? 0),
+            nodeMovers: Number(networkToday?.node_movers ?? 0),
+            groupEditors: Number(networkToday?.group_editors ?? 0),
+          },
+          daily: networkDaily,
+          crossDayUniquePeopleSupported: false,
+          crossBrowserUniquePeopleSupported: false,
+          rawRetentionDays: 365,
         },
         productAnalytics: {
           summary: productSummary,
