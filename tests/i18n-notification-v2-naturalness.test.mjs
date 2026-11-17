@@ -44,7 +44,7 @@ test('reward-ready notifications tell users to check claim status, never claim p
   const readyLines = source.split('\n').filter((line) => line.includes('rewardReadyBody:'));
   assert.equal(readyLines.length, 29);
   for (const expected of [
-    "rewardReadyBody: 'Your friend's missions are complete. Check your reward claim status in VeInvite.'",
+    "rewardReadyBody: 'Your friend completed all missions. Check your reward claim status in VeInvite.'",
     "rewardReadyBody: '친구가 미션을 완료했어요. VeInvite에서 보상 수령 상태를 확인해 주세요.'",
     "rewardReadyBody: '好友已完成任务。请在 VeInvite 中查看奖励领取状态。'",
     "rewardReadyBody: '友だちがミッションを完了しました。VeInviteで報酬の受け取り状況を確認してください。'",
