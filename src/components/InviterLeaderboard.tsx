@@ -922,7 +922,11 @@ export function PublicLeaderboard({
 
         <div className="rankScroll" aria-label={`1-${PUBLIC_RANK_LIMIT}`}>
           <div className="rows">
-            {RANK_SLOTS.map((rank) => renderSlot(rank))}
+            {data
+              ? RANK_SLOTS.map((rank) => renderSlot(rank))
+              : RANK_SLOTS.slice(0, 5).map((rank) =>
+                  renderPlaceholderRow(rank)
+                )}
           </div>
         </div>
 
