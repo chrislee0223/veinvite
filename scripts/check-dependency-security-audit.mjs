@@ -32,8 +32,24 @@ export function inspectHighSeverityAudit(report, date = new Date()) {
     return { ok: false, reason: 'Picomatch review expired; upgrade or re-review', blocked: high };
   }
   const picomatch = all.picomatch;
-  if (!picomatch || picomatch.severity !== 'high' || picomatch.fixAvailable !== false) {
-    return { ok: false, reason: 'Picomatch no-fix prerequisite not met', blocked: high };
+  // npm audit may propose removing picomatch only by replacing a parent SDK
+  // with a breaking major version. That is not a patched picomatch release,
+  // and can break the production wallet or Sentry runtime. Such a proposal
+  // is not considered an in-place patch; a safe non-breaking fix still blocks.
+  const alternative = picomatch?.fixAvailable;
+  const breakingParentReplacement =
+    !!alternative && typeof alternative === 'object' &&
+    alternative.isSemVerMajor === true;
+  if (!picomatch || picomatch.severity !== 'high' ||
+      !(alternative === false || breakingParentReplacement)) {
+    return {
+      ok: false,
+      reason: 'Picomatch no-in-place-fix prerequisite not met',
+      blocked: high,
+      suggestedFixType: typeof alternative === 'object'
+        ? { isSemVerMajor: alternative?.isSemVerMajor, name: alternative?.name }
+        : alternative,
+    };
   }
 
   const memo = new Map();
