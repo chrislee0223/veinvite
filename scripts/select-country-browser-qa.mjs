@@ -9,6 +9,8 @@ const COUNTRY_ONLY_PATHS = new Set([
   'src/app/leaderboard-country-horizontal-balance.css',
   'src/components/PublicLeaderboardHub.tsx',
   'src/lib/countryRankMovement.ts',
+  'src/lib/countryLeaderboardClientCache.ts',
+  'tests/country-leaderboard-cache.test.mjs',
   'src/lib/types.ts',
   'supabase/migrations/20261117150000_country_rank_movement_previous_round_v1.sql',
   'supabase/production-migration-baseline.txt',
@@ -30,7 +32,12 @@ export function selectCountryBrowserQa(changedPaths) {
   const isolatedCountryQaChanged =
     changedPaths.includes('src/app/qa/country-rank-movement/page.tsx') &&
     changedPaths.includes('tests/playwright/country-rank-movement-real-ui.spec.ts');
-  if (!realUiFeatureChanged && !isolatedCountryQaChanged) {
+  const isolatedCountryCacheChanged =
+    changedPaths.includes('src/components/PublicLeaderboardHub.tsx') &&
+    changedPaths.includes('src/lib/countryLeaderboardClientCache.ts') &&
+    changedPaths.includes('src/app/api/leaderboard/country/route.ts');
+  if (!realUiFeatureChanged && !isolatedCountryQaChanged &&
+      !isolatedCountryCacheChanged) {
     return 'full';
   }
   return 'country';
