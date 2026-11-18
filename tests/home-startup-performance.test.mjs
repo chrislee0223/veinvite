@@ -129,10 +129,40 @@ test('fresh VeWorld visitors avoid the persisted-wallet 3.5 second settle path',
     runtime,
     /const hasPersistedWallet =\s*Boolean\(readPersistedDappKitAccount\(\)\)/,
   );
+  // The 350ms delay is only useful when a real provider account might be
+  // restored. A settled SDK with no persisted wallet is already anonymous.
   assert.match(
     runtime,
-    /connection\?\.isInAppBrowser && hasPersistedWallet[\s\S]*VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS[\s\S]*BROWSER_WALLET_BOOTSTRAP_SETTLE_MS/,
+    /if \(!hasPersistedWallet\) \{\s*setWalletBootstrapSettled\(true\);\s*return;\s*\}/,
   );
+  assert.match(
+    runtime,
+    /if \(connection\?\.isLoading\) \{\s*setWalletBootstrapSettled\(false\);\s*return;\s*\}/,
+  );
+  assert.match(
+    runtime,
+    /connection\?\.isInAppBrowser[\s\S]*VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS[\s\S]*BROWSER_WALLET_BOOTSTRAP_SETTLE_MS/,
+  );
+  // The strict wallet/session readiness gate still checks verified SSR
+  // evidence and both protected Home resources before unmasking Home.
+  assert.match(runtime, /resolveStartupReadiness\(\{/);
+  assert.match(runtime, /hasBootstrappedSession:\s*hasBootstrappedSession\(\)/);
+  assert.match(runtime, /hasPersistedWallet:\s*hasPersistedVeWorldWallet\(\)/);
+  assert.match(runtime, /HOME_STABILITY_MS = 160/);
+});
+
+test('startup loading observers ignore unrelated attribute updates but still detect gate transitions', async () => {
+  const [runtime, shield] = await Promise.all([
+    readFile(new URL('../src/components/WalletRuntimeLifecycle.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/LocaleHydrationShield.tsx', import.meta.url), 'utf8'),
+  ]);
+  for (const source of [runtime, shield]) {
+    assert.match(source, /childList: true,\s*subtree: true,\s*attributes: true,/);
+    assert.match(source, /attributeFilter: \[\s*'data-veinvite-wallet-session-gate',\s*'data-veinvite-legal-consent-gate',/);
+    assert.match(source, /new MutationObserver/);
+  }
+  assert.match(shield, /HOME_STARTUP_STATE_EVENT/);
+  assert.match(runtime, /HOME_STARTUP_STATE_EVENT/);
 });
 
 test('Home forecast waits for app-ready while reward reservation recovery remains independent', async () => {
