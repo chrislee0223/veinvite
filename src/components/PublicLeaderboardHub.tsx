@@ -393,10 +393,12 @@ export function PublicLeaderboardHub({
       personalization.status === 'pending'
     ),
   );
+  // Reserve the signed-in user's trailing row from the very first
+  // leaderboard frame, before the public response arrives. Rank and reward
+  // remain dashes until the exact current wallet is confirmed.
   const pendingCurrentWallet =
     walletKey &&
-    publicData &&
-    !currentWalletInDisplayedRanking &&
+    (!publicData || !currentWalletInDisplayedRanking) &&
     (personalizationPending || personalizationUnavailable)
       ? wallet
       : null;
@@ -404,6 +406,21 @@ export function PublicLeaderboardHub({
     personalizationPending || personalizationUnavailable
       ? null
       : wallet;
+  const retryPublicLeaderboard = useCallback(() => {
+    setPublicState((current) => ({ ...current, failed: false }));
+    void loadPublicLeaderboard(null, { force: true })
+      .then((data) => {
+        setPublicState({ data, confirmed: true, failed: false });
+      })
+      .catch(() => {
+        setPublicState((current) => ({
+          ...current,
+          confirmed: false,
+          failed: true,
+        }));
+      });
+  }, []);
+
   const retryPersonalization = useCallback(() => {
     if (!walletKey) return;
     setPersonalization({
@@ -469,11 +486,7 @@ export function PublicLeaderboardHub({
         )
       : COUNTRY_MAX_VISIBLE_ROWS;
 
-  if (!displayData) {
-    return <InviterLeaderboard locale={locale} wallet={wallet} />;
-  }
-
-  const showCountryData = Boolean(countryData);
+   const showCountryData = Boolean(countryData);
   const showCountryError = countryState.status === 'error' && !countryData;
   // A first visit to the country tab should show its skeleton while data
   // loads instead of silently leaving the inviter ranking visible.
@@ -487,13 +500,15 @@ export function PublicLeaderboardHub({
       data-public-leaderboard-stale={
         publicState.failed && publicData ? 'true' : undefined
       }
+      data-public-leaderboard-pending={!displayData ? 'true' : undefined}
     >
       <div className="impactOnly">
         <InviterLeaderboard
           locale={locale}
           wallet={displayWallet}
-          pendingCurrentWallet={pendingCurrentWallet}
-          previewData={displayData}
+          previewData={displayData ?? undefined}
+          managedByHub
+          surface="impact"
         />
       </div>
 
@@ -507,6 +522,7 @@ export function PublicLeaderboardHub({
             type="button"
             role="tab"
             aria-selected={rankingView === 'inviter'}
+            disabled={!displayData}
             className={rankingView === 'inviter' ? 'active' : ''}
             onClick={() => setRankingView('inviter')}
           >
@@ -517,6 +533,7 @@ export function PublicLeaderboardHub({
             role="tab"
             ref={countryTabRef}
             aria-selected={rankingView === 'country'}
+            disabled={!displayData}
             className={rankingView === 'country' ? 'active' : ''}
             onPointerEnter={primeCountry}
             onFocus={primeCountry}
@@ -532,9 +549,18 @@ export function PublicLeaderboardHub({
               locale={locale}
               wallet={displayWallet}
               pendingCurrentWallet={pendingCurrentWallet}
-              previewData={displayData}
+              previewData={displayData ?? undefined}
+              managedByHub
+              surface="ranking"
             />
-            {personalizationUnavailable ? (
+            {publicState.failed && !displayData ? (
+              <div className="personalizationInlineError" role="status">
+                <span>{leaderboardCopy.loadError}</span>
+                <button type="button" onClick={retryPublicLeaderboard}>
+                  {leaderboardCopy.retry}
+                </button>
+              </div>
+            ) : personalizationUnavailable ? (
               <div className="personalizationInlineError" role="status">
                 <span>{leaderboardCopy.loadError}</span>
                 <button type="button" onClick={retryPersonalization}>
@@ -759,7 +785,10 @@ export function PublicLeaderboardHub({
           background:#f4b728;
           box-shadow:0 0 9px rgba(244,183,40,.16);
         }
-        .rankingTabs button:hover:not(.active) {
+        .rankingTabs button:disabled {
+          cursor:default;
+        }
+        .rankingTabs button:hover:not(.active):not(:disabled) {
           color:#aaa49a;
         }
         .rankingTabs button:focus-visible,
