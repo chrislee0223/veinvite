@@ -26,7 +26,7 @@
     "@vercel/queue": "0.5.1",
     "ethers": "^6.13.5",
     "framer-motion": "^11.15.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -45,6 +45,7 @@
     "ws@^8.0.0": "8.21.0",
     "follow-redirects": "1.16.2",
     "zod": "4.6.6",
-    "@walletconnect/utils": "2.23.10"
+    "@walletconnect/utils": "2.23.10",
+    "hono": "4.13.18"
   }
 }
