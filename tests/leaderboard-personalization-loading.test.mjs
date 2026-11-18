@@ -166,16 +166,13 @@ test('a failed initial public request offers an explicit retry without removing 
 });
 
 
-test('mobile ranking tab change preserves the measured inner panel instead of shrinking the page', () => {
-  assert.match(hub, /const rankingPanelRef = useRef<HTMLDivElement>\(null\)/);
-  assert.match(hub, /const \[rankingPanelMinHeight, setRankingPanelMinHeight\]/);
-  assert.match(hub, /const preservePanelHeight = useCallback/);
-  assert.match(hub, /rankingPanelRef\.current\?\.getBoundingClientRect\(\)\.height/);
-  assert.match(hub, /setRankingPanelMinHeight\(\(current\)/);
-  assert.match(hub, /const openCountry = useCallback\(\(\) => \{\s*preservePanelHeight\(\);\s*setRankingView\('country'\)/);
-  assert.match(hub, /const openInviter = useCallback\(\(\) => \{\s*preservePanelHeight\(\);\s*setRankingView\('inviter'\)/);
-  assert.match(hub, /className="inviterInside"[\s\S]{0,150}ref=\{rankingPanelRef\}[\s\S]{0,150}minHeight: rankingPanelMinHeight/);
-  assert.match(hub, /className="countryPanel"[\s\S]{0,150}ref=\{rankingPanelRef\}[\s\S]{0,150}minHeight: rankingPanelMinHeight/);
+test('mobile ranking tab panels use their own natural height without a permanent empty footer', () => {
+  assert.doesNotMatch(hub, /rankingPanelMinHeight|setRankingPanelMinHeight|preservePanelHeight/);
+  assert.doesNotMatch(hub, /ref=\{rankingPanelRef\}|style=\{\{ minHeight:/);
+  assert.match(hub, /className="inviterInside"/);
+  assert.match(hub, /className="countryPanel"/);
+  assert.match(hub, /const openCountry = useCallback\(\(\) => \{\s*setRankingView\('country'\)/);
+  assert.match(hub, /const openInviter = useCallback\(\(\) => \{\s*setRankingView\('inviter'\)/);
   assert.match(hub, /overflow-anchor:none/);
   assert.doesNotMatch(hub, /window\.scrollTo\(/);
 });
