@@ -924,7 +924,7 @@ export function PublicLeaderboard({
           <div className="rows">
             {data
               ? RANK_SLOTS.map((rank) => renderSlot(rank))
-              : RANK_SLOTS.slice(0, 5).map((rank) =>
+              : RANK_SLOTS.filter((rank) => rank <= 5).map((rank) =>
                   renderPlaceholderRow(rank)
                 )}
           </div>
