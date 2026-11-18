@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed owner-only canary X release preview (2026-11-05): Home adds safe in-memory synthetic release handling through the existing confirmation modal; AppNetwork mirrors released capacity while retaining live invite/reward isolation. New helper is small and separate; no Supabase or payout writes. Reviewed growth measured by CI audit. 2026-11-17 reviewed: anonymous Network usage records only on completed user edits; extracted shared drag checks, existing autosave preserved, no per-frame requests, max two event categories per tab.",
+  "note": "Reviewed owner-only canary X release preview (2026-11-05): Home adds safe in-memory synthetic release handling through the existing confirmation modal; AppNetwork mirrors released capacity while retaining live invite/reward isolation. New helper is small and separate; no Supabase or payout writes. Reviewed growth measured by CI audit. 2026-11-17 reviewed: anonymous Network usage records only on completed user edits; extracted shared drag checks, existing autosave preserved, no per-frame requests, max two event categories per tab. 2026-11-18 reviewed: wallet-scoped and Seoul-day-scoped Network events fix same-tab A-to-B undercount; +99 bytes in AppNetwork are only owner-wallet parameters at completed-action call sites, with no autosave or reward changes.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -36,7 +36,7 @@
     "src/components/WalletSessionGate.tsx"
   ],
   "growthCeilingsBytes": {
-    "src/components/AppNetwork.tsx": 150490,
+    "src/components/AppNetwork.tsx": 150589,
     "src/lib/sybil/v2/pipeline.ts": 138448,
     "src/components/PublicNetworkExplorer.tsx": 73801,
     "src/components/UnifiedInviteNotificationHistoryCenter.tsx": 55235,
