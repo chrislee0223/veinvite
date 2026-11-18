@@ -631,9 +631,12 @@ export function PublicRewardForecastCard({
     : null;
   const elasticPending = !elastic;
   const stale = ready && forecast.stale === true;
+  // A cold visit can legitimately have no validated SSR/local quote yet.
+  // Never flash a misleading dash (or a made-up number) before the real
+  // shared-pool estimate arrives. Keep the fixed card/amount footprint.
   const amount = elastic
     ? `${formatRewardWei(elastic.displayEstimateWei)} B3TR`
-    : '— B3TR';
+    : '';
   const note = unavailable && !forecast
     ? t.unavailable
     : elasticPending || forecast?.status === 'pending'
@@ -661,6 +664,7 @@ export function PublicRewardForecastCard({
 
       <div
         className="estimateAmount"
+        data-forecast-amount-ready={elastic ? 'true' : 'false'}
         aria-label={ready && !elasticPending ? amount : t.pendingTitle}
       >
         <strong>{amount}</strong>
