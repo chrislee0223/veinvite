@@ -11,6 +11,7 @@ const COUNTRY_ONLY_PATHS = new Set([
   'src/lib/countryRankMovement.ts',
   'src/lib/countryLeaderboardClientCache.ts',
   'tests/country-leaderboard-cache.test.mjs',
+  'tests/referral-quality-country-integrity.test.mjs',
   'src/lib/types.ts',
   'supabase/migrations/20261117150000_country_rank_movement_previous_round_v1.sql',
   'supabase/production-migration-baseline.txt',
