@@ -7,6 +7,11 @@ import { COUNTRY_LEADERBOARD_COPY } from '@/lib/i18n/countryLeaderboardCopy';
 import '@/lib/i18n/localePacks/registerExpandedLocales';
 import { LEADERBOARD_COPY } from '@/lib/i18n/leaderboardCopy';
 import { getLeaderboardMovementCopy } from '@/lib/i18n/leaderboardMovementCopy';
+import {
+  getCachedCountryArrivals,
+  getFreshCountryArrivals,
+  loadCountryArrivals,
+} from '@/lib/countryLeaderboardClientCache';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 import {
   getCachedPublicLeaderboard,
@@ -31,18 +36,9 @@ type PersonalizationState = {
   status: 'idle' | 'pending' | 'resolved' | 'unavailable';
   currentUser: PublicLeaderboardEntry | null;
 };
-type CountryCache = {
-  loadedAt: number;
-  data: PublicCountryArrivalResponse;
-};
-
 const PUBLIC_RANK_LIMIT = 100;
-const COUNTRY_CACHE_TTL_MS = 60_000;
 const COUNTRY_MIN_VISIBLE_ROWS = 5;
 const COUNTRY_MAX_VISIBLE_ROWS = 7;
-let countryCache: CountryCache | null = null;
-let countryInFlight: Promise<PublicCountryArrivalResponse> | null = null;
-
 function countryName(code: string, locale: SupportedLocale): string {
   try {
     return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code;
@@ -73,61 +69,6 @@ function sameLeaderboardSnapshot(
   );
 }
 
-function getFreshCountryCache(): PublicCountryArrivalResponse | null {
-  if (!countryCache) return null;
-  if (Date.now() - countryCache.loadedAt > COUNTRY_CACHE_TTL_MS) {
-    countryCache = null;
-    return null;
-  }
-  return countryCache.data;
-}
-
-async function fetchCountryArrivals(): Promise<PublicCountryArrivalResponse> {
-  const response = await fetch('/api/leaderboard/country', {
-    cache: 'no-store',
-  });
-  const result = (await response.json()) as
-    | PublicCountryArrivalResponse
-    | { error?: string };
-
-  if (!response.ok) {
-    throw new Error(
-      'error' in result && result.error
-        ? result.error
-        : 'Country arrivals are temporarily unavailable.',
-    );
-  }
-
-  return result as PublicCountryArrivalResponse;
-}
-
-function loadCountryArrivals(
-  force = false,
-): Promise<PublicCountryArrivalResponse> {
-  if (!force) {
-    const cached = getFreshCountryCache();
-    if (cached) return Promise.resolve(cached);
-    if (countryInFlight) return countryInFlight;
-  }
-
-  const request = fetchCountryArrivals()
-    .then((data) => {
-      countryCache = {
-        loadedAt: Date.now(),
-        data,
-      };
-      return data;
-    })
-    .finally(() => {
-      if (countryInFlight === request) {
-        countryInFlight = null;
-      }
-    });
-
-  countryInFlight = request;
-  return request;
-}
-
 export function PublicLeaderboardHub({
   locale,
   wallet,
@@ -136,7 +77,7 @@ export function PublicLeaderboardHub({
   wallet: string | null;
 }) {
   const initialPublic = getCachedPublicLeaderboard(null);
-  const initialCountry = getFreshCountryCache();
+  const initialCountry = getCachedCountryArrivals();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
   const [publicState, setPublicState] = useState<{
     data: PublicLeaderboardResponse | null;
@@ -327,7 +268,7 @@ export function PublicLeaderboardHub({
   }, [walletKey]);
 
   const refreshCountry = useCallback((force = false) => {
-    const cachedCountry = force ? null : getFreshCountryCache();
+    const cachedCountry = force ? null : getFreshCountryArrivals();
     if (cachedCountry) {
       setCountryState({ status: 'ready', data: cachedCountry });
       return;
@@ -350,15 +291,11 @@ export function PublicLeaderboardHub({
       });
   }, []);
 
-  useEffect(() => {
-    refreshCountry(false);
-  }, [refreshCountry]);
-
   const openCountry = useCallback(() => {
     setRankingView('country');
-    // Keep cached rows visible, but revalidate on every explicit tab open so
-    // finalized activations and trusted country evidence appear immediately.
-    refreshCountry(true);
+    // Country figures are informational: refresh on demand only if the shared
+    // 30-minute cache has expired. Never poll in the background.
+    refreshCountry(false);
   }, [refreshCountry]);
 
   const retryCountry = useCallback(() => {
@@ -490,10 +427,9 @@ export function PublicLeaderboardHub({
 
   const showCountryData = Boolean(countryData);
   const showCountryError = countryState.status === 'error' && !countryData;
-  const visibleRankingView: RankingView =
-    rankingView === 'country' && (showCountryData || showCountryError)
-      ? 'country'
-      : 'inviter';
+  // A first visit to the country tab should show its skeleton while data
+  // loads instead of silently leaving the inviter ranking visible.
+  const visibleRankingView: RankingView = rankingView;
 
   return (
     <section
