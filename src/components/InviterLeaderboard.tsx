@@ -853,7 +853,15 @@ export function PublicLeaderboard({
           <strong className="rankValue">—</strong>
         </span>
         <span className="walletCell">
-          <WalletIdentity address={pendingCurrentWallet} eager />
+          {managedByHub && !data ? (
+            // Do not trigger profile/avatar network work while the public
+            // ranking itself is still loading; show the safe wallet mask only.
+            <span className="walletText" dir="ltr">
+              {maskWallet(pendingCurrentWallet)}
+            </span>
+          ) : (
+            <WalletIdentity address={pendingCurrentWallet} eager />
+          )}
         </span>
         <span className="rankMetric completedMetric">
           <b>—</b>
