@@ -123,3 +123,44 @@ test('pending current-wallet row keeps geometry without fabricating rank or rewa
     /pendingCurrentWallet[\s\S]{0,500}completedReferrals:\s*0/,
   );
 });
+
+
+test('ranking frame stays mounted before the public response instead of swapping entire cards', () => {
+  assert.doesNotMatch(hub, /if \(!displayData\) \{\s*return <InviterLeaderboard/);
+  assert.match(hub, /data-public-leaderboard-pending=\{!displayData \? 'true' : undefined\}/);
+  assert.match(hub, /className="unifiedRankingCard"/);
+  assert.match(hub, /className="rankingTabs"/);
+  assert.match(hub, /className="inviterInside"/);
+  assert.match(hub, /surface="ranking"/);
+  assert.match(hub, /surface="impact"/);
+  assert.match(hub, /disabled=\{!displayData\}/);
+});
+
+test('Hub owns the sole public ranking request while both surfaces paint skeletons', () => {
+  assert.match(hub, /void loadPublicLeaderboard\(null\)/);
+  assert.match(hub, /managedByHub\s+surface="impact"/);
+  assert.match(hub, /managedByHub\s+surface="ranking"/);
+  assert.match(leaderboard, /managedByHub\?: boolean/);
+  assert.match(leaderboard, /if \(managedByHub\) return;/);
+  assert.match(leaderboard, /const data = managedByHub\s*\? previewData \?\? null/);
+  assert.match(leaderboard, /const loading = managedByHub\s*\? !previewData/);
+  assert.match(leaderboard, /\{surface !== 'ranking' \? <section\s+className="impactCard"/);
+  assert.match(leaderboard, /\{surface !== 'impact' \? <section className="rankingCard"/);
+  assert.match(leaderboard, /RANK_SLOTS\.map\(\(rank\) => renderSlot\(rank\)\)/);
+});
+
+test('wallet placeholder exists before public data and cannot invent a score', () => {
+  assert.match(hub, /const pendingCurrentWallet =\s*walletKey &&\s*\(!publicData \|\| !currentWalletInDisplayedRanking\)/);
+  assert.match(hub, /personalizationPending \|\| personalizationUnavailable/);
+  assert.match(leaderboard, /data-current-wallet-pending="true"/);
+  assert.match(leaderboard, /className="rankRow compact current trailingCurrent pendingCurrent"/);
+  assert.match(leaderboard, /<strong className="rankValue">—<\/strong>/);
+  assert.match(hub, /const displayWallet =[\s\S]*?personalizationPending \|\| personalizationUnavailable[\s\S]*?\? null/);
+});
+
+test('a failed initial public request offers an explicit retry without removing the card', () => {
+  assert.match(hub, /const retryPublicLeaderboard = useCallback/);
+  assert.match(hub, /publicState\.failed && !displayData \? \(/);
+  assert.match(hub, /onClick=\{retryPublicLeaderboard\}/);
+  assert.match(hub, /personalizationUnavailable \? \(/);
+});
