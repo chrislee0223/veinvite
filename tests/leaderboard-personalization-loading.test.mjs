@@ -164,3 +164,24 @@ test('a failed initial public request offers an explicit retry without removing 
   assert.match(hub, /onClick=\{retryPublicLeaderboard\}/);
   assert.match(hub, /personalizationUnavailable \? \(/);
 });
+
+
+test('mobile ranking tab change preserves the measured inner panel instead of shrinking the page', () => {
+  assert.match(hub, /const rankingPanelRef = useRef<HTMLDivElement>\(null\)/);
+  assert.match(hub, /const \[rankingPanelMinHeight, setRankingPanelMinHeight\]/);
+  assert.match(hub, /const preservePanelHeight = useCallback/);
+  assert.match(hub, /rankingPanelRef\.current\?\.getBoundingClientRect\(\)\.height/);
+  assert.match(hub, /setRankingPanelMinHeight\(\(current\)/);
+  assert.match(hub, /const openCountry = useCallback\(\(\) => \{\s*preservePanelHeight\(\);\s*setRankingView\('country'\)/);
+  assert.match(hub, /const openInviter = useCallback\(\(\) => \{\s*preservePanelHeight\(\);\s*setRankingView\('inviter'\)/);
+  assert.match(hub, /className="inviterInside"[\s\S]{0,150}ref=\{rankingPanelRef\}[\s\S]{0,150}minHeight: rankingPanelMinHeight/);
+  assert.match(hub, /className="countryPanel"[\s\S]{0,150}ref=\{rankingPanelRef\}[\s\S]{0,150}minHeight: rankingPanelMinHeight/);
+  assert.match(hub, /overflow-anchor:none/);
+  assert.doesNotMatch(hub, /window\.scrollTo\(/);
+});
+
+test('cold leaderboard shows five real-sized skeleton rows, not 100 initial DOM nodes', () => {
+  assert.match(leaderboard, /data\s*\?\s*RANK_SLOTS\.map\(\(rank\) => renderSlot\(rank\)\)/);
+  assert.match(leaderboard, /RANK_SLOTS\.filter\(\(rank\) => rank <= 5\)\.map\(\(rank\) =>\s*renderPlaceholderRow\(rank\)/);
+  assert.match(leaderboard, /const PUBLIC_RANK_LIMIT = 100/);
+});

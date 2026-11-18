@@ -248,3 +248,31 @@ test('background invite recovery no longer competes with the authoritative Home 
     /if \(!walletAddress\) \{\s*return;\s*\}\s*void check\(\);/,
   );
 });
+
+
+test('Home readiness defers noncritical leaderboard/network warmup to idle without delaying tab taps', async () => {
+  const nav = await readFile(
+    new URL('../src/components/AppBottomNavigation.tsx', import.meta.url),
+    'utf8',
+  );
+
+  const onAppReady = nav.slice(
+    nav.indexOf('const onAppReady = () => {'),
+    nav.indexOf('if (\n      document.documentElement.dataset.veinviteAppReady'),
+  );
+  assert.match(onAppReady, /scheduleModulePrefetch\(\)/);
+  assert.doesNotMatch(onAppReady, /preloadTabModule\(|warmLeaderboard\(|prefetchNetworkRoot\(|prefetchNetworkSummary\(/);
+
+  const warmup = nav.slice(
+    nav.indexOf('const runModulePrefetch = () => {'),
+    nav.indexOf('const scheduleModulePrefetch = () => {'),
+  );
+  assert.match(warmup, /preloadTabModule\(tab as AppTab\)/);
+  assert.match(warmup, /warmLeaderboard\(\)/);
+  assert.match(warmup, /prefetchNetworkSummary\(wallet\)/);
+  assert.match(warmup, /prefetchNetworkRoot\(wallet\)/);
+  assert.match(nav, /requestIdleCallback\([\s\S]*STARTUP_PREFETCH_IDLE_TIMEOUT_MS/);
+  assert.match(nav, /const prepareTabForNavigation = \(tab: AppTab\)/);
+  assert.match(nav, /const moduleReady = preloadTabModule\(tab\)/);
+  assert.match(nav, /warmLeaderboard\(\),/);
+});

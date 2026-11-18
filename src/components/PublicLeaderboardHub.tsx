@@ -80,6 +80,9 @@ export function PublicLeaderboardHub({
   const initialCountry = getCachedCountryArrivals();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
   const countryTabRef = useRef<HTMLButtonElement>(null);
+  const rankingPanelRef = useRef<HTMLDivElement>(null);
+  const [rankingPanelMinHeight, setRankingPanelMinHeight] =
+    useState<number | null>(null);
   const [publicState, setPublicState] = useState<{
     data: PublicLeaderboardResponse | null;
     confirmed: boolean;
@@ -266,7 +269,10 @@ export function PublicLeaderboardHub({
 
   useEffect(() => {
     setRankingView('inviter');
-  }, [walletKey]);
+    // The wallet and language can change the optional current-user footer.
+    // Let a new ranking session establish its own natural panel height.
+    setRankingPanelMinHeight(null);
+  }, [walletKey, locale]);
 
   const refreshCountry = useCallback((force = false) => {
     const cachedCountry = force ? null : getFreshCountryArrivals();
@@ -301,12 +307,30 @@ export function PublicLeaderboardHub({
     });
   }, []);
 
+  const preservePanelHeight = useCallback(() => {
+    const height = rankingPanelRef.current?.getBoundingClientRect().height ?? 0;
+    if (height <= 0) return;
+    // Keep the same card geometry when changing tabs, including the optional
+    // signed-in wallet row. The mobile browser must not re-anchor/scroll the
+    // entire document because a shorter tab replaced a taller tab.
+    const nextHeight = Math.ceil(height);
+    setRankingPanelMinHeight((current) =>
+      current === null ? nextHeight : Math.max(current, nextHeight)
+    );
+  }, []);
+
+  const openInviter = useCallback(() => {
+    preservePanelHeight();
+    setRankingView('inviter');
+  }, [preservePanelHeight]);
+
   const openCountry = useCallback(() => {
+    preservePanelHeight();
     setRankingView('country');
     // Country figures are informational: refresh on demand only if the shared
     // 30-minute cache has expired. Never poll in the background.
     refreshCountry(false);
-  }, [refreshCountry]);
+  }, [preservePanelHeight, refreshCountry]);
 
   const retryCountry = useCallback(() => {
     refreshCountry(true);
@@ -524,7 +548,7 @@ export function PublicLeaderboardHub({
             aria-selected={rankingView === 'inviter'}
             disabled={!displayData}
             className={rankingView === 'inviter' ? 'active' : ''}
-            onClick={() => setRankingView('inviter')}
+            onClick={openInviter}
           >
             <span>{countryCopy.inviterTab}</span>
           </button>
@@ -544,7 +568,11 @@ export function PublicLeaderboardHub({
         </div>
 
         {visibleRankingView === 'inviter' ? (
-          <div className="inviterInside">
+          <div
+            className="inviterInside"
+            ref={rankingPanelRef}
+            style={{ minHeight: rankingPanelMinHeight ?? undefined }}
+          >
             <InviterLeaderboard
               locale={locale}
               wallet={displayWallet}
@@ -572,6 +600,8 @@ export function PublicLeaderboardHub({
         ) : (
           <div
             className="countryPanel"
+            ref={rankingPanelRef}
+            style={{ minHeight: rankingPanelMinHeight ?? undefined }}
             data-visible-rows={countryVisibleRowCount}
           >
             <div className="countryHeader" aria-hidden="true">
@@ -729,6 +759,7 @@ export function PublicLeaderboardHub({
           margin-top:18px;
           padding:8px 14px 12px;
           overflow:hidden;
+          overflow-anchor:none;
           border:1px solid rgba(255,205,80,.14);
           border-radius:21px;
           background:rgba(255,255,255,.035);

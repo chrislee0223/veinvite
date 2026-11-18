@@ -157,9 +157,20 @@ export function AppBottomNavigation({
       if (cancelled || prefetchStarted) return;
       prefetchStarted = true;
 
+      // These are secondary screens, not prerequisites for Home. Start their
+      // code/data warmups once the browser is idle so startup input and paint
+      // are not competing with leaderboard/network fetches and heavy chunks.
+      // Tapping a tab still triggers immediate on-demand preparation.
       void Promise.allSettled(
-        IDLE_LAZY_TABS.map((tab) => preloadTabModule(tab)),
+        [...IDLE_LAZY_TABS, 'leaderboard', 'guide'].map((tab) =>
+          preloadTabModule(tab as AppTab)
+        ),
       );
+      void warmLeaderboard().catch(() => undefined);
+      if (wallet) {
+        void prefetchNetworkSummary(wallet).catch(() => undefined);
+        void prefetchNetworkRoot(wallet).catch(() => undefined);
+      }
     };
 
     const scheduleModulePrefetch = () => {
@@ -191,17 +202,8 @@ export function AppBottomNavigation({
 
     const onAppReady = () => {
       if (cancelled) return;
-
-      // Home is fully released before any of this begins. Warm the two secondary
-      // surfaces users commonly open immediately, but keep their data work
-      // independent from the critical Home startup path.
-      void preloadTabModule('leaderboard').catch(() => undefined);
-      void preloadTabModule('guide').catch(() => undefined);
-      void warmLeaderboard().catch(() => undefined);
-      if (wallet) {
-        void prefetchNetworkSummary(wallet).catch(() => undefined);
-        void prefetchNetworkRoot(wallet).catch(() => undefined);
-      }
+      // Home first: release the first interactive paint before starting
+      // secondary-tab bundles, public ranking or network warmups.
       scheduleModulePrefetch();
     };
 
