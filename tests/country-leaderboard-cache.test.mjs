@@ -195,3 +195,108 @@ test('country-only 30m CDN policy never caches errors or merges other feature re
   assert.match(forecast, /CLIENT_FORECAST_CACHE_MS = 15 \* 60_000/);
   assert.match(network, /MEMORY_TTL_MS = 15_000/);
 });
+
+
+test('a public country result survives reload within 30 minutes without startup fetches', async () => {
+  const oldWindow = globalThis.window;
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const store = new Map();
+  const localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => { store.set(key, value); },
+    removeItem: (key) => { store.delete(key); },
+  };
+  let now = Date.parse('2026-11-19T00:00:00Z');
+  let requests = 0;
+  try {
+    globalThis.window = { localStorage };
+    Date.now = () => now;
+    globalThis.fetch = async () => {
+      requests++;
+      return jsonResponse(payload(now));
+    };
+
+    const visit1 = await isolatedCache();
+    assert.equal(visit1.getCachedCountryArrivals(), null);
+    assert.equal(requests, 0, 'initial render/import never prefetches country data');
+    const initial = await visit1.loadCountryArrivals();
+    assert.equal(requests, 1);
+    assert.equal(initial.leaders[0].countryCode, 'TR');
+    assert.equal(store.size, 1, 'only the public country response is persisted');
+
+    now += 10 * 60_000;
+    const visit2 = await isolatedCache();
+    assert.equal(visit2.getCachedCountryArrivals(), null,
+      'hydration must not read browser storage during render');
+    const restored = visit2.getFreshCountryArrivals();
+    assert.equal(restored?.leaders[0].countryCode, 'TR');
+    assert.equal(await visit2.loadCountryArrivals(), restored);
+    assert.equal(requests, 1, 'restoring a valid country result performs no network call');
+
+    now += 21 * 60_000;
+    assert.equal(visit2.getFreshCountryArrivals(), null,
+      'an expired country snapshot must never pretend to be fresh');
+    await visit2.loadCountryArrivals();
+    assert.equal(requests, 2, 'expired data is requested again on demand');
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+    if (oldWindow === undefined) delete globalThis.window;
+    else globalThis.window = oldWindow;
+  }
+});
+
+test('corrupt browser storage fails closed without breaking the ranking tab', async () => {
+  const oldWindow = globalThis.window;
+  const oldFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const store = new Map([[
+    'veinvite_public_country_arrivals_v1',
+    JSON.stringify({ loadedAt: Date.parse('2026-11-19T00:00:00Z'),
+      data: { ...payload(Date.parse('2026-11-19T00:00:00Z')), leaders: [{ countryCode: 'BAD' }] } }),
+  ]]);
+  let requests = 0;
+  try {
+    const now = Date.parse('2026-11-19T00:01:00Z');
+    Date.now = () => now;
+    globalThis.window = { localStorage: {
+      getItem: key => store.get(key) ?? null,
+      setItem: (key, value) => store.set(key, value),
+      removeItem: key => store.delete(key),
+    } };
+    globalThis.fetch = async () => { requests++; return jsonResponse(payload(now)); };
+    const client = await isolatedCache();
+    assert.equal(client.getFreshCountryArrivals(), null);
+    assert.equal(store.size, 0, 'invalid data is removed');
+    const result = await client.loadCountryArrivals();
+    assert.equal(result.leaders[0].countryCode, 'TR');
+    assert.equal(requests, 1);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = oldFetch;
+    if (oldWindow === undefined) delete globalThis.window;
+    else globalThis.window = oldWindow;
+  }
+});
+
+test('country tab anticipates intent only when visible and never joins app bootstrap', () => {
+  const hub = readFileSync(
+    new URL('../src/components/PublicLeaderboardHub.tsx', import.meta.url), 'utf8',
+  );
+  const cache = readFileSync(
+    new URL('../src/lib/countryLeaderboardClientCache.ts', import.meta.url), 'utf8',
+  );
+
+  assert.match(hub, /new IntersectionObserver/);
+  assert.match(hub, /observer\.observe\(countryTab\)/);
+  assert.match(hub, /ref=\{countryTabRef\}/);
+  assert.match(hub, /onPointerEnter=\{primeCountry\}/);
+  assert.match(hub, /onFocus=\{primeCountry\}/);
+  assert.match(hub, /requestIdleCallback\(start, \{ timeout: 1500 \}\)/);
+  assert.match(hub, /rootMargin: '100px 0px'/);
+  assert.match(cache, /restoreCountryCache\(\)/);
+  assert.match(cache, /window\.localStorage\.setItem/);
+  assert.match(cache, /COUNTRY_CACHE_TTL_MS = 30 \* 60_000/);
+  assert.match(hub, /setRankingView\('country'\)/);
+});

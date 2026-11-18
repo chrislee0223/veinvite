@@ -309,6 +309,13 @@ function LocaleHydrationShieldRuntime() {
       childList: true,
       subtree: true,
       attributes: true,
+      // The shield only reacts to wallet/legal gate existence. Other
+      // components frequently update classes and ARIA attributes during
+      // hydration; avoid rescanning the entire body for those changes.
+      attributeFilter: [
+        'data-veinvite-wallet-session-gate',
+        'data-veinvite-legal-consent-gate',
+      ],
     });
 
     return () => {

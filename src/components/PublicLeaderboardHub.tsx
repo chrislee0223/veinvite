@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { COUNTRY_ARRIVAL_METRIC_COPY } from '@/lib/i18n/countryArrivalMetricCopy';
 import { COUNTRY_LEADERBOARD_COPY } from '@/lib/i18n/countryLeaderboardCopy';
@@ -79,6 +79,7 @@ export function PublicLeaderboardHub({
   const initialPublic = getCachedPublicLeaderboard(null);
   const initialCountry = getCachedCountryArrivals();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
+  const countryTabRef = useRef<HTMLButtonElement>(null);
   const [publicState, setPublicState] = useState<{
     data: PublicLeaderboardResponse | null;
     confirmed: boolean;
@@ -291,6 +292,15 @@ export function PublicLeaderboardHub({
       });
   }, []);
 
+  const primeCountry = useCallback(() => {
+    // Reuse the same 30-minute browser/CDN cache and dedupe concurrent reads.
+    // Never do a country request as part of the initial app bootstrap.
+    if (getFreshCountryArrivals()) return;
+    void loadCountryArrivals().catch(() => {
+      // A later click can retry; failed prefetches must stay invisible.
+    });
+  }, []);
+
   const openCountry = useCallback(() => {
     setRankingView('country');
     // Country figures are informational: refresh on demand only if the shared
@@ -326,6 +336,44 @@ export function PublicLeaderboardHub({
       currentUser: resolvedCurrentUser,
     };
   }, [personalization, publicData, walletKey]);
+
+  const hasRankingTabs = Boolean(displayData);
+  useEffect(() => {
+    if (!hasRankingTabs || typeof IntersectionObserver === 'undefined') return;
+    const countryTab = countryTabRef.current;
+    if (!countryTab) return;
+
+    let cancelled = false;
+    let idleId: number | null = null;
+    let fallbackId: number | null = null;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting) ||
+          document.visibilityState !== 'visible') return;
+      observer.disconnect();
+      // Only start once the country tab is near the viewport, at idle priority.
+      // This cannot delay the app's first render or wallet/reward bootstrap.
+      const start = () => {
+        if (!cancelled && document.visibilityState === 'visible') {
+          primeCountry();
+        }
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        idleId = window.requestIdleCallback(start, { timeout: 1500 });
+      } else {
+        fallbackId = window.setTimeout(start, 150);
+      }
+    }, { rootMargin: '100px 0px' });
+
+    observer.observe(countryTab);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      if (fallbackId !== null) window.clearTimeout(fallbackId);
+    };
+  }, [hasRankingTabs, primeCountry]);
 
   const currentWalletInDisplayedRanking = Boolean(
     walletKey &&
@@ -467,8 +515,11 @@ export function PublicLeaderboardHub({
           <button
             type="button"
             role="tab"
+            ref={countryTabRef}
             aria-selected={rankingView === 'country'}
             className={rankingView === 'country' ? 'active' : ''}
+            onPointerEnter={primeCountry}
+            onFocus={primeCountry}
             onClick={openCountry}
           >
             <span>{countryCopy.countryTab}</span>
