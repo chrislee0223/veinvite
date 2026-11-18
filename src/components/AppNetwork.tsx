@@ -1688,8 +1688,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     } else {
       persistFocusWorkspace(next);
     }
-    reportNetworkInteractionOnce('network_group_modified');
-  }, [editingLayout, committedWorkspace, commitEditingWorkspace, persistFocusWorkspace]);
+    reportNetworkInteractionOnce('network_group_modified', wallet);
+  }, [editingLayout, committedWorkspace, commitEditingWorkspace, persistFocusWorkspace, wallet]);
 
   const beginManagedGroupRename = useCallback(() => {
     if (!managedGroup) return;
@@ -1782,7 +1782,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     if (nextWorkspace === workspace) return;
 
     commitEditingWorkspace(nextWorkspace);
-    reportNetworkInteractionOnce('network_group_modified');
+    reportNetworkInteractionOnce('network_group_modified', wallet);
     markGroupCreated(groupDraft.id);
     setGroupDropActive(false);
     setGroupDraft(null);
@@ -1793,6 +1793,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     w.group,
     commitEditingWorkspace,
     markGroupCreated,
+    wallet,
   ]);
 
   const beginWorkspaceDrag = useCallback((
@@ -1934,7 +1935,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     const memberDrag = drag.kind === 'node' || drag.kind === 'group-member';
     if (!memberDrag) {
       commitCurrentDraftWorkspace();
-      reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
+      reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current, wallet);
       return;
     }
 
@@ -1983,7 +1984,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       if (nextWorkspace !== drag.originalWorkspace) {
         animateRestoredWallets([drag.key]);
         commitEditingWorkspace(nextWorkspace);
-        reportNetworkInteractionOnce('network_group_modified');
+        reportNetworkInteractionOnce('network_group_modified', wallet);
       } else {
         setEditingWorkspace(cloneNetworkFocusWorkspace(drag.originalWorkspace));
       }
@@ -1991,7 +1992,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     }
 
     commitCurrentDraftWorkspace();
-    reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current);
+    reportCompletedNetworkDrag(drag.kind, drag.originalWorkspace, draftWorkspaceRef.current, wallet);
   }, [
     groupDraft,
     findGroupDropTarget,
@@ -2001,6 +2002,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
     commitEditingWorkspace,
     commitCurrentDraftWorkspace,
     moveMemberBetweenGroups,
+    wallet,
   ]);
 
   const onPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2291,7 +2293,7 @@ export function AppNetwork({ locale }: { locale: Locale }) {
         );
         if (nextWorkspace !== holdDrag.originalWorkspace) {
           persistFocusWorkspace(nextWorkspace);
-          reportNetworkInteractionOnce('network_group_modified');
+          reportNetworkInteractionOnce('network_group_modified', wallet);
           animateRestoredWallets([holdDrag.key]);
         } else {
           persistFocusWorkspace(holdDrag.originalWorkspace);
@@ -2303,7 +2305,8 @@ export function AppNetwork({ locale }: { locale: Locale }) {
       } else if (holdDrag.moved) {
         flushWorkspaceStore();
         if (event.type === 'pointerup') reportNetworkInteractionOnce(
-          holdDrag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned'
+          holdDrag.kind === 'group' ? 'network_group_modified' : 'network_node_repositioned',
+          wallet,
         );
         suppressClickRef.current = true;
       }
