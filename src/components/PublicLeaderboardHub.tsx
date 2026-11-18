@@ -80,9 +80,6 @@ export function PublicLeaderboardHub({
   const initialCountry = getCachedCountryArrivals();
   const [rankingView, setRankingView] = useState<RankingView>('inviter');
   const countryTabRef = useRef<HTMLButtonElement>(null);
-  const rankingPanelRef = useRef<HTMLDivElement>(null);
-  const [rankingPanelMinHeight, setRankingPanelMinHeight] =
-    useState<number | null>(null);
   const [publicState, setPublicState] = useState<{
     data: PublicLeaderboardResponse | null;
     confirmed: boolean;
@@ -269,9 +266,6 @@ export function PublicLeaderboardHub({
 
   useEffect(() => {
     setRankingView('inviter');
-    // The wallet and language can change the optional current-user footer.
-    // Let a new ranking session establish its own natural panel height.
-    setRankingPanelMinHeight(null);
   }, [walletKey, locale]);
 
   const refreshCountry = useCallback((force = false) => {
@@ -307,30 +301,18 @@ export function PublicLeaderboardHub({
     });
   }, []);
 
-  const preservePanelHeight = useCallback(() => {
-    const height = rankingPanelRef.current?.getBoundingClientRect().height ?? 0;
-    if (height <= 0) return;
-    // Keep the same card geometry when changing tabs, including the optional
-    // signed-in wallet row. The mobile browser must not re-anchor/scroll the
-    // entire document because a shorter tab replaced a taller tab.
-    const nextHeight = Math.ceil(height);
-    setRankingPanelMinHeight((current) =>
-      current === null ? nextHeight : Math.max(current, nextHeight)
-    );
+  const openInviter = useCallback(() => {
+    setRankingView('inviter');
   }, []);
 
-  const openInviter = useCallback(() => {
-    preservePanelHeight();
-    setRankingView('inviter');
-  }, [preservePanelHeight]);
-
   const openCountry = useCallback(() => {
-    preservePanelHeight();
     setRankingView('country');
-    // Country figures are informational: refresh on demand only if the shared
-    // 30-minute cache has expired. Never poll in the background.
+    // Each tab uses its own natural content height; do not stretch the country
+    // panel to the inviter panel's optional current-wallet footer height.
+    // The card's overflow-anchor:none avoids body scroll anchoring to rows
+    // removed while the visitor switches between panels.
     refreshCountry(false);
-  }, [preservePanelHeight, refreshCountry]);
+  }, [refreshCountry]);
 
   const retryCountry = useCallback(() => {
     refreshCountry(true);
@@ -568,11 +550,7 @@ export function PublicLeaderboardHub({
         </div>
 
         {visibleRankingView === 'inviter' ? (
-          <div
-            className="inviterInside"
-            ref={rankingPanelRef}
-            style={{ minHeight: rankingPanelMinHeight ?? undefined }}
-          >
+          <div className="inviterInside">
             <InviterLeaderboard
               locale={locale}
               wallet={displayWallet}
@@ -600,8 +578,6 @@ export function PublicLeaderboardHub({
         ) : (
           <div
             className="countryPanel"
-            ref={rankingPanelRef}
-            style={{ minHeight: rankingPanelMinHeight ?? undefined }}
             data-visible-rows={countryVisibleRowCount}
           >
             <div className="countryHeader" aria-hidden="true">

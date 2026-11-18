@@ -259,11 +259,22 @@ for (const width of [320, 393]) {
       y: window.scrollY,
       height: document.querySelector('.leaderboardHub .unifiedRankingCard')!
         .getBoundingClientRect().height,
+      countryBottomGap: (() => {
+        const panel = document.querySelector<HTMLElement>('.leaderboardHub .countryPanel')!;
+        const scroll = panel.querySelector<HTMLElement>('.countryScroll')!;
+        return panel.getBoundingClientRect().bottom - scroll.getBoundingClientRect().bottom;
+      })(),
+      inlineMinHeight: document.querySelector<HTMLElement>('.leaderboardHub .countryPanel')!
+        .style.minHeight,
     }));
     expect(Math.abs(during.y - original.y), JSON.stringify({ original, during }))
       .toBeLessThanOrEqual(2);
-    expect(Math.abs(during.height - original.height))
-      .toBeLessThanOrEqual(2);
+    // Country content naturally ends at the bottom of the country scroll:
+    // unlike the previous height lock, no 100px+ empty area is allowed.
+    expect(during.inlineMinHeight).toBe('');
+    expect(during.countryBottomGap, JSON.stringify({ original, during }))
+      .toBeLessThanOrEqual(14);
+    expect(during.height).toBeLessThanOrEqual(original.height + 2);
 
     await inviter.click();
     await expect(page.locator('.leaderboardHub .inviterInside .rankScroll')).toBeVisible();
