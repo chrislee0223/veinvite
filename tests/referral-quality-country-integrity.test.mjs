@@ -25,6 +25,10 @@ const countryHub = fs.readFileSync(
   'src/components/PublicLeaderboardHub.tsx',
   'utf8',
 );
+const countryClientCache = fs.readFileSync(
+  'src/lib/countryLeaderboardClientCache.ts',
+  'utf8',
+);
 const leaderboardEntry = fs.readFileSync(
   'src/components/PublicLeaderboard.tsx',
   'utf8',
@@ -126,11 +130,13 @@ test('public country API exposes only aggregate country counts', () => {
   );
 });
 
-test('country UI preloads quietly, exposes aggregate classification, and matches inviter viewport height', () => {
+test('country UI loads only on tab demand, exposes aggregate classification, and matches inviter viewport height', () => {
   assert.match(countryHub, /type RankingView = 'inviter' \| 'country'/);
-  assert.match(countryHub, /fetch\('\/api\/leaderboard\/country'/);
+  assert.match(countryClientCache, /fetch\('\/api\/leaderboard\/country'/);
   assert.match(countryHub, /refreshCountry\(false\)/);
-  assert.match(countryHub, /COUNTRY_CACHE_TTL_MS\s*=\s*60_000/);
+  assert.match(countryHub, /getCachedCountryArrivals\(\)/);
+  assert.doesNotMatch(countryHub, /useEffect\(\(\) => \{\s*refreshCountry\(false\)/);
+  assert.match(countryClientCache, /COUNTRY_CACHE_TTL_MS\s*=\s*30 \* 60_000/);
   assert.match(countryHub, /InviterLeaderboard/);
   assert.doesNotMatch(countryHub, /leaderboardCopy\.loading/);
   assert.match(countryHub, /row\.newUsers\.toLocaleString\(locale\)/);
