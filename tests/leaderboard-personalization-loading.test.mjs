@@ -182,6 +182,6 @@ test('mobile ranking tab change preserves the measured inner panel instead of sh
 
 test('cold leaderboard shows five real-sized skeleton rows, not 100 initial DOM nodes', () => {
   assert.match(leaderboard, /data\s*\?\s*RANK_SLOTS\.map\(\(rank\) => renderSlot\(rank\)\)/);
-  assert.match(leaderboard, /RANK_SLOTS\.slice\(0, 5\)\.map\(\(rank\) =>\s*renderPlaceholderRow\(rank\)/);
+  assert.match(leaderboard, /RANK_SLOTS\.filter\(\(rank\) => rank <= 5\)\.map\(\(rank\) =>\s*renderPlaceholderRow\(rank\)/);
   assert.match(leaderboard, /const PUBLIC_RANK_LIMIT = 100/);
 });
