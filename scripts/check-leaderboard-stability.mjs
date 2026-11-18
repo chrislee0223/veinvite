@@ -78,7 +78,8 @@ if (
 }
 if (
   !/import \{ PublicLeaderboard as InviterLeaderboard \} from '\.\/InviterLeaderboard';/.test(leaderboardHub) ||
-  !/<InviterLeaderboard[\s\S]*previewData=\{displayData\}/.test(leaderboardHub) ||
+  !/<InviterLeaderboard[\s\S]*previewData=\{displayData(?:\s*\?\?\s*undefined)?\}/.test(leaderboardHub) ||
+  !/<InviterLeaderboard[\s\S]*managedByHub[\s\S]*surface="ranking"/.test(leaderboardHub) ||
   !/type RankingView = 'inviter' \| 'country'/.test(leaderboardHub) ||
   !/const displayData = useMemo<PublicLeaderboardResponse \| null>/.test(leaderboardHub) ||
   !/currentUser:\s*resolvedCurrentUser/.test(leaderboardHub)

@@ -375,14 +375,22 @@ export function PublicLeaderboard({
   wallet,
   pendingCurrentWallet = null,
   previewData,
+  managedByHub = false,
+  surface = 'both',
 }: {
   locale: Locale;
   wallet: string | null;
   pendingCurrentWallet?: string | null;
   previewData?: PublicLeaderboardResponse;
+  // The Hub owns its public request. Its two surfaces must never launch
+  // separate fetches or rebuild their frame while public data is pending.
+  managedByHub?: boolean;
+  surface?: 'both' | 'impact' | 'ranking';
 }) {
   const cacheKey = getPublicLeaderboardCacheKey(wallet);
-  const cachedData = previewData ?? getCachedPublicLeaderboard(wallet);
+  const cachedData = previewData ?? (
+    managedByHub ? null : getCachedPublicLeaderboard(wallet)
+  );
   const [dataState, setDataState] = useState<{
     cacheKey: string;
     data: PublicLeaderboardResponse | null;
@@ -412,19 +420,23 @@ export function PublicLeaderboard({
   const movementCopy = getLeaderboardMovementCopy(locale);
   const networkCopy = NETWORK_EXPLORE_COPY[locale as SupportedLocale];
 
-  const data =
-    dataState.cacheKey === cacheKey
+  const data = managedByHub
+    ? previewData ?? null
+    : dataState.cacheKey === cacheKey
       ? dataState.data
       : cachedData;
-  const loading =
-    loadingKey === cacheKey ||
-    (dataState.cacheKey !== cacheKey && !cachedData);
-  const error =
-    errorState.cacheKey === cacheKey
+  const loading = managedByHub
+    ? !previewData
+    : loadingKey === cacheKey ||
+      (dataState.cacheKey !== cacheKey && !cachedData);
+  const error = managedByHub
+    ? ''
+    : errorState.cacheKey === cacheKey
       ? errorState.message
       : '';
 
   const load = useCallback(async (force = false) => {
+    if (managedByHub) return;
     if (previewData) {
       setDataState({ cacheKey, data: previewData });
       setLoadingKey(null);
@@ -451,9 +463,10 @@ export function PublicLeaderboard({
         current === cacheKey ? null : current,
       );
     }
-  }, [cacheKey, previewData, t.loadError, wallet]);
+  }, [cacheKey, managedByHub, previewData, t.loadError, wallet]);
 
   useEffect(() => {
+    if (managedByHub) return;
     if (impactCloseTimerRef.current !== null) {
       window.clearTimeout(impactCloseTimerRef.current);
       impactCloseTimerRef.current = null;
@@ -468,7 +481,7 @@ export function PublicLeaderboard({
     setImpactClosing(false);
     setImpactOpen(false);
     void load(true);
-  }, [load]);
+  }, [load, managedByHub]);
 
   useEffect(() => () => {
     if (impactCloseTimerRef.current !== null) {
@@ -840,7 +853,15 @@ export function PublicLeaderboard({
           <strong className="rankValue">—</strong>
         </span>
         <span className="walletCell">
-          <WalletIdentity address={pendingCurrentWallet} eager />
+          {managedByHub && !data ? (
+            // Do not trigger profile/avatar network work while the public
+            // ranking itself is still loading; show the safe wallet mask only.
+            <span className="walletText" dir="ltr">
+              {maskWallet(pendingCurrentWallet)}
+            </span>
+          ) : (
+            <WalletIdentity address={pendingCurrentWallet} eager />
+          )}
         </span>
         <span className="rankMetric completedMetric">
           <b>—</b>
@@ -862,7 +883,7 @@ export function PublicLeaderboard({
       aria-busy={loading}
       data-leaderboard-refreshing={loading ? 'true' : undefined}
     >
-      <section
+      {surface !== 'ranking' ? <section
         className="impactCard"
         data-reward-forecast-preview={previewData ? 'true' : undefined}
       >
@@ -883,9 +904,9 @@ export function PublicLeaderboard({
           <b aria-hidden="true">›</b>
         </button>
         <p className="impactNote">{t.impactNote}</p>
-      </section>
+      </section> : null}
 
-      <section className="rankingCard">
+      {surface !== 'impact' ? <section className="rankingCard">
         <div className="rankingTopline">
           <span>TOP {PUBLIC_RANK_LIMIT}</span>
         </div>
@@ -916,12 +937,12 @@ export function PublicLeaderboard({
           </>
         ) : null}
 
-        {!wallet && !pendingCurrentWallet ? (
+        {!wallet && !pendingCurrentWallet && !(managedByHub && loading) ? (
           <p className="rankContextNote">{t.connectForRank}</p>
         ) : !rankedCurrentUser && !loading && !showPendingCurrentUser ? (
           <p className="rankContextNote">{t.unranked}</p>
         ) : null}
-      </section>
+      </section> : null}
 
       {error ? (
         <div className="leaderboardInlineError" role="status">
