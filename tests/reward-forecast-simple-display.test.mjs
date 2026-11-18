@@ -23,7 +23,10 @@ test('simplifying the copy preserves the current elastic amount and safety state
   assert.match(card, /formatRewardWei\(elastic\.displayEstimateWei\)/);
   assert.doesNotMatch(card, /formatRewardWei\(elastic\.oneWinnerWei\)/);
   assert.match(card, /const elasticPending = !elastic/);
-  assert.match(card, /: '— B3TR'/);
+  // A cold first paint must not flash a fake dash reward before a validated quote.
+  assert.match(card, /const amount = elastic[\s\S]*?: '';/);
+  assert.doesNotMatch(card, /: '— B3TR'/);
+  assert.match(card, /data-forecast-amount-ready=/);
   assert.match(card, /elasticPending \|\| forecast\?\.status === 'pending'/);
   assert.match(card, /isRewardForecastStale/);
   assert.match(card, /readPersistedForecast/);

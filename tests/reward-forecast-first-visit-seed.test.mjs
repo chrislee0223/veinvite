@@ -47,3 +47,18 @@ test('API exposes a new shared-pool amount, never the legacy snapshot estimate',
   assert.match(estimateRoute, /PUBLIC_ACTIVE_FORECAST_MODEL_VERSION/);
   assert.doesNotMatch(estimateRoute, /estimatedRewardWei: snapshot\.estimatedRewardWei/);
 });
+
+test('cold visitors never see a placeholder B3TR amount before a validated quote', () => {
+  // The server seed is best-effort; it can time out or return null. The UI
+  // must not invent a reward or show a dash before the first valid estimate.
+  assert.match(forecastCard, /const amount = elastic[\s\S]*?: '';/);
+  assert.doesNotMatch(forecastCard, /— B3TR/);
+  assert.match(forecastCard, /data-forecast-amount-ready=\{elastic \? 'true' : 'false'\}/);
+  assert.match(forecastCard, /aria-label=\{ready && !elasticPending \? amount : t\.pendingTitle\}/);
+
+  // Keep Home responsive: no new blocking fetch and no revived pulse.
+  assert.match(serverSeed, /Promise\.race\(\[/);
+  assert.match(serverSeed, /1_250/);
+  assert.match(forecastCard, /min-height:35px/);
+  assert.doesNotMatch(forecastCard, /amountSkeleton|forecastSkeletonPulse/);
+});
