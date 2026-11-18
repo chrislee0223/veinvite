@@ -133,7 +133,7 @@ test('fresh VeWorld visitors avoid the persisted-wallet 3.5 second settle path',
   // restored. A settled SDK with no persisted wallet is already anonymous.
   assert.match(
     runtime,
-    /if \(!hasPersistedWallet\) \{\s*setWalletBootstrapSettled\(true\);\s*return;\s*\}/,
+    /if \(connection\?\.isLoading === false && !hasPersistedWallet\) \{\s*setWalletBootstrapSettled\(true\);\s*return;\s*\}/,
   );
   assert.match(
     runtime,
