@@ -49,6 +49,16 @@ test('an official fix, expiration, malformed audit and inconsistent counts block
   assert.equal(inspectHighSeverityAudit(report({
     picomatch: {...picomatch, fixAvailable: true}
   }, 1), date).ok, false);
+  assert.equal(inspectHighSeverityAudit(report({
+    picomatch: {...picomatch, fixAvailable: {
+      name: '@sentry/nextjs', version: '8.38.0', isSemVerMajor: true
+    }}
+  }, 1), date).ok, true);
+  assert.equal(inspectHighSeverityAudit(report({
+    picomatch: {...picomatch, fixAvailable: {
+      name: 'picomatch', version: '4.0.8', isSemVerMajor: false
+    }}
+  }, 1), date).ok, false);
   assert.equal(inspectHighSeverityAudit(report({picomatch}, 15), date).ok, false);
   assert.equal(inspectHighSeverityAudit(null, date).ok, false);
   assert.equal(inspectHighSeverityAudit(report({}, 0), date).ok, true);
