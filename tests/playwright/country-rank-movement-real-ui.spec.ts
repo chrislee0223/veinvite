@@ -211,3 +211,71 @@ for (const locale of SUPPORTED_LOCALES) {
     }
   });
 }
+
+
+for (const width of [320, 393]) {
+  test(`mobile inner country-tab transition does not scroll the outer page: ${width}px`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await mockReadOnlyLeaderboard(page);
+    await page.setViewportSize({ width, height: 760 });
+    await page.goto('/qa/country-rank-movement?locale=ko', {
+      waitUntil: 'domcontentloaded',
+    });
+
+    const tabs = page.locator('.leaderboardHub .rankingTabs button[role="tab"]');
+    const inviter = tabs.nth(0);
+    const country = tabs.nth(1);
+    await expect(country).toBeEnabled({ timeout: 20_000 });
+    await expect(page.locator('.leaderboardHub .inviterInside .rankScroll')).toBeVisible();
+
+    // Make the outer document scrollable even on short QA pages. Mobile
+    // users often enter this tab after scrolling the full leaderboard page.
+    await page.evaluate(() => {
+      const spacer = document.createElement('div');
+      spacer.dataset.testOnly = 'outer-scroll-space';
+      spacer.style.height = '900px';
+      document.body.appendChild(spacer);
+    });
+    await country.scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+      const scrollable = Math.max(
+        0,
+        (document.scrollingElement?.scrollHeight ?? 0) - window.innerHeight,
+      );
+      window.scrollTo(0, Math.min(80, scrollable));
+    });
+    await country.scrollIntoViewIfNeeded();
+
+    const original = await page.evaluate(() => ({
+      y: window.scrollY,
+      height: document.querySelector('.leaderboardHub .unifiedRankingCard')!
+        .getBoundingClientRect().height,
+    }));
+
+    await country.click();
+    await expect(page.locator('.leaderboardHub .countryRow')).toHaveCount(6);
+    await page.waitForTimeout(220);
+    const during = await page.evaluate(() => ({
+      y: window.scrollY,
+      height: document.querySelector('.leaderboardHub .unifiedRankingCard')!
+        .getBoundingClientRect().height,
+    }));
+    expect(Math.abs(during.y - original.y), JSON.stringify({ original, during }))
+      .toBeLessThanOrEqual(2);
+    expect(Math.abs(during.height - original.height))
+      .toBeLessThanOrEqual(2);
+
+    await inviter.click();
+    await expect(page.locator('.leaderboardHub .inviterInside .rankScroll')).toBeVisible();
+    await page.waitForTimeout(220);
+    const after = await page.evaluate(() => ({
+      y: window.scrollY,
+      height: document.querySelector('.leaderboardHub .unifiedRankingCard')!
+        .getBoundingClientRect().height,
+    }));
+    expect(Math.abs(after.y - original.y), JSON.stringify({ original, after }))
+      .toBeLessThanOrEqual(2);
+    expect(Math.abs(after.height - original.height))
+      .toBeLessThanOrEqual(2);
+  });
+}
