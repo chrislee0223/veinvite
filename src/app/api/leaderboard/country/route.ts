@@ -271,9 +271,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response, {
       headers: {
-        // Paid activation must become visible as soon as its finalized reward
-        // receipt exists. Do not keep a stale country ranking at the edge.
-        'Cache-Control': 'no-store',
+        // Public, identical for every visitor (no wallet/session fields).
+        // Keep the browser in sync with its local on-demand 30-minute cache,
+        // while one CDN result per region serves repeated visitors without
+        // rerunning the public + historical ranking Supabase RPCs.
+        'Cache-Control': 'public, max-age=0, must-revalidate',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=1800',
       },
     });
   } catch (error) {
