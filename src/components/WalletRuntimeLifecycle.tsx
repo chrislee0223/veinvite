@@ -125,11 +125,20 @@ export function WalletRuntimeLifecycle() {
       return;
     }
 
-    setWalletBootstrapSettled(false);
     const hasPersistedWallet =
       Boolean(readPersistedDappKitAccount());
+    // Once the SDK has stopped loading, there is no restore to protect for a
+    // genuinely fresh, disconnected visitor. The strict Home readiness gate
+    // still separately holds a server-validated session or persisted wallet.
+    // Do not make an anonymous visitor wait an arbitrary 350ms.
+    if (!hasPersistedWallet) {
+      setWalletBootstrapSettled(true);
+      return;
+    }
+
+    setWalletBootstrapSettled(false);
     const settleDelay =
-      connection?.isInAppBrowser && hasPersistedWallet
+      connection?.isInAppBrowser
         ? VEWORLD_WALLET_BOOTSTRAP_SETTLE_MS
         : BROWSER_WALLET_BOOTSTRAP_SETTLE_MS;
     const timer = window.setTimeout(() => {
@@ -501,6 +510,12 @@ export function WalletRuntimeLifecycle() {
       childList: true,
       subtree: true,
       attributes: true,
+      // Home readiness uses its dedicated event. Ignore unrelated DOM
+      // attribute churn while waiting for wallet/legal gate transitions.
+      attributeFilter: [
+        'data-veinvite-wallet-session-gate',
+        'data-veinvite-legal-consent-gate',
+      ],
     });
 
     homeStateRef.current =
