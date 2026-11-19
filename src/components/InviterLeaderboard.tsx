@@ -377,6 +377,7 @@ export function PublicLeaderboard({
   previewData,
   managedByHub = false,
   surface = 'both',
+  rankContextPending = false,
 }: {
   locale: Locale;
   wallet: string | null;
@@ -386,6 +387,7 @@ export function PublicLeaderboard({
   // separate fetches or rebuild their frame while public data is pending.
   managedByHub?: boolean;
   surface?: 'both' | 'impact' | 'ranking';
+  rankContextPending?: boolean;
 }) {
   const cacheKey = getPublicLeaderboardCacheKey(wallet);
   const cachedData = previewData ?? (
@@ -704,6 +706,13 @@ export function PublicLeaderboard({
     !trailingCurrentUser,
   );
   const totalUsers = data?.impact.totalActivatedUsers ?? 0;
+  const rankContextMessage = rankContextPending
+    ? null
+    : !wallet && !pendingCurrentWallet && !(managedByHub && loading)
+      ? t.connectForRank
+      : !rankedCurrentUser && !loading && !showPendingCurrentUser
+        ? t.unranked
+        : null;
 
   const movementAria = (entry: PublicLeaderboardEntry): string | null => {
     if (entry.rankMovement === 'NEW') {
@@ -941,10 +950,14 @@ export function PublicLeaderboard({
           </>
         ) : null}
 
-        {!wallet && !pendingCurrentWallet && !(managedByHub && loading) ? (
-          <p className="rankContextNote">{t.connectForRank}</p>
-        ) : !rankedCurrentUser && !loading && !showPendingCurrentUser ? (
-          <p className="rankContextNote">{t.unranked}</p>
+        {rankContextMessage || (managedByHub && rankContextPending) ? (
+          <p
+            className="rankContextNote"
+            data-rank-context-pending={rankContextPending ? 'true' : undefined}
+            aria-hidden={rankContextPending ? true : undefined}
+          >
+            {rankContextMessage ?? t.unranked}
+          </p>
         ) : null}
       </section> : null}
 
@@ -1513,6 +1526,10 @@ export function PublicLeaderboard({
         }
         .rankDivider::before,.rankDivider::after {
           display:none;
+        }
+        .rankContextNote[data-rank-context-pending='true'] {
+          visibility:hidden;
+          pointer-events:none;
         }
         .rankContextNote,.empty {
           margin:10px 0 0;
