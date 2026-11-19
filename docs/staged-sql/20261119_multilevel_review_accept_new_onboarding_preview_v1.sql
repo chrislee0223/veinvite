@@ -33,10 +33,10 @@ BEGIN
     RAISE EXCEPTION 'MULTILEVEL_REVIEW_DISABLED';
   END IF;
   IF p_packet->>'status' IS DISTINCT FROM 'REVIEW_REQUIRED'
-     OR p_packet->>'source' NOT IN (
+     OR COALESCE((p_packet->>'source') NOT IN (
        'READ_ONLY_CHAIN_AND_LEGACY_CROSSCHECK_V1',
        'READ_ONLY_ONBOARDING_CROSSCHECK_V1'
-     )
+     ),true)
      OR p_packet->>'network' IS DISTINCT FROM p_network
      OR p_packet->>'wallet' IS DISTINCT FROM p_wallet
      OR p_packet->>'roundId' IS DISTINCT FROM p_round_id::text
@@ -52,7 +52,9 @@ BEGIN
      OR (
        (p_packet->>'source')='READ_ONLY_ONBOARDING_CROSSCHECK_V1'
        AND (
-         (p_packet->>'directInviterWallet') !~ '^0x[0-9a-f]{40}$'
+         (p_packet->>'directInviterWallet') IS NULL
+         OR jsonb_array_length(p_packet#>'{lineage,ancestors}')<1
+         OR (p_packet->>'directInviterWallet') !~ '^0x[0-9a-f]{40}$'
          OR (p_packet->>'directInviterWallet')=p_wallet
          OR (p_packet#>>'{lineage,ancestors,0,wallet}')
            IS DISTINCT FROM (p_packet->>'directInviterWallet')
