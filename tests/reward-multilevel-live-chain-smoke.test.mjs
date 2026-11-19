@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
+import {checkMultilevelFinalityGate} from '../src/lib/rewards/multilevelFinalityGate.ts';
 import {
   parseMultilevelRewardLog, parseMultilevelVoteLog,
 } from '../src/lib/rewards/multilevelChainLogProof.ts';
@@ -178,4 +179,40 @@ test('public mainnet B3TR debit matches a real VOT3 mint in same transaction', {
   }
   t.diagnostic('Read-only mainnet VOT3 mints checked: '+checked+'; matching 2-sided conversion: '+found);
   assert.ok(found>0,'no authentic paired B3TR -> VOT3 conversion found');
+});
+
+test('official VeChain FINAL revision covers at least one completed round', {
+  skip:!ACTIVE_ON_THIS_PR, timeout:90000,
+}, async(t)=>{
+  const thor=ThorClient.at(NODE);
+  const [final,best]=await Promise.all([
+    thor.blocks.getFinalBlockCompressed(),
+    thor.blocks.getBestBlockCompressed(),
+  ]);
+  assert.ok(final && Number.isSafeInteger(final.number) && final.number>0);
+  assert.match(final.id,/^0x[0-9a-f]{64}$/i);
+  assert.ok(best && Number.isSafeInteger(best.number));
+  const contract=thor.contracts.load(ALLOCATION,votingAbi);
+  const current=safeNumber((await contract.read.currentRoundId())[0]);
+  assert.ok(current && current>4);
+  let found=false;
+  for(let round=current-1;round>=Math.max(1,current-5);round--){
+    const detail=(await contract.read.getRound(BigInt(round)))[0];
+    const start=safeNumber(detail?.voteStart??detail?.[1]);
+    const duration=safeNumber(detail?.voteDuration??detail?.[2]);
+    if(!start||!duration)continue;
+    const end=start+duration;
+    const result=checkMultilevelFinalityGate({
+      finalBlockId:final.id,finalizedThroughBlock:final.number,
+      bestBlock:best.number,dappRoundEndBlock:end,
+      voteRoundEndBlock:end,
+    });
+    if(result.ok) {
+      found=true;
+      t.diagnostic('Official FINAL block '+final.number+
+        ' confirms closed round '+round+' end '+end);
+      break;
+    }
+  }
+  assert.ok(found,'no recently closed round is consensus FINAL on this node');
 });
