@@ -51,9 +51,9 @@ BEGIN
      OR jsonb_array_length(p_packet#>'{lineage,ancestors}')>5
      -- New onboarding must retain its original, distinct direct inviter.
      OR (
-       p_packet->>'source'='READ_ONLY_ONBOARDING_CROSSCHECK_V1'
+       (p_packet->>'source')='READ_ONLY_ONBOARDING_CROSSCHECK_V1'
        AND (
-         p_packet->>'directInviterWallet' !~ '^0x[0-9a-f]{40}
+         (p_packet->>'directInviterWallet') !~ '^0x[0-9a-f]{40}
     RAISE EXCEPTION 'MULTILEVEL_REVIEW_UNACCEPTABLE_PACKET';
   END IF;
   SELECT * INTO v_c
@@ -64,7 +64,7 @@ BEGIN
     OR v_c.observed_eligible IS DISTINCT FROM true
     OR v_c.scan_fingerprint<>p_source_scan_fingerprint
     OR (
-      p_packet->>'source'='READ_ONLY_CHAIN_AND_LEGACY_CROSSCHECK_V1'
+      (p_packet->>'source')='READ_ONLY_CHAIN_AND_LEGACY_CROSSCHECK_V1'
       AND (
         v_c.kind<>'ACTIVE'
         OR v_c.first_onboarded_round_id>=p_round_id
@@ -72,7 +72,7 @@ BEGIN
       )
     )
     OR (
-      p_packet->>'source'='READ_ONLY_ONBOARDING_CROSSCHECK_V1'
+      (p_packet->>'source')='READ_ONLY_ONBOARDING_CROSSCHECK_V1'
       AND (
         v_c.kind<>'ONBOARDING'
         OR v_c.first_onboarded_round_id<>p_round_id
@@ -122,7 +122,7 @@ GRANT EXECUTE ON FUNCTION public.multilevel_preview_record_review_packet_v1(
   text,bigint,text,text,text,jsonb
 ) TO service_role;
 
-         OR p_packet->>'directInviterWallet'=p_wallet
+         OR (p_packet->>'directInviterWallet')=p_wallet
          OR p_packet#>>'{lineage,ancestors,0,wallet}'
            IS DISTINCT FROM p_packet->>'directInviterWallet'
        )
