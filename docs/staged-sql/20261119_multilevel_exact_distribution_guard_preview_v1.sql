@@ -81,7 +81,7 @@ BEGIN
       v_empty:=floor(v_budget/2);
       IF v_carry_sum<>v_empty OR
         v_return_sum<>v_budget-v_empty OR
-        v_return_n<>CASE WHEN v_budget-v_empty>0 THEN 1 ELSE 0 END THEN
+        v_return_n<>(CASE WHEN v_budget-v_empty>0 THEN 1 ELSE 0 END) THEN
         RAISE EXCEPTION 'MULTILEVEL_EXACT_EMPTY_CATEGORY_MISMATCH:%',v_cat;
       END IF;
     ELSE
@@ -144,7 +144,7 @@ BEGIN
           AND source_round_id=NEW.round_id AND category=v_cat
           AND source_event_key=v_ev.event_key AND source_level_no IS NULL
           AND reason='ROUNDING_DUST';
-        IF v_return_n<>CASE WHEN v_per-v_split>0 THEN 1 ELSE 0 END
+        IF v_return_n<>(CASE WHEN v_per-v_split>0 THEN 1 ELSE 0 END)
           OR v_return_sum<>v_per-v_split THEN
           RAISE EXCEPTION 'MULTILEVEL_EXACT_EVENT_DUST:%',v_cat;
         END IF;
@@ -157,7 +157,7 @@ BEGIN
         AND source_round_id=NEW.round_id AND category=v_cat
         AND source_event_key IS NULL AND source_level_no IS NULL
         AND reason='ROUNDING_DUST';
-      IF v_return_n<>CASE WHEN v_remainder>0 THEN 1 ELSE 0 END
+      IF v_return_n<>(CASE WHEN v_remainder>0 THEN 1 ELSE 0 END)
         OR v_return_sum<>v_remainder THEN
         RAISE EXCEPTION 'MULTILEVEL_EXACT_CATEGORY_DUST:%',v_cat;
       END IF;
@@ -182,7 +182,7 @@ BEGIN
     v_empty:=floor(v_budget/2);
     IF v_carry_sum<>v_empty
       OR v_return_sum<>v_budget-v_empty
-      OR v_return_n<>CASE WHEN v_budget-v_empty>0 THEN 1 ELSE 0 END THEN
+      OR v_return_n<>(CASE WHEN v_budget-v_empty>0 THEN 1 ELSE 0 END) THEN
       RAISE EXCEPTION 'MULTILEVEL_EXACT_EMPTY_LEADER';
     END IF;
   ELSE
@@ -221,7 +221,7 @@ BEGIN
         AND round_id=NEW.round_id AND category='leader'
         AND event_key='direct-onboarding-leader' AND level_no=0
         AND recipient_wallet=v_winner.wallet;
-      IF v_payout_n<>CASE WHEN v_each>0 THEN 1 ELSE 0 END
+      IF v_payout_n<>(CASE WHEN v_each>0 THEN 1 ELSE 0 END)
         OR v_payout_sum<>v_each THEN
         RAISE EXCEPTION 'MULTILEVEL_EXACT_LEADER_RECIPIENT_OR_AMOUNT';
       END IF;
@@ -230,7 +230,7 @@ BEGIN
     FROM veinvite_multilevel_staging.entitlements
     WHERE network=NEW.network AND policy_version=NEW.policy_version
       AND round_id=NEW.round_id AND category='leader';
-    IF v_leader_count<>CASE WHEN v_each>0 THEN v_winners ELSE 0 END THEN
+    IF v_leader_count<>(CASE WHEN v_each>0 THEN v_winners ELSE 0 END) THEN
       RAISE EXCEPTION 'MULTILEVEL_EXACT_EXTRA_LEADER_ENTITLEMENT';
     END IF;
     v_remainder:=v_budget-v_winners*v_each;
@@ -239,7 +239,7 @@ BEGIN
     WHERE network=NEW.network AND policy_version=NEW.policy_version
       AND source_round_id=NEW.round_id AND category='leader'
       AND reason='ROUNDING_DUST' AND source_event_key IS NULL;
-    IF v_return_n<>CASE WHEN v_remainder>0 THEN 1 ELSE 0 END
+    IF v_return_n<>(CASE WHEN v_remainder>0 THEN 1 ELSE 0 END)
       OR v_return_sum<>v_remainder THEN
       RAISE EXCEPTION 'MULTILEVEL_EXACT_LEADER_DUST';
     END IF;
@@ -251,7 +251,7 @@ BEGIN
   FROM veinvite_multilevel_staging.return_ledger
   WHERE network=NEW.network AND policy_version=NEW.policy_version
     AND source_round_id=NEW.round_id AND category='general';
-  IF v_return_n<>CASE WHEN v_global_dust>0 THEN 1 ELSE 0 END
+  IF v_return_n<>(CASE WHEN v_global_dust>0 THEN 1 ELSE 0 END)
     OR v_return_sum<>v_global_dust THEN
     RAISE EXCEPTION 'MULTILEVEL_EXACT_GLOBAL_DUST';
   END IF;
