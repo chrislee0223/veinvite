@@ -32,7 +32,7 @@
 /* A context-note-only reserve is smaller than a trailing-wallet reserve.
  * Keep seven-country data scrollable from row 7 instead of compressing all
  * seven rows too tightly on narrow/localized layouts. */
-.leaderboardHub:has(.impactOnly .rankContextNote):not(:has(.impactOnly .trailingCurrent))
+.leaderboardHub[data-inviter-footer-hint='true']:not([data-inviter-footer-trailing='true'])
   .countryPanel[data-visible-rows='7'] {
   --country-visible-row-count: 6;
 }
@@ -41,33 +41,33 @@
   overflow: hidden;
 }
 
-/* A hidden inviter context note (connect/unranked) already enlarges the shared
- * card. Country ranking can safely consume that exact reserved height. */
-.leaderboardHub:has(.impactOnly .rankContextNote) {
+/* A verified or pending inviter hint reserves room within the shared card.
+ * Give that room to actual country ranks rather than leaving a blank footer. */
+.leaderboardHub[data-inviter-footer-hint='true'] {
   --country-spare-height: var(--stable-ranking-context-reserve);
 }
 
 /* A trailing current-wallet row reserves the larger inviter card height. */
-.leaderboardHub:has(.impactOnly .trailingCurrent) {
+.leaderboardHub[data-inviter-footer-trailing='true'] {
   --country-spare-height: calc(
     var(--stable-ranking-trailing-height) - var(--stable-ranking-base-height)
   );
 }
 
 /* When both footer pieces are present, consume both reserves and no more. */
-.leaderboardHub:has(.impactOnly .trailingCurrent):has(.impactOnly .rankContextNote) {
+.leaderboardHub[data-inviter-footer-trailing='true'][data-inviter-footer-hint='true'] {
   --country-spare-height: calc(
     var(--stable-ranking-trailing-height) - var(--stable-ranking-base-height)
       + var(--stable-ranking-context-reserve)
   );
 }
 
-html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryScroll,
-html body .leaderboardHub:has(.impactOnly .rankContextNote) .countrySkeleton,
-html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryState,
-html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryScroll,
-html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countrySkeleton,
-html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryState {
+html body .leaderboardHub[data-inviter-footer-hint='true'] .countryScroll,
+html body .leaderboardHub[data-inviter-footer-hint='true'] .countrySkeleton,
+html body .leaderboardHub[data-inviter-footer-hint='true'] .countryState,
+html body .leaderboardHub[data-inviter-footer-trailing='true'] .countryScroll,
+html body .leaderboardHub[data-inviter-footer-trailing='true'] .countrySkeleton,
+html body .leaderboardHub[data-inviter-footer-trailing='true'] .countryState {
   height: calc(
     var(--country-base-viewport-height) + var(--country-spare-height)
   ) !important;
@@ -79,10 +79,10 @@ html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryState {
   ) !important;
 }
 
-html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryRow,
-html body .leaderboardHub:has(.impactOnly .rankContextNote) .countryPlaceholderRow,
-html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryRow,
-html body .leaderboardHub:has(.impactOnly .trailingCurrent) .countryPlaceholderRow {
+html body .leaderboardHub[data-inviter-footer-hint='true'] .countryRow,
+html body .leaderboardHub[data-inviter-footer-hint='true'] .countryPlaceholderRow,
+html body .leaderboardHub[data-inviter-footer-trailing='true'] .countryRow,
+html body .leaderboardHub[data-inviter-footer-trailing='true'] .countryPlaceholderRow {
   height: calc(
     (var(--country-base-viewport-height) + var(--country-spare-height))
       / var(--country-visible-row-count)

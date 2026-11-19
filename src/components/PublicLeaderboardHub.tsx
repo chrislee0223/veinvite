@@ -412,6 +412,24 @@ export function PublicLeaderboardHub({
     personalizationPending || personalizationUnavailable
       ? null
       : wallet;
+  // The impact-only surface renders no ranking footer. Derive the footer
+  // geometry from the actual current-wallet state instead of querying hidden
+  // DOM descendants: that old CSS selector could never find a trailing row.
+  const hasInviterTrailingRow = Boolean(
+    pendingCurrentWallet ||
+    (displayWallet &&
+      (!displayData?.currentUser ||
+        displayData.currentUser.rank > PUBLIC_RANK_LIMIT)),
+  );
+  // Reserve the optional rank hint from first paint, including while the
+  // wallet's rank is being verified. It stays invisible until authoritative
+  // data is ready; its allocated space cannot pop in a frame later.
+  const hasInviterRankHint = Boolean(
+    !walletKey ||
+    personalizationPending ||
+    personalizationUnavailable ||
+    (displayWallet && !displayData?.currentUser),
+  );
   const retryPublicLeaderboard = useCallback(() => {
     setPublicState((current) => ({ ...current, failed: false }));
     void loadPublicLeaderboard(null, { force: true })
@@ -507,6 +525,8 @@ export function PublicLeaderboardHub({
         publicState.failed && publicData ? 'true' : undefined
       }
       data-public-leaderboard-pending={!displayData ? 'true' : undefined}
+      data-inviter-footer-trailing={hasInviterTrailingRow ? 'true' : undefined}
+      data-inviter-footer-hint={hasInviterRankHint ? 'true' : undefined}
     >
       <div className="impactOnly">
         <InviterLeaderboard
@@ -557,6 +577,9 @@ export function PublicLeaderboardHub({
               pendingCurrentWallet={pendingCurrentWallet}
               previewData={displayData ?? undefined}
               managedByHub
+              rankContextPending={
+                !displayData || personalizationPending || personalizationUnavailable
+              }
               surface="ranking"
             />
             {publicState.failed && !displayData ? (
@@ -697,9 +720,6 @@ export function PublicLeaderboardHub({
         }
         .inviterInside .rankContextNote {
           margin-top:8px !important;
-        }
-        .leaderboardHub.personalizationPending .rankContextNote {
-          display:none !important;
         }
         .personalizationInlineError {
           margin-top:8px;

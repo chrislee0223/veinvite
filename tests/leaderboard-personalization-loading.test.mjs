@@ -60,10 +60,13 @@ test('pending or unavailable personalization cannot fabricate a rank-zero curren
     hub,
     /const displayWallet =[\s\S]*personalizationPending \|\| personalizationUnavailable[\s\S]*\? null[\s\S]*: wallet/,
   );
-  assert.match(
-    hub,
-    /leaderboardHub\.personalizationPending \.rankContextNote \{\s*display:none !important;/,
-  );
+  assert.match(hub, /rankContextPending=\{/);
+  assert.match(hub, /personalizationPending \|\| personalizationUnavailable/);
+  assert.doesNotMatch(hub, /\.leaderboardHub\.personalizationPending \.rankContextNote \{\s*display:none/);
+  assert.match(leaderboard, /const rankContextMessage = rankContextPending\s*\? null/);
+  assert.match(leaderboard, /data-rank-context-pending=\{rankContextPending \? 'true'/);
+  assert.match(leaderboard, /aria-hidden=\{rankContextPending \? true/);
+  assert.match(leaderboard, /rankContextNote\[data-rank-context-pending='true'\][\s\S]*visibility:hidden/);
 });
 
 
@@ -139,7 +142,7 @@ test('ranking frame stays mounted before the public response instead of swapping
 test('Hub owns the sole public ranking request while both surfaces paint skeletons', () => {
   assert.match(hub, /void loadPublicLeaderboard\(null\)/);
   assert.match(hub, /managedByHub\s+surface="impact"/);
-  assert.match(hub, /managedByHub\s+surface="ranking"/);
+  assert.match(hub, /managedByHub[\s\S]{0,180}surface="ranking"/);
   assert.match(leaderboard, /managedByHub\?: boolean/);
   assert.match(leaderboard, /if \(managedByHub\) return;/);
   assert.match(leaderboard, /const data = managedByHub\s*\? previewData \?\? null/);
@@ -181,4 +184,15 @@ test('cold leaderboard shows five real-sized skeleton rows, not 100 initial DOM 
   assert.match(leaderboard, /data\s*\?\s*RANK_SLOTS\.map\(\(rank\) => renderSlot\(rank\)\)/);
   assert.match(leaderboard, /RANK_SLOTS\.filter\(\(rank\) => rank <= 5\)\.map\(\(rank\) =>\s*renderPlaceholderRow\(rank\)/);
   assert.match(leaderboard, /const PUBLIC_RANK_LIMIT = 100/);
+});
+
+
+test('current inviter footer is known to the country card before personalized ranks finish', () => {
+  assert.match(hub, /const hasInviterTrailingRow = Boolean\(/);
+  assert.match(hub, /const hasInviterRankHint = Boolean\(/);
+  assert.match(hub, /data-inviter-footer-trailing=\{hasInviterTrailingRow \? 'true'/);
+  assert.match(hub, /data-inviter-footer-hint=\{hasInviterRankHint \? 'true'/);
+  assert.match(hub, /const pendingCurrentWallet =/);
+  assert.match(hub, /!displayData \|\| personalizationPending \|\| personalizationUnavailable/);
+  assert.doesNotMatch(hub, /impactOnly[^\n]*rankContextNote/);
 });

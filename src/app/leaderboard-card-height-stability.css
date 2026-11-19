@@ -10,11 +10,10 @@
  * its header geometry is smaller. Reserving the inviter height therefore keeps
  * tab changes visually stable instead of letting the shared card shrink.
  *
- * The always-mounted impactOnly InviterLeaderboard contains the same current
- * wallet ranking state even while the country tab is visible. :has() lets the
- * shared card reserve the matching footer space for an unranked hint, a
- * trailing current-user row, or both, so the outer card does not jump on tab
- * changes.
+ * Footer attributes on the Hub are derived from the same verified wallet
+ * state as the inviter card, including its initial pending state. Never query
+ * the impact-only copy for ranking children it does not render. Reserve the
+ * hint/trailing-row geometry before it becomes visible to avoid late jumps.
  */
 .leaderboardHub {
   --stable-ranking-base-height:376px;
@@ -26,19 +25,19 @@
   min-height:var(--stable-ranking-base-height);
 }
 
-.leaderboardHub:has(.impactOnly .rankContextNote) .unifiedRankingCard {
+.leaderboardHub[data-inviter-footer-hint='true'] .unifiedRankingCard {
   min-height:calc(
     var(--stable-ranking-base-height) + var(--stable-ranking-context-reserve)
   );
 }
 
-.leaderboardHub:has(.impactOnly .trailingCurrent) .unifiedRankingCard {
+.leaderboardHub[data-inviter-footer-trailing='true'] .unifiedRankingCard {
   min-height:var(--stable-ranking-trailing-height);
 }
 
 /* A connected wallet with no ranked entry renders both the synthetic current
  * wallet row and the unranked note, so reserve both footer pieces together. */
-.leaderboardHub:has(.impactOnly .trailingCurrent):has(.impactOnly .rankContextNote) .unifiedRankingCard {
+.leaderboardHub[data-inviter-footer-trailing='true'][data-inviter-footer-hint='true'] .unifiedRankingCard {
   min-height:calc(
     var(--stable-ranking-trailing-height) + var(--stable-ranking-context-reserve)
   );
