@@ -17,6 +17,7 @@ import {
   type MissionEvidenceVerdict,
   type RewardedDappProof,
   type VoteProof,
+  type Vot3ConversionEvidence,
 } from '@/lib/rewards/multilevelEvidenceWindow';
 import {
   parseMultilevelRewardLog,
@@ -25,6 +26,8 @@ import {
   type MultilevelLogContext,
 } from '@/lib/rewards/multilevelChainLogProof';
 import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
+import { createTransactionIndexResolver, compareChainEventPosition } from '@/lib/vebetter/eventOrder';
+import { getVeBetterVot3ConversionProgress } from '@/lib/vebetter/vot3Conversion';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
 
 const rewardEvent = new ABIEvent(
@@ -50,6 +53,8 @@ export type MultilevelChainScan = {
   maturityDepthBlocks: number;
   rewardedDapps: RewardedDappProof[];
   votes: VoteProof[];
+  activationBlock?: number;
+  conversion: Vot3ConversionEvidence | null;
   verdict: MissionEvidenceVerdict;
   /**
    * A positive result confirms the logged structure on the selected Thor
@@ -109,13 +114,21 @@ export async function readMultilevelChainEvidence(input:{
   earningRoundId:number;
   /** Must come from trusted, independently checked historical DB facts. */
   firstOnboardedRoundId:number;
+  /** Trusted original invite activation block; required for onboarding. */
+  activationBlock?:number;
 }):Promise<MultilevelChainScan> {
   const wallet = typeof input.wallet==='string' ? input.wallet.toLowerCase() : '';
   if(!WALLET.test(wallet) ||
     (input.kind!=='ONBOARDING' && input.kind!=='ACTIVE') ||
     !Number.isSafeInteger(input.earningRoundId) || input.earningRoundId<2 ||
     !Number.isSafeInteger(input.firstOnboardedRoundId) ||
-    input.firstOnboardedRoundId<1){
+    input.firstOnboardedRoundId<1 ||
+    (input.kind==='ONBOARDING' && (
+      !Number.isSafeInteger(input.activationBlock) ||
+      (input.activationBlock??0)<1 ||
+      input.firstOnboardedRoundId!==input.earningRoundId
+    )) ||
+    (input.kind==='ACTIVE' && input.firstOnboardedRoundId>=input.earningRoundId)) {
     throw new Error('MULTILEVEL_INVALID_CHAIN_SCAN_INPUT');
   }
   const dappRoundId=input.kind==='ONBOARDING'
@@ -136,7 +149,13 @@ export async function readMultilevelChainEvidence(input:{
     dappRound.voteEndBlock>=voteRound.voteStartBlock){
     throw new Error('MULTILEVEL_NONCONSECUTIVE_ROUND_BOUNDARIES');
   }
+  if(input.kind==='ONBOARDING' && (
+    input.activationBlock!<dappRound.voteStartBlock ||
+    input.activationBlock!>dappRound.voteEndBlock)) {
+    throw new Error('MULTILEVEL_INVALID_INVITATION_ACTIVATION_BLOCK');
+  }
   const thor=ThorClient.at(nodeUrl);
+  const resolveTxIndex=createTransactionIndexResolver(thor);
   const rewardTopics=rewardEvent.encodeFilterTopics([null,wallet,null]);
   const voteTopics=voteEvent.encodeFilterTopics([wallet,null]);
   const rewardContext:MultilevelLogContext={
@@ -154,7 +173,8 @@ export async function readMultilevelChainEvidence(input:{
   const [rewardLogs,voteLogs]=await Promise.all([
     fetchBounded(thor,{
       address:x2EarnRewardsPoolAddress,topics:rewardTopics,
-      from:dappRound.voteStartBlock,to:dappRound.voteEndBlock,
+      from:input.kind==='ONBOARDING' ? input.activationBlock! : dappRound.voteStartBlock,
+      to:dappRound.voteEndBlock,
     }),
     fetchBounded(thor,{
       address:xAllocationVotingAddress,topics:voteTopics,
@@ -166,6 +186,11 @@ export async function readMultilevelChainEvidence(input:{
   for(const log of rewardLogs) {
     const proof=parseMultilevelRewardLog(log,rewardContext);
     if(!proof || appIds.has(proof.appId))continue;
+    if(input.kind==='ONBOARDING') {
+      proof.txIndex=await resolveTxIndex(proof.blockNumber,proof.txId);
+      proof.clauseIndex=log.meta?.clauseIndex;
+      if(!Number.isSafeInteger(proof.clauseIndex) || (proof.clauseIndex??-1)<0)continue;
+    }
     appIds.add(proof.appId);
     rewardedDapps.push(proof);
   }
@@ -174,11 +199,44 @@ export async function readMultilevelChainEvidence(input:{
   for(const log of voteLogs) {
     const proof=parseMultilevelVoteLog(log,voteContext);
     if(!proof || txIds.has(proof.txId))continue;
+    if(input.kind==='ONBOARDING') {
+      proof.txIndex=await resolveTxIndex(proof.blockNumber,proof.txId);
+      proof.clauseIndex=log.meta?.clauseIndex;
+      if(!Number.isSafeInteger(proof.clauseIndex) || (proof.clauseIndex??-1)<0)continue;
+    }
     txIds.add(proof.txId);
     votes.push(proof);
   }
+  let conversion:Vot3ConversionEvidence|null=null;
+  if(input.kind==='ONBOARDING' && appIds.size>=3) {
+    const earliest=[...rewardedDapps].sort((a,b)=>
+      compareChainEventPosition(
+        {txId:a.txId,blockNumber:a.blockNumber,txIndex:a.txIndex!,clauseIndex:a.clauseIndex!},
+        {txId:b.txId,blockNumber:b.blockNumber,txIndex:b.txIndex!,clauseIndex:b.clauseIndex!},
+      ))[0];
+    if(earliest) {
+      // Reuse existing canonical two-sided transfer verifier rather than
+      // assuming a vote means the wallet really converted B3TR to VOT3.
+      const verified=await getVeBetterVot3ConversionProgress({
+        walletAddress:wallet,activationBlock:input.activationBlock!,
+        firstQualifyingReward:{
+          txId:earliest.txId,blockNumber:earliest.blockNumber,
+          txIndex:earliest.txIndex!,clauseIndex:earliest.clauseIndex!,
+        },checkedBlock:voteRound.voteEndBlock,
+      });
+      if(verified.converted && verified.qualifyingConversion) {
+        const proof=verified.qualifyingConversion;
+        conversion={
+          txId:proof.txId,blockNumber:proof.blockNumber,
+          txIndex:proof.txIndex,clauseIndex:proof.clauseIndex,
+          amountWei:proof.amountWei,
+        };
+      }
+    }
+  }
   const evidence:MissionEvidenceInput={
     kind:input.kind,earningRoundId:input.earningRoundId,
+    activationBlock:input.activationBlock,conversion,
     dappWindow:{
       roundId:dappRoundId,startBlock:dappRound.voteStartBlock,
       endBlock:dappRound.voteEndBlock,
@@ -196,6 +254,7 @@ export async function readMultilevelChainEvidence(input:{
     network,wallet,kind:input.kind,earningRoundId:input.earningRoundId,
     dappRoundId,verifiedThroughBlock:Math.min(dappRound.bestBlock,voteRound.bestBlock),
     maturityDepthBlocks:MATURITY_DEPTH_BLOCKS,rewardedDapps,votes,
+    activationBlock:input.activationBlock,conversion,
     verdict:checkMissionEvidence(evidence),authority:'READ_ONLY_CHAIN_OBSERVATION',
   };
 }
