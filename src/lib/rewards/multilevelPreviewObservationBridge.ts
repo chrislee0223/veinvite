@@ -42,6 +42,8 @@ export async function recordMultilevelPreviewObservation(input:{
    * The snapshot is never a payout entitlement even if this input is wrong.
    */
   firstOnboardedRoundId:number;
+  /** Trusted activation block, required for an onboarding candidate. */
+  activationBlock?:number;
 }):Promise<MultilevelPreviewObservationResponse> {
   requirePreviewObservationEnvironment();
   const chain=await readMultilevelChainEvidence(input);
@@ -59,6 +61,8 @@ export async function recordMultilevelPreviewObservation(input:{
     earningRoundId:chain.earningRoundId,
     dappRoundId:chain.dappRoundId,
     maturityDepthBlocks:chain.maturityDepthBlocks,
+    activationBlock:chain.activationBlock??null,
+    conversion:chain.conversion,
     verdict:chain.verdict,
     rewardedDapps:chain.rewardedDapps,
     votes:chain.votes,
