@@ -180,9 +180,11 @@
 - **검토용 Draft PR**: https://github.com/chrislee0223/veinvite/pull/1350 (**병합·운영 배포 금지**)
 - **1차 완료**: 독립형 정확한 B3TR Wei 보상 계산기, 60:30:10, 70:15:8:5:2, 개별 X 90:10 분리, 범주 무수령 50:50, 미자격 단계/소액 잔액 반환, 고유 사건/수령인 키.
 - **검토 중 추가 보완**: 반환 총액만 저장하면 원인을 추적할 수 없으므로 `generalReturnDetails`로 미활성 상위 초대자/결손 단계/소수점 잔액/무수령 범주별로 **독립 반환 식별자와 금액을 기록**.
-- **2차 미리보기 DB 완료**: `veinvite-preview` 별도 DB(`bpppslplhmppxzvdkwxs`)에 `veinvite_multilevel_staging` 전용 **7개 테이블**과 입출금/X 공유 검증용 안전 트리거만 생성. 일반 이용자 DB 접근 차단, 모든 테이블 RLS 활성.
-- **재현 가능한 SQL**: `docs/staged-sql/20261119_multilevel_private_ledger_preview_v1.sql` 및 `docs/staged-sql/20261119_multilevel_claim_integrity_preview_v1.sql` (기존 운영 DB 실행 금지).
+- **2차 미리보기 DB 완료**: `veinvite-preview` 별도 DB(`bpppslplhmppxzvdkwxs`)에 `veinvite_multilevel_staging` 전용 **8개 테이블**과 입출금/X 공유 검증용 안전 트리거만 생성. 일반 이용자 DB 접근 차단, 모든 테이블 RLS 활성. **라운드 확정 시 분류별 전체 지급+반환+이월 합계가 재원과 일치해야 하는 DB 검사**와 도전 중복·동시 이월·사후 실적 변조 거부 추가.
+- **재현 가능한 SQL**: `docs/staged-sql/20261119_multilevel_private_ledger_preview_v1.sql`, `20261119_multilevel_claim_integrity_preview_v1.sql`, `20261119_multilevel_carry_audit_preview_v1.sql`, `20261119_multilevel_round_sealing_preview_v1.sql` 순서 (모두 미리보기 전용, 기존 운영 DB 실행 금지).
 - **별도 DB 검증**: 온보딩 R활동→R+1투표 제약, 온보딩/활성 사건 기록, 지급 90:10 생성액, 마감 전 지급 차단, 지급액 위조 거부, X 24시간 조건, 지급·정산 기록 불변성을 미리보기 DB에서 거래 롤백 방식으로 시험. 테스트 기록은 남기지 않음.
+- **추가 검증**: 두 번 같은 이월 발생 거부, 기한이 다른 라운드로 넘어가는 반환 금지, 반올림 및 미활성 조상 반환 원인 별도 기록, **라운드 마감 전 재원 불일치 차단**과 마감 후 추가 사건/금액 변경 차단을 미리보기 DB 트랜잭션으로 검증하고 롤백.
+- **별도 증거 창 검사기**: `src/lib/rewards/multilevelEvidenceWindow.ts`; 신규 온보딩 R의 3개 보상 dApp/R+1 투표와 완료자의 같은 라운드 보상 dApp 1개+임의 dApp 투표를 분리. 단순 진위 구조 검사일 뿐 실제 온체인 최종성/지갑 소유권 검증 및 보상 권한과 혼동 금지.
 - **운영 DB 확인**: 신규 전용 테이블 **0개**; 기존 지급 정책, 미션 재시작 활성 여부와 기존 데이터 변경 없음.
 - **아직 미구현**: 실제 체인 활동·투표·보상 수령 증거 수집·시빌 판정과 DB 연결, 새 정산 원장으로의 안전한 영속화/최종 지급 통합, 라운드 마감/Claim 만료 처리, 개별 X 검증 실행, 네트워크 그래프·홈 UI 및 다국어 알림, 전면 테스트/롤백 리허설.
 - **활성 배포 차단 조건 유지**: 공식 VeBetterDAO 규칙 적합성 확인, 전체 Supabase 데이터 백업 및 비파괴 복구 테스트, 운영자 명시적 최종 승인 전 **절대 운영 전환하지 않음**.
