@@ -30,6 +30,7 @@ import { readVeBetterRoundWindow } from '@/lib/vebetter/entryEligibility';
 import { createTransactionIndexResolver, compareChainEventPosition } from '@/lib/vebetter/eventOrder';
 import { getVeBetterVot3ConversionProgress } from '@/lib/vebetter/vot3Conversion';
 import { getVeBetterNetworkConfig } from '@/lib/vebetter/network';
+import {checkMultilevelFinalityGate} from '@/lib/rewards/multilevelFinalityGate';
 
 const rewardEvent = new ABIEvent(
   'event RewardDistributed(uint256 amount, bytes32 indexed appId, address indexed receiver, string proof, address indexed distributor)',
@@ -54,6 +55,9 @@ export type MultilevelChainScan = {
   voteWindow: EvidenceRoundWindow;
   verifiedThroughBlock: number;
   maturityDepthBlocks: number;
+  /** Explicit network-finalized block, NOT merely 24 confirmations. */
+  finalizedThroughBlock:number;
+  finalizedBlockId:string;
   rewardedDapps: RewardedDappProof[];
   votes: VoteProof[];
   activationBlock?: number;
@@ -158,6 +162,19 @@ export async function readMultilevelChainEvidence(input:{
     throw new Error('MULTILEVEL_INVALID_INVITATION_ACTIVATION_BLOCK');
   }
   const thor=ThorClient.at(nodeUrl);
+  // VeChain SDK supports the consensus FINAL revision. A fixed depth is
+  // only a liveness/maturity buffer and does not establish finality.
+  const final=await thor.blocks.getFinalBlockCompressed();
+  const finality=checkMultilevelFinalityGate({
+    finalBlockId:typeof final?.id==='string'?final.id:'',
+    finalizedThroughBlock:typeof final?.number==='number'?final.number:NaN,
+    bestBlock:Math.min(dappRound.bestBlock,voteRound.bestBlock),
+    dappRoundEndBlock:dappRound.voteEndBlock,
+    voteRoundEndBlock:voteRound.voteEndBlock,
+  });
+  if(!finality.ok){
+    throw new Error('MULTILEVEL_CONSENSUS_FINALITY_UNCONFIRMED:'+finality.reason);
+  }
   const resolveTxIndex=createTransactionIndexResolver(thor);
   const rewardTopics=rewardEvent.encodeFilterTopics([null,wallet,null]);
   const voteTopics=voteEvent.encodeFilterTopics([wallet,null]);
@@ -258,8 +275,9 @@ export async function readMultilevelChainEvidence(input:{
     dappRoundId,
     dappWindow:evidence.dappWindow,voteWindow:evidence.voteWindow,
     verifiedThroughBlock:Math.min(dappRound.bestBlock,voteRound.bestBlock),
-    maturityDepthBlocks:MATURITY_DEPTH_BLOCKS,rewardedDapps,votes,
-    activationBlock:input.activationBlock,conversion,
+    maturityDepthBlocks:MATURITY_DEPTH_BLOCKS,
+    finalizedThroughBlock:final!.number,finalizedBlockId:final!.id,
+    rewardedDapps,votes,activationBlock:input.activationBlock,conversion,
     verdict:checkMissionEvidence(evidence),authority:'READ_ONLY_CHAIN_OBSERVATION',
   };
 }
