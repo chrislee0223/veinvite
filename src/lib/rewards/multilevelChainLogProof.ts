@@ -101,8 +101,14 @@ export function parseMultilevelVoteLog(
     }
     return out;
   };
-  const apps=decodeArray(appOffset),weights=decodeArray(weightOffset);
-  if(!apps||!weights||apps.length!==weights.length)return null;
+  // A Solidity ABI tuple with two dynamic arrays has the first payload at
+  // byte 64 and the second immediately after the first array. Reject
+  // swapped/overlapping offsets rather than reinterpreting malformed bytes.
+  if(appOffset!==64n) return null;
+  const apps=decodeArray(appOffset);
+  if(!apps || weightOffset!==64n+32n*(BigInt(apps.length)+1n))return null;
+  const weights=decodeArray(weightOffset);
+  if(!weights||apps.length!==weights.length)return null;
   for(let i=0;i<apps.length;i++){
     const weight=uint(weights[i]);
     if(weight!==null && weight>0n && apps[i]!=='0'.repeat(64)) {
