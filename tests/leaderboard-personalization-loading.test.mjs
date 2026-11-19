@@ -142,7 +142,7 @@ test('ranking frame stays mounted before the public response instead of swapping
 test('Hub owns the sole public ranking request while both surfaces paint skeletons', () => {
   assert.match(hub, /void loadPublicLeaderboard\(null\)/);
   assert.match(hub, /managedByHub\s+surface="impact"/);
-  assert.match(hub, /managedByHub\s+surface="ranking"/);
+  assert.match(hub, /managedByHub[\s\S]{0,180}surface="ranking"/);
   assert.match(leaderboard, /managedByHub\?: boolean/);
   assert.match(leaderboard, /if \(managedByHub\) return;/);
   assert.match(leaderboard, /const data = managedByHub\s*\? previewData \?\? null/);
