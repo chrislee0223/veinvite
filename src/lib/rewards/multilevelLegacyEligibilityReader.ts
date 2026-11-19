@@ -36,7 +36,8 @@ export async function readPreviewLegacyMembership(input:{
   const wallet=input.wallet.toLowerCase(),network=input.network;
   const invitations=await supabaseAdmin.from('invitations').select(
     'invite_code,activation_network,invitee_wallet,status,reward_status,sybil_status,identity_link_status,apps_completed,vote_completed,vot3_converted,vot3_conversion_tx_id,activation_block,apps_completed_block,vote_completed_block,vote_round_id',
-  ).eq('invitee_wallet',wallet).eq('activation_network',network).limit(2);
+  ).eq('invitee_wallet',wallet).eq('activation_network',network)
+    .eq('status','COMPLETED').limit(2);
   if(invitations.error)throw new Error('MULTILEVEL_LEGACY_INVITATIONS_READ_FAILED');
   if((invitations.data??[]).length!==1) {
     return {eligible:false,reason:'NO_COMPLETED_ONBOARDING'};
