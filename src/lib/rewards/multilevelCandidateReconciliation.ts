@@ -157,10 +157,10 @@ export function reconcileMultilevelActiveCandidate(input:{
     scanRewards:c.rewardedDapps,
     scanVotes:c.votes,
     voteWindow:c.voteWindow,
-    consensusFinality:{
-      finalizedThroughBlock:c.finalizedThroughBlock,
-      finalizedBlockId:c.finalizedBlockId,
-    },
+    // The finalized TIP keeps advancing for a fixed historical round.
+    // Don't make the immutable review hash change with every later tip.
+    // Consensus verification happens independently above on every run.
+    consensusFinalityObserved:consensus.ok,
     completionBlock,
     ancestry:lineage?.ancestors??null,
     edges:lineage?.edgeIds??null,
