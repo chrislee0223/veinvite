@@ -8,12 +8,14 @@ const tx = (n) => '0x'+(n+100).toString(16).padStart(64,'0');
 const dappWindow = { roundId: 129, startBlock: 100, endBlock: 199 };
 const voteWindow = { roundId: 130, startBlock: 200, endBlock: 299 };
 const rewarded = (id, roundId=129, blockNumber=120, rewardWei='1') =>
-  ({appId:app(id),txId:tx(id),blockNumber,roundId,rewardWei});
+  ({appId:app(id),txId:tx(id),blockNumber,roundId,rewardWei,txIndex:0,clauseIndex:id});
 const voted = (id=99, roundId=130, blockNumber=250) =>
-  ({votedAppId:app(id),txId:tx(id),blockNumber,roundId});
+  ({votedAppId:app(id),txId:tx(id),blockNumber,roundId,txIndex:0,clauseIndex:0});
 const onboard = (overrides={}) => ({
   kind:'ONBOARDING',
   earningRoundId:130, dappWindow, voteWindow,
+  activationBlock:100,
+  conversion:{txId:tx(45),blockNumber:190,txIndex:1,clauseIndex:0,amountWei:'1'},
   member:{
     wallet,firstOnboardedRoundId:130,
     rewardedDapps:[rewarded(1),rewarded(2),rewarded(3)],
@@ -96,4 +98,29 @@ test('bad windows and invalid onboarding completion are rejected',()=>{
   assert.equal(checkMissionEvidence(active({
     member:{...active().member,wallet:'not-a-wallet'},
   })).eligible,false);
+});
+
+test('new onboarding requires two-sided VOT3 conversion evidence after first reward',()=>{
+  assert.deepEqual(checkMissionEvidence(onboard({conversion:null})),{
+    eligible:false,reason:'MISSING_VERIFIED_VOT3_CONVERSION',
+  });
+  assert.equal(checkMissionEvidence(onboard({
+    conversion:{txId:tx(45),blockNumber:120,txIndex:0,clauseIndex:0,amountWei:'1'},
+  })).eligible,false);
+  assert.equal(checkMissionEvidence(onboard({
+    conversion:{txId:tx(45),blockNumber:190,txIndex:1,clauseIndex:0,amountWei:'0'},
+  })).eligible,false);
+  assert.equal(checkMissionEvidence(onboard({
+    conversion:{txId:'bad',blockNumber:190,txIndex:1,clauseIndex:0,amountWei:'1'},
+  })).eligible,false);
+  assert.equal(checkMissionEvidence(onboard({activationBlock:140})).eligible,false);
+});
+
+test('vote before conversion is never recognized, even in vote round',()=>{
+  const first=onboard({
+    conversion:{txId:tx(45),blockNumber:250,txIndex:1,clauseIndex:0,amountWei:'1'},
+  });
+  assert.equal(checkMissionEvidence(first).eligible,false);
+  first.member.votes=[voted(99,130,260)];
+  assert.equal(checkMissionEvidence(first).eligible,true);
 });
