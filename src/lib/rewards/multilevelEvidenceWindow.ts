@@ -17,7 +17,15 @@ export type EvidenceRoundWindow = {
   endBlock: number;
 };
 
+export type ChainExecutionPosition = {
+  txIndex: number;
+  clauseIndex: number;
+};
+
 export type RewardedDappProof = {
+  /** Required for onboarding VOT3 execution-order verification. */
+  txIndex?: number;
+  clauseIndex?: number;
   appId: string;
   txId: string;
   blockNumber: number;
@@ -26,10 +34,21 @@ export type RewardedDappProof = {
 };
 
 export type VoteProof = {
+  txIndex?: number;
+  clauseIndex?: number;
   votedAppId: string;
   txId: string;
   blockNumber: number;
   roundId: number;
+};
+
+export type Vot3ConversionEvidence = {
+  /** Only trusted matching B3TR debit + VOT3 mint transaction qualifies. */
+  txId: string;
+  blockNumber: number;
+  txIndex: number;
+  clauseIndex: number;
+  amountWei: string;
 };
 
 export type MemberEvidence = {
@@ -48,6 +67,10 @@ export type MissionEvidenceInput = {
   dappWindow: EvidenceRoundWindow;
   voteWindow: EvidenceRoundWindow;
   member: MemberEvidence;
+  /** Immutable, trusted invitation activation position for fresh onboarding. */
+  activationBlock?: number;
+  /** Strictly chain-verified paired B3TR->VOT3 conversion after the first reward. */
+  conversion?: Vot3ConversionEvidence | null;
 };
 
 /** Invalid/unconfirmed evidence must NEVER be considered reward eligible. */
@@ -56,7 +79,8 @@ export type MissionEvidenceVerdict =
   | { eligible: false; reason:
       'INVALID_INPUT' | 'INVALID_ROUND_WINDOW' | 'FIRST_ONBOARDING_ROUND_MISMATCH' |
       'ALREADY_ONBOARDED_OR_TOO_EARLY' | 'INSUFFICIENT_REWARDED_DAPPS' |
-      'MISSING_VALID_VOTE' };
+      'MISSING_VALID_VOTE' | 'MISSING_VERIFIED_VOT3_CONVERSION' |
+      'INVALID_ONBOARDING_ACTIVATION' };
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const APP_ID = /^0x[0-9a-f]{64}$/;
@@ -64,6 +88,17 @@ const TX_ID = /^0x[0-9a-f]{64}$/;
 const WEI = /^(0|[1-9][0-9]*)$/;
 const safeRound = (x: number): boolean => Number.isSafeInteger(x) && x > 0;
 const safeBlock = (x: number): boolean => Number.isSafeInteger(x) && x > 0;
+const safeIndex = (x: number | undefined): x is number =>
+  typeof x === 'number' && Number.isSafeInteger(x) && x >= 0;
+
+type Position = {blockNumber:number;txIndex:number;clauseIndex:number};
+function after(a:Position,b:Position):boolean {
+  return a.blockNumber>b.blockNumber ||
+    (a.blockNumber===b.blockNumber && (
+      a.txIndex>b.txIndex ||
+      (a.txIndex===b.txIndex && a.clauseIndex>b.clauseIndex)
+    ));
+}
 
 function validWindow(win: EvidenceRoundWindow, expected: number): boolean {
   return !!win && win.roundId === expected &&
@@ -101,7 +136,14 @@ export function checkMissionEvidence(input: MissionEvidenceInput): MissionEviden
   } else if (input.member.firstOnboardedRoundId >= round) {
     return { eligible:false, reason:'ALREADY_ONBOARDED_OR_TOO_EARLY' };
   }
+  if (input.kind==='ONBOARDING' && (
+    !safeBlock(input.activationBlock ?? NaN) ||
+    (input.activationBlock ?? 0)<input.dappWindow.startBlock ||
+    (input.activationBlock ?? 0)>input.dappWindow.endBlock)) {
+    return {eligible:false,reason:'INVALID_ONBOARDING_ACTIVATION'};
+  }
   const appIds = new Set<string>();
+  let earliestReward: (RewardedDappProof & Position) | null = null;
   for (const proof of input.member.rewardedDapps) {
     if (!proof || typeof proof.appId !== 'string' ||
       typeof proof.txId !== 'string' || typeof proof.rewardWei !== 'string' ||
@@ -109,15 +151,35 @@ export function checkMissionEvidence(input: MissionEvidenceInput): MissionEviden
       !TX_ID.test(proof.txId.toLowerCase()) ||
       !WEI.test(proof.rewardWei) || BigInt(proof.rewardWei) <= 0n ||
       proof.roundId !== dappRound ||
-      !inWindow(proof.blockNumber,input.dappWindow)) continue;
+      !inWindow(proof.blockNumber,input.dappWindow) ||
+      (input.kind==='ONBOARDING' && proof.blockNumber<(input.activationBlock ?? 0))) continue;
+    if(input.kind==='ONBOARDING') {
+      if(!safeIndex(proof.txIndex)||!safeIndex(proof.clauseIndex))continue;
+      if(!earliestReward || after(earliestReward,proof as RewardedDappProof & Position)) {
+        earliestReward=proof as RewardedDappProof & Position;
+      }
+    }
     appIds.add(proof.appId.toLowerCase());
   }
   const required = input.kind === 'ONBOARDING' ? 3 : 1;
   if (appIds.size < required) {
     return { eligible:false, reason:'INSUFFICIENT_REWARDED_DAPPS' };
   }
-  // The voted dApp may differ from all rewarded dApps. Only a valid vote
-  // anchored in the required round is necessary.
+  // Conversion must be a two-sided B3TR->VOT3 transfer attested by the
+  // trusted existing verifier; it cannot be inferred from the vote alone.
+  const conversion=input.conversion;
+  if(input.kind==='ONBOARDING') {
+    if(!conversion || !earliestReward || !TX_ID.test(conversion.txId?.toLowerCase()??'') ||
+       !WEI.test(conversion.amountWei??'') || BigInt(conversion.amountWei)<=0n ||
+       !safeIndex(conversion.txIndex) || !safeIndex(conversion.clauseIndex) ||
+       !safeBlock(conversion.blockNumber) ||
+       conversion.blockNumber>input.voteWindow.endBlock ||
+       !after(conversion,earliestReward)) {
+      return {eligible:false,reason:'MISSING_VERIFIED_VOT3_CONVERSION'};
+    }
+  }
+  // The voted dApp may differ from all rewarded dApps. A new onboarding vote
+  // must also occur strictly AFTER the verified B3TR->VOT3 conversion.
   for (const vote of input.member.votes) {
     if (!vote || typeof vote.votedAppId !== 'string' ||
       typeof vote.txId !== 'string' ||
@@ -125,6 +187,10 @@ export function checkMissionEvidence(input: MissionEvidenceInput): MissionEviden
       !TX_ID.test(vote.txId.toLowerCase()) ||
       vote.roundId !== round ||
       !inWindow(vote.blockNumber,input.voteWindow)) continue;
+    if(input.kind==='ONBOARDING' && (
+      !safeIndex(vote.txIndex) || !safeIndex(vote.clauseIndex) ||
+      !after(vote as VoteProof & Position,conversion!)
+    ))continue;
     return {
       eligible:true,
       countedAppIds:[...appIds].sort(),
