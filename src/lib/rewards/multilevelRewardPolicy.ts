@@ -212,10 +212,9 @@ export function calculateMultilevelRound(
         const ancestor = event.uplines[i];
         // Onboarding level 1 is ALWAYS earned for a valid new user, even
         // if the direct inviter has no vote. Higher levels require activity.
-        const eligible = ancestor?.wallet &&
-          (category === 'onboarding' && i === 0 || ancestor.active);
-        if (eligible && portion > 0n) {
-          emit(category, event.eventId, i + 1, ancestor.wallet!, portion);
+        if (portion > 0n && ancestor?.wallet &&
+          ((category === 'onboarding' && i === 0) || ancestor.active)) {
+          emit(category, event.eventId, i + 1, ancestor.wallet, portion);
           awarded += portion;
         }
       });
@@ -236,7 +235,9 @@ export function calculateMultilevelRound(
   if (leaderCounts.size === 0) {
     emptyCategory('leader');
   } else {
-    const high = Math.max(...leaderCounts.values());
+    // Do not spread a potentially large inviter set into Math.max(...).
+    let high = 0;
+    for (const count of leaderCounts.values()) high = Math.max(high, count);
     const winners = [...leaderCounts].filter(([, n]) => n === high)
       .map(([wallet]) => wallet).sort();
     const each = budget.leader / BigInt(winners.length);
