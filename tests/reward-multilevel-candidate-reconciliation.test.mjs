@@ -47,6 +47,7 @@ test('observed chain plus cleared legacy and event-time ancestors yields review 
   assert.equal(x.status,'REVIEW_REQUIRED');
   assert.equal(x.payable,false);
   assert.deepEqual(x.rejectionReasons,[]);
+  assert.equal(x.lineage.eventBlock,230);
   assert.equal(x.lineage.ancestors[0].wallet,inviter);
   assert.equal(x.lineage.ancestors[0].active,true);
   assert.equal(x.lineage.ancestors[1].wallet,above);
@@ -127,4 +128,22 @@ test('a legacy onboarding completed in the earning round is not active yet',()=>
   }));
   assert.equal(tooSoon.structurallyEligible,false);
   assert.ok(tooSoon.rejectionReasons.includes('LEGACY_ONBOARDING_NOT_OLDER_THAN_ROUND'));
+});
+
+test('same-round reparenting AFTER completion cannot steal already-earned upline credit',()=>{
+  const late=[...edges,{
+    edgeId:'changed-mid-round',network:'mainnet',childWallet:subject,
+    sponsorWallet:wallet(9),effectiveBlock:250,
+  }];
+  const review=reconcileMultilevelActiveCandidate(make({referralEdges:late}));
+  assert.equal(review.structurallyEligible,true);
+  assert.equal(review.lineage.eventBlock,230);
+  assert.equal(review.lineage.ancestors[0].wallet,inviter);
+  const early=[...edges,{
+    edgeId:'changed-before-completion',network:'mainnet',childWallet:subject,
+    sponsorWallet:wallet(9),effectiveBlock:225,
+  }];
+  const next=reconcileMultilevelActiveCandidate(make({referralEdges:early}));
+  assert.equal(next.lineage.ancestors[0].wallet,wallet(9));
+  assert.notEqual(review.evidenceFingerprint,next.evidenceFingerprint);
 });
