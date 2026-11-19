@@ -577,6 +577,9 @@ export function PublicLeaderboardHub({
               pendingCurrentWallet={pendingCurrentWallet}
               previewData={displayData ?? undefined}
               managedByHub
+              rankContextPending={
+                !displayData || personalizationPending || personalizationUnavailable
+              }
               surface="ranking"
             />
             {publicState.failed && !displayData ? (
@@ -717,9 +720,6 @@ export function PublicLeaderboardHub({
         }
         .inviterInside .rankContextNote {
           margin-top:8px !important;
-        }
-        .leaderboardHub.personalizationPending .rankContextNote {
-          display:none !important;
         }
         .personalizationInlineError {
           margin-top:8px;
