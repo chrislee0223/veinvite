@@ -60,6 +60,10 @@ test('vote must decode a real weighted app from the correct voter and round',()=
   assert.equal(parseMultilevelVoteLog(vote([app1],[1],{topics:[sig,
     '0x'+'0'.repeat(64),'0x'+word(130)]}),ctx),null);
   assert.equal(parseMultilevelVoteLog(vote([app1],[1],{data:'0x'+word(9999999)+word(64)}),ctx),null);
+  // Reject even syntactically in-bounds but noncanonical ABI offsets.
+  const normal=voteData([app1],[1]);
+  const shifted='0x'+word(96)+normal.slice(66);
+  assert.equal(parseMultilevelVoteLog(vote([app1],[1],{data:shifted}),ctx),null);
 });
 
 test('wrong block and tampered event identity is never admitted',()=>{
