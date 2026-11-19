@@ -37,6 +37,15 @@ The 5th script `docs/staged-sql/20261119_multilevel_chain_observation_bridge_pre
 2. Preview SQL was applied **only to `bpppslplhmppxzvdkwxs`** and tested in a transaction that was fully ROLLED BACK. Replayed identical observations accepted as `ALREADY_RECORDED`, conflicting replacements and mainnet rejected; no mock observation became a payable entitlement.
 3. Preview function privilege check: `anon` no, `authenticated` no, `service_role` yes. Production DB has **zero** `veinvite_multilevel_staging` tables.
 
+## 2026-11-19 additional read-only integration and legacy safety review
+
+- `src/lib/rewards/multilevelLegacyEligibility.ts`: **NEVER** treat `invitations.status='COMPLETED'` / `reward_status='PAID'` as sufficient proof of active-network eligibility. The historical Sybil assessment must currently be CLEAR, no active invalidation, no active wallet restriction, identity link cleared, and all 3 rewarded dApps, VOT3 and vote milestones intact. The prior onboarding round must be strictly before activity round.
+- `src/lib/rewards/multilevelLegacyEligibilityReader.ts`: intentionally **unreachable from production routes**; preview-server-only, secret-backed but read-only adapter for the canonical legacy and Sybil tables. Preview DB may be empty; absence is failure, not inferred eligibility.
+- Live **read-only** public mainnet smoke in branch-only CI (2026-11-19, GitHub run 44476538450): scanned one completed round from official Thor contracts, decoded **88 positive external dApp reward** and **100 positive-weight vote** log events; no participant data or entitlements written. This confirms raw mainnet ABI compatibility, not user-level financial eligibility.
+- `multilevelEvidenceWindow.ts` and `multilevelChainEvidenceReader.ts` now fail closed on **missing B3TR→VOT3 conversion**, conversion before first rewarded dApp, a vote before conversion, or missing immutable invitation activation block. The scanner reuses the existing 2-sided B3TR debit/VOT3 mint verifier and exact chain execution-order proof.
+- Production **read-only aggregate** found 48 legacy invitations marked completed, including 27 with active historical Sybil invalidations. Filtering invalidations, latest CLEAR assessments and active wallet restrictions leaves 21 currently structurally verifiable completed records. **This is an eligibility review candidate count, NOT newly payable recipients**. No old rewards are recalculated.
+- **Note**: Historical onboarding eligibility for future active-network events must never include previously invalidated PAID referrals. The legacy reader needs future controlled, provenance-verified E2E tests against a safe data fixture; no production wallet details are stored in this repository.
+
 ## NOT DONE / launch blockers
 
 - No real wallet onchain data was queried **by this operator bridge** yet; unit tests use constructed fixtures.
