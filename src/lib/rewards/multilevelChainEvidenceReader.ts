@@ -18,6 +18,7 @@ import {
   type RewardedDappProof,
   type VoteProof,
   type Vot3ConversionEvidence,
+  type EvidenceRoundWindow,
 } from '@/lib/rewards/multilevelEvidenceWindow';
 import {
   parseMultilevelRewardLog,
@@ -49,6 +50,8 @@ export type MultilevelChainScan = {
   kind: 'ONBOARDING' | 'ACTIVE';
   earningRoundId: number;
   dappRoundId: number;
+  dappWindow: EvidenceRoundWindow;
+  voteWindow: EvidenceRoundWindow;
   verifiedThroughBlock: number;
   maturityDepthBlocks: number;
   rewardedDapps: RewardedDappProof[];
@@ -252,7 +255,9 @@ export async function readMultilevelChainEvidence(input:{
   };
   return {
     network,wallet,kind:input.kind,earningRoundId:input.earningRoundId,
-    dappRoundId,verifiedThroughBlock:Math.min(dappRound.bestBlock,voteRound.bestBlock),
+    dappRoundId,
+    dappWindow:evidence.dappWindow,voteWindow:evidence.voteWindow,
+    verifiedThroughBlock:Math.min(dappRound.bestBlock,voteRound.bestBlock),
     maturityDepthBlocks:MATURITY_DEPTH_BLOCKS,rewardedDapps,votes,
     activationBlock:input.activationBlock,conversion,
     verdict:checkMissionEvidence(evidence),authority:'READ_ONLY_CHAIN_OBSERVATION',
