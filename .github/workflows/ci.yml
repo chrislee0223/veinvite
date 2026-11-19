@@ -80,6 +80,13 @@ jobs:
       - name: Leaderboard stability gate
         run: node scripts/check-leaderboard-stability.mjs
 
+      - name: Inviter footer and country row-capacity regression gate
+        run: >-
+          node --test
+          tests/leaderboard-personalization-loading.test.mjs
+          tests/leaderboard-card-height-stability.test.mjs
+          tests/country-leaderboard-row-capacity.test.mjs
+
       - name: Profile avatar parity gate
         run: >-
           node --test
