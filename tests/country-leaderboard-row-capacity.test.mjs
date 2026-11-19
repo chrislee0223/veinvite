@@ -47,8 +47,8 @@ test('base country card keeps the reviewed five-row geometry', () => {
 
 test('only inviter-reserved spare height expands the country viewport', () => {
   assert.match(css, /--country-base-viewport-height: 250px;/);
-  assert.match(css, /:has\(\.impactOnly \.rankContextNote\)/);
-  assert.match(css, /:has\(\.impactOnly \.trailingCurrent\)/);
+  assert.match(css, /\[data-inviter-footer-hint='true'\]/);
+  assert.match(css, /\[data-inviter-footer-trailing='true'\]/);
   assert.match(
     css,
     /var\(--stable-ranking-trailing-height\) - var\(--stable-ranking-base-height\)/,
@@ -65,7 +65,7 @@ test('expanded country rows fill the reserve without over-compressing context-on
   assert.match(css, /data-visible-rows='7'/);
   assert.match(
     css,
-    /:has\(\.impactOnly \.rankContextNote\):not\(:has\(\.impactOnly \.trailingCurrent\)\)[\s\S]*data-visible-rows='7'[\s\S]*--country-visible-row-count: 6/,
+    /\[data-inviter-footer-hint='true'\]:not\(\[data-inviter-footer-trailing='true'\]\)[\s\S]*data-visible-rows='7'[\s\S]*--country-visible-row-count: 6/,
   );
   assert.match(css, /\.countrySkeleton \{[\s\S]*overflow: hidden;/);
   assert.match(
@@ -88,9 +88,10 @@ test('country capacity guard is loaded after horizontal layout and card stabilit
   assert.ok(capacity > horizontal);
 });
 
-test('pending current-wallet geometry is mirrored by the hidden inviter measurement surface', () => {
-  assert.match(
-    hub,
-    /className="impactOnly"[\s\S]*pendingCurrentWallet=\{pendingCurrentWallet\}[\s\S]*previewData=\{displayData\}/,
-  );
+test('country capacity is driven by the pre-reserved visible inviter footer state', () => {
+  assert.match(hub, /const hasInviterTrailingRow = Boolean\(/);
+  assert.match(hub, /const hasInviterRankHint = Boolean\(/);
+  assert.match(hub, /data-inviter-footer-trailing=\{hasInviterTrailingRow \? 'true'/);
+  assert.match(hub, /data-inviter-footer-hint=\{hasInviterRankHint \? 'true'/);
+  assert.doesNotMatch(css, /:has\(\.impactOnly/);
 });
