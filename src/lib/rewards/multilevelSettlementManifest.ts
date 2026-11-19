@@ -10,7 +10,7 @@ import {
   calculateMultilevelRound,
   type MultilevelRoundInput,
   type MultilevelRoundResult,
-} from './multilevelRewardPolicy';
+} from './multilevelRewardPolicy.ts';
 
 export type MultilevelSettlementManifest = MultilevelRoundResult & {
   participantPoolWei:string;
