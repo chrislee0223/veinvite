@@ -24,6 +24,7 @@ const chain={
   earningRoundId:130,dappRoundId:130,
   authority:'READ_ONLY_CHAIN_OBSERVATION',
   maturityDepthBlocks:24,verifiedThroughBlock:350,
+  finalizedThroughBlock:320,finalizedBlockId:'0x'+'f'.repeat(64),
   dappWindow:{roundId:130,startBlock:200,endBlock:299},
   voteWindow:{roundId:130,startBlock:200,endBlock:299},
   rewardedDapps:[{appId:dappId,txId:tx(40),rewardWei:'1',
@@ -91,6 +92,18 @@ test('wallet or round mismatch is a hard error, not a fallback',()=>{
   assert.throws(()=>reconcileMultilevelActiveCandidate(make({
     chain:{...chain,authority:'BROWSER_CLAIM'},
   })),/MULTILEVEL_UNTRUSTED_CROSSCHECK_INPUT/);
+});
+
+test('finalized height below the vote window blocks a seemingly successful review',()=>{
+  const stale=reconcileMultilevelActiveCandidate(make({
+    chain:{...chain,finalizedThroughBlock:250,verifiedThroughBlock:800},
+  }));
+  assert.equal(stale.structurallyEligible,false);
+  assert.ok(stale.rejectionReasons.includes('CONSENSUS_FINALITY_UNCONFIRMED'));
+  const fake=reconcileMultilevelActiveCandidate(make({
+    chain:{...chain,finalizedBlockId:'bogus'},
+  }));
+  assert.equal(fake.structurallyEligible,false);
 });
 
 test('unmatured round and forged user-active set are never review eligible',()=>{
