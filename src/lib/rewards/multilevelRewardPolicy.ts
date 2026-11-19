@@ -111,7 +111,7 @@ function prepareEvents(
       throw new Error('INVALID_UPLINES');
     }
     const seenUplines = new Set<string>([actorWallet]);
-    const uplines = item.uplines.map((entry, i) => {
+    const uplines = (item.uplines as readonly VerifiedUpline[]).map((entry: VerifiedUpline, i: number) => {
       if (!entry || typeof entry.active !== 'boolean') {
         throw new Error('INVALID_UPLINE_ACTIVITY');
       }
