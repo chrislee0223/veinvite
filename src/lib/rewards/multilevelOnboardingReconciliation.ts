@@ -51,7 +51,7 @@ export type ProposedNewOnboardingReview={
 
 const WALLET=/^0x[0-9a-f]{40}$/;
 const CODE=/^[A-HJ-NP-Z2-9]{7}$/;
-const safe=(n:number|null)=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=1;
+const safe=(n:number|null):n is number=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=1;
 
 export function reconcileMultilevelOnboardingCandidate(input:{
   chain:MultilevelChainScan;
