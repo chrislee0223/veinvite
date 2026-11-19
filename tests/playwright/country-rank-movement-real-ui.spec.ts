@@ -81,12 +81,15 @@ const FIXTURE_COUNTRIES: PublicCountryArrivalResponse = {
 
 // Intercept only read-only public leaderboard GETs. Never modify actual
 // records, set wallets, connect to Production, or interact with payout APIs.
-async function mockReadOnlyLeaderboard(page: Page) {
+async function mockReadOnlyLeaderboard(
+  page: Page,
+  countries: PublicCountryArrivalResponse = FIXTURE_COUNTRIES,
+) {
   const intercept = async (route: import('@playwright/test').Route) => {
     const pathname = new URL(route.request().url()).pathname;
     const data =
       pathname === '/api/leaderboard/country'
-        ? FIXTURE_COUNTRIES
+        ? countries
         : FIXTURE_PUBLIC;
     await route.fulfill({
       status: 200,
@@ -288,5 +291,88 @@ for (const width of [320, 393]) {
       .toBeLessThanOrEqual(2);
     expect(Math.abs(after.height - original.height))
       .toBeLessThanOrEqual(2);
+  });
+}
+
+
+const EXPANDED_COUNTRIES: PublicCountryArrivalResponse = {
+  ...FIXTURE_COUNTRIES,
+  leaders: [
+    ...FIXTURE_COUNTRIES.leaders,
+    {
+      rank: 7, countryCode: 'PL', completedReferrals: 1,
+      newUsers: 1, returningUsers: 0, currentRoundCompleted: 0,
+      previousRank: null, rankChange: null, rankMovement: 'NEW',
+    },
+    {
+      rank: 8, countryCode: 'FR', completedReferrals: 1,
+      newUsers: 1, returningUsers: 0, currentRoundCompleted: 0,
+      previousRank: null, rankChange: null, rankMovement: 'NEW',
+    },
+  ],
+};
+
+for (const width of [320, 393, 1280]) {
+  test(`country uses inviter footer space for seven real rows: ${width}px`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await mockReadOnlyLeaderboard(page, EXPANDED_COUNTRIES);
+    await page.setViewportSize({ width, height: 852 });
+    await page.goto('/qa/country-rank-movement?locale=ko&demoWallet=unranked', {
+      waitUntil: 'domcontentloaded',
+    });
+
+    const hub = page.locator('.leaderboardHub');
+    const inviter = hub.locator('.rankingTabs button[role="tab"]').first();
+    const country = hub.locator('.rankingTabs button[role="tab"]').last();
+    await expect(country).toBeEnabled({ timeout: 20_000 });
+    await expect(hub).toHaveAttribute('data-inviter-footer-trailing', 'true');
+    await expect(hub).toHaveAttribute('data-inviter-footer-hint', 'true');
+    await expect(hub.locator('.inviterInside .rankContextNote')).toBeVisible();
+
+    const inviterCardHeight = await hub.locator('.unifiedRankingCard')
+      .evaluate((node) => node.getBoundingClientRect().height);
+    await country.click();
+    const rows = hub.locator('.countryScroll .countryRow');
+    await expect(rows).toHaveCount(8);
+    await expect(hub.locator('.countryPanel')).toHaveAttribute('data-visible-rows', '7');
+
+    const beforeScroll = await page.evaluate(() => {
+      const scroll = document.querySelector<HTMLElement>('.leaderboardHub .countryScroll')!;
+      const rows = [...scroll.querySelectorAll<HTMLElement>('.countryRow')];
+      const card = document.querySelector<HTMLElement>('.leaderboardHub .unifiedRankingCard')!;
+      const scrollBox = scroll.getBoundingClientRect();
+      return {
+        pageY: window.scrollY,
+        cardHeight: card.getBoundingClientRect().height,
+        scrollHeight: scroll.scrollHeight,
+        clientHeight: scroll.clientHeight,
+        seventhBottom: rows[6].getBoundingClientRect().bottom,
+        eighthTop: rows[7].getBoundingClientRect().top,
+        bottom: scrollBox.bottom,
+      };
+    });
+
+    expect(Math.abs(beforeScroll.cardHeight - inviterCardHeight),
+      JSON.stringify(beforeScroll)).toBeLessThanOrEqual(2);
+    expect(beforeScroll.seventhBottom).toBeLessThanOrEqual(beforeScroll.bottom + 2);
+    expect(beforeScroll.eighthTop).toBeGreaterThanOrEqual(beforeScroll.bottom - 2);
+    expect(beforeScroll.scrollHeight).toBeGreaterThan(beforeScroll.clientHeight);
+    await assertCountryGeometry(page);
+
+    await hub.locator('.countryScroll').evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+    });
+    const afterScroll = await page.evaluate(() => ({
+      pageY: window.scrollY,
+      eighthVisible: (() => {
+        const sc = document.querySelector<HTMLElement>('.leaderboardHub .countryScroll')!;
+        const last = sc.querySelector<HTMLElement>('.countryRow:last-child')!;
+        return last.getBoundingClientRect().bottom <= sc.getBoundingClientRect().bottom + 2;
+      })(),
+    }));
+    expect(afterScroll.eighthVisible).toBe(true);
+    expect(Math.abs(afterScroll.pageY - beforeScroll.pageY)).toBeLessThanOrEqual(2);
+    await inviter.click();
+    await expect(hub.locator('.inviterInside .rankScroll')).toBeVisible();
   });
 }
