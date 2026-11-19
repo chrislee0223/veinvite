@@ -54,6 +54,16 @@ counts AS (
       AND vot3_converted AND activation_block IS NOT NULL
       AND apps_completed_block IS NOT NULL AND vote_completed_block IS NOT NULL
       AND vote_round_id IS NOT NULL) AS structurally_complete,
+    count(*) FILTER(WHERE clear_assessment AND NOT bad_invalidation
+      AND NOT bad_wallet AND apps_completed>=3 AND vote_completed
+      AND vot3_converted AND activation_block IS NOT NULL
+      AND apps_completed_block IS NOT NULL AND vote_completed_block IS NOT NULL
+      AND vote_round_id IS NOT NULL
+      AND activation_block<=apps_completed_block
+      AND apps_completed_block<=vote_completed_block) AS ordered_structural_candidates,
+    count(*) FILTER(WHERE clear_assessment AND NOT bad_invalidation
+      AND NOT bad_wallet AND apps_completed_block>vote_completed_block)
+      AS sybil_clear_but_badly_ordered,
     count(*) FILTER(WHERE apps_completed_block IS NOT NULL
       AND vote_completed_block IS NOT NULL
       AND apps_completed_block>=vote_completed_block) AS wrong_block_order,
