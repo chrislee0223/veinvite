@@ -11,6 +11,9 @@ import {
 import type { MultilevelChainScan } from '@/lib/rewards/multilevelChainEvidenceReader';
 import type { LegacyMembershipInput } from '@/lib/rewards/multilevelLegacyEligibility';
 import type { TrustedReferralEdge } from '@/lib/rewards/multilevelUplineSnapshot';
+import {reconcileMultilevelOnboardingCandidate,
+  type TrustedNewOnboarding,
+  type ProposedNewOnboardingReview} from '@/lib/rewards/multilevelOnboardingReconciliation';
 
 const PREVIEW_URL='https://bpppslplhmppxzvdkwxs.supabase.co';
 
@@ -68,6 +71,44 @@ export async function recordMultilevelPreviewReview(input:{
   if(data!=='REVIEW_PACKET_STORED_NONPAYABLE' &&
      data!=='ALREADY_REVIEWED_NONPAYABLE') {
     throw new Error('MULTILEVEL_REVIEW_UNKNOWN_DB_RESPONSE');
+  }
+  return {status:data,proposed};
+}
+
+/** New onboarding review: same private nonpayable RPC, no new public API. */
+export async function recordMultilevelPreviewOnboardingReview(input:{
+  chain:MultilevelChainScan;
+  onboarding:TrustedNewOnboarding;
+  referralEdges:readonly TrustedReferralEdge[];
+  roundActiveWallets:ReadonlySet<string>;
+  scanFingerprint:string;
+}):Promise<{
+  status:'REVIEW_PACKET_STORED_NONPAYABLE'|
+    'ALREADY_REVIEWED_NONPAYABLE'|'STRUCTURALLY_REJECTED_NO_WRITE';
+  proposed:ProposedNewOnboardingReview;
+}> {
+  guardPreview(input?.chain?.network);
+  const proposed=reconcileMultilevelOnboardingCandidate(input);
+  if(!proposed.structurallyEligible){
+    return {status:'STRUCTURALLY_REJECTED_NO_WRITE',proposed};
+  }
+  if(input.scanFingerprint!==fingerprintMultilevelChainObservation(input.chain)){
+    throw new Error('MULTILEVEL_NEW_REVIEW_CHAIN_HASH_MISMATCH');
+  }
+  const {data,error}=await supabaseAdmin.rpc(
+    'multilevel_preview_record_review_packet_v1',{
+      p_network:proposed.network,
+      p_round_id:proposed.roundId,
+      p_wallet:proposed.wallet,
+      p_source_scan_fingerprint:input.scanFingerprint,
+      p_evidence_fingerprint:proposed.evidenceFingerprint,
+      p_packet:proposed,
+    },
+  );
+  if(error)throw new Error('MULTILEVEL_NEW_REVIEW_WRITE_REJECTED:'+error.code);
+  if(data!=='REVIEW_PACKET_STORED_NONPAYABLE' &&
+    data!=='ALREADY_REVIEWED_NONPAYABLE'){
+    throw new Error('MULTILEVEL_NEW_REVIEW_UNKNOWN_DB_RESPONSE');
   }
   return {status:data,proposed};
 }
