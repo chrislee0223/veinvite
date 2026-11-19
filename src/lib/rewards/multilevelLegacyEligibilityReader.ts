@@ -59,8 +59,13 @@ export async function readPreviewLegacyMembership(input:{
     throw new Error('MULTILEVEL_SYBIL_EVIDENCE_READ_FAILED');
   }
   // An ambiguous Sybil assessment is never treated as CLEAR.
-  const assessment=(assess.data??[]).length===1 ?
-    assess.data![0] as LegacySybilAssessment : null;
+  const ar=(assess.data??[]).length===1 ? assess.data![0] : null;
+  const assessment:LegacySybilAssessment|null=ar ? {
+    inviteCode:ar.invite_code,
+    network:ar.network,
+    state:ar.state,
+    revision:ar.revision,
+  } : null;
   const i:LegacyReferralEvidence={
     inviteCode:code,network:row.activation_network,
     inviteeWallet:row.invitee_wallet,status:row.status,
