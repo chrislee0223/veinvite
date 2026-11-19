@@ -233,6 +233,14 @@
 - **남은 일:** 실사용자 실제 참여 이력을 Preview와 안전하게 연결하는 인가된 수집 및 독립 시빌/지갑·FINAL 증거 검증, 엄격한 정산 승격, 재원/Claim/X 연동 및 정책 적합성 승인. **운영 DB와 실제 B3TR 송금은 여전히 미변경.**
 - **구현 기록:** [Draft PR #1350](https://github.com/chrislee0223/veinvite/pull/1350), `docs/staged-sql/20261119_multilevel_finality_onboarding_review_rollout.md`.
 
+## 7F. 2026-11-19 신규 정책 위험·실운영 이력 불일치 확인
+
+- **중요: 새 보상 지급 활성화 보류.** VeBetterDAO [공식 RuleBook for Apps](https://docs.vebetterdao.org/developer-guides/rulebook-for-apps)는 기존 보상 대상인 타 dApp 활동과 Vote2Earn에 추가로 보상하는 구조를 제한한다. 현재 VeInvite 계획인 **활성 네트워크 30%**, 신규 온보딩 60%의 외부 앱 활동+투표 조건 및 X 공유 보상에 대한 공식 해석을 받아야 한다. 커뮤니티 [2026-10-02 논의](https://vechain.discourse.group/t/proposal-integrity-rule-for-in-app-automated-voting/759/40?u=morb)에서 VeInvite가 지목된 바 있으나 이는 **개인/커뮤니티 주장이지 공식 위반 판정이 아님**. 설계 비율은 독자적으로 변경하지 않고 의견 확인 후 운영자 결정을 받는다.
+- **운영 DB 읽기 전용 감사**: 기존 COMPLETED 48건, ACTIVE 무효화 27건, 시빌/제한 상태상 검토 후보 21건. 이 중 **1건에서 dApp 완료 블록이 투표 블록보다 16,121블록 늦음**. 따라서 구조·블록 순서까지 충족하는 1차 과거 후보는 **20건**. 해당 1건은 과거 `PAID`·`CLEAR` 표시이더라도 신규 활성 대상 자동 승인 금지. 원 기록·기존 보상은 미변경. 이 순서 불일치는 증거 재동기화 문제일 수도 있으므로 부정행위 확정으로 단정 금지.
+- **신규 지급 승격 사전 검문 개발**: `src/lib/rewards/multilevelPromotionPreflight.ts`에서 체인 이벤트 재조회 해시, 시빌 최신 판정, 5단계 초대 이력, 실 B3TR 재원, 공식 RuleBook 확인이 모두 충족하는지 확인. 현재 모든 결과 `payable=false`; 설령 사전 점검 통과여도 별도 운영 보안 승인과 지급 기능은 미구현. 누락·변조 시 차단 테스트 추가.
+- **재현 가능한 근거**: `docs/staged-sql/20261119_multilevel_production_readonly_evidence_audit.sql` (SELECT 전용)과 `20261119_multilevel_policy_and_actual_history_audit.md`. 전체 구현은 [Draft PR #1350](https://github.com/chrislee0223/veinvite/pull/1350), 운영 미병합 상태.
+- **향후 의사결정 필요**: 공식 팀에 보상 구조 적합성을 문의하고, 승인 또는 변경 요청에 따라 60:30:10 구조를 유지하거나 수정할지 운영자가 결정한다. 서면 확인 전 신규 메인넷 지급·운영 배포 절대 금지.
+
 ## 8. 상태 체크리스트
 
 - [x] 보상 범주 60/30/10 및 참여자 80%·운영 20%
