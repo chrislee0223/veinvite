@@ -41,6 +41,10 @@ const assertBalanced = (out) => {
     payout + carry + BigInt(out.generalReturnNextWei), BigInt(out.totalBudgetWei),
   );
   assert.equal(payout.toString(), out.grossEntitlementsWei);
+  const returns = out.generalReturnDetails;
+  assert.equal(returns.reduce((sum,item)=>sum + BigInt(item.amountWei),0n).toString(),
+    out.generalReturnNextWei);
+  assert.equal(new Set(returns.map(item=>item.returnId)).size,returns.length);
 };
 
 test('1000 already-net participant pool splits 60:30:10 and five levels with no new 20% fee', () => {
@@ -211,4 +215,28 @@ test('exact Wei arithmetic, previous same-category carryover, dust and audit bal
 test('direct home estimate is 70% of 600 / 3, with no fictitious extra promo', () => {
   assert.equal(forecastDirectOnboardingWei('600', 3), '140');
   assert.throws(() => forecastDirectOnboardingWei('600', 0), /INVALID_FORECAST_COUNT/);
+});
+
+test('every missing or inactive level is separately returned without double-counting', () => {
+  const out = run({
+    onboarding: [event('new-1',1,[[2,false],[3,false],[null,false],[5,true]])],
+    active: [event('active-1',7,[[8,false],[null,false],[10,true]])],
+  });
+  const missing = out.generalReturnDetails.filter(x=>x.reason==='MISSING_UPLINE');
+  const inactive = out.generalReturnDetails.filter(x=>x.reason==='INACTIVE_UPLINE');
+  assert.ok(missing.length > 0);
+  assert.ok(inactive.length > 0);
+  assert.ok(out.generalReturnDetails.every(x=>BigInt(x.amountWei)>0n));
+  assertBalanced(out);
+});
+
+test('tiny and odd budgets conserve every Wei, including zero-valued category balances', () => {
+  for (const pool of ['0','1','2','3','9','11','19','37','101','999']) {
+    const out = run({
+      pool,
+      onboarding: [event('new-1',1,[[2,true]])],
+      active: [event('active-1',3,[[4,true]])],
+    });
+    assertBalanced(out);
+  }
 });
