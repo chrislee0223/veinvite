@@ -22,6 +22,7 @@ import {
   type MissionEvidenceInput,
 } from './multilevelEvidenceWindow.ts';
 import type { MultilevelChainScan } from './multilevelChainEvidenceReader';
+import {checkMultilevelFinalityGate} from './multilevelFinalityGate.ts';
 
 export type ProposedMultilevelReview = {
   status:'REVIEW_REQUIRED';
@@ -67,6 +68,16 @@ export function reconcileMultilevelActiveCandidate(input:{
     throw new Error('MULTILEVEL_UNTRUSTED_CROSSCHECK_INPUT');
   }
   const rejectionReasons:string[]=[];
+  const consensus=checkMultilevelFinalityGate({
+    finalBlockId:c.finalizedBlockId,
+    finalizedThroughBlock:c.finalizedThroughBlock,
+    bestBlock:c.verifiedThroughBlock,
+    dappRoundEndBlock:c.dappWindow.endBlock,
+    voteRoundEndBlock:c.voteWindow.endBlock,
+  });
+  if(!consensus.ok){
+    rejectionReasons.push('CONSENSUS_FINALITY_UNCONFIRMED');
+  }
   // Never accept a precomputed "eligible" flag from a scan as a substitute
   // for repeating the same-round proof validation on the complete snapshots.
   const evidence:MissionEvidenceInput={
@@ -146,6 +157,10 @@ export function reconcileMultilevelActiveCandidate(input:{
     scanRewards:c.rewardedDapps,
     scanVotes:c.votes,
     voteWindow:c.voteWindow,
+    consensusFinality:{
+      finalizedThroughBlock:c.finalizedThroughBlock,
+      finalizedBlockId:c.finalizedBlockId,
+    },
     completionBlock,
     ancestry:lineage?.ancestors??null,
     edges:lineage?.edgeIds??null,
