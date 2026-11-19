@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { createHash } from 'node:crypto';
 import { readMultilevelChainEvidence } from '@/lib/rewards/multilevelChainEvidenceReader';
+import {stableMultilevelChainObservation,fingerprintMultilevelChainObservation} from '@/lib/rewards/multilevelPreviewEvidenceSnapshot';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 const PREVIEW_SUPABASE_URL = 'https://bpppslplhmppxzvdkwxs.supabase.co';
@@ -31,6 +31,7 @@ export type MultilevelPreviewObservationResponse = {
   roundId:number;
   network:'testnet'|'testnet-staging';
   source:'THOR_READONLY_OBSERVATION_V1';
+  scanFingerprint:string;
 };
 
 export async function recordMultilevelPreviewObservation(input:{
@@ -53,22 +54,8 @@ export async function recordMultilevelPreviewObservation(input:{
   // Exclude bestBlock/scan date so rechecking the same immutable historical
   // evidence produces the SAME fingerprint. Any actual proof difference
   // must be reviewed rather than silently rewriting existing snapshots.
-  const observation={
-    authority:chain.authority,
-    network:chain.network,
-    wallet:chain.wallet,
-    kind:chain.kind,
-    earningRoundId:chain.earningRoundId,
-    dappRoundId:chain.dappRoundId,
-    maturityDepthBlocks:chain.maturityDepthBlocks,
-    activationBlock:chain.activationBlock??null,
-    conversion:chain.conversion,
-    verdict:chain.verdict,
-    rewardedDapps:chain.rewardedDapps,
-    votes:chain.votes,
-  };
-  const fingerprint=createHash('sha256')
-    .update(JSON.stringify(observation)).digest('hex');
+  const observation=stableMultilevelChainObservation(chain);
+  const fingerprint=fingerprintMultilevelChainObservation(chain);
   const {data,error}=await supabaseAdmin.rpc(
     'multilevel_preview_record_chain_observation_v1', {
       p_network:chain.network,
@@ -91,6 +78,6 @@ export async function recordMultilevelPreviewObservation(input:{
   return {
     status:data,eligible:chain.verdict.eligible,wallet:chain.wallet,
     roundId:chain.earningRoundId,network:chain.network,
-    source:'THOR_READONLY_OBSERVATION_V1',
+    source:'THOR_READONLY_OBSERVATION_V1',scanFingerprint:fingerprint,
   };
 }
