@@ -51,11 +51,21 @@ export type MultilevelEntitlement = {
   xShareHeldWei: string;
 };
 
+export type MultilevelReturn = {
+  returnId: string;
+  category: MultilevelCategory | 'general';
+  reason: 'ROUNDING_DUST' | 'MISSING_UPLINE' | 'INACTIVE_UPLINE' | 'EMPTY_CATEGORY_GENERAL';
+  eventId: string | null;
+  level: number;
+  amountWei: string;
+};
+
 export type MultilevelRoundResult = {
   roundId: number;
   budgetByCategoryWei: Record<MultilevelCategory, string>;
   entitlements: MultilevelEntitlement[];
   categoryCarryNextWei: Record<MultilevelCategory, string>;
+  generalReturnDetails: MultilevelReturn[];
   generalReturnNextWei: string;
   grossEntitlementsWei: string;
   totalBudgetWei: string;
@@ -169,8 +179,22 @@ export function calculateMultilevelRound(
     leader: (participant * 10n) / 100n + prior.leader,
   };
   const total = participant + prior.onboarding + prior.active + prior.leader;
-  // Fractional parts of the 60:30:10 budget go back to the future general pool.
-  let generalReturn = total - budget.onboarding - budget.active - budget.leader;
+  // Every return is given its own deterministic key for an exactly-once
+  // future return ledger; the total alone is insufficient for auditing.
+  let generalReturn = 0n;
+  const generalReturnDetails: MultilevelReturn[] = [];
+  const returnWei = (category: MultilevelCategory | 'general',
+    reason: MultilevelReturn['reason'], amount: bigint,
+    eventId: string | null = null, level = 0) => {
+    if (amount <= 0n) return;
+    const returnId = [input.roundId,category,eventId ?? 'round',level,reason].join(':');
+    generalReturnDetails.push({
+      returnId,category,reason,eventId,level,amountWei:amount.toString(),
+    });
+    generalReturn += amount;
+  };
+  returnWei('general','ROUNDING_DUST',
+    total - budget.onboarding - budget.active - budget.leader);
   const carry = { ...ZERO };
   const entries: MultilevelEntitlement[] = [];
   let grossTotal = 0n;
@@ -190,7 +214,8 @@ export function calculateMultilevelRound(
   };
   const emptyCategory = (category: MultilevelCategory) => {
     carry[category] += budget[category] / 2n;
-    generalReturn += budget[category] - budget[category] / 2n;
+    returnWei(category,'EMPTY_CATEGORY_GENERAL',
+      budget[category] - budget[category] / 2n);
   };
 
   const ids = new Set<string>();
@@ -204,23 +229,26 @@ export function calculateMultilevelRound(
   ) => {
     if (events.length === 0) { emptyCategory(category); return; }
     const perEvent = budget[category] / BigInt(events.length);
-    generalReturn += budget[category] % BigInt(events.length);
+    returnWei(category,'ROUNDING_DUST',
+      budget[category] % BigInt(events.length));
     for (const event of events) {
-      let awarded = 0n;
+      let splitTotal = 0n;
       LEVEL_WEIGHTS.forEach((weight, i) => {
         const portion = (perEvent * weight) / 100n;
+        splitTotal += portion;
         const ancestor = event.uplines[i];
         // Onboarding level 1 is ALWAYS earned for a valid new user, even
         // if the direct inviter has no vote. Higher levels require activity.
         if (portion > 0n && ancestor?.wallet &&
           ((category === 'onboarding' && i === 0) || ancestor.active)) {
           emit(category, event.eventId, i + 1, ancestor.wallet, portion);
-          awarded += portion;
+        } else if (portion > 0n) {
+          returnWei(category,ancestor?.wallet ? 'INACTIVE_UPLINE' : 'MISSING_UPLINE',
+            portion,event.eventId,i+1);
         }
       });
-      // Missing/inactive levels AND integer rounding are not redistributed
-      // to other ancestors; every Wei returns to the NEXT general pool.
-      generalReturn += perEvent - awarded;
+      // Wei dust from flooring each percentage does not go to ancestors.
+      returnWei(category,'ROUNDING_DUST',perEvent - splitTotal,event.eventId);
     }
   };
   distribute('onboarding', onboardings);
@@ -241,7 +269,7 @@ export function calculateMultilevelRound(
     const winners = [...leaderCounts].filter(([, n]) => n === high)
       .map(([wallet]) => wallet).sort();
     const each = budget.leader / BigInt(winners.length);
-    generalReturn += budget.leader % BigInt(winners.length);
+    returnWei('leader','ROUNDING_DUST',budget.leader % BigInt(winners.length));
     for (const wallet of winners) {
       emit('leader', 'direct-onboarding-leader', 0, wallet, each);
     }
@@ -249,6 +277,12 @@ export function calculateMultilevelRound(
   const nextTotal = generalReturn + grossTotal +
     carry.onboarding + carry.active + carry.leader;
   if (nextTotal !== total) throw new Error('UNBALANCED_REWARD_LEDGER');
+  const returnCheck = generalReturnDetails.reduce(
+    (sum, item) => sum + BigInt(item.amountWei),0n);
+  if (returnCheck !== generalReturn ||
+      new Set(generalReturnDetails.map(item=>item.returnId)).size !== generalReturnDetails.length) {
+    throw new Error('INVALID_RETURN_LEDGER');
+  }
 
   return {
     roundId: input.roundId,
@@ -263,6 +297,7 @@ export function calculateMultilevelRound(
       active: carry.active.toString(),
       leader: carry.leader.toString(),
     },
+    generalReturnDetails,
     generalReturnNextWei: generalReturn.toString(),
     grossEntitlementsWei: grossTotal.toString(),
     totalBudgetWei: total.toString(),
