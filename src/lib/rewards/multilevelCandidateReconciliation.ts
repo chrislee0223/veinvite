@@ -96,11 +96,38 @@ export function reconcileMultilevelActiveCandidate(input:{
   if(!input.roundActiveWallets?.has(activeWallet)) {
     rejectionReasons.push('ACTOR_ACTIVITY_NOT_IN_INDEPENDENT_SET');
   }
+  // A wallet qualifies at the first point where BOTH the rewarded dApp
+  // activity and a vote have happened, NOT at round end. Later reparenting
+  // must never rewrite an earlier reward's ancestors.
+  let completionBlock:number|null=null;
+  if(rechecked.eligible) {
+    const validApps=new Set(rechecked.countedAppIds);
+    let firstRewardBlock=Number.POSITIVE_INFINITY;
+    for(const reward of c.rewardedDapps) {
+      if(validApps.has(reward.appId.toLowerCase()) &&
+        reward.roundId===c.earningRoundId &&
+        reward.blockNumber>=c.dappWindow.startBlock &&
+        reward.blockNumber<=c.dappWindow.endBlock &&
+        /^[1-9][0-9]*$/.test(reward.rewardWei)) {
+        firstRewardBlock=Math.min(firstRewardBlock,reward.blockNumber);
+      }
+    }
+    const voted=c.votes.find(v=>v.txId.toLowerCase()===rechecked.eligibleVoteTxId &&
+      v.roundId===c.earningRoundId &&
+      v.blockNumber>=c.voteWindow.startBlock &&
+      v.blockNumber<=c.voteWindow.endBlock);
+    if(Number.isFinite(firstRewardBlock) && voted) {
+      completionBlock=Math.max(firstRewardBlock,voted.blockNumber);
+    }
+  }
+  if(completionBlock===null) {
+    rejectionReasons.push('COMPLETION_BLOCK_UNVERIFIED');
+  }
   let lineage:FiveLevelSnapshot|null=null;
   try {
     lineage=buildFiveLevelUplineSnapshot({
       wallet:activeWallet,network:c.network,
-      eventBlock:c.voteWindow.endBlock,
+      eventBlock:completionBlock??c.voteWindow.endBlock,
       edges:input.referralEdges,
       roundActiveWallets:input.roundActiveWallets,
     });
@@ -119,6 +146,7 @@ export function reconcileMultilevelActiveCandidate(input:{
     scanRewards:c.rewardedDapps,
     scanVotes:c.votes,
     voteWindow:c.voteWindow,
+    completionBlock,
     ancestry:lineage?.ancestors??null,
     edges:lineage?.edgeIds??null,
   });
