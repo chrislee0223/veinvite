@@ -43,6 +43,8 @@ export type ProposedNewOnboardingReview={
   status:'REVIEW_REQUIRED';payable:false;
   source:'READ_ONLY_ONBOARDING_CROSSCHECK_V1';
   network:string;wallet:string;roundId:number;
+  /** Must match the level-1 ancestor AND the trusted original invitation. */
+  directInviterWallet:string;
   evidenceFingerprint:string;lineage:FiveLevelSnapshot|null;
   structurallyEligible:boolean;rejectionReasons:string[];
 };
@@ -158,6 +160,7 @@ export function reconcileMultilevelOnboardingCandidate(input:{
     status:'REVIEW_REQUIRED',payable:false,
     source:'READ_ONLY_ONBOARDING_CROSSCHECK_V1',
     network:c.network,wallet:c.wallet,roundId:c.earningRoundId,
+    directInviterWallet:n.inviterWallet.toLowerCase(),
     evidenceFingerprint,lineage,
     structurallyEligible:reasons.length===0,rejectionReasons:reasons,
   };
