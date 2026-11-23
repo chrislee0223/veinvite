@@ -8,7 +8,7 @@ import {
 } from '../src/lib/rewards/rewardXPromotionPolicy.ts';
 
 const migration = await readFile(
-  new URL('../supabase/migrations/20261123191000_prepare_x_promotion_withheld_ten_percent_v3.sql',import.meta.url),
+  new URL('../docs/staged-sql/20261123191000_prepare_x_promotion_withheld_ten_percent_v3.sql',import.meta.url),
   'utf8',
 );
 const B3TR = 10n ** 18n;
