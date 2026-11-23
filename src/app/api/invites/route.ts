@@ -10,6 +10,10 @@ import {
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 import {
+  validateDisplayXPromotionSplit,
+  type XPromotionRewardType,
+} from '@/lib/rewards/rewardXPromotionPolicy';
+import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
@@ -57,11 +61,6 @@ type RewardXPromotionSplitRow = {
   base_amount_wei: string;
   promotion_amount_wei: string;
 };
-
-const X_PROMOTION_ADDITIVE_POLICY =
-  'x-promotion-additive-v2';
-const X_PROMOTION_FIXED_BONUS_WEI =
-  10_000_000_000_000_000_000n;
 
 const invitationColumns = `
   invite_code,
@@ -111,6 +110,7 @@ function toInviteRecord(
       ? reservedAmountWei
       : null;
   let promotionAmountWei: string | null = null;
+  let promotionRewardType: XPromotionRewardType | null = null;
 
   if (promotionSplit?.mode === 'LIVE') {
     const splitReservationWei =
@@ -120,16 +120,16 @@ function toInviteRecord(
     const splitPromotionWei =
       exactWeiFromDb(promotionSplit.promotion_amount_wei);
 
+    const verifiedPolicy = validateDisplayXPromotionSplit({
+      policyVersion: promotionSplit.policy_version,
+      grossWei: reservedAmountWei,
+      baseWei: baseAmountWei,
+      promotionWei: splitPromotionWei,
+    });
     if (
       !reservedAmountWei ||
-      promotionSplit.policy_version !==
-        X_PROMOTION_ADDITIVE_POLICY ||
       splitReservationWei !== reservedAmountWei ||
-      !baseAmountWei ||
-      baseAmountWei !== reservedAmountWei ||
-      splitPromotionWei === null ||
-      BigInt(splitPromotionWei) !==
-        X_PROMOTION_FIXED_BONUS_WEI
+      !verifiedPolicy
     ) {
       throw new Error(
         `Invalid LIVE X promotion split for ${row.invite_code}.`,
@@ -138,6 +138,7 @@ function toInviteRecord(
 
     claimAmountWei = baseAmountWei;
     promotionAmountWei = splitPromotionWei;
+    promotionRewardType = verifiedPolicy;
   }
 
   return {
@@ -167,6 +168,9 @@ function toInviteRecord(
       : {}),
     ...(promotionAmountWei !== null
       ? { rewardPromotionAmountWei: promotionAmountWei }
+      : {}),
+    ...(promotionRewardType
+      ? { rewardPromotionType: promotionRewardType }
       : {}),
     ...(rewardQueue?.reserved_at
       ? { rewardReservedAt: rewardQueue.reserved_at }
