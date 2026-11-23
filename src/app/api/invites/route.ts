@@ -103,6 +103,7 @@ function toInviteRecord(
   promotionSplit?: RewardXPromotionSplitRow,
   promotionLookupAvailable = false,
   policyCutoverAt: string | null = null,
+  policySunsetAt: string | null = null,
 ): InviteRecord {
   const reservedAmountWei =
     exactWeiFromDb(rewardQueue?.reserved_amount_wei);
@@ -120,6 +121,7 @@ function toInviteRecord(
     reservedAmountWei &&
     policyCutoverAt &&
     Date.parse(row.created_at) >= Date.parse(policyCutoverAt) &&
+    (!policySunsetAt || Date.parse(row.created_at) < Date.parse(policySunsetAt)) &&
     !promotionSplit
   ) {
     throw new Error('REWARD_X_V3_LIVE_SPLIT_MISSING');
@@ -328,14 +330,14 @@ export async function GET(request: NextRequest) {
           .eq('mode', 'LIVE'),
         supabaseAdmin
           .from('reward_runtime_config')
-          .select('reward_x_promotion_v3_cutover_at')
+          .select('reward_x_promotion_v3_cutover_at,reward_x_promotion_v3_sunset_at')
           .eq('id', 1)
           .single(),
       ])
     : [
         { data: [] as RewardQueueRow[], error: null },
         { data: [] as RewardXPromotionSplitRow[], error: null },
-        { data: { reward_x_promotion_v3_cutover_at: null }, error: null },
+        { data: { reward_x_promotion_v3_cutover_at: null, reward_x_promotion_v3_sunset_at: null }, error: null },
       ];
 
   if (queueResult.error) {
@@ -350,6 +352,10 @@ export async function GET(request: NextRequest) {
   const policyCutoverAt =
     promotionLookupAvailable
       ? policyConfigResult.data?.reward_x_promotion_v3_cutover_at ?? null
+      : null;
+  const policySunsetAt =
+    promotionLookupAvailable
+      ? policyConfigResult.data?.reward_x_promotion_v3_sunset_at ?? null
       : null;
   if (policyConfigResult.error) {
     console.warn('Reward policy display lookup unavailable:', policyConfigResult.error);
@@ -395,6 +401,7 @@ export async function GET(request: NextRequest) {
         promotionSplitByInvite.get(invitation.invite_code),
         promotionLookupAvailable,
         policyCutoverAt,
+        policySunsetAt,
       );
     } catch (rewardError) {
       console.error(
