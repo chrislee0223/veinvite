@@ -83,7 +83,7 @@ export function deriveMissionAutoReset(
 
   if (!validRound(current) || (original !== null && !validRound(original)) ||
       (latest !== null && !validRound(latest)) ||
-      (original !== null && current < original)) {
+      (original !== null && (!validRound(original + 1) || current < original))) {
     return result('INVALID');
   }
 
