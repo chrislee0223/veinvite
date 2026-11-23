@@ -68,7 +68,7 @@ test('home displays the actual full claim amount while keeping promotion separat
   );
   assert.match(
     home,
-    /rewardPromotionAmountWei[\s\S]*rewardPromotionType === 'WITHHELD'/,
+    /rewardPromotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
   );
   assert.match(
     home,
@@ -91,7 +91,7 @@ test('restricted reward claims also display core and promotion separately', () =
   );
   assert.match(
     restricted,
-    /action\.promotionAmountWei[\s\S]*action\.promotionRewardType === 'WITHHELD'/,
+    /action\.promotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
   );
 });
 
@@ -104,6 +104,13 @@ test('unresolved promotion enrichment never guesses the immediate claim amount f
     restricted,
     /claimAmountWei \?\?[\s\S]*reservedAmountWei/,
   );
+});
+
+test('claim UI never reveals the private percentage policy', () => {
+  for (const source of [home, restricted]) {
+    assert.doesNotMatch(source, /X 10%|10% ·|90[:/]10/);
+    assert.match(source, /X \+\{promotionAmount\} B3TR/);
+  }
 });
 
 test('display-only wiring cannot enable X promotion or payouts', () => {
