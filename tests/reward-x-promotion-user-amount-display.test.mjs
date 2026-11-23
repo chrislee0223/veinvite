@@ -68,7 +68,7 @@ test('home displays the actual full claim amount while keeping promotion separat
   );
   assert.match(
     home,
-    /rewardPromotionAmountWei[\\s\\S]*rewardPromotionType === 'WITHHELD'/,
+    /rewardPromotionAmountWei[\s\S]*rewardPromotionType === 'WITHHELD'/,
   );
   assert.match(
     home,
@@ -91,7 +91,7 @@ test('restricted reward claims also display core and promotion separately', () =
   );
   assert.match(
     restricted,
-    /action\\.promotionAmountWei[\\s\\S]*action\\.promotionRewardType === 'WITHHELD'/,
+    /action\.promotionAmountWei[\s\S]*action\.promotionRewardType === 'WITHHELD'/,
   );
 });
 
