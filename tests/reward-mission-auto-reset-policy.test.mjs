@@ -84,6 +84,8 @@ test('old invitations without entry proof and unverifiable boundaries fail close
   }
   assert.equal(decide({...base,latestAttemptDappRoundId:125}).state,'INVALID');
   assert.equal(decide({...base,currentRoundId:123}).state,'INVALID');
+  assert.equal(decide({...base,originalDappRoundId:Number.MAX_SAFE_INTEGER,
+    currentRoundId:Number.MAX_SAFE_INTEGER}).state,'INVALID');
 });
 
 test('new attempt counting does not mutate or release the original friend slot', () => {
