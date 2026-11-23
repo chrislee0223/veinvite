@@ -61,7 +61,7 @@ test('database computes withheld v3 exact integer floor and preserves legacy cal
   assert.match(migration,/v_gross-v_x,v_x,1000,v_gross/);
   assert.match(migration,/calculate_reward_x_promotion_additive_v2/);
   assert.match(migration,/reward_x_promotion_policy_for_invitation_v3/);
-  assert.match(migration,/i\.created_at>=v_cutover/);
+  assert.match(migration,/v_created_at>=v_cutover/);
 });
 
 test('new-v3 split failure must fail closed, never fall back to a full-gross payout', () => {
