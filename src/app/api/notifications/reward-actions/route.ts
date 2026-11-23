@@ -174,13 +174,16 @@ export async function GET(request: NextRequest) {
 
     const policyConfigResult = await supabaseAdmin
       .from('reward_runtime_config')
-      .select('reward_x_promotion_v3_cutover_at')
+      .select('reward_x_promotion_v3_cutover_at,reward_x_promotion_v3_sunset_at')
       .eq('id', 1)
       .single();
     const promotionLookupAvailable =
       promotionResult.error === null && policyConfigResult.error === null;
     const policyCutoverAt = promotionLookupAvailable
       ? policyConfigResult.data?.reward_x_promotion_v3_cutover_at ?? null
+      : null;
+    const policySunsetAt = promotionLookupAvailable
+      ? policyConfigResult.data?.reward_x_promotion_v3_sunset_at ?? null
       : null;
     if (policyConfigResult.error) {
       console.warn('Notification reward policy lookup unavailable:', policyConfigResult.error);
@@ -286,7 +289,8 @@ export async function GET(request: NextRequest) {
       if (
         promotionLookupAvailable && amount && !promotionSplit &&
         policyCutoverAt && invitation?.created_at &&
-        Date.parse(invitation.created_at) >= Date.parse(policyCutoverAt)
+        Date.parse(invitation.created_at) >= Date.parse(policyCutoverAt) &&
+        (!policySunsetAt || Date.parse(invitation.created_at) < Date.parse(policySunsetAt))
       ) {
         console.error('New-policy reward split missing:', queue.invite_code);
         if (queue.status === 'AWAITING_CLAIM') return [];
