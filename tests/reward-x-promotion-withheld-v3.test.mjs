@@ -8,7 +8,7 @@ import {
 } from '../src/lib/rewards/rewardXPromotionPolicy.ts';
 
 const migration = await readFile(
-  new URL('../docs/staged-sql/20261123191000_prepare_x_promotion_withheld_ten_percent_v3.sql',import.meta.url),
+  new URL('../supabase/migrations/20261123104442_prepare_x_promotion_withheld_ten_percent_v3.sql',import.meta.url),
   'utf8',
 );
 const B3TR = 10n ** 18n;
@@ -87,7 +87,7 @@ test('staged SQL must not itself activate v3 or mutate existing reward receipts'
 
 
 const sunsetSql = await readFile(
-  new URL('../docs/staged-sql/20261123194500_add_x_promotion_v3_safe_sunset_rollback.sql', import.meta.url),'utf8',
+  new URL('../supabase/migrations/20261123104509_add_x_promotion_v3_safe_sunset_rollback.sql', import.meta.url),'utf8',
 );
 const inviteApi = await readFile(
   new URL('../src/app/api/invites/route.ts', import.meta.url),'utf8',
