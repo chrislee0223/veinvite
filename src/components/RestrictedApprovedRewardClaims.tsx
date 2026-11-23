@@ -331,7 +331,7 @@ export function RestrictedApprovedRewardClaims({
             {waiting ? (
               <button
                 type="button"
-                disabled={Boolean(claimPendingCode)}
+                disabled={Boolean(claimPendingCode) || !action.claimAmountWei}
                 onClick={() => {
                   void claimReward(action);
                 }}
