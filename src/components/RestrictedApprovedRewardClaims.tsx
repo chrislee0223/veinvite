@@ -310,7 +310,9 @@ export function RestrictedApprovedRewardClaims({
                     fontWeight: 800,
                   }}
                 >
-                  X +{promotionAmount} B3TR
+                  {action.promotionRewardType === 'WITHHELD'
+                     ? 'X 10% · '
+                     : 'X +'}{promotionAmount} B3TR
                 </span>
               ) : null}
               <small
@@ -329,7 +331,7 @@ export function RestrictedApprovedRewardClaims({
             {waiting ? (
               <button
                 type="button"
-                disabled={Boolean(claimPendingCode)}
+                disabled={Boolean(claimPendingCode) || !action.claimAmountWei}
                 onClick={() => {
                   void claimReward(action);
                 }}

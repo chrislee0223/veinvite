@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const policyHelper = await readFile(
+  new URL('../src/lib/rewards/rewardXPromotionPolicy.ts', import.meta.url),
+  'utf8',
+);
 const actionType = await readFile(
   new URL('../src/lib/notifications/rewardAction.ts', import.meta.url),
   'utf8',
@@ -23,42 +27,21 @@ const homeHelpers = await readFile(
   'utf8',
 );
 
-test('reward actions expose full core reservation plus the fixed additive X bonus', () => {
+test('reward actions display immutable gross, payable base, X amount and policy type', () => {
   assert.match(actionType, /reservedAmountWei: string/);
   assert.match(actionType, /claimAmountWei\?: string/);
   assert.match(actionType, /promotionAmountWei\?: string/);
-  assert.match(
-    actionRoute,
-    /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/,
-  );
-  assert.match(actionRoute, /policy_version/);
-  assert.match(actionRoute, /x-promotion-additive-v2/);
-  assert.match(
-    actionRoute,
-    /splitReservationWei === amount[\s\S]*baseAmountWei === amount[\s\S]*BigInt\(splitPromotionWei\)[\s\S]*X_PROMOTION_FIXED_BONUS_WEI/,
-  );
-  assert.doesNotMatch(
-    actionRoute,
-    /BigInt\(baseAmountWei\)\s*\+[\s\S]*BigInt\(splitPromotionWei\)[\s\S]*BigInt\(amount\)/,
-  );
-  assert.match(
-    actionRoute,
-    /reservedAmountWei: amount,[\s\S]*claimAmountWei[\s\S]*promotionAmountWei/,
-  );
+  assert.match(actionType, /promotionRewardType\?: 'ADDITIVE' \| 'WITHHELD'/);
+  assert.match(actionRoute, /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/);
+  assert.match(actionRoute, /validateDisplayXPromotionSplit/);
+  assert.match(actionRoute, /splitReservationWei === amount/);
+  assert.match(actionRoute, /reservedAmountWei: amount,[\s\S]*claimAmountWei[\s\S]*promotionAmountWei/);
 });
-
-test('malformed or unknown LIVE split semantics fail closed', () => {
-  assert.match(
-    actionRoute,
-    /Invalid LIVE X promotion split in reward action display/,
-  );
-  assert.match(
-    actionRoute,
-    /promotionSplit\.policy_version ===[\s\S]*X_PROMOTION_ADDITIVE_POLICY/,
-  );
-  assert.match(actionRoute, /10_000_000_000_000_000_000n/);
+test('unknown or malformed LIVE split semantics fail closed', () => {
+  assert.match(actionRoute, /Invalid LIVE X promotion split in reward action display/);
+  assert.match(policyHelper, /X_PROMOTION_ADDITIVE_POLICY/);
+  assert.match(policyHelper, /X_PROMOTION_WITHHELD_POLICY/);
 });
-
 test('optional X promotion lookup failure cannot remove the core reward action list', () => {
   assert.match(
     actionRoute,
@@ -85,7 +68,7 @@ test('home displays the actual full claim amount while keeping promotion separat
   );
   assert.match(
     home,
-    /rewardPromotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
+    /rewardPromotionAmountWei[\s\S]*rewardPromotionType === 'WITHHELD'/,
   );
   assert.match(
     home,
@@ -108,7 +91,7 @@ test('restricted reward claims also display core and promotion separately', () =
   );
   assert.match(
     restricted,
-    /action\.promotionAmountWei[\s\S]*X \+\{promotionAmount\} B3TR/,
+    /action\.promotionAmountWei[\s\S]*action\.promotionRewardType === 'WITHHELD'/,
   );
 });
 

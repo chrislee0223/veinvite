@@ -9,6 +9,7 @@ export type RewardActionItem = {
   reservedAmountWei: string;
   claimAmountWei?: string;
   promotionAmountWei?: string;
+  promotionRewardType?: 'ADDITIVE' | 'WITHHELD';
   reservedAt: string;
   friendWallet: string | null;
   broadcastConfirmedAt: string | null;

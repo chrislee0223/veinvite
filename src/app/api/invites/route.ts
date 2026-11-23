@@ -10,6 +10,10 @@ import {
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 import {
+  validateDisplayXPromotionSplit,
+  type XPromotionRewardType,
+} from '@/lib/rewards/rewardXPromotionPolicy';
+import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
@@ -58,11 +62,6 @@ type RewardXPromotionSplitRow = {
   promotion_amount_wei: string;
 };
 
-const X_PROMOTION_ADDITIVE_POLICY =
-  'x-promotion-additive-v2';
-const X_PROMOTION_FIXED_BONUS_WEI =
-  10_000_000_000_000_000_000n;
-
 const invitationColumns = `
   invite_code,
   inviter_wallet,
@@ -103,6 +102,8 @@ function toInviteRecord(
   rewardQueue?: RewardQueueRow,
   promotionSplit?: RewardXPromotionSplitRow,
   promotionLookupAvailable = false,
+  policyCutoverAt: string | null = null,
+  policySunsetAt: string | null = null,
 ): InviteRecord {
   const reservedAmountWei =
     exactWeiFromDb(rewardQueue?.reserved_amount_wei);
@@ -111,6 +112,20 @@ function toInviteRecord(
       ? reservedAmountWei
       : null;
   let promotionAmountWei: string | null = null;
+  let promotionRewardType: XPromotionRewardType | null = null;
+
+  // A new-policy referral must never expose a gross payout if its
+  // mandatory 90/10 split is absent or delayed.
+  if (
+    promotionLookupAvailable &&
+    reservedAmountWei &&
+    policyCutoverAt &&
+    Date.parse(row.created_at) >= Date.parse(policyCutoverAt) &&
+    (!policySunsetAt || Date.parse(row.created_at) < Date.parse(policySunsetAt)) &&
+    !promotionSplit
+  ) {
+    throw new Error('REWARD_X_V3_LIVE_SPLIT_MISSING');
+  }
 
   if (promotionSplit?.mode === 'LIVE') {
     const splitReservationWei =
@@ -120,16 +135,16 @@ function toInviteRecord(
     const splitPromotionWei =
       exactWeiFromDb(promotionSplit.promotion_amount_wei);
 
+    const verifiedPolicy = validateDisplayXPromotionSplit({
+      policyVersion: promotionSplit.policy_version,
+      grossWei: reservedAmountWei,
+      baseWei: baseAmountWei,
+      promotionWei: splitPromotionWei,
+    });
     if (
       !reservedAmountWei ||
-      promotionSplit.policy_version !==
-        X_PROMOTION_ADDITIVE_POLICY ||
       splitReservationWei !== reservedAmountWei ||
-      !baseAmountWei ||
-      baseAmountWei !== reservedAmountWei ||
-      splitPromotionWei === null ||
-      BigInt(splitPromotionWei) !==
-        X_PROMOTION_FIXED_BONUS_WEI
+      !verifiedPolicy
     ) {
       throw new Error(
         `Invalid LIVE X promotion split for ${row.invite_code}.`,
@@ -138,6 +153,7 @@ function toInviteRecord(
 
     claimAmountWei = baseAmountWei;
     promotionAmountWei = splitPromotionWei;
+    promotionRewardType = verifiedPolicy;
   }
 
   return {
@@ -167,6 +183,9 @@ function toInviteRecord(
       : {}),
     ...(promotionAmountWei !== null
       ? { rewardPromotionAmountWei: promotionAmountWei }
+      : {}),
+    ...(promotionRewardType
+      ? { rewardPromotionType: promotionRewardType }
       : {}),
     ...(rewardQueue?.reserved_at
       ? { rewardReservedAt: rewardQueue.reserved_at }
@@ -294,7 +313,7 @@ export async function GET(request: NextRequest) {
 
   const invitationRows = toInvitationRows(data).filter(isUserVisibleInvite);
   const inviteCodes = invitationRows.map((invitation) => invitation.invite_code);
-  const [queueResult, promotionResult] = inviteCodes.length > 0
+  const [queueResult, promotionResult, policyConfigResult] = inviteCodes.length > 0
     ? await Promise.all([
         supabaseAdmin
           .from('reward_queue_entries')
@@ -309,10 +328,16 @@ export async function GET(request: NextRequest) {
           )
           .in('invite_code', inviteCodes)
           .eq('mode', 'LIVE'),
+        supabaseAdmin
+          .from('reward_runtime_config')
+          .select('reward_x_promotion_v3_cutover_at,reward_x_promotion_v3_sunset_at')
+          .eq('id', 1)
+          .single(),
       ])
     : [
         { data: [] as RewardQueueRow[], error: null },
         { data: [] as RewardXPromotionSplitRow[], error: null },
+        { data: { reward_x_promotion_v3_cutover_at: null, reward_x_promotion_v3_sunset_at: null }, error: null },
       ];
 
   if (queueResult.error) {
@@ -323,7 +348,18 @@ export async function GET(request: NextRequest) {
     );
   }
   const promotionLookupAvailable =
-    promotionResult.error === null;
+    promotionResult.error === null && policyConfigResult.error === null;
+  const policyCutoverAt =
+    promotionLookupAvailable
+      ? policyConfigResult.data?.reward_x_promotion_v3_cutover_at ?? null
+      : null;
+  const policySunsetAt =
+    promotionLookupAvailable
+      ? policyConfigResult.data?.reward_x_promotion_v3_sunset_at ?? null
+      : null;
+  if (policyConfigResult.error) {
+    console.warn('Reward policy display lookup unavailable:', policyConfigResult.error);
+  }
 
   if (promotionResult.error) {
     // X promotion display enrichment is intentionally fail-soft. Core invite
@@ -364,6 +400,8 @@ export async function GET(request: NextRequest) {
         rewardQueueByInvite.get(invitation.invite_code),
         promotionSplitByInvite.get(invitation.invite_code),
         promotionLookupAvailable,
+        policyCutoverAt,
+        policySunsetAt,
       );
     } catch (rewardError) {
       console.error(

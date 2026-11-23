@@ -6,12 +6,16 @@ const inviteRoute = await readFile(
   new URL('../src/app/api/invites/route.ts', import.meta.url),
   'utf8',
 );
+const policyHelper = await readFile(
+  new URL('../src/lib/rewards/rewardXPromotionPolicy.ts', import.meta.url),
+  'utf8',
+);
 const sharedTypes = await readFile(
   new URL('../src/lib/types.ts', import.meta.url),
   'utf8',
 );
 
-test('invite API preserves the full immutable referral reward and exposes the additive X bonus separately', () => {
+test('invite API retains gross, claim, promotion and per-invite policy separately', () => {
   assert.match(inviteRoute, /rewardReservedAmountWei: reservedAmountWei/);
   assert.match(inviteRoute, /rewardClaimAmountWei: claimAmountWei/);
   assert.match(inviteRoute, /rewardPromotionAmountWei: promotionAmountWei/);
@@ -20,7 +24,9 @@ test('invite API preserves the full immutable referral reward and exposes the ad
     /from\('reward_x_promotion_splits'\)[\s\S]*\.eq\('mode', 'LIVE'\)/,
   );
   assert.match(inviteRoute, /policy_version/);
-  assert.match(inviteRoute, /x-promotion-additive-v2/);
+  assert.match(inviteRoute, /validateDisplayXPromotionSplit/);
+  assert.match(policyHelper, /x-promotion-additive-v2/);
+  assert.match(policyHelper, /x-promotion-withheld-10pct-v3/);
 });
 
 test('legacy and unsplit rows still resolve the core claim to the fixed reservation when enrichment succeeds', () => {
@@ -31,21 +37,11 @@ test('legacy and unsplit rows still resolve the core claim to the fixed reservat
   assert.match(inviteRoute, /if \(promotionSplit\?\.mode === 'LIVE'\)/);
 });
 
-test('LIVE additive-v2 split requires base equal to reservation and a fixed 10 B3TR bonus', () => {
-  assert.match(
-    inviteRoute,
-    /promotionSplit\.policy_version !==[\s\S]*X_PROMOTION_ADDITIVE_POLICY/,
-  );
-  assert.match(inviteRoute, /baseAmountWei !== reservedAmountWei/);
-  assert.match(
-    inviteRoute,
-    /BigInt\(splitPromotionWei\) !==[\s\S]*X_PROMOTION_FIXED_BONUS_WEI/,
-  );
-  assert.match(inviteRoute, /10_000_000_000_000_000_000n/);
-  assert.doesNotMatch(
-    inviteRoute,
-    /BigInt\(baseAmountWei\) \+ BigInt\(splitPromotionWei\)[\s\S]*BigInt\(reservedAmountWei\)/,
-  );
+test('both persisted X policies are validated with BigInt before displaying claim amounts', () => {
+  assert.match(inviteRoute, /validateDisplayXPromotionSplit/);
+  assert.match(policyHelper, /base === gross && promotion === X_PROMOTION_FIXED_BONUS_WEI/);
+  assert.match(policyHelper, /base \+ promotion === gross && promotion === gross \/ 10n/);
+  assert.match(policyHelper, /return null;/);
 });
 
 test('unknown or malformed LIVE split semantics fail closed instead of altering the core display', () => {
@@ -80,6 +76,7 @@ test('shared client type keeps reservation, core claim and optional promotion fi
   assert.match(sharedTypes, /rewardReservedAmountWei\?: string/);
   assert.match(sharedTypes, /rewardClaimAmountWei\?: string/);
   assert.match(sharedTypes, /rewardPromotionAmountWei\?: string/);
+  assert.match(sharedTypes, /rewardPromotionType\?: 'ADDITIVE' \| 'WITHHELD'/);
 });
 
 test('user-contract display code cannot enable X promotion or payouts', () => {
