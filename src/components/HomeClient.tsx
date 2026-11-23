@@ -1164,11 +1164,7 @@ export function HomeClient({ initialRewardForecast = null }: {
                         </small>
                         <strong>{progressCopy.fixedReward} · {claimAmount} B3TR</strong>
                         {promotionAmount ? (
-                          <span className="rewardAdjustmentMeta">
-                             {invite.rewardPromotionType === 'WITHHELD'
-                               ? 'X 10% · '
-                               : 'X +'}{promotionAmount} B3TR
-                           </span>
+                          <span className="rewardAdjustmentMeta">X {invite.rewardPromotionType === 'WITHHELD' ? '10% · ' : '+'}{promotionAmount} B3TR</span>
                         ) : null}
                         {recoveryOffset ? (
                           <span className="rewardAdjustmentMeta">
