@@ -37,6 +37,7 @@ export interface InviteRecord {
   rewardReservedAmountWei?: string;
   rewardClaimAmountWei?: string;
   rewardPromotionAmountWei?: string;
+  rewardPromotionType?: 'ADDITIVE' | 'WITHHELD';
   rewardReservedAt?: string;
   rewardRecoveryOffsetWei?: string;
   appsCompleted?: number;
