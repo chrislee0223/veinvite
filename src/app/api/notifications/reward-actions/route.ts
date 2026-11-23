@@ -55,6 +55,7 @@ type RewardXPromotionSplitRow = {
 
 type InvitationRow = {
   invite_code: string;
+  created_at: string;
   invitee_wallet: string | null;
   inviter_wallet: string;
   status: string;
@@ -145,7 +146,7 @@ export async function GET(request: NextRequest) {
     const invitationResult = await supabaseAdmin
       .from('invitations')
       .select(
-        'invite_code, invitee_wallet, inviter_wallet, status, reward_status, reward_eligible_at, sybil_status, sybil_checked_at',
+        'invite_code, created_at, invitee_wallet, inviter_wallet, status, reward_status, reward_eligible_at, sybil_status, sybil_checked_at',
       )
       .eq('inviter_wallet', walletAddress)
       .in('invite_code', inviteCodes);
@@ -171,8 +172,19 @@ export async function GET(request: NextRequest) {
       .in('invite_code', inviteCodes)
       .eq('mode', 'LIVE');
 
+    const policyConfigResult = await supabaseAdmin
+      .from('reward_runtime_config')
+      .select('reward_x_promotion_v3_cutover_at')
+      .eq('id', 1)
+      .single();
     const promotionLookupAvailable =
-      promotionResult.error === null;
+      promotionResult.error === null && policyConfigResult.error === null;
+    const policyCutoverAt = promotionLookupAvailable
+      ? policyConfigResult.data?.reward_x_promotion_v3_cutover_at ?? null
+      : null;
+    if (policyConfigResult.error) {
+      console.warn('Notification reward policy lookup unavailable:', policyConfigResult.error);
+    }
 
     if (promotionResult.error) {
       console.warn(
@@ -270,6 +282,16 @@ export async function GET(request: NextRequest) {
 
       const promotionSplit =
         promotionSplitByInvite.get(queue.invite_code);
+
+      if (
+        promotionLookupAvailable && amount && !promotionSplit &&
+        policyCutoverAt && invitation?.created_at &&
+        Date.parse(invitation.created_at) >= Date.parse(policyCutoverAt)
+      ) {
+        console.error('New-policy reward split missing:', queue.invite_code);
+        if (queue.status === 'AWAITING_CLAIM') return [];
+        claimAmountWei = null;
+      }
 
       if (promotionSplit?.mode === 'LIVE' && amount) {
         const splitReservationWei =
