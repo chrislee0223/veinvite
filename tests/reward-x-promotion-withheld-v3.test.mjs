@@ -84,3 +84,32 @@ test('staged SQL must not itself activate v3 or mutate existing reward receipts'
   assert.doesNotMatch(migration,/delete\s+from\s+public\.reward_/i);
   assert.doesNotMatch(migration,/update\s+public\.reward_receipts/i);
 });
+
+
+const sunsetSql = await readFile(
+  new URL('../docs/staged-sql/20261123194500_add_x_promotion_v3_safe_sunset_rollback.sql', import.meta.url),'utf8',
+);
+const inviteApi = await readFile(
+  new URL('../src/app/api/invites/route.ts', import.meta.url),'utf8',
+);
+const actionApi = await readFile(
+  new URL('../src/app/api/notifications/reward-actions/route.ts', import.meta.url),'utf8',
+);
+
+test('post-cutover rollback ends only new invitations and preserves prior v3 policies',()=>{
+  assert.match(sunsetSql,/reward_x_promotion_v3_sunset_at/);
+  assert.match(sunsetSql,/REWARD_X_V3_SUNSET_REQUIRED_FOR_ROLLBACK/);
+  assert.match(sunsetSql,/v_created_at>=v_cutover and \(v_sunset is null or v_created_at<v_sunset\)/);
+  assert.match(sunsetSql,/REWARD_X_V3_CANNOT_REOPEN_AFTER_SUNSET/);
+});
+
+test('Claim endpoints fail closed on missing split only during the v3 enrollment window',()=>{
+  for(const src of [inviteApi,actionApi]){
+    assert.match(src,/reward_x_promotion_v3_cutover_at,reward_x_promotion_v3_sunset_at/);
+    assert.match(src,/Date\.parse\(/);
+    assert.match(src,/policySunsetAt/);
+    assert.match(src,/!promotionSplit/);
+  }
+  assert.match(inviteApi,/REWARD_X_V3_LIVE_SPLIT_MISSING/);
+  assert.match(actionApi,/New-policy reward split missing/);
+});
