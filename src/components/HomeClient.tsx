@@ -1176,7 +1176,7 @@ export function HomeClient({ initialRewardForecast = null }: {
                         <button
                           type="button"
                           className="claimButton"
-                          disabled={Boolean(claimPendingCode)}
+                          disabled={Boolean(claimPendingCode) || !invite.rewardClaimAmountWei}
                           onClick={() => void claimReward(invite)}
                         >
                           {pending ? progressCopy.claiming : progressCopy.claimReward}
