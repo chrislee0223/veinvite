@@ -8,6 +8,7 @@ import {
   normalizeAddress,
 } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readMissionAttemptDisplays, applyAttemptDisplay } from '@/lib/rewards/missionAutoResetDisplay';
 import { exactWeiFromDb } from '@/lib/rewards/exactWei';
 import {
   validateDisplayXPromotionSplit,
@@ -311,7 +312,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const invitationRows = toInvitationRows(data).filter(isUserVisibleInvite);
+  const visibleRows = toInvitationRows(data).filter(isUserVisibleInvite);
+  let invitationRows: InvitationRow[];
+  try {
+    const attempts = await readMissionAttemptDisplays(visibleRows);
+    invitationRows = visibleRows.map(row => applyAttemptDisplay(row, attempts.get(row.invite_code)));
+  } catch (error) {
+    console.error('Failed to load effective mission progress:', error);
+    return NextResponse.json({ error: 'Failed to load invitation progress.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
   const inviteCodes = invitationRows.map((invitation) => invitation.invite_code);
   const [queueResult, promotionResult, policyConfigResult] = inviteCodes.length > 0
     ? await Promise.all([
