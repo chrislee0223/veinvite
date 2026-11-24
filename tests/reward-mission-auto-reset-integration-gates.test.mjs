@@ -15,10 +15,10 @@ const groups = read('src/lib/notifications/notificationPresentationGroups.ts');
 test('attempt scanner only reads exact N dApp events and N+1 voting events', () => {
   assert.match(activity,/checkedBlock\?: number/);
   assert.match(activity,/to: scanEndBlock/);
-  assert.match(reader,/checkedBlock: dappRound\.voteEndBlock/);
+  assert.match(reader,/checkedBlock: Math\.min\(dappRound\.voteEndBlock, finalizedBlock\)/);
   assert.match(reader,/expectedRoundId: voteRoundId/);
   assert.match(reader,/checkedFromBlock: voteRound\.voteStartBlock/);
-  assert.match(reader,/checkedThroughBlock: voteRound\.voteEndBlock/);
+  assert.match(reader,/checkedThroughBlock: Math\.min\(voteRound\.voteEndBlock, finalizedBlock\)/);
   assert.match(reader,/verifyMissionAttemptProof\(/);
   assert.match(voting,/if \(expectedRoundId !== undefined && roundId !== expectedRoundId\)/);
   assert.doesNotMatch(reader,/commit_reward_shared_pool_v1|\.update\(|\.insert\(/);
@@ -45,4 +45,21 @@ test('auto-reset SQL is disabled and cannot overwrite any invitation or financia
   assert.doesNotMatch(stagedSql,/update public\.reward_queue_entries/i);
   assert.doesNotMatch(stagedSql,/update public\.reward_payouts/i);
   assert.doesNotMatch(stagedSql,/update reward_admission_bridge\.shared_pool_settings/i);
+});
+
+test('authenticated invite views and network slots share the durable attempt projection', () => {
+  const display = read('src/lib/rewards/missionAutoResetDisplay.ts');
+  const detail = read('src/app/api/invites/[code]/route.ts');
+  const list = read('src/app/api/invites/route.ts');
+  const slots = read('src/app/api/network/slots/route.ts');
+  const worker = read('src/lib/rewards/missionAutoResetSweep.ts');
+  assert.match(display,/VEINVITE_MISSION_AUTO_RESET_READY !== 'true'/);
+  assert.match(display,/read_mission_auto_reset_progress_v1/);
+  assert.match(detail,/canReadDetails\s*\? \(await readMissionAttemptDisplays\(\[row\]\)\)/);
+  assert.match(detail,/attemptDetailProgress\(attempt\)/);
+  assert.match(list,/applyAttemptDisplay\(row, attempts.get\(row.invite_code\)\)/);
+  assert.match(slots,/applyAttemptDisplay\(row, attempts.get\(row.invite_code\)\)/);
+  assert.match(worker,/record_mission_auto_reset_progress_v1/);
+  assert.match(worker,/p_events: proof.events/);
+  assert.match(reader,/getBlockCompressed\('finalized'\)/);
 });
