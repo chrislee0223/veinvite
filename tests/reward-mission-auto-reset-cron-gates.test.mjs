@@ -9,8 +9,10 @@ const migration=src('docs/staged-sql/20261124_mission_auto_reset_staged_disabled
 const ack=src('docs/staged-sql/20261124_mission_reset_invitee_ack_v1.sql');
 const runtimeConfig=src('vercel.json');
 
-test('new work cannot start from a user click or a single Production flag',()=>{
-  assert.match(worker,/VEINVITE_MISSION_AUTO_RESET_READY !== 'true'/);
+test('new work requires reviewed schema readiness, no explicit pause, and the DB enable switch',()=>{
+  assert.match(worker,/if \(!missionAutoResetSchemaReady\(\) \|\| process\.env\.VEINVITE_MISSION_AUTO_RESET_READY === 'false'\)/);
+  assert.ok(worker.indexOf('if (!missionAutoResetSchemaReady()') < worker.indexOf("'read_mission_auto_reset_settings_v1'"));
+  assert.ok(worker.indexOf('if (!settings.enabled)') < worker.indexOf('const round = await readVeBetterRoundWindow()'));
   assert.match(worker,/read_mission_auto_reset_settings_v1/);
   assert.match(worker,/if \(!settings\.enabled\)/);
   assert.match(worker,/try_acquire_operator_lock/);
