@@ -196,20 +196,23 @@ BEGIN
   END IF;
   v_target := v_first_reset +
     2 * ((p_expected_current_round_id - v_first_reset) / 2);
-  v_prev_vote_round := coalesce(v_prior.dapp_round_id,
-                                v_inv.reward_cohort_round_id) + 1;
   IF v_target <> p_target_dapp_round_id OR
-     p_expected_current_round_id NOT IN(v_target,v_target+1) OR
-     v_prev_vote_round >= v_target THEN
+     p_expected_current_round_id NOT IN(v_target,v_target+1) THEN
     RETURN jsonb_build_object('started',false,'reason','ATTEMPT_ROUND_MISMATCH');
   END IF;
 
   IF v_prior.id IS NOT NULL AND v_prior.state='FINISHED' THEN
     RETURN jsonb_build_object('started',false,'reason','PREVIOUS_ATTEMPT_PROTECTED');
   END IF;
+  -- Idempotent retries must be checked BEFORE previous-window expiry checks.
   IF v_prior.id IS NOT NULL AND v_prior.dapp_round_id = v_target THEN
     RETURN jsonb_build_object('started',false,'reason','ALREADY_RESET',
       'attemptNo',v_prior.attempt_no,'dappRoundId',v_target);
+  END IF;
+  v_prev_vote_round := coalesce(v_prior.dapp_round_id,
+                                v_inv.reward_cohort_round_id) + 1;
+  IF v_prev_vote_round >= v_target THEN
+    RETURN jsonb_build_object('started',false,'reason','ATTEMPT_ROUND_MISMATCH');
   END IF;
   IF v_prior.id IS NOT NULL AND
      (v_prior.dapp_round_id >= v_target OR v_prior.state<>'ACTIVE') THEN
