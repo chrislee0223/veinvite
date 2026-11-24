@@ -45,8 +45,9 @@ SET search_path TO pg_catalog,public,reward_admission_bridge
 AS $guard$
 DECLARE revision bigint;
 BEGIN
- IF (new.status IS DISTINCT FROM old.status OR new.reward_status IS DISTINCT FROM old.reward_status)
-  AND (new.status='COMPLETED' OR new.reward_status='ELIGIBLE')
+ -- Only gate a NEW admission, not a later canonical PAID transition.
+ IF ((new.status='COMPLETED' AND old.status IS DISTINCT FROM 'COMPLETED')
+      OR (new.reward_status='ELIGIBLE' AND old.reward_status IS DISTINCT FROM 'ELIGIBLE'))
   AND EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 a
     WHERE a.invitation_id=new.id AND a.network=new.activation_network)
  THEN
@@ -61,6 +62,23 @@ BEGIN
       new.identity_link_checked_at,new.vote_completed_at,new.identity_link_policy_version,
       new.identity_link_evidence),false)
    THEN RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_PAYOUT_NOT_ENABLED'; END IF;
+ END IF;
+ -- The immutable payout is already reserved and the slot released at this
+ -- point. Require its finalized receipt rather than re-running admission.
+ -- This remains enforced even if auto-reset is paused after reservation.
+ IF new.reward_status='PAID' AND old.reward_status IS DISTINCT FROM 'PAID'
+   AND EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 a
+     WHERE a.invitation_id=new.id AND a.network=new.activation_network)
+ THEN
+   IF NOT EXISTS(
+     SELECT 1 FROM public.reward_payouts p
+     JOIN public.reward_receipts r ON r.payout_id=p.id AND r.invite_code=p.invite_code
+      AND r.recipient_wallet=p.recipient_wallet AND r.tx_id=p.tx_id
+      AND r.paid_at=p.paid_at AND r.amount_wei=p.amount_wei
+     WHERE p.invite_code=new.invite_code AND p.status='PAID'
+       AND p.paid_at IS NOT NULL AND p.tx_id IS NOT NULL
+       AND r.network=new.activation_network AND p.recipient_wallet=lower(new.inviter_wallet)
+   ) THEN RAISE EXCEPTION 'MISSION_RETRY_FINALIZED_PAID_RECEIPT_REQUIRED'; END IF;
  END IF;
  RETURN new;
 END;
