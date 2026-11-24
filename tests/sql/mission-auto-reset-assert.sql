@@ -28,7 +28,7 @@ BEGIN
  IF v->>'reason' <> 'ROUND_FINALITY_OR_BOUNDS_UNVERIFIED'
  THEN RAISE EXCEPTION 'Unfinalized round accepted: %',v; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(
-  'EDFW4Y7','mainnet',125,126,1000,1999,900,2100) INTO v;
+  'EDFW4Y7','mainnet',127,126,1000,1999,900,2100) INTO v;
  IF v->>'reason' <> 'UNVERIFIED_CURRENT_ROUND'
  THEN RAISE EXCEPTION 'Wrong current round accepted: %',v; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(
