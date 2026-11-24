@@ -74,7 +74,7 @@ export async function verifyPreviousMissionVoteWindow({
   }
 
   const topics = voteCast.encodeFilterTopics([walletAddress, BigInt(voteRoundId)]);
-  const topic = (value: string | string[] | null | undefined) =>
+  const topic = (value: `0x${string}` | `0x${string}`[] | null | undefined) =>
     typeof value === 'string' ? value : undefined;
 
   const logs = await thor.logs.filterRawEventLogs({
