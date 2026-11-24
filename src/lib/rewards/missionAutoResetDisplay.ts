@@ -2,6 +2,7 @@ import 'server-only';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { MIN_VOT3_CONVERSION_WEI } from '@/lib/vebetter/vot3Conversion';
+import type { InvitationEvidenceRow, InvitationSyncProgress } from '@/lib/impact/syncInvitation';
 
 export type MissionAttemptDisplay = {
   inviteCode: string;
@@ -16,6 +17,13 @@ export type MissionAttemptDisplay = {
   conversionAmountWei: string | null;
   finalizedThroughBlock: number | null;
   completionRoundId: number | null;
+  appsCompletedAt: string | null;
+  appsCompletedBlock: number | null;
+  conversionTxId: string | null;
+  conversionBlock: number | null;
+  conversionAt: string | null;
+  voteBlock: number | null;
+  voteAt: string | null;
 };
 
 type DisplayRow = { invite_code: string; activation_network: string | null };
@@ -24,6 +32,9 @@ function validPositive(v: unknown): v is number {
   return typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
 }
 
+function validTimestamp(v: unknown): v is string {
+  return typeof v === 'string' && Number.isFinite(Date.parse(v));
+}
 function parseDisplay(raw: unknown, expected: Set<string>): MissionAttemptDisplay {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid attempt projection');
   const p = raw as MissionAttemptDisplay;
@@ -34,7 +45,15 @@ function parseDisplay(raw: unknown, expected: Set<string>): MissionAttemptDispla
       !Array.isArray(p.appIds) || p.appIds.length !== p.appsCompleted ||
       new Set(p.appIds).size !== p.appsCompleted ||
       !p.appIds.every(id => /^0x[0-9a-f]{64}$/.test(id)) ||
+      (p.finalizedThroughBlock !== null &&
+        (!validPositive(p.finalizedThroughBlock) || p.finalizedThroughBlock < p.attemptStartBlock)) ||
+      (p.appsCompleted === 3 &&
+        (!validPositive(p.appsCompletedBlock) || !validTimestamp(p.appsCompletedAt))) ||
       typeof p.vot3Converted !== 'boolean' || typeof p.voteCompleted !== 'boolean' ||
+      (p.vot3Converted && (!validPositive(p.conversionBlock) ||
+        !validTimestamp(p.conversionAt) || typeof p.conversionTxId !== 'string' ||
+        !/^0x[0-9a-f]{64}$/.test(p.conversionTxId))) ||
+      (p.voteCompleted && (!validPositive(p.voteBlock) || !validTimestamp(p.voteAt))) ||
       (p.vot3Converted && (typeof p.conversionAmountWei !== 'string' ||
         !/^[0-9]+$/.test(p.conversionAmountWei) || BigInt(p.conversionAmountWei) <= 0n)) ||
       (p.voteCompleted && (p.appsCompleted !== 3 || !p.vot3Converted ||
@@ -92,5 +111,43 @@ export function attemptDetailProgress(p: MissionAttemptDisplay) {
     voteCompleted: p.voteCompleted, uniqueAppIds: p.appIds,
     activationBlock: p.attemptStartBlock, latestBlock: p.finalizedThroughBlock,
     attemptNo: p.attemptNo, dappRoundId: p.dappRoundId, voteRoundId: p.voteRoundId,
+  };
+}
+
+/** Shared by the legacy cron reconciler as well as the authenticated API.
+ * Only display state is projected; the immutable invitation row is unchanged.
+ * No legacy sync, eligibility promotion or financial side effect runs here.
+ */
+export async function readActiveAttemptSync(
+  row: InvitationEvidenceRow,
+): Promise<{ row: InvitationEvidenceRow; progress: InvitationSyncProgress } | null> {
+  const attempt = (await readMissionAttemptDisplays([row])).get(row.invite_code);
+  if (!attempt) return null;
+  const p = attemptDetailProgress(attempt);
+  return {
+    row,
+    progress: {
+      ...p,
+      vot3ConvertedAt: attempt.conversionAt,
+      vot3ConvertedBlock: attempt.conversionBlock,
+      vot3ConversionTxId: attempt.conversionTxId,
+      conversionObserved: attempt.vot3Converted,
+      conversionBelowMinimumObserved: false,
+      conversionBeforeFirstDappObserved: false,
+      conversionSyncPending: false,
+      activationNetwork: row.activation_network,
+      appsCompletedAt: attempt.appsCompletedAt,
+      appsCompletedBlock: attempt.appsCompletedBlock,
+      voteCompletedAt: attempt.voteAt,
+      voteCompletedBlock: attempt.voteBlock,
+      voteRoundId: attempt.voteCompleted ? attempt.voteRoundId : null,
+      activityCheckpointSaved: true,
+      voteSyncPending: false,
+      impactCheckpointSaved: true,
+      impactLastSyncedBlock: attempt.finalizedThroughBlock,
+      impactLastSyncedAt: null,
+      impactSyncCompleteAt: null,
+      networkMismatch: false,
+    },
   };
 }
