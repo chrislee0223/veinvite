@@ -41,7 +41,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Unbound old referral was reset: %',v; END IF;
 END $$;
 
--- Pending forensic assessment or an ACTIVE wallet restriction must stop
+-- A forensic HOLD or an ACTIVE wallet restriction must stop
 -- automatic reset even when the inviter's historic evidence is otherwise valid.
 DO $anti_abuse$
 DECLARE v jsonb;
@@ -58,11 +58,11 @@ BEGIN
 
   INSERT INTO public.sybil_v2_referral_assessments
   (invite_code,state,updated_at,reason_codes)
-  VALUES ('C5RV7QG','ANALYSIS_PENDING',now(),'[]');
+  VALUES ('C5RV7QG','HOLD',now(),'[]');
   SELECT public.commit_invitation_mission_auto_reset_v1(
     'C5RV7QG','mainnet',126,126,1000,1999,900,2100) INTO v;
   IF v->>'reason'<>'INVITATION_PROTECTED'
-  THEN RAISE EXCEPTION 'Unreviewed Sybil assessment was reset: %',v; END IF;
+  THEN RAISE EXCEPTION 'Held Sybil assessment was reset: %',v; END IF;
   DELETE FROM public.sybil_v2_referral_assessments
   WHERE invite_code='C5RV7QG';
 
@@ -70,6 +70,12 @@ BEGIN
     WHERE invite_code='C5RV7QG')
   THEN RAISE EXCEPTION 'Sybil restricted user was given a new attempt'; END IF;
 END $anti_abuse$;
+
+-- Normal assessment pending is not a restriction. Preserve the pending
+-- assessment; the canonical payout/Sybil gate remains closed.
+INSERT INTO public.sybil_v2_referral_assessments
+(invite_code,state,updated_at,reason_codes)
+VALUES ('EDFW4Y7','ANALYSIS_PENDING',now(),'[]');
 
 -- Belgian case: original 124, missed 125 vote, automatic 126 dApp and 127 vote.
 DO $$
@@ -112,6 +118,18 @@ BEGIN
      WHERE invite_code='EDFW4Y7')<>1
  THEN RAISE EXCEPTION 'Duplicate notice delivered'; END IF;
 END $$;
+
+DO $zero_progress$
+DECLARE p jsonb;
+BEGIN
+ SELECT public.read_mission_auto_reset_progress_v1('mainnet',ARRAY['EDFW4Y7','ACXKGKC']) INTO p;
+ IF jsonb_array_length(p)<>1 OR p->0->>'appsCompleted'<>'0'
+ OR p->0->>'vot3Converted'<>'false' OR p->0->>'voteCompleted'<>'false'
+ OR p->0->>'attemptNo'<>'1' OR p->0->>'dappRoundId'<>'126'
+ THEN RAISE EXCEPTION 'Fresh reset projection wrong: %',p; END IF;
+ IF p->0->>'completionRoundId' IS NOT NULL THEN
+   RAISE EXCEPTION 'Unfinished attempt already has settlement round'; END IF;
+END $zero_progress$;
 
 -- Second missed attempt at N+4, preserving both append-only attempt entries.
 INSERT INTO public.vebetter_round_allocations
@@ -278,6 +296,34 @@ BEGIN
       WHERE attempt_id=second_id AND event_type='ALLOCATION_VOTE')<>1
   THEN RAISE EXCEPTION 'Valid fresh proof not persisted'; END IF;
 END $event_safety$;
+
+-- The latest attempt is the sole effective progress source. Persist an
+-- idempotent snapshot and prove settlement uses the NEW vote round.
+INSERT INTO public.vebetter_round_allocations
+(network,app_id,vebetter_round_id,claim_block_number)
+VALUES ('mainnet','0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e',128,4000);
+DO $project$
+DECLARE p jsonb; events jsonb; r jsonb; aid bigint; expected_funding bigint;
+BEGIN
+ SELECT id INTO aid FROM reward_admission_bridge.mission_retry_attempts_v1
+  WHERE invite_code='EDFW4Y7' AND attempt_no=2;
+ SELECT jsonb_agg(to_jsonb(e)-'id'-'attempt_id'-'recorded_at') INTO events
+  FROM reward_admission_bridge.mission_retry_attempt_events_v1 e WHERE e.attempt_id=aid;
+ SELECT public.record_mission_auto_reset_progress_v1('mainnet','EDFW4Y7',2,128,3000,3999,4000,4999,4100,events) INTO r;
+ IF r->>'recorded'<>'true' THEN RAISE EXCEPTION 'Progress persistence failed: %',r; END IF;
+ SELECT public.record_mission_auto_reset_progress_v1('mainnet','EDFW4Y7',2,128,3000,3999,4000,4999,4100,events) INTO r;
+ IF r->>'recorded'<>'true' THEN RAISE EXCEPTION 'Idempotent scan failed: %',r; END IF;
+ SELECT public.record_mission_auto_reset_progress_v1('mainnet','EDFW4Y7',1,126,1000,1999,2000,2999,4100,'[]') INTO r;
+ IF r->>'reason'<>'STALE_ATTEMPT' THEN RAISE EXCEPTION 'Stale scan accepted: %',r; END IF;
+ SELECT id INTO expected_funding FROM public.vebetter_round_allocations WHERE network='mainnet' AND vebetter_round_id=128;
+ SELECT public.read_mission_auto_reset_progress_v1('mainnet',ARRAY['EDFW4Y7']) INTO p;
+ IF p->0->>'appsCompleted'<>'3' OR p->0->>'voteCompleted'<>'true'
+  OR p->0->>'completionRoundId'<>'129'
+  OR p->0->>'fundingAllocationReceiptId'<>expected_funding::text
+ THEN RAISE EXCEPTION 'Current completion projection wrong: %',p; END IF;
+ IF (SELECT reward_status FROM public.invitations WHERE invite_code='EDFW4Y7')<>'PENDING'
+ THEN RAISE EXCEPTION 'Projection accidentally granted payout'; END IF;
+END $project$;
 
 -- Turn off all writes: the default safety gate remains an independent switch.
 UPDATE reward_admission_bridge.mission_auto_reset_settings_v1
