@@ -1,3 +1,4 @@
+import { ThorClient } from '@vechain/sdk-network';
 import {
   getVeBetterActivityProgress,
 } from '@/lib/vebetter/activity';
@@ -25,6 +26,17 @@ import {
  * trigger Sybil clearance, reserve money or issue a Claim. Enabling it as a
  * payout authority requires independent canonical funding/identity gates.
  */
+export type AttemptProofEvent = {
+  event_type: 'DAPP_REWARD' | 'VOT3_CONVERSION' | 'ALLOCATION_VOTE';
+  app_id: string | null;
+  amount_wei: string | null;
+  vote_round_id: number | null;
+  tx_id: string;
+  block_number: number;
+  tx_index: number;
+  clause_index: number;
+  block_timestamp: string;
+};
 export type MissionAutoResetChainProgress = {
   state: MissionAttemptProofResult['state'] | 'VOTE_ROUND_NOT_STARTED';
   dappRoundId: number;
@@ -38,6 +50,8 @@ export type MissionAutoResetChainProgress = {
   voteRoundStartBlock: number | null;
   voteRoundEndBlock: number | null;
   latestObservedBlock: number;
+  finalizedThroughBlock: number;
+  events: AttemptProofEvent[];
 };
 
 const positiveSafe = (value: number) =>
@@ -73,12 +87,20 @@ export async function readMissionAutoResetChainProgress({
     throw new Error('Mission start block is not the verified round boundary.');
   }
 
+  const thor = ThorClient.at(getVeBetterNetworkConfig().nodeUrl);
+  const finalized = await thor.blocks.getBlockCompressed('finalized');
+  const finalizedBlock = finalized?.number;
+  if (typeof finalizedBlock !== 'number' || !positiveSafe(finalizedBlock) ||
+      finalizedBlock < attemptStartBlock) {
+    throw new Error('Attempt chain finality not available.');
+  }
+
   const activity = await getVeBetterActivityProgress({
     receiverAddress: walletAddress,
     activationBlock: attemptStartBlock,
-    checkedBlock: dappRound.voteEndBlock,
+    checkedBlock: Math.min(dappRound.voteEndBlock, finalizedBlock),
   });
-  const appsCompleted = activity.appsCompleted;
+  const appsCompleted = Math.min(3, activity.qualifyingRewardEvents.length);
   const firstDapp = activity.qualifyingRewardEvents[0] ?? null;
   const countedAppIds = activity.qualifyingRewardEvents.map((event) => event.appId);
 
@@ -99,30 +121,33 @@ export async function readMissionAutoResetChainProgress({
       activationBlock: attemptStartBlock,
       firstQualifyingReward: firstDapp,
       // Conversions cannot qualify after the last vote block.
-      checkedBlock: voteRound?.voteEndBlock ?? dappRound.voteEndBlock,
+      checkedBlock: Math.min(voteRound?.voteEndBlock ?? dappRound.voteEndBlock, finalizedBlock),
     });
     conversion = progress.qualifyingConversion;
   }
 
   let vote = null;
-  if (conversion && voteRound) {
+  if (conversion && voteRound && finalizedBlock >= voteRound.voteStartBlock && appsCompleted === 3) {
     const verifiedVote = await getVeBetterVoteProgress({
       voterAddress: walletAddress,
       conversionPosition: conversion,
       expectedRoundId: voteRoundId,
       checkedFromBlock: voteRound.voteStartBlock,
-      checkedThroughBlock: voteRound.voteEndBlock,
+      checkedThroughBlock: Math.min(voteRound.voteEndBlock, finalizedBlock),
     });
     if (verifiedVote.voteCompleted &&
         verifiedVote.voteRoundId === voteRoundId &&
         verifiedVote.voteCompletedBlock !== null &&
         verifiedVote.voteTxIndex !== null &&
-        verifiedVote.voteClauseIndex !== null) {
+        verifiedVote.voteClauseIndex !== null && verifiedVote.voteTxId !== null &&
+        verifiedVote.voteBlockTimestamp !== null) {
       vote = {
         blockNumber: verifiedVote.voteCompletedBlock,
         txIndex: verifiedVote.voteTxIndex,
         clauseIndex: verifiedVote.voteClauseIndex,
         roundId: voteRoundId,
+        txId: verifiedVote.voteTxId,
+        blockTimestamp: verifiedVote.voteBlockTimestamp,
       };
     }
   }
@@ -146,6 +171,19 @@ export async function readMissionAutoResetChainProgress({
         ? 'NEED_CONVERSION'
         : 'VOTE_ROUND_NOT_STARTED';
 
+  if (state === 'INVALID') throw new Error('Invalid attempt chain proof');
+  const proofEvent = (event: {txId:string; blockNumber:number; txIndex:number; clauseIndex:number; blockTimestamp:number},
+      kind: AttemptProofEvent['event_type'], appId: string | null, amount: string | null,
+      round: number | null): AttemptProofEvent => ({
+    event_type: kind, app_id: appId, amount_wei: amount, vote_round_id: round,
+    tx_id: event.txId.toLowerCase(), block_number: event.blockNumber,
+    tx_index: event.txIndex, clause_index: event.clauseIndex,
+    block_timestamp: new Date(event.blockTimestamp * 1000).toISOString(),
+  });
+  const events = activity.qualifyingRewardEvents.slice(0,3).map(event =>
+    proofEvent(event,'DAPP_REWARD',event.appId.toLowerCase(),event.amountWei,null));
+  if (conversion) events.push(proofEvent(conversion,'VOT3_CONVERSION',null,conversion.amountWei,null));
+  if (vote && state === 'COMPLETE') events.push(proofEvent(vote,'ALLOCATION_VOTE',null,null,voteRoundId));
   return {
     state,
     dappRoundId,
@@ -159,5 +197,7 @@ export async function readMissionAutoResetChainProgress({
     voteRoundStartBlock: voteRound?.voteStartBlock ?? null,
     voteRoundEndBlock: voteRound?.voteEndBlock ?? null,
     latestObservedBlock: activity.latestBlock,
+    finalizedThroughBlock: finalizedBlock,
+    events,
   };
 }
