@@ -53,7 +53,7 @@ test('authenticated invite views and network slots share the durable attempt pro
   const list = read('src/app/api/invites/route.ts');
   const slots = read('src/app/api/network/slots/route.ts');
   const worker = read('src/lib/rewards/missionAutoResetSweep.ts');
-  assert.match(display,/VEINVITE_MISSION_AUTO_RESET_READY !== 'true'/);
+  assert.match(display,/!missionAutoResetSchemaReady\(\)/);
   assert.match(display,/read_mission_auto_reset_progress_v1/);
   assert.match(detail,/canReadDetails\s*\? \(await readMissionAttemptDisplays\(\[row\]\)\)/);
   assert.match(detail,/attemptDetailProgress\(attempt\)/);
@@ -80,4 +80,13 @@ test('completion binds only the finalized voting-round allocation before settlem
   assert.match(stagedSql,/completion_event_id bigint NOT NULL UNIQUE/);
   assert.match(stagedSql,/PREVIOUS_ATTEMPT_PROTECTED/);
   assert.doesNotMatch(worker,/commit_reward_reservation\(|runAutomaticRewardPayout\(/);
+});
+
+test('production readiness is pinned to the reviewed database; pausing writes preserves reads',()=>{
+  const runtime = read('src/lib/rewards/missionAutoResetRuntime.ts');
+  const worker = read('src/lib/rewards/missionAutoResetSweep.ts');
+  assert.match(runtime,/VERCEL_ENV !== 'production'/);
+  assert.match(runtime,/upfjvkidaqtnbmmnhupz\.supabase\.co/);
+  assert.match(worker,/VEINVITE_MISSION_AUTO_RESET_READY === 'false'/);
+  assert.match(worker,/if \(!settings.enabled\)/);
 });

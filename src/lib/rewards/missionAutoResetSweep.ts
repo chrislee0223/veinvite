@@ -10,6 +10,7 @@ import {
   verifyPreviousMissionVoteWindow,
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
 import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
@@ -366,7 +367,7 @@ async function handleOne(
 export async function runMissionAutoResetSweep(
   limit: number = MAX_SELECTION,
 ): Promise<MissionResetSweep> {
-  if (process.env.VEINVITE_MISSION_AUTO_RESET_READY !== 'true') {
+  if (!missionAutoResetSchemaReady() || process.env.VEINVITE_MISSION_AUTO_RESET_READY === 'false') {
     return { status: 'OFF', selected: 0, started: 0, blocked: 0,
       failed: 0, failedInviteCodes: [] };
   }

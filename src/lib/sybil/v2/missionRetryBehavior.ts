@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
 import { appOverlap, intervalsSimilar } from '@/lib/sybil/v2/pipelinePrimitives';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 
@@ -19,7 +20,7 @@ export async function loadRetryBehaviorPatterns(invitation: {
   vote_completed?: boolean;
   vote_completed_block?: number | string | null;
 }) {
-  if (process.env.VEINVITE_MISSION_AUTO_RESET_READY !== 'true' || !invitation.activation_network) {
+  if (!missionAutoResetSchemaReady() || !invitation.activation_network) {
     return { patterns: [] as MissionBehaviorPattern[], attemptNo: null, completionBlock: null };
   }
   const attempts = await readMissionAttemptDisplays([invitation]);

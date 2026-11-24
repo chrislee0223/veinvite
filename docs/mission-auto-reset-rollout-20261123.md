@@ -10,50 +10,31 @@
   - Body KO: 미션 완료 기한이 만료되어 진행도가 0/3으로 초기화되었습니다. 다시 미션을 진행해 주세요.
 - No extra paid infrastructure or periodic polling service. Reuse existing onchain sync and notification history.
 
-## Status
-This PR stages the pure reset policy, chain-bounded dApp/conversion/vote
-readers, conservative finalized previous-vote absence proof, a **disabled**
-atomic attempt/notification SQL writer, reuse of the existing bell presentation
-with 29 explicitly translated locales, and isolated PostgreSQL 17 plus CI QA.
-Neither runtime writer nor client progress projection is activated. No
-Production database writes, actual notices, reward reservations or deployment
-occurred as a result of these changes.
+## Status and release order
+The complete staged path now includes new proof, funding, Sybil admission,
+actual vote-round-close batch, Claim, base receipt and X obligation accounting.
+The isolated PostgreSQL 17 suite runs captured canonical Production functions
+with fake data and proves both existing additive and withheld X policies.
+It does not transmit real tokens. The separate actual app build and browser
+tests must also pass.
 
-**Release blockers:** the existing-cron worker, authenticated detail/list/slot
-projection, finalized attempt event writer and completion funding binding are
-staged but are not enabled or deployed. The immutable effective funding
-accessor returns no funding for an unbound retry and retains the original
-funding for non-retries. The six actual canonical shared-pool quote,
-reservation, queue-budget, X split, committed-cohort accounting and candidate
-functions have staged source-fingerprint-guarded adapters in
-`docs/staged-sql/20261124_mission_retry_canonical_funding_adapters_v1.sql`.
-These SQL replacements have NOT been applied, nor exercised end-to-end.
-They retain the existing eligibility requirements and reject stale retry
-clearance or retired pricing modes. The retry's canonical final eligibility,
-fresh identity and Sybil assessment/clearance, downstream X obligation/claim
-and recovery integrity, and full staging integration still require validation.
-The retry promotion guard MUST remain in place until that cutover passes.
-No production database writes or transfers occurred.
+Release in this order:
+1. Apply the combined SQL transaction with the auto-reset setting OFF. Verify
+   exact source fingerprints, roles, legacy accounting parity and no attempts.
+2. Record the verified migration version and merge the tested app release.
+   Production readiness is pinned to the reviewed Supabase project; Preview
+   requires explicit opt-in and its own migrated schema. No Vercel permission
+   workaround, extra cron or infrastructure is required.
+3. Confirm the exact Vercel Production commit and healthy existing app.
+4. Enable only the new DB switch after verification. If paused, retain
+   durable attempt projections; never clear the historical ledger or funds.
+5. Observe the existing cron and verify real progress/notification delivery.
+   Do not mark real onchain payout tested until a genuine participant completes.
 
-**Additional checks added:** exactly-once notice is addressed to the invitee
-via the existing bell, and its history acknowledgement does not call the
-inviter-owned milestone writer. The staged SQL includes an optional replacement
-of the existing notification acknowledgement function to support this. An
-isolated PostgreSQL 17 fixture exercises both explicit and bulk read receipts.
-The attempt proof ledger is append-only and rejects out-of-round dApps,
-premature conversion and wrong-round/missing-prerequisite votes. CI includes
-29-locale mobile notification layout checks.
-
-The staging SQL deliberately lives in `docs/staged-sql/`, not
-`supabase/migrations/`, to honor the repository's verified Production migration
-history gate. Apply it only after reviewing the full cutover.
-
-The 2026-11-17 manual retry foundation remains gated OFF in Production. Do not turn on
-`reward_admission_bridge.mission_retry_settings_v1.enabled` or
-`VEINVITE_MISSION_RETRY_READY` on the basis of this commit.
-The production legacy `invitations.apps_completed` field is monotonic due to
-`prevent_invitation_reconciliation_progress_regression`; DO NOT set it to zero.
-A new attempt needs a separate progress projection instead.
+The original entry funding binding, historical evidence, invitation identities,
+slots and previously reserved/paid rewards are not rewritten. The preexisting
+manual retry feature remains OFF. This change uses only the canonical
+settlement policy and its existing security/Claim/receipt gates.
 
 ## Required before live activation
 1. Create a durable, **server-owned** attempt lifecycle. Persist an attempt at the exact

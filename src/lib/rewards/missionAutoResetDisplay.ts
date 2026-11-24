@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
 import { MIN_VOT3_CONVERSION_WEI } from '@/lib/vebetter/vot3Conversion';
 import type { InvitationEvidenceRow, InvitationSyncProgress } from '@/lib/impact/syncInvitation';
 
@@ -68,7 +69,7 @@ function parseDisplay(raw: unknown, expected: Set<string>): MissionAttemptDispla
 // rather than displaying old 3/3 when the active attempt read fails.
 export async function readMissionAttemptDisplays(rows: readonly DisplayRow[]) {
   const result = new Map<string, MissionAttemptDisplay>();
-  if (process.env.VEINVITE_MISSION_AUTO_RESET_READY !== 'true') return result;
+  if (!missionAutoResetSchemaReady()) return result;
   const groups = new Map<string, Set<string>>();
   for (const row of rows) {
     if (!row.activation_network) continue;

@@ -1,6 +1,7 @@
 // Shared, read-only current-cohort estimate reader for API and first HTML paint.
 // Never use historical per-person forecast fields or payout writers.
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
 import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import {
   ACTIVE_WINDOW_MS,
@@ -77,7 +78,7 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
       );
     }
     let forecastRows = activeRows as ActiveReferralForecastRow[];
-    if (process.env.VEINVITE_MISSION_AUTO_RESET_READY === 'true') {
+    if (missionAutoResetSchemaReady()) {
       const query = supabaseAdmin.rpc('read_mission_retry_forecast_rows_v1', {
         p_network: network, p_round_id: roundId,
       });
