@@ -41,6 +41,36 @@ BEGIN
  THEN RAISE EXCEPTION 'Unbound old referral was reset: %',v; END IF;
 END $$;
 
+-- Pending forensic assessment or an ACTIVE wallet restriction must stop
+-- automatic reset even when the inviter's historic evidence is otherwise valid.
+DO $anti_abuse$
+DECLARE v jsonb;
+BEGIN
+  INSERT INTO public.sybil_v2_wallet_restrictions
+  (related_invite_code,status,wallet_address,network)
+  VALUES ('C5RV7QG','ACTIVE','0x1111111111111111111111111111111111111111','mainnet');
+  SELECT public.commit_invitation_mission_auto_reset_v1(
+    'C5RV7QG','mainnet',126,126,1000,1999,900,2100) INTO v;
+  IF v->>'reason'<>'INVITATION_PROTECTED'
+  THEN RAISE EXCEPTION 'Active blocked wallet was reset: %',v; END IF;
+  DELETE FROM public.sybil_v2_wallet_restrictions
+  WHERE related_invite_code='C5RV7QG';
+
+  INSERT INTO public.sybil_v2_referral_assessments
+  (invite_code,state,updated_at,reason_codes)
+  VALUES ('C5RV7QG','ANALYSIS_PENDING',now(),'[]');
+  SELECT public.commit_invitation_mission_auto_reset_v1(
+    'C5RV7QG','mainnet',126,126,1000,1999,900,2100) INTO v;
+  IF v->>'reason'<>'INVITATION_PROTECTED'
+  THEN RAISE EXCEPTION 'Unreviewed Sybil assessment was reset: %',v; END IF;
+  DELETE FROM public.sybil_v2_referral_assessments
+  WHERE invite_code='C5RV7QG';
+
+  IF EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1
+    WHERE invite_code='C5RV7QG')
+  THEN RAISE EXCEPTION 'Sybil restricted user was given a new attempt'; END IF;
+END $anti_abuse$;
+
 -- Belgian case: original 124, missed 125 vote, automatic 126 dApp and 127 vote.
 DO $$
 DECLARE v jsonb; i public.invitations%rowtype;
