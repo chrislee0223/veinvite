@@ -170,9 +170,10 @@ if (
   !/canReadDetails\s*\?\s*toInviteRecord\(row\)\s*:\s*toPublicInviteRecord\(row\)/s.test(
     inviteProgressRoute,
   ) ||
-  !/canReadDetails\s*\?\s*toStoredProgress\(row\)\s*:\s*toPublicProgress\(\)/s.test(
+  !/canReadDetails\s*\?\s*\(attempt\s*\?\s*attemptDetailProgress\(attempt\)\s*:\s*toStoredProgress\(row\)\)\s*:\s*toPublicProgress\(\)/s.test(
     inviteProgressRoute,
-  )
+  ) ||
+  !/const attempt = canReadDetails\s*\?\s*\(await readMissionAttemptDisplays\(\[row\]\)\)\.get\(row\.invite_code\)\s*:\s*undefined/s.test(inviteProgressRoute)
 ) {
   failures.push(
     'Invite GET must keep detailed wallet/progress data behind an owner wallet session.',
