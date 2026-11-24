@@ -2,11 +2,16 @@
 -- Isolated fake DB; NEVER connect this fixture to Production.
 ALTER TABLE public.invitations
   ADD COLUMN inviter_wallet text,
+  ADD COLUMN reward_funding_allocation_receipt_id bigint,
   ADD COLUMN activation_block bigint,
   ADD COLUMN slot_released_at timestamptz;
 UPDATE public.invitations
 SET inviter_wallet='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     activation_block=100;
+
+UPDATE public.invitations
+SET reward_funding_allocation_receipt_id=1
+WHERE reward_cohort_round_id IS NOT NULL;
 
 CREATE TABLE public.eligibility_check_events(
   id bigint PRIMARY KEY,

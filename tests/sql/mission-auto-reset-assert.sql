@@ -131,6 +131,21 @@ BEGIN
    RAISE EXCEPTION 'Unfinished attempt already has settlement round'; END IF;
 END $zero_progress$;
 
+-- The effective financial reader must NEVER fall back to old funding
+-- during an incomplete retry; non-retry invitation behavior is identical.
+DO $funding_zero$
+DECLARE f record;
+BEGIN
+ SELECT * INTO f FROM public.read_effective_mission_reward_funding_v1('EDFW4Y7','mainnet');
+ IF f.attempt_id IS NULL OR f.reward_cohort_round_id IS NOT NULL
+  OR f.reward_funding_allocation_receipt_id IS NOT NULL OR f.completion_block IS NOT NULL
+ THEN RAISE EXCEPTION 'Unfinished retry reused original funding'; END IF;
+ SELECT * INTO f FROM public.read_effective_mission_reward_funding_v1('ACXKGKC','mainnet');
+ IF f.attempt_id IS NOT NULL OR f.reward_cohort_round_id IS DISTINCT FROM 124::bigint
+  OR f.reward_funding_allocation_receipt_id IS DISTINCT FROM 1::bigint
+ THEN RAISE EXCEPTION 'Non-retry funding changed'; END IF;
+END $funding_zero$;
+
 -- Second missed attempt at N+4, preserving both append-only attempt entries.
 INSERT INTO public.vebetter_round_allocations
 (network,app_id,vebetter_round_id,claim_block_number)
@@ -346,6 +361,21 @@ BEGIN
     OR EXISTS(SELECT 1 FROM public.reward_payouts WHERE invite_code='EDFW4Y7')
  THEN RAISE EXCEPTION 'Binding mutated entry or moved funds'; END IF;
 END $binding_test$;
+
+DO $funding_bound$
+DECLARE f record; expected bigint;
+BEGIN
+ SELECT id INTO expected FROM public.vebetter_round_allocations WHERE network='mainnet' AND vebetter_round_id=128;
+ SELECT * INTO f FROM public.read_effective_mission_reward_funding_v1('EDFW4Y7','mainnet');
+ IF f.reward_cohort_round_id IS DISTINCT FROM 129::bigint
+ OR f.reward_funding_allocation_receipt_id IS DISTINCT FROM expected
+ OR f.completion_block IS DISTINCT FROM 4001::bigint
+ OR f.completion_tx_index IS DISTINCT FROM 0
+ OR f.completion_clause_index IS DISTINCT FROM 0
+ THEN RAISE EXCEPTION 'Bound financial context incorrect'; END IF;
+ IF EXISTS(SELECT 1 FROM public.read_effective_mission_reward_funding_v1('EDFW4Y7','testnet'))
+ THEN RAISE EXCEPTION 'Cross-network financial context leaked'; END IF;
+END $funding_bound$;
 
 -- Advancing to 130 cannot expire the prior attempt after a verified vote.
 INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number)
