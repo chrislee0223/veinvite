@@ -205,7 +205,7 @@ BEGIN
   BEGIN
     INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
      (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
-    VALUES (second_id,'ALLOCATION_VOTE',NULL,NULL,129,
+    VALUES (second_id,'ALLOCATION_VOTE',NULL,NULL,130,
       '0x'||repeat('8',64),4001,0,0,clock_timestamp());
     RAISE EXCEPTION 'BAD_ROUND_VOTE_ACCEPTED';
   EXCEPTION WHEN others THEN
