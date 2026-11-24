@@ -39,6 +39,7 @@ export type QaNotificationStateId =
   | 'NOTI-DAPP-1'
   | 'NOTI-DAPP-2'
   | 'NOTI-DAPP-3'
+  | 'NOTI-MISSION-RESET'
   | 'NOTI-VOT3'
   | 'NOTI-COLLAPSED-PROGRESS'
   | 'NOTI-REWARD-READY'
@@ -267,6 +268,13 @@ function fixtureForState(
       return {
         mode: 'history',
         items: [historyItem({ id: '26', kind: 'DAPP_PROGRESS', minutes: 2, dappProgress: 2 })],
+        unreadCount: 1,
+        open: true,
+      };
+    case 'NOTI-MISSION-RESET':
+      return {
+        mode: 'history',
+        items: [historyItem({ id: '84', kind: 'MISSION_PROGRESS_RESET', minutes: 2, dappProgress: 0 })],
         unreadCount: 1,
         open: true,
       };
