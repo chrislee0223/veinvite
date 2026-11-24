@@ -43,3 +43,10 @@ INSERT INTO public.vebetter_round_allocations
 VALUES ('mainnet',
 '0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e',
 125, 999);
+
+-- Mimic the existing durable, wallet-scoped read receipt table.
+CREATE TABLE public.invite_notification_history_reads(
+  notification_id bigint PRIMARY KEY,
+  inviter_wallet text NOT NULL,
+  read_at timestamptz NOT NULL
+);
