@@ -7,19 +7,19 @@
 BEGIN;
 DO $snapshot_guard$
 BEGIN
-  IF md5(pg_get_functiondef('commit_reward_reservation(text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb)'::regprocedure)) IS DISTINCT FROM '388a984e1e9e2be591ccf67a26af9660' THEN
+  IF md5(pg_get_functiondef('public.commit_reward_reservation(text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb)'::regprocedure)) IS DISTINCT FROM '388a984e1e9e2be591ccf67a26af9660' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: commit_reward_reservation(text,text,numeric,numeric,numeric,text,bigint,bigint,jsonb)';
   END IF;
   IF md5(pg_get_functiondef('commit_reward_shared_pool_v1(text,text,numeric,timestamp with time zone,bigint)'::regprocedure)) IS DISTINCT FROM '699fa820e4e8a2e8055e82ec40422942' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: commit_reward_shared_pool_v1(text,text,numeric,timestamp with time zone,bigint)';
   END IF;
-  IF md5(pg_get_functiondef('create_reward_x_promotion_live_split_from_queue()'::regprocedure)) IS DISTINCT FROM '8b9666d9aa8d8fb4ec47609925e1f0f4' THEN
+  IF md5(pg_get_functiondef('public.create_reward_x_promotion_live_split_from_queue()'::regprocedure)) IS DISTINCT FROM '8b9666d9aa8d8fb4ec47609925e1f0f4' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: create_reward_x_promotion_live_split_from_queue()';
   END IF;
-  IF md5(pg_get_functiondef('enforce_reward_queue_cohort_budget()'::regprocedure)) IS DISTINCT FROM 'c15bbb7b653842ae6a68ef34798c5393' THEN
+  IF md5(pg_get_functiondef('public.enforce_reward_queue_cohort_budget()'::regprocedure)) IS DISTINCT FROM 'c15bbb7b653842ae6a68ef34798c5393' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: enforce_reward_queue_cohort_budget()';
   END IF;
-  IF md5(pg_get_functiondef('read_reward_cohort_committed_wei(text,text,bigint,bigint)'::regprocedure)) IS DISTINCT FROM '3eaec379df305908989a47c4033ca139' THEN
+  IF md5(pg_get_functiondef('public.read_reward_cohort_committed_wei(text,text,bigint,bigint)'::regprocedure)) IS DISTINCT FROM '3eaec379df305908989a47c4033ca139' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: read_reward_cohort_committed_wei(text,text,bigint,bigint)';
   END IF;
   IF md5(pg_get_functiondef('read_reward_reservation_candidates_v2(text,integer)'::regprocedure)) IS DISTINCT FROM 'a9a622b3054c27177ce2e6778ab78463' THEN
@@ -131,12 +131,19 @@ begin
 
   -- Keep the existing eligibility, emergency-pause, queue, recovery and
   -- security gates. Only the funding context is adapted.
-  select f.reward_cohort_round_id,f.reward_funding_allocation_receipt_id
-  into v_invitation.reward_cohort_round_id,v_invitation.reward_funding_allocation_receipt_id
-  from public.read_effective_mission_reward_funding_v1(v_code,v_network) f;
-  if v_invitation.reward_cohort_round_id is null
-    or v_invitation.reward_funding_allocation_receipt_id is null then
-    return jsonb_build_object('reserved',false,'reason','FUNDING_BINDING_MISSING');
+  if exists(select 1 from public.read_effective_mission_reward_funding_v1(v_code,v_network) f
+    where f.attempt_id is not null) then
+    -- No retired pricing algorithm may reserve a retry against an old cohort.
+    if p_algorithm_version IS DISTINCT FROM 'shared-pool-v1' then
+      return jsonb_build_object('reserved',false,'reason','RETRY_REQUIRES_SHARED_POOL');
+    end if;
+    select f.reward_cohort_round_id,f.reward_funding_allocation_receipt_id
+    into v_invitation.reward_cohort_round_id,v_invitation.reward_funding_allocation_receipt_id
+    from public.read_effective_mission_reward_funding_v1(v_code,v_network) f;
+    if v_invitation.reward_cohort_round_id is null
+      or v_invitation.reward_funding_allocation_receipt_id is null then
+      return jsonb_build_object('reserved',false,'reason','FUNDING_BINDING_MISSING');
+    end if;
   end if;
 
   select c.* into v_clearance
