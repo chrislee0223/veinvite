@@ -33,6 +33,9 @@ export type VoteProgress = {
   voteRoundId: number | null;
   voteTxId: string | null;
   voteBlockTimestamp: number | null;
+  /** Exact chain position for round-scoped proof (optional for legacy). */
+  voteTxIndex: number | null;
+  voteClauseIndex: number | null;
   latestBlock: number;
 };
 
@@ -215,6 +218,8 @@ function emptyProgress(
     voteRoundId: null,
     voteTxId: null,
     voteBlockTimestamp: null,
+    voteTxIndex: null,
+    voteClauseIndex: null,
     latestBlock,
   };
 }
@@ -228,9 +233,16 @@ function emptyProgress(
 export async function getVeBetterVoteProgress({
   voterAddress,
   conversionPosition: rawConversionPosition,
+  expectedRoundId,
+  checkedFromBlock,
+  checkedThroughBlock,
 }: {
   voterAddress: string;
   conversionPosition: ChainEventPosition;
+  /** Keep the legacy open-ended search unless a specific attempt round is verified. */
+  expectedRoundId?: number;
+  checkedFromBlock?: number;
+  checkedThroughBlock?: number;
 }): Promise<VoteProgress> {
   if (
     !isValidAddress(voterAddress)
@@ -244,8 +256,23 @@ export async function getVeBetterVoteProgress({
     validateKnownPosition(
       rawConversionPosition,
     );
-  const fromBlock =
-    conversionPosition.blockNumber;
+  if (expectedRoundId !== undefined &&
+      (!Number.isSafeInteger(expectedRoundId) || expectedRoundId < 1)) {
+    throw new Error('Invalid expected VeBetter voting round.');
+  }
+  if (checkedFromBlock !== undefined &&
+      (!Number.isSafeInteger(checkedFromBlock) || checkedFromBlock < 1)) {
+    throw new Error('Invalid vote window start block.');
+  }
+  if (checkedThroughBlock !== undefined &&
+      (!Number.isSafeInteger(checkedThroughBlock) || checkedThroughBlock < 1 ||
+       (checkedFromBlock !== undefined && checkedThroughBlock < checkedFromBlock))) {
+    throw new Error('Invalid vote window end block.');
+  }
+  const fromBlock = Math.max(
+    conversionPosition.blockNumber,
+    checkedFromBlock ?? conversionPosition.blockNumber,
+  );
 
   const {
     nodeUrl,
@@ -268,8 +295,11 @@ export async function getVeBetterVoteProgress({
 
   const latestBlock =
     bestBlock.number;
+  const scanEndBlock = checkedThroughBlock === undefined
+    ? latestBlock
+    : Math.min(latestBlock, checkedThroughBlock);
 
-  if (fromBlock > latestBlock) {
+  if (fromBlock > scanEndBlock) {
     return emptyProgress(
       latestBlock,
     );
@@ -291,7 +321,7 @@ export async function getVeBetterVoteProgress({
           range: {
             unit: 'block',
             from: fromBlock,
-            to: latestBlock,
+            to: scanEndBlock,
           },
           options: {
             offset,
@@ -330,6 +360,10 @@ export async function getVeBetterVoteProgress({
         getRequiredTxId(vote);
       const voteClauseIndex =
         getRequiredClauseIndex(vote);
+      const roundId = getRequiredRoundId(vote.topics?.[2]);
+      if (expectedRoundId !== undefined && roundId !== expectedRoundId) {
+        continue;
+      }
       const votePosition:
         ChainEventPosition = {
           txId: voteTxId,
@@ -354,15 +388,14 @@ export async function getVeBetterVoteProgress({
         voteCompleted: true,
         voteCompletedBlock:
           voteBlock,
-        voteRoundId:
-          getRequiredRoundId(
-            vote.topics?.[2],
-          ),
+        voteRoundId: roundId,
         voteTxId,
         voteBlockTimestamp:
           getRequiredBlockTimestamp(
             vote,
           ),
+        voteTxIndex: votePosition.txIndex,
+        voteClauseIndex: voteClauseIndex,
         latestBlock,
       };
     }
