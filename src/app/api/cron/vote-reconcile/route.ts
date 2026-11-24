@@ -19,6 +19,10 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
+  runMissionAutoResetSweep,
+  type MissionResetSweep,
+} from '@/lib/rewards/missionAutoResetSweep';
+import {
   runRewardRecoveryMaintenance,
   type RewardRecoveryMaintenanceSweep,
 } from '@/lib/rewards/rewardRecoveryMaintenance';
@@ -969,6 +973,7 @@ export async function GET(
   let rewardReservation:
     RewardRecoveryMaintenanceSweep | null =
       null;
+  let missionAutoReset: MissionResetSweep | null = null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1155,6 +1160,23 @@ export async function GET(
       );
     }
 
+    // No additional cron or polling infrastructure. The server feature
+    // flag is OFF by default, so existing Production behavior is unchanged.
+    // Only enable once attempt funding, payouts and security are integrated.
+    try {
+      missionAutoReset = await runMissionAutoResetSweep(5);
+      if (missionAutoReset.failed > 0) {
+        recoveryFailure ??= new Error(
+          'One or more automatic mission reset proofs failed.',
+        );
+        errors.push('MISSION_AUTO_RESET_CANDIDATE_FAILED');
+      }
+    } catch (error) {
+      recoveryFailure ??= error;
+      errors.push('MISSION_AUTO_RESET_SWEEP_FAILED');
+      console.error('Mission auto-reset sweep failed:', error);
+    }
+
     const rewardRecovery =
       await runRewardRecoveryMaintenance();
     rewardReservation =
@@ -1329,6 +1351,7 @@ export async function GET(
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
+      missionAutoReset,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,
