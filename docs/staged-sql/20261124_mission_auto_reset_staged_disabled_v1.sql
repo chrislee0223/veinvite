@@ -272,3 +272,37 @@ REVOKE ALL ON FUNCTION public.commit_invitation_mission_auto_reset_v1(
 GRANT EXECUTE ON FUNCTION public.commit_invitation_mission_auto_reset_v1(
  text,text,bigint,bigint,bigint,bigint,bigint,bigint
 ) TO service_role;
+
+-- Critical protection: the LIVE legacy scanner is append-only and sees old
+-- 3/3, conversion and vote evidence from the original activation block.
+-- Until the new cohort-aware reservation/claim writer is integrated, it may
+-- NOT promote an active retry to COMPLETED or ELIGIBLE based on old evidence.
+-- This trigger does not affect any invitation lacking a durable retry.
+CREATE OR REPLACE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $guard$
+BEGIN
+  IF (new.status IS DISTINCT FROM old.status OR
+      new.reward_status IS DISTINCT FROM old.reward_status)
+     AND (new.status='COMPLETED' OR new.reward_status='ELIGIBLE')
+     AND EXISTS (
+       SELECT 1
+       FROM reward_admission_bridge.mission_retry_attempts_v1 a
+       WHERE a.invitation_id=new.id
+         AND a.network=new.activation_network
+     ) THEN
+    RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_PAYOUT_NOT_ENABLED';
+  END IF;
+  RETURN new;
+END;
+$guard$;
+DROP TRIGGER IF EXISTS zz_guard_legacy_mission_auto_reset_promotion_v1
+  ON public.invitations;
+CREATE TRIGGER zz_guard_legacy_mission_auto_reset_promotion_v1
+BEFORE UPDATE OF status,reward_status ON public.invitations
+FOR EACH ROW
+EXECUTE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1();
+REVOKE ALL ON FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()
+FROM PUBLIC,anon,authenticated;
+
