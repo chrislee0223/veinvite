@@ -31,7 +31,7 @@ import {
  * append-only), and never touches the payout/claim/Sybil state.
  */
 const MAX_SELECTION = 5;
-const LEASE_SECONDS = 240;
+const LEASE_SECONDS = 360;
 const INVITE_CODE = /^[A-HJ-NP-Z2-9]{7}$/;
 
 type Candidate = {
@@ -204,9 +204,9 @@ async function handleOne(
     const latestAttempt = retry.latestAttemptNo === null ||
       retry.latestAttemptNo === undefined
       ? null : safeRound(retry.attemptRoundId);
-    // An already-created attempt needs no repeated on-chain vote absence
-    // check. The DB writer's exact-once guard handles concurrent retries.
-    if (latestAttempt === preliminary.targetDappRoundId) {
+    // Reconcile the persisted attempt even if the sweep was delayed into
+    // N+2. A valid historical completion always wins over expiration.
+    if (latestAttempt !== null) {
       const active = (await readMissionAttemptDisplays([
         { invite_code: code, activation_network: network },
       ])).get(code);
@@ -236,7 +236,9 @@ async function handleOne(
         throw new Error('Attempt progress persistence failed: ' +
           (recorded.error?.message ?? recorded.data?.reason ?? 'Unknown'));
       }
-      return 'BLOCKED';
+      if (proof.voteCompleted || latestAttempt === preliminary.targetDappRoundId) {
+        return 'BLOCKED';
+      }
     }
     const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
     if (base === null) return 'BLOCKED';
@@ -244,13 +246,31 @@ async function handleOne(
     if (!Number.isSafeInteger(priorVoteRoundId)) return 'BLOCKED';
 
     // No reset while any previous vote remains unindexed or unfinalized.
-    const absence = await verifyPreviousMissionVoteWindow({
+    const first = Math.max((safeRound(live.reward_cohort_round_id) ?? base) + 2,
+      settings.firstAutomaticRoundId);
+    // If multiple windows elapsed after rollout, none may be silently skipped.
+    // A bounded failure is reviewed rather than resetting over a possible vote.
+    const rounds = [priorVoteRoundId];
+    for (let round = Math.max(first, base + 2); round < preliminary.targetDappRoundId; round += 2) {
+      if (round + 1 > priorVoteRoundId) rounds.push(round + 1);
+      if (rounds.length > 8) return 'BLOCKED';
+    }
+    let absence = await verifyPreviousMissionVoteWindow({
       walletAddress: live.invitee_wallet!,
       expectedNetwork: network,
-      voteRoundId: priorVoteRoundId,
+      voteRoundId: rounds[0],
       minFinalityBlocks: settings.minimumFinalityBlocks,
     });
     if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+    for (const voteRoundId of rounds.slice(1)) {
+      absence = await verifyPreviousMissionVoteWindow({
+        walletAddress: live.invitee_wallet!,
+        expectedNetwork: network,
+        voteRoundId,
+        minFinalityBlocks: settings.minimumFinalityBlocks,
+      });
+      if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+    }
 
     const targetRound = await readVeBetterRoundWindow({
       roundId: preliminary.targetDappRoundId,
