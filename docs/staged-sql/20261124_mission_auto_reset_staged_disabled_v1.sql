@@ -319,6 +319,15 @@ BEGIN
     RETURN jsonb_build_object('started',false,'reason','ATTEMPT_STATE_REVIEW');
   END IF;
 
+  -- Never discard a durably recorded valid vote, even if the payout worker
+  -- has not yet issued clearance/reservation. Protect delayed settlement.
+  IF v_prior.id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+    WHERE e.attempt_id=v_prior.id AND e.event_type='ALLOCATION_VOTE'
+  ) THEN
+    RETURN jsonb_build_object('started',false,'reason','PREVIOUS_ATTEMPT_PROTECTED');
+  END IF;
+
   v_attempt_no := coalesce(v_prior.attempt_no,0)+1;
   IF v_attempt_no > 100 THEN
     RETURN jsonb_build_object('started',false,'reason','ATTEMPT_LIMIT_REVIEW');
@@ -593,3 +602,102 @@ EXECUTE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1();
 REVOKE ALL ON FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()
 FROM PUBLIC,anon,authenticated;
 
+
+-- Immutable completion/funding handoff. This records the exact qualifying
+-- completion and the allocation backing that round, NOT a payout approval.
+-- Do not change the initial entry binding or reuse the old vote.
+CREATE TABLE reward_admission_bridge.mission_retry_settlement_bindings_v1 (
+  attempt_id bigint PRIMARY KEY REFERENCES reward_admission_bridge.mission_retry_attempts_v1(id) ON DELETE RESTRICT,
+  invitation_id uuid NOT NULL UNIQUE REFERENCES public.invitations(id) ON DELETE RESTRICT,
+  network text NOT NULL CHECK(network IN ('mainnet','testnet','testnet-staging')),
+  completion_round_id bigint NOT NULL CHECK(completion_round_id>=127),
+  funding_allocation_receipt_id bigint NOT NULL REFERENCES public.vebetter_round_allocations(id) ON DELETE RESTRICT,
+  completion_event_id bigint NOT NULL UNIQUE REFERENCES reward_admission_bridge.mission_retry_attempt_events_v1(id) ON DELETE RESTRICT,
+  completion_block bigint NOT NULL CHECK(completion_block>0),
+  finalized_through_block bigint NOT NULL CHECK(finalized_through_block>=completion_block),
+  bound_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+ALTER TABLE reward_admission_bridge.mission_retry_settlement_bindings_v1 ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON reward_admission_bridge.mission_retry_settlement_bindings_v1 FROM PUBLIC,anon,authenticated;
+
+CREATE OR REPLACE FUNCTION public.bind_mission_retry_completion_v1(
+  p_network text,p_invite_code text,p_attempt_no integer
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO pg_catalog,public,reward_admission_bridge
+AS $bind$
+DECLARE
+  i public.invitations%rowtype;
+  a reward_admission_bridge.mission_retry_attempts_v1%rowtype;
+  v reward_admission_bridge.mission_retry_attempt_events_v1%rowtype;
+  f public.vebetter_round_allocations%rowtype;
+  b reward_admission_bridge.mission_retry_settlement_bindings_v1%rowtype;
+  dapp_count integer;
+  conversion_count integer;
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_auto_reset_settings_v1
+    WHERE id=1 AND enabled) THEN
+    RETURN jsonb_build_object('bound',false,'reason','FEATURE_DISABLED');
+  END IF;
+  SELECT * INTO i FROM public.invitations WHERE invite_code=p_invite_code
+    AND activation_network=p_network FOR UPDATE;
+  IF NOT FOUND OR i.status NOT IN('ACTIVATING','UNDER_REVIEW')
+    OR i.reward_status<>'PENDING' OR i.sybil_status='BLOCKED'
+    OR i.ineligible_at IS NOT NULL OR i.slot_released_at IS NOT NULL
+    OR EXISTS(SELECT 1 FROM public.reward_queue_entries q WHERE q.invite_code=i.invite_code)
+    OR EXISTS(SELECT 1 FROM public.reward_payouts p WHERE p.invite_code=i.invite_code)
+  THEN RETURN jsonb_build_object('bound',false,'reason','INVITATION_PROTECTED'); END IF;
+
+  SELECT * INTO a FROM reward_admission_bridge.mission_retry_attempts_v1
+  WHERE invitation_id=i.id AND network=p_network AND state='ACTIVE' FOR UPDATE;
+  IF NOT FOUND OR a.attempt_no IS DISTINCT FROM p_attempt_no THEN
+    RETURN jsonb_build_object('bound',false,'reason','STALE_ATTEMPT');
+  END IF;
+  SELECT * INTO v FROM reward_admission_bridge.mission_retry_attempt_events_v1
+    WHERE attempt_id=a.id AND event_type='ALLOCATION_VOTE';
+  IF NOT FOUND OR v.vote_round_id IS DISTINCT FROM a.vote_round_id
+     OR a.vote_window_start_block IS NULL OR a.vote_window_end_block IS NULL
+     OR v.block_number NOT BETWEEN a.vote_window_start_block AND a.vote_window_end_block
+     OR a.proof_finalized_through_block IS NULL
+     OR v.block_number>a.proof_finalized_through_block THEN
+    RETURN jsonb_build_object('bound',false,'reason','FINALIZED_VOTE_REQUIRED');
+  END IF;
+  SELECT count(*) FILTER(WHERE event_type='DAPP_REWARD'),
+         count(*) FILTER(WHERE event_type='VOT3_CONVERSION')
+  INTO dapp_count,conversion_count
+  FROM reward_admission_bridge.mission_retry_attempt_events_v1
+  WHERE attempt_id=a.id AND block_number<=a.proof_finalized_through_block;
+  IF dapp_count<>3 OR conversion_count<>1 THEN
+    RETURN jsonb_build_object('bound',false,'reason','MISSION_PROOF_INCOMPLETE');
+  END IF;
+
+  SELECT * INTO b FROM reward_admission_bridge.mission_retry_settlement_bindings_v1
+    WHERE invitation_id=i.id;
+  IF FOUND THEN
+    IF b.attempt_id<>a.id OR b.completion_event_id<>v.id THEN
+      RAISE EXCEPTION 'MISSION_SETTLEMENT_BINDING_CONFLICT';
+    END IF;
+    RETURN jsonb_build_object('bound',true,'completionRoundId',b.completion_round_id,
+      'fundingAllocationReceiptId',b.funding_allocation_receipt_id::text);
+  END IF;
+
+  -- Round R receives the allocation receipt for R-1. Never select the
+  -- current cron/claim round or the immutable original invitation round.
+  SELECT * INTO f FROM public.vebetter_round_allocations
+  WHERE network=p_network AND
+    app_id='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e'
+    AND vebetter_round_id=a.vote_round_id-1
+    AND claim_block_number IS NOT NULL
+    AND claim_block_number<=a.proof_finalized_through_block
+  ORDER BY id DESC LIMIT 1;
+  IF NOT FOUND THEN RETURN jsonb_build_object('bound',false,'reason','FUNDING_NOT_FINALIZED'); END IF;
+
+  INSERT INTO reward_admission_bridge.mission_retry_settlement_bindings_v1
+    (attempt_id,invitation_id,network,completion_round_id,funding_allocation_receipt_id,
+     completion_event_id,completion_block,finalized_through_block)
+  VALUES (a.id,i.id,p_network,a.vote_round_id,f.id,v.id,v.block_number,a.proof_finalized_through_block);
+  RETURN jsonb_build_object('bound',true,'completionRoundId',a.vote_round_id,
+    'fundingAllocationReceiptId',f.id::text);
+END;
+$bind$;
+REVOKE ALL ON FUNCTION public.bind_mission_retry_completion_v1(text,text,integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.bind_mission_retry_completion_v1(text,text,integer) TO service_role;
