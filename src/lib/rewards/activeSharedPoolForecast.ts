@@ -8,6 +8,7 @@
 export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v5';
 export type ActiveReferralForecastRow = {
   created_at?: string | null;
+  slot_released_at?: string | null;
   status: string | null;
   sybil_status: string | null;
   reward_status: string | null;
@@ -43,6 +44,9 @@ function activeSharedPoolReferrals(
     if (row.status !== 'ACTIVATING' && row.status !== 'COMPLETED') return false;
     if (row.sybil_status === 'BLOCKED' ||
         row.ineligible_at != null ||
+        // Canonical reservation and full recovery settlement release the slot
+        // in the same transaction. Its funds are no longer in free capacity.
+        row.slot_released_at != null ||
         row.reward_status === 'PAID' || row.reward_status === 'FORFEITED') return false;
     // A verified completion in this round remains a possible recipient even
     // if its original invitation was created in an older round.

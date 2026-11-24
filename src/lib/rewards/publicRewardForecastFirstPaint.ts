@@ -58,7 +58,7 @@ const readCachedFirstPaintForecast = unstable_cache(
       clearTimeout(timer);
     }
   },
-  ['public-current-shared-pool-first-paint-v1'],
+  ['public-current-shared-pool-first-paint-v1', PUBLIC_ACTIVE_FORECAST_MODEL_VERSION],
   { revalidate: 30 },
 );
 

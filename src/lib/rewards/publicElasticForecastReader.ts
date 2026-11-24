@@ -59,10 +59,13 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
     const activityQuery = supabaseAdmin
       .from('invitations')
       .select(
-        'created_at,status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
+        'created_at,status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id,slot_released_at',
       )
       .eq('activation_network', network)
       .is('ineligible_at', null)
+      // The canonical reservation trigger and full-offset settlement release
+      // the slot atomically. Do not divide free capacity by fixed recipients.
+      .is('slot_released_at', null)
       .or(boundedFilter)
       .limit(1000);
     const { data: activeRows, error: activeError } = await (
