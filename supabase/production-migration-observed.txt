@@ -315,3 +315,4 @@
 20261123104509 add_x_promotion_v3_safe_sunset_rollback
 20261123104513 preserve_v3_postbase_cohort_liability
 20261123111001 fix_x_promotion_policy_not_operator
+20261124033046 reward_x_policy_aware_accounting
