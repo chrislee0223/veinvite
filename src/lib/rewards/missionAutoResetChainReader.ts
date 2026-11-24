@@ -126,7 +126,7 @@ export async function readMissionAutoResetChainProgress({
     conversion = progress.qualifyingConversion;
   }
 
-  let vote = null;
+  let vote: {blockNumber:number; txIndex:number; clauseIndex:number; roundId:number; txId:string; blockTimestamp:number} | null = null;
   if (conversion && voteRound && finalizedBlock >= voteRound.voteStartBlock && appsCompleted === 3) {
     const verifiedVote = await getVeBetterVoteProgress({
       voterAddress: walletAddress,
