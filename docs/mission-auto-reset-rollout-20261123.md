@@ -11,7 +11,22 @@
 - No extra paid infrastructure or periodic polling service. Reuse existing onchain sync and notification history.
 
 ## Status
-This commit implements only **pure policy and tests**; it performs no runtime writes.
+This PR stages the pure reset policy, chain-bounded dApp/conversion/vote
+readers, conservative finalized previous-vote absence proof, a **disabled**
+atomic attempt/notification SQL writer, reuse of the existing bell presentation
+with 29 explicitly translated locales, and isolated PostgreSQL 17 plus CI QA.
+Neither runtime writer nor client progress projection is activated. No
+Production database writes, actual notices, reward reservations or deployment
+occurred as a result of these changes.
+
+**Open blockers before a real release:** a server-owned existing-cron worker,
+durable attempt progress projection, canonical payout/funding integration,
+Sybil guard parity, and live end-to-end preview tests.
+
+The staging SQL deliberately lives in `docs/staged-sql/`, not
+`supabase/migrations/`, to honor the repository's verified Production migration
+history gate. Apply it only after reviewing the full cutover.
+
 The 2026-11-17 manual retry foundation remains gated OFF in Production. Do not turn on
 `reward_admission_bridge.mission_retry_settings_v1.enabled` or
 `VEINVITE_MISSION_RETRY_READY` on the basis of this commit.
