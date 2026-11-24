@@ -19,15 +19,21 @@ Neither runtime writer nor client progress projection is activated. No
 Production database writes, actual notices, reward reservations or deployment
 occurred as a result of these changes.
 
-**Release blockers:** the five-minute existing-cron worker is staged behind
-`VEINVITE_MISSION_AUTO_RESET_READY` plus the disabled DB flag, but is not
-enabled, deployed or tested against real chain writes. Per-attempt event
-recording and the effective 0/3 mission card remain to be integrated. The
-existing canonical Sybil clearance, shared-pool funding binding, reservation,
-X option, claim and payout workers still use the immutable *original* invite
-cohort; these must be atomically adapted and tested before activating resets.
-The new DB guard intentionally vetoes old-source COMPLETED/ELIGIBLE promotion
-for any persisted retry to prevent wrong-cohort payments.
+**Release blockers:** the existing-cron worker, authenticated detail/list/slot
+projection, finalized attempt event writer and completion funding binding are
+staged but are not enabled or deployed. The immutable effective funding
+accessor returns no funding for an unbound retry and retains the original
+funding for non-retries. The six actual canonical shared-pool quote,
+reservation, queue-budget, X split, committed-cohort accounting and candidate
+functions have staged source-fingerprint-guarded adapters in
+`docs/staged-sql/20261124_mission_retry_canonical_funding_adapters_v1.sql`.
+These SQL replacements have NOT been applied, nor exercised end-to-end.
+They retain the existing eligibility requirements and reject stale retry
+clearance or retired pricing modes. The retry's canonical final eligibility,
+fresh identity and Sybil assessment/clearance, downstream X obligation/claim
+and recovery integrity, and full staging integration still require validation.
+The retry promotion guard MUST remain in place until that cutover passes.
+No production database writes or transfers occurred.
 
 **Additional checks added:** exactly-once notice is addressed to the invitee
 via the existing bell, and its history acknowledgement does not call the
