@@ -3767,6 +3767,21 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.security_identity_assessment_supported(p_status text, p_policy_version text, p_evidence jsonb)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select
+    p_status = 'NO_KNOWN_LINK'
+    and p_policy_version = 'security_client_v2'
+    and coalesce(p_evidence ->> 'observedClientCount', '') ~ '^[1-9][0-9]*$'
+    and coalesce(p_evidence ->> 'sameInviterClient', 'false') = 'false'
+    and coalesce(p_evidence ->> 'relatedActiveParticipant', 'false') = 'false'
+    and coalesce(p_evidence ->> 'relatedCompletedOrRewardedParticipant', 'false') = 'false';
+$function$;
+
 CREATE OR REPLACE FUNCTION public.security_identity_reward_gate_passes(p_status text, p_checked_at timestamp with time zone, p_vote_completed_at timestamp with time zone, p_policy_version text, p_evidence jsonb)
  RETURNS boolean
  LANGUAGE sql
