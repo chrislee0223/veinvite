@@ -19,9 +19,24 @@ Neither runtime writer nor client progress projection is activated. No
 Production database writes, actual notices, reward reservations or deployment
 occurred as a result of these changes.
 
-**Open blockers before a real release:** a server-owned existing-cron worker,
-durable attempt progress projection, canonical payout/funding integration,
-Sybil guard parity, and live end-to-end preview tests.
+**Release blockers:** the five-minute existing-cron worker is staged behind
+`VEINVITE_MISSION_AUTO_RESET_READY` plus the disabled DB flag, but is not
+enabled, deployed or tested against real chain writes. Per-attempt event
+recording and the effective 0/3 mission card remain to be integrated. The
+existing canonical Sybil clearance, shared-pool funding binding, reservation,
+X option, claim and payout workers still use the immutable *original* invite
+cohort; these must be atomically adapted and tested before activating resets.
+The new DB guard intentionally vetoes old-source COMPLETED/ELIGIBLE promotion
+for any persisted retry to prevent wrong-cohort payments.
+
+**Additional checks added:** exactly-once notice is addressed to the invitee
+via the existing bell, and its history acknowledgement does not call the
+inviter-owned milestone writer. The staged SQL includes an optional replacement
+of the existing notification acknowledgement function to support this. An
+isolated PostgreSQL 17 fixture exercises both explicit and bulk read receipts.
+The attempt proof ledger is append-only and rejects out-of-round dApps,
+premature conversion and wrong-round/missing-prerequisite votes. CI includes
+29-locale mobile notification layout checks.
 
 The staging SQL deliberately lives in `docs/staged-sql/`, not
 `supabase/migrations/`, to honor the repository's verified Production migration
