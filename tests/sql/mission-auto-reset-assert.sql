@@ -161,6 +161,91 @@ BEGIN
  END;
 END $reset_reuse_test$;
 
+-- Verify strict bounds, event sequencing and immutable append-only evidence.
+DO $event_safety$
+DECLARE second_id bigint; source_id bigint;
+BEGIN
+  SELECT id INTO second_id
+  FROM reward_admission_bridge.mission_retry_attempts_v1
+  WHERE invite_code='EDFW4Y7' AND attempt_no=2;
+  SELECT id INTO source_id
+  FROM reward_admission_bridge.mission_retry_attempt_events_v1
+  WHERE attempt_id=second_id LIMIT 1;
+
+  BEGIN
+    INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+     (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+    VALUES (second_id,'DAPP_REWARD','0x'||repeat('d',64),'1',NULL,
+      '0x'||repeat('6',64),2999,0,0,clock_timestamp());
+    RAISE EXCEPTION 'BAD_OLD_EVENT_ACCEPTED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_EVENT_BEFORE_RESET' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+     (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+    VALUES (second_id,'DAPP_REWARD','0x'||repeat('d',64),'1',NULL,
+      '0x'||repeat('6',64),4000,0,0,clock_timestamp());
+    RAISE EXCEPTION 'BAD_LATE_DAPP_ACCEPTED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_DAPP_OUTSIDE_ROUND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+     (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+    VALUES (second_id,'VOT3_CONVERSION',NULL,'1',NULL,
+      '0x'||repeat('7',64),3100,0,0,clock_timestamp());
+    RAISE EXCEPTION 'BAD_EARLY_CONVERSION_ACCEPTED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_CONVERSION_BEFORE_DAPP' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+     (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+    VALUES (second_id,'ALLOCATION_VOTE',NULL,NULL,129,
+      '0x'||repeat('8',64),4001,0,0,clock_timestamp());
+    RAISE EXCEPTION 'BAD_ROUND_VOTE_ACCEPTED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_VOTE_WRONG_ROUND' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    DELETE FROM reward_admission_bridge.mission_retry_attempt_events_v1
+    WHERE id=source_id;
+    RAISE EXCEPTION 'IMMUTABLE_EVENT_WAS_DELETED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_EVENTS_IMMUTABLE' THEN RAISE; END IF;
+  END;
+  BEGIN
+    UPDATE reward_admission_bridge.mission_retry_attempt_events_v1
+    SET amount_wei='999' WHERE id=source_id;
+    RAISE EXCEPTION 'IMMUTABLE_EVENT_WAS_CHANGED';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_ATTEMPT_EVENTS_IMMUTABLE' THEN RAISE; END IF;
+  END;
+
+  -- Three new distinct dApps, fresh conversion and correct next round vote
+  -- are accepted, without any reuse of the original invitation records.
+  INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+   (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+  VALUES
+   (second_id,'DAPP_REWARD','0x'||repeat('b',64),'2',NULL,'0x'||repeat('4',64),3201,0,0,clock_timestamp()),
+   (second_id,'DAPP_REWARD','0x'||repeat('c',64),'2',NULL,'0x'||repeat('5',64),3202,0,0,clock_timestamp());
+  INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+   (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+  VALUES
+   (second_id,'VOT3_CONVERSION',NULL,'1',NULL,'0x'||repeat('7',64),3500,0,0,clock_timestamp()),
+   (second_id,'ALLOCATION_VOTE',NULL,NULL,129,'0x'||repeat('8',64),4001,0,0,clock_timestamp());
+  IF (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1
+      WHERE attempt_id=second_id AND event_type='DAPP_REWARD')<>3 OR
+     (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1
+      WHERE attempt_id=second_id AND event_type='ALLOCATION_VOTE')<>1
+  THEN RAISE EXCEPTION 'Valid fresh proof not persisted'; END IF;
+END $event_safety$;
+
 -- Turn off all writes: the default safety gate remains an independent switch.
 UPDATE reward_admission_bridge.mission_auto_reset_settings_v1
 SET enabled=false WHERE id=1;
