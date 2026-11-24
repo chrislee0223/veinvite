@@ -5,8 +5,9 @@
  * a mission yet. Never count an unopened slot or a hypothetical newcomer.
  * Settlement remains exclusively with the canonical server-side writer.
  */
-export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v4';
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v5';
 export type ActiveReferralForecastRow = {
+  created_at?: string | null;
   status: string | null;
   sybil_status: string | null;
   reward_status: string | null;
@@ -28,11 +29,11 @@ function isRecentlyActive(value: string | null, cutoff: number, nowMs: number): 
     timestamp >= cutoff && timestamp <= nowMs + FUTURE_SKEW_MS;
 }
 
-export function countActiveSharedPoolReferrals(
+function activeSharedPoolReferrals(
   rows: readonly ActiveReferralForecastRow[],
   currentRoundId: number,
   nowMs: number,
-): number {
+): readonly ActiveReferralForecastRow[] {
   if (!Number.isSafeInteger(currentRoundId) || currentRoundId < 1 ||
       !Number.isFinite(nowMs)) {
     throw new Error('Invalid reward forecast context');
@@ -53,7 +54,15 @@ export function countActiveSharedPoolReferrals(
     // participation estimate. Old invitations never enter solely because
     // a historical member later progressed a mission.
     return isRecentlyActive(row.activated_at, cutoff, nowMs);
-  }).length;
+  });
+}
+
+export function countActiveSharedPoolReferrals(
+  rows: readonly ActiveReferralForecastRow[],
+  currentRoundId: number,
+  nowMs: number,
+): number {
+  return activeSharedPoolReferrals(rows,currentRoundId,nowMs).length;
 }
 
 export function estimateActiveSharedPoolReward(
@@ -81,6 +90,48 @@ export function estimateActiveSharedPoolReward(
   const afterX = capacity - count * x;
   return {
     estimatedRewardWei: (afterX > 0n ? afterX / count : 0n).toString(),
+    projectedRecipients,
+  };
+}
+
+/** Private server-side forecast; existing invitations retain their enrollment policy.
+ * The UI receives only the resulting amount, not the cutover or policy split.
+ * No immutable payout authority is granted to this estimate.
+ */
+export function estimatePolicyAwareActiveSharedPoolReward(
+  capacityWei: string,
+  legacyReserveWei: string,
+  rows: readonly ActiveReferralForecastRow[],
+  currentRoundId: number,
+  nowMs: number,
+  cutoverAt: string | null,
+  sunsetAt: string | null,
+): { estimatedRewardWei: string; projectedRecipients: number } {
+  if (!/^(0|[1-9][0-9]*)$/.test(capacityWei) ||
+      !/^(0|[1-9][0-9]*)$/.test(legacyReserveWei)) {
+    throw new Error('Invalid policy-aware capacity');
+  }
+  const cutover = cutoverAt === null ? null : Date.parse(cutoverAt);
+  const sunset = sunsetAt === null ? null : Date.parse(sunsetAt);
+  if ((cutover !== null && !Number.isFinite(cutover)) ||
+      (sunset !== null && (!Number.isFinite(sunset) || cutover === null || sunset <= cutover))) {
+    throw new Error('Invalid private reward policy window');
+  }
+  const active = activeSharedPoolReferrals(rows,currentRoundId,nowMs);
+  if (active.length >= 999) throw new Error('Too many active referrals');
+  const isLegacy = (created: number) =>
+    cutover === null || created < cutover || (sunset !== null && created >= sunset);
+  const legacyCount = active.length === 0
+    ? Number(isLegacy(nowMs))
+    : active.filter(row => {
+        const created = row.created_at ? Date.parse(row.created_at) : NaN;
+        if (!Number.isFinite(created)) throw new Error('Missing invite policy creation time');
+        return isLegacy(created);
+      }).length;
+  const projectedRecipients = Math.max(1,active.length);
+  const available = BigInt(capacityWei)-BigInt(legacyCount)*BigInt(legacyReserveWei);
+  return {
+    estimatedRewardWei: (available > 0n ? available/BigInt(projectedRecipients) : 0n).toString(),
     projectedRecipients,
   };
 }

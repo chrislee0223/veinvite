@@ -6,6 +6,7 @@ import {
   ACTIVE_WINDOW_MS,
   countActiveSharedPoolReferrals,
   estimateActiveSharedPoolReward,
+  estimatePolicyAwareActiveSharedPoolReward,
   type ActiveReferralForecastRow,
 } from '@/lib/rewards/activeSharedPoolForecast';
 
@@ -58,7 +59,7 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
     const activityQuery = supabaseAdmin
       .from('invitations')
       .select(
-        'status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
+        'created_at,status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id',
       )
       .eq('activation_network', network)
       .is('ineligible_at', null)
@@ -77,11 +78,33 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
       roundId,
       nowMs,
     );
-    const projected = estimateActiveSharedPoolReward(
-      String(x.oneWinnerWei),
-      String(x.xOptionReservePerWinnerWei),
-      activeParticipants,
-    );
+    // Database-first rollout: before the policy-aware SQL migration, retain
+    // the historical forecast. After migration, reject incomplete private
+    // metadata instead of silently deducting the legacy reserve for everyone.
+    const policyAware = 'capacityBeforeNewXWei' in x;
+    const projected = policyAware
+      ? (() => {
+          if (typeof x.capacityBeforeNewXWei !== 'string' ||
+              typeof x.legacyXReservePerWinnerWei !== 'string' ||
+              !(x.promotionPolicyCutoverAt === null || typeof x.promotionPolicyCutoverAt === 'string') ||
+              !(x.promotionPolicySunsetAt === null || typeof x.promotionPolicySunsetAt === 'string')) {
+            throw new Error('Malformed private policy-aware forecast');
+          }
+          return estimatePolicyAwareActiveSharedPoolReward(
+            x.capacityBeforeNewXWei,
+            x.legacyXReservePerWinnerWei,
+            activeRows as ActiveReferralForecastRow[],
+            roundId,
+            nowMs,
+            x.promotionPolicyCutoverAt,
+            x.promotionPolicySunsetAt,
+          );
+        })()
+      : estimateActiveSharedPoolReward(
+          String(x.oneWinnerWei),
+          String(x.xOptionReservePerWinnerWei),
+          activeParticipants,
+        );
     return {
       mode: 'ELASTIC_SCENARIOS',
       oneWinnerWei: String(x.oneWinnerWei),
