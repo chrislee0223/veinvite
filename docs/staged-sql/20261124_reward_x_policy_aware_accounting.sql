@@ -636,7 +636,8 @@ BEGIN
      WHERE x.network=p_network AND x.vote_round_id=inv.vote_round_id FOR UPDATE;
  END IF;
  IF q.source_cohort_round_id<>inv.reward_cohort_round_id
-   OR eligible_potential>q.participant_count THEN
+   OR eligible_potential>q.participant_count
+   OR (q.legacy_participant_count is not null AND legacy_potential>q.legacy_participant_count) THEN
    RETURN jsonb_build_object('mode','DEFER','reason','COHORT_MEMBER_COUNT_CHANGED','reserved',false);
  END IF;
 
@@ -687,6 +688,7 @@ DECLARE
   v_capacity numeric(78,0);
   v_x_per_winner numeric(78,0);
   v_promotion_config public.reward_runtime_config%rowtype;
+  v_prospective_x_reserve numeric(78,0);
   v_one numeric(78,0);
   v_two numeric(78,0);
   v_three numeric(78,0);
@@ -743,7 +745,10 @@ BEGIN
   if not found then raise exception 'REWARD_RUNTIME_CONFIG_MISSING'; end if;
   -- These scenarios describe a prospective new invitation; actual active
   -- legacy participants are counted separately by the server forecast.
-  v_x_per_winner := case when v_promotion_config.reward_x_promotion_v3_cutover_at is not null
+  -- Preserve the old RPC scenario fields for already-deployed clients.
+  -- The new server uses explicit capacity + legacy enrollment count.
+  v_x_per_winner := v_settings.x_option_reserve_wei;
+  v_prospective_x_reserve := case when v_promotion_config.reward_x_promotion_v3_cutover_at is not null
     and now()>=v_promotion_config.reward_x_promotion_v3_cutover_at
     and (v_promotion_config.reward_x_promotion_v3_sunset_at is null or now()<v_promotion_config.reward_x_promotion_v3_sunset_at)
     then 0 else v_settings.x_option_reserve_wei end;
@@ -761,6 +766,7 @@ BEGIN
     'capacityBeforeNewXWei',v_capacity::text,
     'xOptionReservePerWinnerWei',v_x_per_winner::text,
     'legacyXReservePerWinnerWei',v_settings.x_option_reserve_wei::text,
+    'prospectiveXReservePerWinnerWei',v_prospective_x_reserve::text,
     'promotionPolicyCutoverAt',v_promotion_config.reward_x_promotion_v3_cutover_at,
     'promotionPolicySunsetAt',v_promotion_config.reward_x_promotion_v3_sunset_at,
     'oneWinnerWei',v_one::text,
@@ -833,6 +839,7 @@ BEGIN
       'xOptionReservePerWinnerWei',v_shared->>'xOptionReservePerWinnerWei',
       'capacityBeforeNewXWei',v_shared->>'capacityBeforeNewXWei',
       'legacyXReservePerWinnerWei',v_shared->>'legacyXReservePerWinnerWei',
+      'prospectiveXReservePerWinnerWei',v_shared->>'prospectiveXReservePerWinnerWei',
       'promotionPolicyCutoverAt',v_shared->'promotionPolicyCutoverAt',
       'promotionPolicySunsetAt',v_shared->'promotionPolicySunsetAt',
       'finalPayoutNotGuaranteed',true,'writesPerformed',false);
@@ -920,17 +927,19 @@ BEGIN
    and now()>=v_promotion_config.reward_x_promotion_v3_cutover_at
    and (v_promotion_config.reward_x_promotion_v3_sunset_at is null or now()<v_promotion_config.reward_x_promotion_v3_sunset_at)
    then 0 else v_cfg.x_option_reserve_wei end;
- v_one:=greatest(least(v_uncommitted,v_physical)-v_prospective_x_reserve,0);
- v_two:=div(greatest(least(v_uncommitted,v_physical)-2*v_prospective_x_reserve,0),2);
- v_three:=div(greatest(least(v_uncommitted,v_physical)-3*v_prospective_x_reserve,0),3);
- IF v_one<=0 THEN RETURN jsonb_build_object('mode','PENDING','reason','NO_SAFE_ESTIMATED_PAYOUT'); END IF;
+ -- Keep old response fields intact across the DB-first deployment.
+ v_one:=greatest(least(v_uncommitted,v_physical)-v_cfg.x_option_reserve_wei,0);
+ v_two:=div(greatest(least(v_uncommitted,v_physical)-2*v_cfg.x_option_reserve_wei,0),2);
+ v_three:=div(greatest(least(v_uncommitted,v_physical)-3*v_cfg.x_option_reserve_wei,0),3);
+ IF v_one<=0 AND least(v_uncommitted,v_physical)<=v_prospective_x_reserve THEN RETURN jsonb_build_object('mode','PENDING','reason','NO_SAFE_ESTIMATED_PAYOUT'); END IF;
  RETURN jsonb_build_object(
   'mode','ELASTIC_SCENARIOS',
   'rewardCohortRoundId',v_cohort,
   'observedAt',v_forecast.generated_at,
   'acceptedParticipants',v_accepted,
   'oneWinnerWei',v_one::text,'twoWinnersWei',v_two::text,'threeWinnersWei',v_three::text,
-  'xOptionReservePerWinnerWei',v_prospective_x_reserve::text,
+  'xOptionReservePerWinnerWei',v_cfg.x_option_reserve_wei::text,
+  'prospectiveXReservePerWinnerWei',v_prospective_x_reserve::text,
   'capacityBeforeNewXWei',least(v_uncommitted,v_physical)::text,
   'legacyXReservePerWinnerWei',v_cfg.x_option_reserve_wei::text,
   'promotionPolicyCutoverAt',v_promotion_config.reward_x_promotion_v3_cutover_at,

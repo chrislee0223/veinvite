@@ -86,6 +86,8 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
       ? (() => {
           if (typeof x.capacityBeforeNewXWei !== 'string' ||
               typeof x.legacyXReservePerWinnerWei !== 'string' ||
+              typeof x.prospectiveXReservePerWinnerWei !== 'string' ||
+              !/^\d+$/.test(x.prospectiveXReservePerWinnerWei) ||
               !(x.promotionPolicyCutoverAt === null || typeof x.promotionPolicyCutoverAt === 'string') ||
               !(x.promotionPolicySunsetAt === null || typeof x.promotionPolicySunsetAt === 'string')) {
             throw new Error('Malformed private policy-aware forecast');
@@ -105,15 +107,22 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
           String(x.xOptionReservePerWinnerWei),
           activeParticipants,
         );
+    const prospectiveReserve = policyAware
+      ? String(x.prospectiveXReservePerWinnerWei) : String(x.xOptionReservePerWinnerWei);
+    const hypotheticalQuote = (recipients: bigint, original: unknown) => {
+      if (!policyAware) return String(original);
+      const available = BigInt(String(x.capacityBeforeNewXWei))-recipients*BigInt(prospectiveReserve);
+      return (available>0n ? available/recipients : 0n).toString();
+    };
     return {
       mode: 'ELASTIC_SCENARIOS',
-      oneWinnerWei: String(x.oneWinnerWei),
-      twoWinnersWei: String(x.twoWinnersWei),
-      threeWinnersWei: String(x.threeWinnersWei),
+      oneWinnerWei: hypotheticalQuote(1n,x.oneWinnerWei),
+      twoWinnersWei: hypotheticalQuote(2n,x.twoWinnersWei),
+      threeWinnersWei: hypotheticalQuote(3n,x.threeWinnersWei),
       acceptedParticipants: Number(x.acceptedParticipants),
       rewardCohortRoundId: Number(x.rewardCohortRoundId),
       observedAt: x.observedAt,
-      xOptionReservePerWinnerWei: String(x.xOptionReservePerWinnerWei),
+      xOptionReservePerWinnerWei: prospectiveReserve,
       activeParticipants,
       projectedRecipients: projected.projectedRecipients,
       displayEstimateWei: projected.estimatedRewardWei,
