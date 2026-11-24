@@ -63,3 +63,21 @@ test('authenticated invite views and network slots share the durable attempt pro
   assert.match(worker,/p_events: proof.events/);
   assert.match(reader,/getBlockCompressed\('finalized'\)/);
 });
+
+test('legacy cron reconciliation cannot replay original mission evidence after restart',()=>{
+  const sync = read('src/lib/impact/syncInvitation.ts');
+  const boundary = sync.indexOf('const activeAttempt = await readActiveAttemptSync(initial);');
+  const legacy = sync.indexOf('let row = { ...initial };');
+  assert.ok(boundary >= 0 && legacy > boundary);
+  assert.match(sync,/if \(activeAttempt\) return activeAttempt;/);
+});
+test('completion binds only the finalized voting-round allocation before settlement',()=>{
+  const worker = read('src/lib/rewards/missionAutoResetSweep.ts');
+  assert.match(worker,/bind_mission_retry_completion_v1/);
+  assert.match(stagedSql,/mission_retry_settlement_bindings_v1/);
+  assert.match(stagedSql,/vebetter_round_id=a\.vote_round_id-1/);
+  assert.match(stagedSql,/claim_block_number<=a\.proof_finalized_through_block/);
+  assert.match(stagedSql,/completion_event_id bigint NOT NULL UNIQUE/);
+  assert.match(stagedSql,/PREVIOUS_ATTEMPT_PROTECTED/);
+  assert.doesNotMatch(worker,/commit_reward_reservation\(|runAutomaticRewardPayout\(/);
+});
