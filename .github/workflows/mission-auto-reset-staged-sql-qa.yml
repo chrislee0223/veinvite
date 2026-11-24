@@ -4,6 +4,7 @@ on:
     paths:
       - 'docs/staged-sql/20261124_mission_auto_reset_staged_disabled_v1.sql'
       - 'docs/staged-sql/20261124_mission_reset_invitee_ack_v1.sql'
+      - 'docs/staged-sql/20261124_mission_retry_canonical_checkpoint_adapters_v1.sql'
       - 'tests/sql/mission-auto-reset-*.sql'
       - '.github/workflows/mission-auto-reset-staged-sql-qa.yml'
   workflow_dispatch:
@@ -55,3 +56,10 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261124_mission_reset_invitee_ack_v1.sql
       - name: Verify invitee-only read receipts and bulk acknowledgement
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-notification-ack.sql
+
+      - name: Install real production eligibility authorities in the disposable fixture
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-canonical-checkpoint-fixture.sql
+      - name: Stage canonical checkpoint and effective proof adapters
+        run: psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261124_mission_retry_canonical_checkpoint_adapters_v1.sql
+      - name: Prove new vote checkpoint, legacy isolation and no premature payout
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-canonical-checkpoint-assert.sql

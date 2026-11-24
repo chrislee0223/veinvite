@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS reward_admission_bridge.mission_retry_attempt_events_
   block_timestamp timestamptz NOT NULL,
   recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT mission_attempt_event_shape_v1 CHECK (
-    (event_type='DAPP_REWARD' AND app_id ~ '^0x[0-9a-f]{64}$'
+    (event_type='DAPP_REWARD' AND app_id IS NOT NULL AND amount_wei IS NOT NULL AND app_id ~ '^0x[0-9a-f]{64}$'
      AND amount_wei ~ '^[0-9]+$' AND amount_wei::numeric > 0 AND vote_round_id IS NULL)
-    OR (event_type='VOT3_CONVERSION' AND app_id IS NULL
+    OR (event_type='VOT3_CONVERSION' AND app_id IS NULL AND amount_wei IS NOT NULL
      AND amount_wei ~ '^[0-9]+$' AND amount_wei::numeric > 0 AND vote_round_id IS NULL)
     OR (event_type='ALLOCATION_VOTE' AND app_id IS NULL
      AND amount_wei IS NULL AND vote_round_id IS NOT NULL AND vote_round_id > 0)
@@ -596,7 +596,7 @@ $guard$;
 DROP TRIGGER IF EXISTS zz_guard_legacy_mission_auto_reset_promotion_v1
   ON public.invitations;
 CREATE TRIGGER zz_guard_legacy_mission_auto_reset_promotion_v1
-BEFORE UPDATE OF status,reward_status ON public.invitations
+BEFORE UPDATE ON public.invitations
 FOR EACH ROW
 EXECUTE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1();
 REVOKE ALL ON FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()

@@ -162,7 +162,16 @@ async function bindCompletion(network: string, code: string, attemptNo: number) 
     p_network: network, p_invite_code: code, p_attempt_no: attemptNo,
   });
   if (result.error) throw new Error('Attempt funding binding failed: ' + result.error.message);
-  if (result.data?.bound === true) return true;
+  if (result.data?.bound === true) {
+    const checkpoint = await supabaseAdmin.rpc('publish_mission_retry_completion_checkpoint_v1', {
+      p_network: network, p_invite_code: code, p_attempt_no: attemptNo,
+    });
+    if (checkpoint.error || checkpoint.data?.published !== true) {
+      throw new Error('Canonical retry checkpoint failed: ' +
+        (checkpoint.error?.message ?? checkpoint.data?.reason ?? 'UNKNOWN'));
+    }
+    return true;
+  }
   if (result.data?.reason === 'FUNDING_NOT_FINALIZED') return false;
   throw new Error('Attempt funding binding rejected: ' + (result.data?.reason ?? 'UNKNOWN'));
 }
