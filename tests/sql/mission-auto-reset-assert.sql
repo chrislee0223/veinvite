@@ -106,6 +106,27 @@ BEGIN
  THEN RAISE EXCEPTION 'Repeated expiry failed to preserve history/notice'; END IF;
 END $$;
 
+-- Old scanner promotion must never qualify a retry using the original
+-- immutable 3/3 evidence. Existing non-retry completions remain untouched.
+DO $guard_test$
+BEGIN
+  BEGIN
+    UPDATE public.invitations SET status='COMPLETED', reward_status='ELIGIBLE'
+    WHERE invite_code='EDFW4Y7';
+    RAISE EXCEPTION 'UNBLOCKED_LEGACY_PROMOTION';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM<>'MISSION_RETRY_CANONICAL_PAYOUT_NOT_ENABLED' THEN RAISE; END IF;
+  END;
+  IF (SELECT status FROM public.invitations WHERE invite_code='EDFW4Y7')<>'ACTIVATING'
+  OR (SELECT reward_status FROM public.invitations WHERE invite_code='EDFW4Y7')<>'PENDING'
+  THEN RAISE EXCEPTION 'Legacy promotion mutated retry'; END IF;
+
+  UPDATE public.invitations SET status='COMPLETED', reward_status='ELIGIBLE'
+  WHERE invite_code='C5RV7QG';
+  IF (SELECT status FROM public.invitations WHERE invite_code='C5RV7QG')<>'COMPLETED'
+  THEN RAISE EXCEPTION 'New guard broke non-retry completed users'; END IF;
+END $guard_test$;
+
 -- A second attempt can repeat the same external dApp; only within-attempt
 -- double counting is forbidden. This is incompatible with the legacy
 -- UNIQUE(invite_code,app_id) attribution and therefore must stay separate.
