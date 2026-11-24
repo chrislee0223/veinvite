@@ -10,6 +10,8 @@ import {
   verifyPreviousMissionVoteWindow,
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
+import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
 import {
   readVeBetterRoundWindow,
 } from '@/lib/vebetter/entryEligibility';
@@ -205,6 +207,35 @@ async function handleOne(
     // An already-created attempt needs no repeated on-chain vote absence
     // check. The DB writer's exact-once guard handles concurrent retries.
     if (latestAttempt === preliminary.targetDappRoundId) {
+      const active = (await readMissionAttemptDisplays([
+        { invite_code: code, activation_network: network },
+      ])).get(code);
+      if (!active || active.dappRoundId !== latestAttempt) {
+        throw new Error('Active attempt progress unavailable.');
+      }
+      if (active.voteCompleted) return 'BLOCKED';
+      const proof = await readMissionAutoResetChainProgress({
+        walletAddress: live.invitee_wallet!,
+        expectedNetwork: network,
+        dappRoundId: active.dappRoundId,
+        attemptStartBlock: active.attemptStartBlock,
+      });
+      const recorded = await supabaseAdmin.rpc('record_mission_auto_reset_progress_v1', {
+        p_network: network,
+        p_invite_code: code,
+        p_attempt_no: active.attemptNo,
+        p_dapp_round_id: proof.dappRoundId,
+        p_start_block: proof.attemptStartBlock,
+        p_dapp_end_block: proof.dappRoundEndBlock,
+        p_vote_start_block: proof.voteRoundStartBlock,
+        p_vote_end_block: proof.voteRoundEndBlock,
+        p_finalized_block: proof.finalizedThroughBlock,
+        p_events: proof.events,
+      });
+      if (recorded.error || recorded.data?.recorded !== true) {
+        throw new Error('Attempt progress persistence failed: ' +
+          (recorded.error?.message ?? recorded.data?.reason ?? 'Unknown'));
+      }
       return 'BLOCKED';
     }
     const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
