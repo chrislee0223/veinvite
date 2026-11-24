@@ -299,14 +299,13 @@ export async function runMissionAutoResetSweep(
 
   // Page over the ENTIRE eligible backlog, not just the first 100. A stuck
   // review cannot permanently starve later users as the user base grows.
-  const baseQuery = () => supabaseAdmin.from('invitations')
+  const countResult = await supabaseAdmin.from('invitations')
+    .select('invite_code', { count: 'exact', head: true })
     .eq('activation_network', config.network)
     .eq('status', 'ACTIVATING')
     .eq('reward_status', 'PENDING')
     .or('vote_completed.eq.false,vote_completed.is.null')
     .not('invitee_wallet','is',null);
-  const countResult = await baseQuery()
-    .select('invite_code', { count: 'exact', head: true });
   if (countResult.error || countResult.count === null) {
     throw new Error('Mission reset candidate count unavailable: ' +
       (countResult.error?.message ?? 'missing count'));
@@ -316,8 +315,13 @@ export async function runMissionAutoResetSweep(
   // separate cron or mutable pagination cursor.
   const rotation = Math.floor(Date.now() / (5 * 60_000)) % windows;
   const offset = rotation * limit;
-  const { data: rows, error } = await baseQuery()
+  const { data: rows, error } = await supabaseAdmin.from('invitations')
     .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .eq('activation_network', config.network)
+    .eq('status', 'ACTIVATING')
+    .eq('reward_status', 'PENDING')
+    .or('vote_completed.eq.false,vote_completed.is.null')
+    .not('invitee_wallet','is',null)
     .order('activated_at',{ ascending:true })
     .order('invite_code',{ ascending:true })
     .range(offset, offset + limit - 1);
