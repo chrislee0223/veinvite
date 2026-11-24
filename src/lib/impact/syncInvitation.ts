@@ -7,6 +7,7 @@ import {
   continueRewardReservationAfterEligibility,
 } from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readActiveAttemptSync } from '@/lib/rewards/missionAutoResetDisplay';
 import {
   evaluatePostVoteSybilRisk,
   type SybilRiskLevel,
@@ -284,6 +285,8 @@ export async function syncInvitationEvidence(
   row: InvitationEvidenceRow;
   progress: InvitationSyncProgress;
 }> {
+  const activeAttempt = await readActiveAttemptSync(initial);
+  if (activeAttempt) return activeAttempt;
   let row = { ...initial };
 
   const initialAppsCompleted =
