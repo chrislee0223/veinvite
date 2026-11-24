@@ -7,6 +7,7 @@ import {
 export type InviteNotificationKindV2 =
   | 'INVITE_ACCEPTED'
   | 'DAPP_PROGRESS'
+  | 'MISSION_PROGRESS_RESET'
   | 'VOT3_CONVERTED'
   | 'REWARD_READY'
   | 'REWARD_PAID'
