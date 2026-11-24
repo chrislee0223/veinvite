@@ -46,6 +46,17 @@ test('delayed workers choose original N+2 round in N+3, not visit time', () => {
   assert.equal(decide({...base, currentRoundId: 128, latestAttemptDappRoundId:126}).targetDappRoundId,128);
 });
 
+test('old incomplete referrals catch up in the rollout round instead of retroactive ghost attempts',()=>{
+  const old = {...base, originalDappRoundId:114, firstAutomaticRoundId:126};
+  const current = decide(old);
+  assert.equal(current.targetDappRoundId,126);
+  assert.equal(current.state,'START_NEW_ATTEMPT');
+  assert.equal(decide({...old, currentRoundId:127}).targetDappRoundId,126);
+  assert.equal(decide({...old,currentRoundId:128,
+    latestAttemptDappRoundId:126}).targetDappRoundId,128);
+  assert.equal(decide({...old, currentRoundId:125}).state,'ROUND_PROOF_UNAVAILABLE');
+});
+
 test('exactly-once committed attempt never generates a duplicate notice', () => {
   const existing = decide({...base, latestAttemptDappRoundId:126});
   assert.equal(existing.state, 'ACTIVE_ATTEMPT');
