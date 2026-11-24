@@ -29,7 +29,6 @@ import {
  * append-only), and never touches the payout/claim/Sybil state.
  */
 const MAX_SELECTION = 5;
-const PAGE_CANDIDATES = 100;
 const LEASE_SECONDS = 240;
 const INVITE_CODE = /^[A-HJ-NP-Z2-9]{7}$/;
 
@@ -298,23 +297,32 @@ export async function runMissionAutoResetSweep(
     throw new Error('Mission reset current round has wrong network.');
   }
 
-  const { data: rows, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+  // Page over the ENTIRE eligible backlog, not just the first 100. A stuck
+  // review cannot permanently starve later users as the user base grows.
+  const baseQuery = () => supabaseAdmin.from('invitations')
     .eq('activation_network', config.network)
     .eq('status', 'ACTIVATING')
     .eq('reward_status', 'PENDING')
     .or('vote_completed.eq.false,vote_completed.is.null')
-    .not('invitee_wallet','is',null)
-    .order('activated_at',{ ascending:true })
-    .limit(PAGE_CANDIDATES);
-  if (error) throw new Error('Mission reset pending invitation list failed: ' + error.message);
-
-  const all = (rows ?? []) as Candidate[];
-  const windows = Math.max(1, Math.ceil(all.length / limit));
-  // Move the fixed batch every 5 minutes so one REVIEW case cannot starve
-  // later invitees; no paid infrastructure, no new cron or mutable cursor.
+    .not('invitee_wallet','is',null);
+  const countResult = await baseQuery()
+    .select('invite_code', { count: 'exact', head: true });
+  if (countResult.error || countResult.count === null) {
+    throw new Error('Mission reset candidate count unavailable: ' +
+      (countResult.error?.message ?? 'missing count'));
+  }
+  const windows = Math.max(1, Math.ceil(countResult.count / limit));
+  // The shared cadence advances the page every five minutes without a
+  // separate cron or mutable pagination cursor.
   const rotation = Math.floor(Date.now() / (5 * 60_000)) % windows;
-  const selected = all.slice(rotation * limit, rotation * limit + limit);
+  const offset = rotation * limit;
+  const { data: rows, error } = await baseQuery()
+    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .order('activated_at',{ ascending:true })
+    .order('invite_code',{ ascending:true })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error('Mission reset candidate page failed: ' + error.message);
+  const selected = (rows ?? []) as Candidate[];
   const result: MissionResetSweep = {
     status: 'CHECKED',
     selected: selected.length,
