@@ -25,6 +25,9 @@ BEGIN
   IF md5(pg_get_functiondef('read_reward_reservation_candidates_v2(text,integer)'::regprocedure)) IS DISTINCT FROM 'a9a622b3054c27177ce2e6778ab78463' THEN
     RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: read_reward_reservation_candidates_v2(text,integer)';
   END IF;
+  IF md5(pg_get_functiondef('public.validate_reward_x_promotion_split()'::regprocedure)) IS DISTINCT FROM '9715c0609bedfe180d85599396cf4685' THEN
+    RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_SOURCE_CHANGED: validate_reward_x_promotion_split()';
+  END IF;
 END;
 $snapshot_guard$;
 
@@ -1254,6 +1257,165 @@ AS $function$
     )
   order by completion.block_number,completion.tx_index,completion.clause_index,i.invite_code
   limit (select row_limit from parameters);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.validate_reward_x_promotion_split()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_queue public.reward_queue_entries%rowtype;
+  v_invitation public.invitations%rowtype;
+  v_cfg public.reward_runtime_config%rowtype;
+  v_expected record;
+  v_receipt public.vebetter_round_allocations%rowtype;
+  v_budget numeric(78,0) := 0;
+  v_committed numeric(78,0) := 0;
+begin
+  select * into v_cfg
+  from public.reward_runtime_config
+  where id=1;
+
+  if not found then
+    raise exception 'REWARD_RUNTIME_CONFIG_MISSING';
+  end if;
+
+  if new.policy_version<>public.reward_x_promotion_policy_for_invitation_v3(new.invite_code) then
+    raise exception 'REWARD_X_PROMOTION_POLICY_MISMATCH';
+  end if;
+
+  if new.policy_version not in ('x-promotion-additive-v2','x-promotion-withheld-10pct-v3') then
+    raise exception 'REWARD_X_PROMOTION_POLICY_UNSUPPORTED';
+  end if;
+
+  if new.mode='LIVE' and not v_cfg.reward_x_promotion_enabled then
+    raise exception 'REWARD_X_PROMOTION_LIVE_DISABLED';
+  end if;
+
+  if new.mode='SHADOW' and not v_cfg.reward_x_promotion_shadow_enabled then
+    raise exception 'REWARD_X_PROMOTION_SHADOW_DISABLED';
+  end if;
+
+  select * into v_queue
+  from public.reward_queue_entries q
+  where q.id=new.queue_entry_id;
+
+  if not found
+     or v_queue.invite_code<>new.invite_code
+     or v_queue.network<>new.network
+     or lower(v_queue.recipient_wallet)<>new.recipient_wallet
+     or v_queue.reserved_amount_wei is null
+     or v_queue.reserved_amount_wei<>new.reservation_amount_wei
+     or v_queue.reserved_at is null then
+    raise exception 'REWARD_X_PROMOTION_QUEUE_MISMATCH';
+  end if;
+
+  if new.mode='SHADOW' and (
+    v_cfg.reward_x_promotion_shadow_started_at is null
+    or v_queue.reserved_at < v_cfg.reward_x_promotion_shadow_started_at
+    or (
+      v_cfg.reward_x_promotion_live_started_at is not null
+      and v_queue.reserved_at >= v_cfg.reward_x_promotion_live_started_at
+    )
+  ) then
+    raise exception 'REWARD_X_PROMOTION_OUTSIDE_SHADOW_WINDOW';
+  end if;
+
+  if new.mode='LIVE' and (
+    v_cfg.reward_x_promotion_live_started_at is null
+    or v_queue.reserved_at < v_cfg.reward_x_promotion_live_started_at
+  ) then
+    raise exception 'REWARD_X_PROMOTION_OUTSIDE_LIVE_WINDOW';
+  end if;
+
+  select * into v_invitation
+  from public.invitations i
+  where i.invite_code=new.invite_code;
+
+  if found then
+    select f.reward_cohort_round_id,f.reward_funding_allocation_receipt_id
+    into v_invitation.reward_cohort_round_id,v_invitation.reward_funding_allocation_receipt_id
+    from public.read_effective_mission_reward_funding_v1(new.invite_code,new.network) f;
+  end if;
+
+  if not found
+     or v_invitation.reward_cohort_round_id is null
+     or v_invitation.reward_funding_allocation_receipt_id is null
+     or lower(v_invitation.inviter_wallet)<>new.recipient_wallet
+     or v_invitation.activation_network<>new.network
+     or v_invitation.reward_cohort_round_id<>new.source_reward_cohort_round_id
+     or v_invitation.reward_funding_allocation_receipt_id<>new.source_allocation_receipt_id then
+    raise exception 'REWARD_X_PROMOTION_SOURCE_MISMATCH';
+  end if;
+
+  select * into v_expected
+  from public.calculate_reward_x_promotion_for_policy_v3(
+    new.reservation_amount_wei,new.policy_version
+  );
+
+  if new.base_amount_wei<>v_expected.base_amount_wei
+     or new.promotion_amount_wei<>v_expected.promotion_amount_wei
+     or new.promotion_rate_bps<>v_expected.promotion_rate_bps
+     or new.promotion_cap_wei<>v_expected.promotion_cap_wei then
+    raise exception 'REWARD_X_PROMOTION_CALCULATION_MISMATCH';
+  end if;
+
+  -- Protect the additional X 10 B3TR physically, but do not apply a
+  -- superseded round cap to a shared-pool reservation.
+  if new.mode='LIVE' and new.policy_version='x-promotion-additive-v2'
+     and v_queue.reservation_algorithm_version='shared-pool-v1' then
+    if coalesce(v_queue.reservation_basis->>'poolPolicy','')<>'shared-pool-v1'
+       or coalesce(v_queue.reservation_basis->>'observedPoolBalanceWei','') !~ '^[0-9]+$'
+       or (v_queue.reservation_basis->>'observedPoolBalanceWei')::numeric <
+          public.read_outstanding_reward_liability(
+            new.network,
+            '0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e'
+          )::numeric + new.promotion_amount_wei
+    then
+      raise exception 'SHARED_POOL_X_BONUS_PHYSICAL_CAPACITY_EXCEEDED';
+    end if;
+  elsif new.mode='LIVE' and new.policy_version='x-promotion-additive-v2' then
+    select * into v_receipt
+    from public.vebetter_round_allocations a
+    where a.id=new.source_allocation_receipt_id;
+
+    if not found
+       or v_receipt.network<>new.network
+       or v_receipt.vebetter_round_id+1<>new.source_reward_cohort_round_id then
+      raise exception 'REWARD_X_PROMOTION_SOURCE_MISMATCH';
+    end if;
+
+    -- The queue row already exists and is included in committed value. The
+    -- additive X bonus is not, so reserve it explicitly before promising it.
+    v_budget:=public.read_reward_cohort_effective_budget_wei(
+      new.network,
+      v_receipt.app_id,
+      new.source_reward_cohort_round_id,
+      new.source_allocation_receipt_id
+    );
+    v_committed:=public.read_reward_cohort_committed_wei(
+      new.network,
+      v_receipt.app_id,
+      new.source_reward_cohort_round_id,
+      new.source_allocation_receipt_id
+    );
+
+    if v_committed+new.promotion_amount_wei>v_budget then
+      raise exception 'REWARD_X_PROMOTION_BONUS_BUDGET_EXCEEDED';
+    end if;
+  end if;
+
+  if new.mode='LIVE' and exists (
+    select 1
+    from public.reward_payouts rp
+    where rp.invite_code=new.invite_code
+  ) then
+    raise exception 'REWARD_X_PROMOTION_SPLIT_TOO_LATE';
+  end if;
+
+  return new;
+end;
 $function$;
 
 COMMIT;
