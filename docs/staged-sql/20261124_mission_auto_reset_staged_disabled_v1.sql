@@ -263,6 +263,16 @@ BEGIN
        SELECT 1 FROM reward_admission_bridge.holds h
        WHERE h.invite_code=v_inv.invite_code AND h.network=p_network AND h.status='HELD'
      ) OR
+     EXISTS (
+       SELECT 1 FROM public.sybil_v2_wallet_restrictions r
+       WHERE r.network=p_network AND r.status='ACTIVE'
+         AND r.wallet_address IN (lower(v_inv.inviter_wallet),lower(v_inv.invitee_wallet))
+     ) OR
+     EXISTS (
+       SELECT 1 FROM public.sybil_v2_referral_assessments s
+       WHERE s.invite_code=v_inv.invite_code
+         AND s.state IN('RESTRICTED','ANALYSIS_PENDING')
+     ) OR
      NOT EXISTS (
        SELECT 1 FROM public.eligibility_check_events e
        WHERE e.id=v_inv.eligibility_check_id AND
