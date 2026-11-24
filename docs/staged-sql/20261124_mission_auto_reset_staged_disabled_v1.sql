@@ -106,10 +106,15 @@ BEGIN
     FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
     WHERE e.attempt_id=a.id AND e.event_type='VOT3_CONVERSION'
     LIMIT 1;
-    IF dapp_count<3 OR NOT FOUND OR
-       (new.block_number,new.tx_index,new.clause_index) <=
+    IF dapp_count<3 THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_MISSING_DAPPS';
+    END IF;
+    IF conversion.block_number IS NULL THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_MISSING_CONVERSION';
+    END IF;
+    IF (new.block_number,new.tx_index,new.clause_index) <=
        (conversion.block_number,conversion.tx_index,conversion.clause_index) THEN
-      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_MISSING_PREREQUISITE';
+      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_BEFORE_CONVERSION';
     END IF;
   END IF;
   RETURN new;
