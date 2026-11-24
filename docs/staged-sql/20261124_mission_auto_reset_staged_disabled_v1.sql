@@ -15,6 +15,24 @@ ON CONFLICT (id) DO NOTHING;
 REVOKE ALL ON reward_admission_bridge.mission_auto_reset_settings_v1 FROM PUBLIC, anon, authenticated;
 ALTER TABLE reward_admission_bridge.mission_auto_reset_settings_v1 ENABLE ROW LEVEL SECURITY;
 
+-- Read-only internal capability gate. Both this DB flag and the server's
+-- VEINVITE_MISSION_AUTO_RESET_READY must be enabled for a worker to act.
+CREATE OR REPLACE FUNCTION public.read_mission_auto_reset_settings_v1()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $settings$
+  SELECT jsonb_build_object(
+    'enabled',s.enabled,
+    'firstAutomaticRoundId',s.first_automatic_round_id,
+    'minimumFinalityBlocks',s.minimum_finality_blocks
+  )
+  FROM reward_admission_bridge.mission_auto_reset_settings_v1 s WHERE s.id=1;
+$settings$;
+REVOKE ALL ON FUNCTION public.read_mission_auto_reset_settings_v1()
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.read_mission_auto_reset_settings_v1()
+  TO service_role;
+
 -- Per-attempt evidence must not reuse the one-reward-per-app legacy table.
 CREATE TABLE IF NOT EXISTS reward_admission_bridge.mission_retry_attempt_events_v1 (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
