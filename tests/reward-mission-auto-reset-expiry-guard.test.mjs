@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 
-import { verifyPreviousMissionVoteWindow } from '../src/lib/rewards/missionAutoResetExpiryProof.ts';
-
-test('previous vote expiry guard exists as a read-only callable verifier', () => {
-  assert.equal(typeof verifyPreviousMissionVoteWindow, 'function');
+// Source-level contract tests avoid importing the alias-resolved Next.js
+// server module under Node's plain native test runner.
+test('previous vote expiry guard is implemented as a read-only verifier', () => {
+  const source = readFileSync('src/lib/rewards/missionAutoResetExpiryProof.ts', 'utf8');
+  assert.match(source, /export async function verifyPreviousMissionVoteWindow/);
 });
 
 test('expiry needs finalized N+1 boundaries and positively confirms no vote', () => {
