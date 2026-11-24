@@ -6,7 +6,7 @@ import {
   enqueueRewardReservationContinuation,
 } from '@/lib/rewards/rewardReservationContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { loadRetryBehaviorPatterns, countDistinctMissionPeers } from '@/lib/sybil/v2/missionRetryBehavior';
+import { inspectMissionBehaviorPatterns, type loadRetryBehaviorPatterns } from '@/lib/sybil/v2/missionRetryBehavior';
 import {
   readOnchainFundingSnapshot,
   type OnchainFundingSnapshot,
@@ -55,9 +55,7 @@ import {
   hasNewEvidenceForCurrentAssessment,
 } from '@/lib/sybil/v2/assessmentFreshness';
 import {
-  appOverlap,
   hasHighSignal,
-  intervalsSimilar,
   isFinalizedVoteCheckpoint,
   normalizeWallet,
   safeEligibilityRound,
@@ -186,15 +184,6 @@ type WatchFollowupEvidenceRow = {
   strength: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
   score: number | string;
   related_wallet: string | null;
-};
-
-type MissionFingerprintRow = {
-  invite_code: string;
-  inviter_wallet: string;
-  invitee_wallet: string;
-  activated_at: string;
-  app_sequence: string[];
-  reward_intervals_seconds: Array<number | string> | null;
 };
 
 type AssessmentRpcResult = {
@@ -1688,33 +1677,8 @@ async function loadMissionBehaviorSignals(
     return { signals: [], complete: false };
   }
 
-  const result = await supabaseAdmin
-    .from('operator_sybil_behavior_fingerprints')
-    .select(
-      'invite_code,inviter_wallet,invitee_wallet,activated_at,app_sequence,reward_intervals_seconds',
-    )
-    .eq('network', invitation.activation_network);
-
-  if (result.error) {
-    throw new Error(`Mission behavior fingerprints could not be loaded: ${result.error.message}`);
-  }
-
-  const retry = await loadRetryBehaviorPatterns(invitation);
-  const rows = [...(result.data ?? []) as MissionFingerprintRow[], ...retry.patterns];
-  const own = rows.find(row => row.invite_code === invitation.invite_code &&
-    (retry.attemptNo === null || ('attempt_no' in row && row.attempt_no === retry.attemptNo)));
-  if (!own || !Array.isArray(own.app_sequence) || own.app_sequence.length < 3) {
-    return { signals: [], complete: false, retry };
-  }
-  const similarPeerCount = countDistinctMissionPeers(rows, invitation.invite_code, (own, peer) => {
-    const ownAt = Date.parse(own.activated_at), peerAt = Date.parse(peer.activated_at);
-    return Array.isArray(own.app_sequence) && own.app_sequence.length >= 3 &&
-      Array.isArray(peer.app_sequence) && peer.app_sequence.length >= 3 &&
-      Number.isFinite(ownAt) && Number.isFinite(peerAt) &&
-      Math.abs(ownAt - peerAt) / 1000 <= MISSION_PEER_WINDOW_SECONDS &&
-      appOverlap(own.app_sequence, peer.app_sequence) >= 2 / 3 &&
-      intervalsSimilar(own.reward_intervals_seconds, peer.reward_intervals_seconds);
-  });
+  const { complete, similarPeerCount, retry } =
+    await inspectMissionBehaviorPatterns(invitation, MISSION_PEER_WINDOW_SECONDS);
 
   const signals: SybilV2Signal[] = [];
 
@@ -1744,7 +1708,7 @@ async function loadMissionBehaviorSignals(
     });
   }
 
-  return { signals, complete: true, retry };
+  return { signals, complete, retry };
 }
 
 async function loadAnalyticsExcludedWallets(

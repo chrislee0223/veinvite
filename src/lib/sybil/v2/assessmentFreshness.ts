@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 
 export async function hasNewEvidenceForCurrentAssessment(
   inviteCode: string,
@@ -18,12 +19,12 @@ export async function hasNewEvidenceForCurrentAssessment(
       .maybeSingle(),
     supabaseAdmin
       .from('sybil_v2_referral_assessments')
-      .select('updated_at')
+      .select('updated_at,evidence_summary')
       .eq('invite_code', inviteCode)
       .maybeSingle(),
     supabaseAdmin
       .from('invitations')
-      .select('identity_link_status,identity_link_checked_at')
+      .select('identity_link_status,identity_link_checked_at,activation_network')
       .eq('invite_code', inviteCode)
       .maybeSingle(),
     supabaseAdmin
@@ -58,6 +59,19 @@ export async function hasNewEvidenceForCurrentAssessment(
     throw new Error(
       `Sybil evidence freshness could not be loaded: ${evidenceResult.error.message}`,
     );
+  }
+
+  if (invitationResult.data?.activation_network) {
+    const active = (await readMissionAttemptDisplays([{
+      invite_code: inviteCode,
+      activation_network: String(invitationResult.data.activation_network),
+    }])).get(inviteCode);
+    const summary = assessmentResult.data?.evidence_summary;
+    if (active && active.voteCompleted &&
+      (summary?.missionRetryAttemptNo !== active.attemptNo ||
+       summary?.missionRetryCompletionBlock !== active.voteBlock)) {
+      return true;
+    }
   }
 
   if (candidateResult.data) {

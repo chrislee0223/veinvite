@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { appOverlap, intervalsSimilar } from '@/lib/sybil/v2/pipelinePrimitives';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 
 export type MissionBehaviorPattern = {
@@ -57,4 +58,36 @@ export function countDistinctMissionPeers(
     }
   }
   return peers.size;
+}
+
+export async function inspectMissionBehaviorPatterns(invitation: {
+  invite_code: string;
+  activation_network: string | null;
+  vote_completed?: boolean;
+  vote_completed_block?: number | string | null;
+}, peerWindowSeconds: number) {
+  const [result, retry] = await Promise.all([
+    supabaseAdmin.from('operator_sybil_behavior_fingerprints')
+      .select('invite_code,inviter_wallet,invitee_wallet,activated_at,app_sequence,reward_intervals_seconds')
+      .eq('network', invitation.activation_network!),
+    loadRetryBehaviorPatterns(invitation),
+  ]);
+  if (result.error) {
+    throw new Error('Mission behavior fingerprints unavailable: ' + result.error.message);
+  }
+  const rows: MissionBehaviorPattern[] = [...(result.data ?? []) as MissionBehaviorPattern[], ...retry.patterns];
+  const own = rows.find(row => row.invite_code === invitation.invite_code &&
+    (retry.attemptNo === null || row.attempt_no === retry.attemptNo));
+  const complete = !!own && Array.isArray(own.app_sequence) && own.app_sequence.length >= 3;
+  const similarPeerCount = countDistinctMissionPeers(rows, invitation.invite_code, (own, peer) => {
+    const ownAt = Date.parse(own.activated_at), peerAt = Date.parse(peer.activated_at);
+    return Array.isArray(own.app_sequence) && own.app_sequence.length >= 3 &&
+      Array.isArray(peer.app_sequence) && peer.app_sequence.length >= 3 &&
+      Number.isFinite(ownAt) && Number.isFinite(peerAt) &&
+      Math.abs(ownAt - peerAt) / 1000 <= peerWindowSeconds &&
+      appOverlap(own.app_sequence, peer.app_sequence) >= 2 / 3 &&
+      intervalsSimilar(own.reward_intervals_seconds, peer.reward_intervals_seconds);
+  });
+  // Old behavior findings remain valid even before the new attempt completes.
+  return { complete, similarPeerCount, retry };
 }
