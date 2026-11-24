@@ -1,0 +1,52 @@
+name: Mission Auto Reset - Isolated PostgreSQL 17 QA
+on:
+  pull_request:
+    paths:
+      - 'docs/staged-sql/20261124_mission_auto_reset_staged_disabled_v1.sql'
+      - 'tests/sql/mission-auto-reset-*.sql'
+      - '.github/workflows/mission-auto-reset-staged-sql-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-qa-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: isolated-qa-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Build fake base tables and disabled retry ledger
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-retry-ledger-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261117024000_mission_retry_ledger_disabled_v1.sql
+      - name: Add fake chain/funding/notification fixtures
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-fixture.sql
+      - name: Apply staged disabled automatic reset migration to fake DB only
+        run: psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261124_mission_auto_reset_staged_disabled_v1.sql
+      - name: Verify round boundaries, protected payouts, exact-once and slots
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-assert.sql
