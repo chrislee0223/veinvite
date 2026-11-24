@@ -20,7 +20,7 @@ DO $$
 DECLARE v jsonb;
 BEGIN
  SELECT public.commit_invitation_mission_auto_reset_v1(
-  'EDFW4Y7','mainnet',126,125,1000,1999,900,2100) INTO v;
+  'EDFW4Y7','mainnet',126,127,1000,1999,900,2100) INTO v;
  IF v->>'reason' <> 'ROUND_FINALITY_OR_BOUNDS_UNVERIFIED'
  THEN RAISE EXCEPTION 'Wrong round accepted: %',v; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(
