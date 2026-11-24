@@ -12,6 +12,12 @@ export type MissionAutoResetInput = {
   originalDappRoundId: number | null;
   latestAttemptDappRoundId: number | null;
   currentRoundId: number;
+  /**
+   * Start of the feature rollout. Old incomplete users catch up in this
+   * round, instead of inventing resets in historical unmonitored rounds.
+   * Default retains the original N+2 alignment for prospective attempts.
+   */
+  firstAutomaticRoundId?: number;
   invitationStatus: string;
   rewardStatus: string;
   sybilStatus: string | null;
@@ -83,6 +89,8 @@ export function deriveMissionAutoReset(
 
   if (!validRound(current) || (original !== null && !validRound(original)) ||
       (latest !== null && !validRound(latest)) ||
+      (input.firstAutomaticRoundId !== undefined &&
+        !validRound(input.firstAutomaticRoundId)) ||
       (original !== null && (!validRound(original + 1) || current < original))) {
     return result('INVALID');
   }
@@ -117,21 +125,25 @@ export function deriveMissionAutoReset(
     return result('LEGACY_REVIEW');
   }
 
-  // One attempt spans exactly two consecutive rounds. Deriving from ORIGINAL
-  // round, not "last time user opened the app", handles delayed cron execution
-  // without moving the qualifying chain boundary.
+  // The initial auto-reset is N+2. For long-expired historical users that
+  // predate rollout, anchor at the FIRST enabled round (not fictitious older
+  // windows). Each subsequent missed attempt repeats after two rounds.
   if (current <= original + 1) {
     return result('ORIGINAL_WINDOW', original);
   }
-
-  const delta = current - original;
-  const target = original + 2 * Math.floor(delta / 2);
-  if (!validRound(target) || !validRound(target + 1)) return result('INVALID');
-
-  if (latest !== null && (latest > target || latest < original ||
-      (latest - original) % 2 !== 0)) {
+  const first = Math.max(original + 2, input.firstAutomaticRoundId ?? original + 2);
+  if (!validRound(first) || !validRound(first + 1) ||
+      current < first) {
+    return result('ROUND_PROOF_UNAVAILABLE');
+  }
+  if (latest !== null && (latest < first || latest > current ||
+      (latest - first) % 2 !== 0)) {
     return result('INVALID');
   }
+
+  const delta = current - first;
+  const target = first + 2 * Math.floor(delta / 2);
+  if (!validRound(target) || !validRound(target + 1)) return result('INVALID');
 
   const start = input.targetRoundStartBlock;
   const end = input.targetRoundEndBlock;
