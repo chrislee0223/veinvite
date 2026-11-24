@@ -360,10 +360,6 @@ export async function getVeBetterVoteProgress({
         getRequiredTxId(vote);
       const voteClauseIndex =
         getRequiredClauseIndex(vote);
-      const roundId = getRequiredRoundId(vote.topics?.[2]);
-      if (expectedRoundId !== undefined && roundId !== expectedRoundId) {
-        continue;
-      }
       const votePosition:
         ChainEventPosition = {
           txId: voteTxId,
@@ -381,6 +377,13 @@ export async function getVeBetterVoteProgress({
           conversionPosition,
         )
       ) {
+        continue;
+      }
+
+      // Preserve the historical behavior: malformed old events preceding the
+      // verified conversion are ignored, not parsed as qualifying votes.
+      const roundId = getRequiredRoundId(vote.topics?.[2]);
+      if (expectedRoundId !== undefined && roundId !== expectedRoundId) {
         continue;
       }
 
