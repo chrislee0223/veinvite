@@ -55,6 +55,73 @@ REVOKE ALL ON reward_admission_bridge.mission_retry_attempt_events_v1
 ALTER TABLE reward_admission_bridge.mission_retry_attempt_events_v1
   ENABLE ROW LEVEL SECURITY;
 
+-- Keep per-attempt events immutable and strictly ordered. Unlike the legacy
+-- invite_impact_events table, the same dApp can qualify in a *later* attempt,
+-- but it can never be recredited within one attempt or outside the dApp window.
+-- A separate chain-aware worker must still independently validate every event.
+CREATE OR REPLACE FUNCTION public.validate_mission_attempt_event_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $proof$
+DECLARE
+  a reward_admission_bridge.mission_retry_attempts_v1%rowtype;
+  first_dapp record;
+  conversion record;
+  dapp_count integer;
+BEGIN
+  IF tg_op <> 'INSERT' THEN
+    RAISE EXCEPTION 'MISSION_ATTEMPT_EVENTS_IMMUTABLE';
+  END IF;
+  SELECT * INTO a FROM reward_admission_bridge.mission_retry_attempts_v1
+  WHERE id=new.attempt_id FOR SHARE;
+  IF NOT FOUND OR a.state='FINISHED' THEN
+    RAISE EXCEPTION 'MISSION_ATTEMPT_EVENT_STATE_INVALID';
+  END IF;
+  IF new.block_number<a.attempt_start_block THEN
+    RAISE EXCEPTION 'MISSION_ATTEMPT_EVENT_BEFORE_RESET';
+  END IF;
+  IF new.event_type='DAPP_REWARD' THEN
+    IF new.block_number>a.round_end_block THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_DAPP_OUTSIDE_ROUND';
+    END IF;
+  ELSIF new.event_type='VOT3_CONVERSION' THEN
+    SELECT e.block_number,e.tx_index,e.clause_index INTO first_dapp
+    FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+    WHERE e.attempt_id=a.id AND e.event_type='DAPP_REWARD'
+    ORDER BY e.block_number,e.tx_index,e.clause_index LIMIT 1;
+    IF NOT FOUND OR
+       (new.block_number,new.tx_index,new.clause_index) <=
+       (first_dapp.block_number,first_dapp.tx_index,first_dapp.clause_index) THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_CONVERSION_BEFORE_DAPP';
+    END IF;
+  ELSIF new.event_type='ALLOCATION_VOTE' THEN
+    IF new.vote_round_id<>a.vote_round_id OR
+       new.block_number<=a.round_end_block THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_WRONG_ROUND';
+    END IF;
+    SELECT count(*) INTO dapp_count
+    FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+    WHERE e.attempt_id=a.id AND e.event_type='DAPP_REWARD';
+    SELECT e.block_number,e.tx_index,e.clause_index INTO conversion
+    FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+    WHERE e.attempt_id=a.id AND e.event_type='VOT3_CONVERSION'
+    LIMIT 1;
+    IF dapp_count<3 OR NOT FOUND OR
+       (new.block_number,new.tx_index,new.clause_index) <=
+       (conversion.block_number,conversion.tx_index,conversion.clause_index) THEN
+      RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_MISSING_PREREQUISITE';
+    END IF;
+  END IF;
+  RETURN new;
+END;
+$proof$;
+CREATE TRIGGER mission_attempt_event_insert_validator_v1
+BEFORE INSERT OR UPDATE OR DELETE
+ON reward_admission_bridge.mission_retry_attempt_events_v1
+FOR EACH ROW EXECUTE FUNCTION public.validate_mission_attempt_event_v1();
+REVOKE ALL ON FUNCTION public.validate_mission_attempt_event_v1()
+  FROM PUBLIC,anon,authenticated;
+
 -- Reuse the existing notification type/presentation with distinct lifecycle
 -- semantics. The existing history is append-only and unique by dedupe_key.
 ALTER TABLE public.invite_notification_history
