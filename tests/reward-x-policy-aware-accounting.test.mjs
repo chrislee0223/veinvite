@@ -2,9 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
-// Historical migrations remain immutable; this test follows the staged
-// replacement definitions until the exact production migration is recorded.
-const sql = readFileSync('docs/staged-sql/20261124_reward_x_policy_aware_accounting.sql','utf8');
+// Historical migrations remain immutable; test the exact applied replacement.
+const sql = readFileSync('supabase/migrations/20261124033046_reward_x_policy_aware_accounting.sql','utf8');
 const reader = readFileSync('src/lib/rewards/publicElasticForecastReader.ts','utf8');
 const W = 10n ** 18n;
 function body(name) {

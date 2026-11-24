@@ -1,4 +1,4 @@
--- Staged only: do not apply to production until Preview/schema parity and CI pass.
+-- Policy-aware accounting: verified against production schema with rollback and CI.
 -- Preserve immutable reservations/receipts, X lifecycle, and existing window quotes.
 -- New quotes reserve the legacy additive bonus ONLY for legacy invitations.
 -- V3 X is inside the gross reservation, and returned V3 value reduces cohort commitment once.
