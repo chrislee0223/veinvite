@@ -116,7 +116,7 @@ const PARTICIPATION_REFRESH_MS = 3 * 60_000;
 const BACKGROUND_PUBLIC_REFRESH_DELAY_MS = 600;
 // A new forecast model always uses a new browser cache namespace.
 const PERSISTED_FORECAST_STORAGE_KEY =
-  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_recent_v4`;
+  `veinvite_reward_forecast_${PUBLIC_ACTIVE_FORECAST_MODEL_VERSION}_recent_v5`;
 const APP_READY_EVENT = 'veinvite-app-ready';
 const APP_READY_IDLE_FALLBACK_MS = 900;
 const REWARD_FORECAST_UPDATED_EVENT = 'veinvite-reward-forecast-updated';
