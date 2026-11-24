@@ -208,11 +208,13 @@ async function handleOne(
       return 'BLOCKED';
     }
     const retry = await loadRetryRead(code, network);
-    if (['COMPLETION_PROTECTED','SECURITY_REVIEW','TERMINAL',
+    if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
       return 'BLOCKED';
     }
+    const reviewOnly = retry.state === 'SECURITY_REVIEW';
+    if (reviewOnly && retry.latestAttemptNo == null) return 'BLOCKED';
     // A published retry checkpoint already has vote_completed=true.
     // Resume its security/eligibility handoff after any crash or delay.
     if (live.vote_completed === true && retry.latestAttemptNo != null) {
@@ -226,8 +228,8 @@ async function handleOne(
       candidate: live, retry, currentRoundId, settings,
       startBlock: null, endBlock: null, finalizedBlock: null,
     }));
-    if (preliminary.state !== 'ROUND_PROOF_UNAVAILABLE' ||
-        preliminary.targetDappRoundId === null) {
+    if (!reviewOnly && (preliminary.state !== 'ROUND_PROOF_UNAVAILABLE' ||
+        preliminary.targetDappRoundId === null)) {
       return 'BLOCKED';
     }
 
@@ -274,10 +276,11 @@ async function handleOne(
         await bindCompletion(network, code, active.attemptNo);
         return 'BLOCKED';
       }
-      if (latestAttempt === preliminary.targetDappRoundId) {
+      if (reviewOnly || latestAttempt === preliminary.targetDappRoundId) {
         return 'BLOCKED';
       }
     }
+    if (reviewOnly || preliminary.targetDappRoundId === null) return 'BLOCKED';
     const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
     if (base === null) return 'BLOCKED';
     const priorVoteRoundId = base + 1;
@@ -391,7 +394,7 @@ export async function runMissionAutoResetSweep(
   const countResult = await supabaseAdmin.from('invitations')
     .select('invite_code', { count: 'exact', head: true })
     .eq('activation_network', config.network)
-    .eq('status', 'ACTIVATING')
+    .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
     .eq('reward_status', 'PENDING')
     .not('invitee_wallet','is',null);
   if (countResult.error || countResult.count === null) {
@@ -406,7 +409,7 @@ export async function runMissionAutoResetSweep(
   const { data: rows, error } = await supabaseAdmin.from('invitations')
     .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
     .eq('activation_network', config.network)
-    .eq('status', 'ACTIVATING')
+    .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
     .eq('reward_status', 'PENDING')
     .not('invitee_wallet','is',null)
     .order('activated_at',{ ascending:true })

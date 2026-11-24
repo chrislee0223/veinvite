@@ -1,13 +1,19 @@
 \set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('veinvite.qa_legacy', :'legacy', false);
+UPDATE public.invitations SET created_at=now()-interval '60 days'
+ WHERE invite_code='EDFW4Y7' AND current_setting('veinvite.qa_legacy')='1';
 -- Isolated synthetic pool: 100 B3TR, 1 current retry, 90 base + 10 withheld X.
 -- No real token transaction or external signer is called.
 DO $financial$
 DECLARE
  app constant text:='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e';
  e numeric:=1000000000000000000; r jsonb; q public.reward_queue_entries%rowtype;
+ gross numeric; legacy boolean:=current_setting('veinvite.qa_legacy')='1';
  sp public.reward_x_promotion_splits%rowtype; o public.reward_x_promotion_obligations%rowtype;
  receipt bigint; wallet text; claimrow record; rid bigint; pid bigint; paidtime timestamptz; tx text:='0x'||repeat('a',64);
 BEGIN
+ gross:=CASE WHEN legacy THEN 90*e ELSE 100*e END;
  SELECT inviter_wallet INTO wallet FROM public.invitations WHERE invite_code='EDFW4Y7';
  SELECT id INTO receipt FROM public.vebetter_round_allocations WHERE network='mainnet' AND vebetter_round_id=128;
  UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true WHERE id=1;
@@ -28,7 +34,7 @@ BEGIN
  SELECT * INTO q FROM public.reward_queue_entries WHERE invite_code='EDFW4Y7';
  SELECT * INTO sp FROM public.reward_x_promotion_splits WHERE invite_code='EDFW4Y7';
  SELECT * INTO o FROM public.reward_x_promotion_obligations WHERE invite_code='EDFW4Y7';
- IF q.reserved_amount_wei IS DISTINCT FROM 100*e OR q.status<>'AWAITING_CLAIM'
+ IF q.reserved_amount_wei IS DISTINCT FROM gross OR q.status<>'AWAITING_CLAIM'
    OR q.reservation_completion_block<>4001 OR q.reservation_basis->>'rewardCohortRoundId'<>'129'
    OR sp.source_reward_cohort_round_id<>129 OR sp.source_allocation_receipt_id<>receipt
    OR sp.base_amount_wei IS DISTINCT FROM 90*e OR o.promotion_amount_wei IS DISTINCT FROM 10*e
@@ -71,3 +77,5 @@ BEGIN
 END;
 $financial$;
 SELECT 'mission-retry-real-financial-authorities-qa-pass' AS result;
+
+ROLLBACK;

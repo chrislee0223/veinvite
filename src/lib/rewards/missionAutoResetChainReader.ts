@@ -100,6 +100,9 @@ export async function readMissionAutoResetChainProgress({
     activationBlock: attemptStartBlock,
     checkedBlock: Math.min(dappRound.voteEndBlock, finalizedBlock),
   });
+  if (activity.latestBlock < Math.min(dappRound.voteEndBlock, finalizedBlock)) {
+    throw new Error('dApp proof node has not reached the finalized scan boundary');
+  }
   const appsCompleted = Math.min(3, activity.qualifyingRewardEvents.length);
   const firstDapp = activity.qualifyingRewardEvents[0] ?? null;
   const countedAppIds = activity.qualifyingRewardEvents.map((event) => event.appId);
@@ -123,6 +126,9 @@ export async function readMissionAutoResetChainProgress({
       // Conversions cannot qualify after the last vote block.
       checkedBlock: Math.min(voteRound?.voteEndBlock ?? dappRound.voteEndBlock, finalizedBlock),
     });
+    if (progress.checkedBlock < Math.min(voteRound?.voteEndBlock ?? dappRound.voteEndBlock, finalizedBlock)) {
+      throw new Error('Conversion proof node has not reached the finalized scan boundary');
+    }
     conversion = progress.qualifyingConversion;
   }
 
@@ -135,6 +141,9 @@ export async function readMissionAutoResetChainProgress({
       checkedFromBlock: voteRound.voteStartBlock,
       checkedThroughBlock: Math.min(voteRound.voteEndBlock, finalizedBlock),
     });
+    if (verifiedVote.latestBlock < Math.min(voteRound.voteEndBlock, finalizedBlock)) {
+      throw new Error('Vote proof node has not reached the finalized scan boundary');
+    }
     if (verifiedVote.voteCompleted &&
         verifiedVote.voteRoundId === voteRoundId &&
         verifiedVote.voteCompletedBlock !== null &&
