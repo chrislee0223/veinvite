@@ -50,3 +50,12 @@ CREATE TABLE public.invite_notification_history_reads(
   inviter_wallet text NOT NULL,
   read_at timestamptz NOT NULL
 );
+
+-- Read-only references used by the existing production notification
+-- acknowledgement procedure, with no synthetic review cases.
+CREATE TABLE public.sybil_v2_referral_assessments (
+  invite_code text, state text, updated_at timestamptz, reason_codes jsonb
+);
+CREATE TABLE public.sybil_v2_wallet_restrictions (
+  related_invite_code text, status text, wallet_address text, network text
+);
