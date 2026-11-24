@@ -6,7 +6,7 @@
  * Explicit true permits an isolated test deployment with its own schema.
  */
 export function missionAutoResetSchemaReady(
-  env: Partial<Pick<NodeJS.ProcessEnv,'VERCEL_ENV'|'NEXT_PUBLIC_SUPABASE_URL'|'VEINVITE_MISSION_AUTO_RESET_READY'>> = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   if (env.VEINVITE_MISSION_AUTO_RESET_READY === 'true') return true;
   if (env.VERCEL_ENV !== 'production') return false;
