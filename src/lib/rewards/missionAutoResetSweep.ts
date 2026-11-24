@@ -203,6 +203,11 @@ async function handleOne(
     const latestAttempt = retry.latestAttemptNo === null ||
       retry.latestAttemptNo === undefined
       ? null : safeRound(retry.attemptRoundId);
+    // An already-created attempt needs no repeated on-chain vote absence
+    // check. The DB writer's exact-once guard handles concurrent retries.
+    if (latestAttempt === preliminary.targetDappRoundId) {
+      return 'BLOCKED';
+    }
     const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
     if (base === null) return 'BLOCKED';
     const priorVoteRoundId = base + 1;
