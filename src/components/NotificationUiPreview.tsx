@@ -35,6 +35,7 @@ const SCENARIOS: Scenario[] = [
   { id: 'NOTI-DAPP-1', label: 'dApp 1/3' },
   { id: 'NOTI-DAPP-2', label: 'dApp 2/3' },
   { id: 'NOTI-DAPP-3', label: 'dApp 3/3' },
+  { id: 'NOTI-MISSION-RESET', label: '미션 기한 만료 · 0/3 초기화' },
   { id: 'NOTI-VOT3', label: 'VOT3 전환' },
   { id: 'NOTI-COLLAPSED-PROGRESS', label: '여러 단계 완료' },
   { id: 'NOTI-REWARD-READY', label: '보상 수령 가능' },
