@@ -325,6 +325,41 @@ BEGIN
  THEN RAISE EXCEPTION 'Projection accidentally granted payout'; END IF;
 END $project$;
 
+-- Completed retries bind their immutable vote round, not an older
+-- invitation cohort or the round in which a delayed worker runs.
+DO $binding_test$
+DECLARE r jsonb; expected_funding bigint; bound_count bigint;
+BEGIN
+ SELECT public.bind_mission_retry_completion_v1('mainnet','EDFW4Y7',1) INTO r;
+ IF r->>'reason'<>'STALE_ATTEMPT' THEN RAISE EXCEPTION 'Old attempt bound: %',r; END IF;
+ SELECT id INTO expected_funding FROM public.vebetter_round_allocations
+ WHERE network='mainnet' AND vebetter_round_id=128;
+ SELECT public.bind_mission_retry_completion_v1('mainnet','EDFW4Y7',2) INTO r;
+ IF r->>'bound'<>'true' OR r->>'completionRoundId'<>'129'
+    OR r->>'fundingAllocationReceiptId'<>expected_funding::text
+ THEN RAISE EXCEPTION 'Wrong completion funding binding: %',r; END IF;
+ SELECT public.bind_mission_retry_completion_v1('mainnet','EDFW4Y7',2) INTO r;
+ SELECT count(*) INTO bound_count FROM reward_admission_bridge.mission_retry_settlement_bindings_v1;
+ IF r->>'bound'<>'true' OR bound_count<>1 THEN RAISE EXCEPTION 'Duplicate binding: %',r; END IF;
+ IF (SELECT reward_cohort_round_id FROM public.invitations WHERE invite_code='EDFW4Y7')<>124
+    OR EXISTS(SELECT 1 FROM public.reward_queue_entries WHERE invite_code='EDFW4Y7')
+    OR EXISTS(SELECT 1 FROM public.reward_payouts WHERE invite_code='EDFW4Y7')
+ THEN RAISE EXCEPTION 'Binding mutated entry or moved funds'; END IF;
+END $binding_test$;
+
+-- Advancing to 130 cannot expire the prior attempt after a verified vote.
+INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number)
+VALUES ('mainnet','0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e',129,4999);
+DO $completed_guard$
+DECLARE r jsonb;
+BEGIN
+ SELECT public.commit_invitation_mission_auto_reset_v1('EDFW4Y7','mainnet',130,130,5000,5999,4999,5200) INTO r;
+ IF r->>'reason'<>'PREVIOUS_ATTEMPT_PROTECTED' THEN
+    RAISE EXCEPTION 'Verified prior completion was not protected: %',r; END IF;
+ IF (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempts_v1 WHERE invite_code='EDFW4Y7')<>2
+ THEN RAISE EXCEPTION 'Completed mission was reset again'; END IF;
+END $completed_guard$;
+
 -- Turn off all writes: the default safety gate remains an independent switch.
 UPDATE reward_admission_bridge.mission_auto_reset_settings_v1
 SET enabled=false WHERE id=1;
