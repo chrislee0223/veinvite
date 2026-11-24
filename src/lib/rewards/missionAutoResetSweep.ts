@@ -157,6 +157,16 @@ function inputFor({
   };
 }
 
+async function bindCompletion(network: string, code: string, attemptNo: number) {
+  const result = await supabaseAdmin.rpc('bind_mission_retry_completion_v1', {
+    p_network: network, p_invite_code: code, p_attempt_no: attemptNo,
+  });
+  if (result.error) throw new Error('Attempt funding binding failed: ' + result.error.message);
+  if (result.data?.bound === true) return true;
+  if (result.data?.reason === 'FUNDING_NOT_FINALIZED') return false;
+  throw new Error('Attempt funding binding rejected: ' + (result.data?.reason ?? 'UNKNOWN'));
+}
+
 async function handleOne(
   candidate: Candidate,
   currentRoundId: number,
@@ -213,7 +223,11 @@ async function handleOne(
       if (!active || active.dappRoundId !== latestAttempt) {
         throw new Error('Active attempt progress unavailable.');
       }
-      if (active.voteCompleted) return 'BLOCKED';
+      // The completed mission is protected. If its funding receipt was not
+      // finalized at the prior scan, refresh finality and retry the binding.
+      if (active.voteCompleted && await bindCompletion(network, code, active.attemptNo)) {
+        return 'BLOCKED';
+      }
       const proof = await readMissionAutoResetChainProgress({
         walletAddress: live.invitee_wallet!,
         expectedNetwork: network,
@@ -236,7 +250,11 @@ async function handleOne(
         throw new Error('Attempt progress persistence failed: ' +
           (recorded.error?.message ?? recorded.data?.reason ?? 'Unknown'));
       }
-      if (proof.voteCompleted || latestAttempt === preliminary.targetDappRoundId) {
+      if (proof.voteCompleted) {
+        await bindCompletion(network, code, active.attemptNo);
+        return 'BLOCKED';
+      }
+      if (latestAttempt === preliminary.targetDappRoundId) {
         return 'BLOCKED';
       }
     }
