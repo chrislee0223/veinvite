@@ -106,6 +106,40 @@ BEGIN
  THEN RAISE EXCEPTION 'Repeated expiry failed to preserve history/notice'; END IF;
 END $$;
 
+-- A second attempt can repeat the same external dApp; only within-attempt
+-- double counting is forbidden. This is incompatible with the legacy
+-- UNIQUE(invite_code,app_id) attribution and therefore must stay separate.
+DO $
+DECLARE first_id bigint; second_id bigint; app text := '0x'||repeat('a',64);
+BEGIN
+ SELECT id INTO first_id FROM reward_admission_bridge.mission_retry_attempts_v1
+ WHERE invite_code='EDFW4Y7' AND attempt_no=1;
+ SELECT id INTO second_id FROM reward_admission_bridge.mission_retry_attempts_v1
+ WHERE invite_code='EDFW4Y7' AND attempt_no=2;
+ INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+ (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,
+  block_number,tx_index,clause_index,block_timestamp)
+ VALUES
+ (first_id,'DAPP_REWARD',app,'1',null,'0x'||repeat('1',64),
+  1200,0,0,clock_timestamp()),
+ (second_id,'DAPP_REWARD',app,'1',null,'0x'||repeat('2',64),
+  3200,0,0,clock_timestamp());
+ IF (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1
+     WHERE app_id=app)<>2 THEN
+   RAISE EXCEPTION 'Reused same dApp was not allowed across different attempts';
+ END IF;
+ BEGIN
+  INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+  (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,
+   block_number,tx_index,clause_index,block_timestamp)
+  VALUES (second_id,'DAPP_REWARD',app,'1',null,'0x'||repeat('3',64),
+   3300,0,0,clock_timestamp());
+  RAISE EXCEPTION 'Duplicate same-attempt dApp was wrongly counted';
+ EXCEPTION WHEN unique_violation THEN
+  NULL;
+ END;
+END $;
+
 -- Turn off all writes: the default safety gate remains an independent switch.
 UPDATE reward_admission_bridge.mission_auto_reset_settings_v1
 SET enabled=false WHERE id=1;
