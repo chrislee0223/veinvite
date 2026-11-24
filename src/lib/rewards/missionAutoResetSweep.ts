@@ -341,3 +341,30 @@ export async function runMissionAutoResetSweep(
   }
   return result;
 }
+
+/**
+ * Only errors from a deliberately enabled reset subsystem affect the existing
+ * cron health result. When disabled, this is an inexpensive zero-I/O no-op.
+ */
+export async function runMissionAutoResetSweepSafe(): Promise<{
+  sweep: MissionResetSweep | null;
+  failure: Error | null;
+}> {
+  try {
+    const sweep = await runMissionAutoResetSweep();
+    return {
+      sweep,
+      failure: sweep.failed > 0
+        ? new Error('Mission reset candidate chain proof failed.')
+        : null,
+    };
+  } catch (error) {
+    console.error('Mission auto-reset sweep failed:', error);
+    return {
+      sweep: null,
+      failure: error instanceof Error
+        ? error
+        : new Error('Mission auto-reset sweep failed.'),
+    };
+  }
+}
