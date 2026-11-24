@@ -34,7 +34,7 @@ test('first HTML paint includes only the approved current-cohort estimate', () =
 
 test('revised client storage ignores old-model quote and restores current-model values only', () => {
   assert.match(forecastCard, /PUBLIC_ACTIVE_FORECAST_MODEL_VERSION/);
-  assert.match(forecastCard, /_recent_v4/);
+  assert.match(forecastCard, /_recent_v5/);
   assert.match(forecastCard, /isRestorableRewardForecast/);
   assert.match(forecastCard, /useIsomorphicLayoutEffect/);
   assert.match(forecastCard, /persistForecast\(result\)/);

@@ -32,7 +32,7 @@ test('read-only API excludes ineligible referrals at DB and calculation levels',
   assert.match(reader,/\.is\('ineligible_at', null\)/);
   assert.match(reader,/sybil_status,reward_status,ineligible_at,apps_completed/);
   assert.match(forecast,/row\.ineligible_at != null/);
-  assert.match(forecast,/PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v4'/);
-  assert.match(card,/_recent_v4/);
+  assert.match(forecast,/PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v5'/);
+  assert.match(card,/_recent_v5/);
   assert.doesNotMatch(card,/scenarioLowWei|scenarioHighWei|rewardScenarioRange/);
 });

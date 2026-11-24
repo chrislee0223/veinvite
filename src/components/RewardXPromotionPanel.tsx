@@ -300,7 +300,7 @@ export function RewardXPromotionPanel({
   }
 
   // A transient server read failure must keep a visible retry action rather
-  // than silently making a still-open +10 B3TR opportunity disappear.
+  // than silently making an active X promotion offer disappear.
   if (loadError) {
     return (
       <div className="promotionStatus" lang={locale} dir={direction}>

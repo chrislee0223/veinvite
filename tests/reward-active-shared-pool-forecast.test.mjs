@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   countActiveSharedPoolReferrals,
   estimateActiveSharedPoolReward,
+  estimatePolicyAwareActiveSharedPoolReward,
 } from '../src/lib/rewards/activeSharedPoolForecast.ts';
 
 const W = 10n ** 18n;
@@ -15,7 +16,7 @@ function row(overrides = {}) {
     status: 'ACTIVATING', sybil_status: 'NOT_CHECKED',
     reward_status: 'PENDING', ineligible_at: null, apps_completed: 1, activated_at: recent,
     apps_completed_at: null, vote_completed_at: null,
-    vote_round_id: null, ...overrides,
+    vote_round_id: null, slot_released_at: null, ...overrides,
   };
 }
 
@@ -105,4 +106,53 @@ test('public API and home UI use a single participation-aware value and preserve
   assert.doesNotMatch(card,/formatRewardWei\(elastic\.oneWinnerWei\)/);
   assert.match(writer,/commit_reward_shared_pool_v1/);
   assert.doesNotMatch(api,/commit_reward_shared_pool_v1/);
+});
+
+test('policy-aware forecast protects legacy only and never deducts old X reserve for new invitations', () => {
+  const cutover = '2026-11-10T00:00:00Z';
+  const legacy = row({created_at:'2026-11-09T00:00:00Z'});
+  const newer = row({created_at:'2026-11-11T00:00:00Z'});
+  const reserve = (10n*W).toString();
+  const cap = (1000n*W).toString();
+  const forecast = (rows, sunset=null) => estimatePolicyAwareActiveSharedPoolReward(
+    cap,reserve,rows,124,NOW,cutover,sunset);
+  assert.equal(forecast([]).estimatedRewardWei,cap);
+  assert.equal(forecast([newer]).estimatedRewardWei,cap);
+  assert.equal(forecast([legacy]).estimatedRewardWei,(990n*W).toString());
+  assert.equal(forecast([legacy,newer]).estimatedRewardWei,(495n*W).toString());
+  assert.equal(forecast([newer,newer]).estimatedRewardWei,(500n*W).toString());
+  assert.equal(forecast([legacy,legacy]).estimatedRewardWei,(490n*W).toString());
+  assert.equal(forecast([newer],'2026-11-10T12:00:00Z').estimatedRewardWei,(990n*W).toString());
+  assert.equal(forecast([legacy,row({created_at:null,status:'CANCELLED'})]).estimatedRewardWei,(990n*W).toString());
+  assert.throws(()=>forecast([row({created_at:null})]));
+  assert.equal(estimatePolicyAwareActiveSharedPoolReward('1',reserve,[newer],124,NOW,cutover,null).estimatedRewardWei,'1');
+});
+
+test('fixed but unclaimed rewards and fully offset settlements do not divide free pool again', () => {
+  const cutover = '2026-11-10T00:00:00Z';
+  const open = row({created_at:'2026-11-11T00:00:00Z',apps_completed:0});
+  const completed = row({created_at:'2026-11-09T00:00:00Z',status:'COMPLETED',
+    vote_round_id:124,reward_status:'ELIGIBLE'});
+  const fixed = {...completed,slot_released_at:recent};
+  const fullyOffset = {...completed,slot_released_at:recent,reward_status:'PENDING'};
+  const paid = {...fixed,reward_status:'PAID'};
+  const forecast = rows => estimatePolicyAwareActiveSharedPoolReward(
+    (500n*W).toString(),(10n*W).toString(),rows,124,NOW,cutover,null);
+  assert.equal(countActiveSharedPoolReferrals([open,completed],124,NOW),2);
+  for (const settled of [fixed,fullyOffset,paid]) {
+    assert.equal(countActiveSharedPoolReferrals([open,settled],124,NOW),1);
+    assert.equal(forecast([open,settled]).estimatedRewardWei,(500n*W).toString());
+    assert.equal(forecast([settled]).projectedRecipients,1);
+  }
+  assert.equal(forecast([open,completed]).estimatedRewardWei,(245n*W).toString());
+  assert.equal(countActiveSharedPoolReferrals([row({slot_released_at:recent})],124,NOW),0);
+});
+
+test('fixed recipients are excluded in the existing single read and forecast cache is versioned', () => {
+  const reader = readFileSync('src/lib/rewards/publicElasticForecastReader.ts','utf8');
+  const firstPaint = readFileSync('src/lib/rewards/publicRewardForecastFirstPaint.ts','utf8');
+  assert.match(reader,/\.is\('slot_released_at', null\)/);
+  assert.match(reader,/vote_round_id,slot_released_at/);
+  assert.match(firstPaint,/\['public-current-shared-pool-first-paint-v1', PUBLIC_ACTIVE_FORECAST_MODEL_VERSION\]/);
+  assert.doesNotMatch(reader,/\.from\('reward_queue_entries'\)|\.from\('reward_recovery_settlements'\)/);
 });
