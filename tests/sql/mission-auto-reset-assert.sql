@@ -109,7 +109,7 @@ END $$;
 -- A second attempt can repeat the same external dApp; only within-attempt
 -- double counting is forbidden. This is incompatible with the legacy
 -- UNIQUE(invite_code,app_id) attribution and therefore must stay separate.
-DO $
+DO $reset_reuse_test$
 DECLARE first_id bigint; second_id bigint; app text := '0x'||repeat('a',64);
 BEGIN
  SELECT id INTO first_id FROM reward_admission_bridge.mission_retry_attempts_v1
@@ -138,7 +138,7 @@ BEGIN
  EXCEPTION WHEN unique_violation THEN
   NULL;
  END;
-END $;
+END $reset_reuse_test$;
 
 -- Turn off all writes: the default safety gate remains an independent switch.
 UPDATE reward_admission_bridge.mission_auto_reset_settings_v1
