@@ -271,7 +271,7 @@ BEGIN
      EXISTS (
        SELECT 1 FROM public.sybil_v2_referral_assessments s
        WHERE s.invite_code=v_inv.invite_code
-         AND s.state IN('RESTRICTED','ANALYSIS_PENDING')
+         AND s.state IN('RESTRICTED','HOLD','WATCH','ANALYSIS_FAILED')
      ) OR
      NOT EXISTS (
        SELECT 1 FROM public.eligibility_check_events e
@@ -371,6 +371,226 @@ REVOKE ALL ON FUNCTION public.commit_invitation_mission_auto_reset_v1(
 ) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.commit_invitation_mission_auto_reset_v1(
  text,text,bigint,bigint,bigint,bigint,bigint,bigint
+) TO service_role;
+
+-- Display/verification state is scoped to the active attempt only. The
+-- original invitation's activation and funding binding remain immutable.
+ALTER TABLE reward_admission_bridge.mission_retry_attempts_v1
+  ADD COLUMN IF NOT EXISTS vote_window_start_block bigint,
+  ADD COLUMN IF NOT EXISTS vote_window_end_block bigint,
+  ADD COLUMN IF NOT EXISTS proof_finalized_through_block bigint;
+ALTER TABLE reward_admission_bridge.mission_retry_attempts_v1
+  ADD CONSTRAINT mission_retry_vote_bounds_v1 CHECK (
+    (vote_window_start_block IS NULL AND vote_window_end_block IS NULL)
+    OR (vote_window_start_block IS NOT NULL AND vote_window_end_block IS NOT NULL
+        AND vote_window_start_block>round_end_block
+        AND vote_window_end_block>=vote_window_start_block)
+  );
+
+-- Internal batched projection used by both authenticated wallets. No
+-- arbitrary user inputs or public table exposure; callers validate ownership.
+CREATE OR REPLACE FUNCTION public.read_mission_auto_reset_progress_v1(
+  p_network text,p_invite_codes text[]
+) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $projection$
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'inviteCode',a.invite_code,'attemptNo',a.attempt_no,
+    'dappRoundId',a.dapp_round_id,'voteRoundId',a.vote_round_id,
+    'attemptStartBlock',a.attempt_start_block,
+    'dappEndBlock',a.round_end_block,
+    'voteStartBlock',a.vote_window_start_block,
+    'voteEndBlock',a.vote_window_end_block,
+    'finalizedThroughBlock',a.proof_finalized_through_block,
+    'appsCompleted',coalesce(d.apps,0),
+    'appIds',coalesce(d.app_ids,'[]'::jsonb),
+    'appsCompletedAt',case when d.apps=3 then d.last_at end,
+    'appsCompletedBlock',case when d.apps=3 then d.last_block end,
+    'vot3Converted',cv.id IS NOT NULL,
+    'conversionAmountWei',cv.amount_wei,'conversionTxId',cv.tx_id,
+    'conversionBlock',cv.block_number,'conversionAt',cv.block_timestamp,
+    'voteCompleted',v.id IS NOT NULL AND d.apps=3 AND cv.id IS NOT NULL,
+    'voteBlock',v.block_number,'voteAt',v.block_timestamp,
+    -- Informational funding target, not a reservation or eligibility grant.
+    'completionRoundId',case when v.id IS NOT NULL AND d.apps=3 AND cv.id IS NOT NULL
+       then a.vote_round_id end,
+    'fundingAllocationReceiptId',case when v.id IS NOT NULL AND d.apps=3 AND cv.id IS NOT NULL
+       then funding.id::text end
+  ) ORDER BY a.invite_code),'[]'::jsonb)
+  FROM reward_admission_bridge.mission_retry_attempts_v1 a
+  JOIN public.invitations i ON i.id=a.invitation_id
+    AND i.invite_code=a.invite_code AND i.activation_network=a.network
+  LEFT JOIN LATERAL (
+    SELECT count(*)::integer apps,jsonb_agg(e.app_id ORDER BY e.block_number,e.tx_index,e.clause_index) app_ids,
+      max(e.block_number) last_block,max(e.block_timestamp) last_at
+    FROM (SELECT * FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+      WHERE e.attempt_id=a.id AND e.event_type='DAPP_REWARD'
+      ORDER BY e.block_number,e.tx_index,e.clause_index LIMIT 3) e
+  ) d ON true
+  LEFT JOIN reward_admission_bridge.mission_retry_attempt_events_v1 cv
+    ON cv.attempt_id=a.id AND cv.event_type='VOT3_CONVERSION'
+  LEFT JOIN reward_admission_bridge.mission_retry_attempt_events_v1 v
+    ON v.attempt_id=a.id AND v.event_type='ALLOCATION_VOTE'
+  LEFT JOIN LATERAL (
+    SELECT f.id FROM public.vebetter_round_allocations f
+    WHERE f.network=a.network
+      AND f.app_id='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e'
+      AND f.vebetter_round_id=a.vote_round_id-1
+    ORDER BY f.id DESC LIMIT 1
+  ) funding ON true
+  WHERE a.state='ACTIVE' AND a.network=p_network
+    AND cardinality(p_invite_codes) BETWEEN 1 AND 100
+    AND a.invite_code=ANY(p_invite_codes);
+$projection$;
+REVOKE ALL ON FUNCTION public.read_mission_auto_reset_progress_v1(text,text[])
+FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.read_mission_auto_reset_progress_v1(text,text[])
+TO service_role;
+
+-- Store only proof events from a server-owned FINALIZED chain scan. A stale
+-- scanner must not append to a replaced attempt. Financial settlement remains
+-- independently blocked. A valid vote identifies the actual completion round.
+CREATE OR REPLACE FUNCTION public.record_mission_auto_reset_progress_v1(
+  p_network text,p_invite_code text,p_attempt_no integer,
+  p_dapp_round_id bigint,p_start_block bigint,p_dapp_end_block bigint,
+  p_vote_start_block bigint,p_vote_end_block bigint,p_finalized_block bigint,
+  p_events jsonb
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $persist$
+DECLARE
+  a reward_admission_bridge.mission_retry_attempts_v1%rowtype;
+  i public.invitations%rowtype;
+  e record;
+  prior reward_admission_bridge.mission_retry_attempt_events_v1%rowtype;
+  v_event_count integer;
+BEGIN
+  IF p_network NOT IN ('mainnet','testnet','testnet-staging')
+     OR p_invite_code !~ '^[A-HJ-NP-Z2-9]{7} is append-only and sees old
+-- 3/3, conversion and vote evidence from the original activation block.
+-- Until the new cohort-aware reservation/claim writer is integrated, it may
+-- NOT promote an active retry to COMPLETED or ELIGIBLE based on old evidence.
+-- This trigger does not affect any invitation lacking a durable retry.
+CREATE OR REPLACE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO pg_catalog, public, reward_admission_bridge
+AS $guard$
+BEGIN
+  IF (new.status IS DISTINCT FROM old.status OR
+      new.reward_status IS DISTINCT FROM old.reward_status)
+     AND (new.status='COMPLETED' OR new.reward_status='ELIGIBLE')
+     AND EXISTS (
+       SELECT 1
+       FROM reward_admission_bridge.mission_retry_attempts_v1 a
+       WHERE a.invitation_id=new.id
+         AND a.network=new.activation_network
+     ) THEN
+    RAISE EXCEPTION 'MISSION_RETRY_CANONICAL_PAYOUT_NOT_ENABLED';
+  END IF;
+  RETURN new;
+END;
+$guard$;
+DROP TRIGGER IF EXISTS zz_guard_legacy_mission_auto_reset_promotion_v1
+  ON public.invitations;
+CREATE TRIGGER zz_guard_legacy_mission_auto_reset_promotion_v1
+BEFORE UPDATE OF status,reward_status ON public.invitations
+FOR EACH ROW
+EXECUTE FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1();
+REVOKE ALL ON FUNCTION public.guard_legacy_mission_auto_reset_promotion_v1()
+FROM PUBLIC,anon,authenticated;
+
+
+     OR p_attempt_no IS NULL OR p_attempt_no<1
+     OR p_finalized_block IS NULL OR p_finalized_block<p_start_block
+     OR jsonb_typeof(p_events) IS DISTINCT FROM 'array'
+     OR jsonb_array_length(p_events)>5
+  THEN RAISE EXCEPTION 'MISSION_ATTEMPT_SCAN_INPUT_INVALID'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_auto_reset_settings_v1
+     WHERE id=1 AND enabled) THEN
+    RETURN jsonb_build_object('recorded',false,'reason','FEATURE_DISABLED');
+  END IF;
+  SELECT * INTO i FROM public.invitations
+    WHERE invite_code=p_invite_code AND activation_network=p_network FOR UPDATE;
+  IF NOT FOUND OR i.status NOT IN('ACTIVATING','UNDER_REVIEW')
+     OR i.reward_status<>'PENDING' OR i.sybil_status='BLOCKED'
+     OR i.ineligible_at IS NOT NULL OR i.slot_released_at IS NOT NULL THEN
+    RETURN jsonb_build_object('recorded',false,'reason','INVITE_PROTECTED');
+  END IF;
+  SELECT * INTO a FROM reward_admission_bridge.mission_retry_attempts_v1
+    WHERE invitation_id=i.id AND network=p_network AND state='ACTIVE' FOR UPDATE;
+  IF NOT FOUND OR a.attempt_no<>p_attempt_no OR a.dapp_round_id<>p_dapp_round_id
+     OR a.attempt_start_block<>p_start_block OR a.round_end_block<>p_dapp_end_block THEN
+    RETURN jsonb_build_object('recorded',false,'reason','STALE_ATTEMPT');
+  END IF;
+  IF (p_vote_start_block IS NULL)<>(p_vote_end_block IS NULL)
+     OR (p_vote_start_block IS NOT NULL AND
+       (p_vote_start_block<=a.round_end_block OR p_vote_end_block<p_vote_start_block))
+     OR (a.vote_window_start_block IS NOT NULL AND
+       (p_vote_start_block IS DISTINCT FROM a.vote_window_start_block
+        OR p_vote_end_block IS DISTINCT FROM a.vote_window_end_block)) THEN
+    RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_BOUNDS_MISMATCH';
+  END IF;
+  IF a.proof_finalized_through_block IS NOT NULL AND
+     p_finalized_block<a.proof_finalized_through_block THEN
+    RETURN jsonb_build_object('recorded',false,'reason','STALE_FINALITY');
+  END IF;
+
+  FOR e IN SELECT * FROM jsonb_to_recordset(p_events) AS x(
+    event_type text,app_id text,amount_wei text,vote_round_id bigint,
+    tx_id text,block_number bigint,tx_index integer,clause_index integer,
+    block_timestamp timestamptz
+  ) ORDER BY CASE event_type WHEN 'DAPP_REWARD' THEN 1
+       WHEN 'VOT3_CONVERSION' THEN 2 WHEN 'ALLOCATION_VOTE' THEN 3 ELSE 4 END,
+       block_number,tx_index,clause_index
+  LOOP
+    IF e.block_number IS NULL OR e.block_number>p_finalized_block
+       OR e.block_number<a.attempt_start_block
+       OR e.event_type NOT IN('DAPP_REWARD','VOT3_CONVERSION','ALLOCATION_VOTE')
+       OR (e.event_type='DAPP_REWARD' AND
+          (e.app_id='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e'
+           OR e.block_number>a.round_end_block))
+       OR (e.event_type='VOT3_CONVERSION' AND
+           e.block_number>coalesce(p_vote_end_block,a.round_end_block))
+       OR (e.event_type='ALLOCATION_VOTE' AND
+           (p_vote_start_block IS NULL OR e.vote_round_id IS DISTINCT FROM a.vote_round_id
+            OR e.block_number NOT BETWEEN p_vote_start_block AND p_vote_end_block))
+    THEN RAISE EXCEPTION 'MISSION_ATTEMPT_SCAN_EVENT_INVALID'; END IF;
+
+    SELECT * INTO prior FROM reward_admission_bridge.mission_retry_attempt_events_v1
+      WHERE attempt_id=a.id AND event_type=e.event_type
+        AND (e.event_type<>'DAPP_REWARD' OR app_id=e.app_id);
+    IF FOUND THEN
+      IF (prior.app_id,prior.amount_wei,prior.vote_round_id,prior.tx_id,prior.block_number,
+          prior.tx_index,prior.clause_index,prior.block_timestamp) IS DISTINCT FROM
+         (e.app_id,e.amount_wei,e.vote_round_id,e.tx_id,e.block_number,
+          e.tx_index,e.clause_index,e.block_timestamp) THEN
+        RAISE EXCEPTION 'MISSION_ATTEMPT_FINALIZED_PROOF_CONFLICT';
+      END IF;
+      CONTINUE;
+    END IF;
+    IF e.event_type='DAPP_REWARD' THEN
+      SELECT count(*) INTO v_event_count
+      FROM reward_admission_bridge.mission_retry_attempt_events_v1
+      WHERE attempt_id=a.id AND event_type='DAPP_REWARD';
+      IF v_event_count>=3 THEN RAISE EXCEPTION 'MISSION_ATTEMPT_TOO_MANY_DAPPS'; END IF;
+    END IF;
+    INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+      (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+    VALUES (a.id,e.event_type,e.app_id,e.amount_wei,e.vote_round_id,e.tx_id,
+      e.block_number,e.tx_index,e.clause_index,e.block_timestamp);
+  END LOOP;
+  UPDATE reward_admission_bridge.mission_retry_attempts_v1
+  SET vote_window_start_block=p_vote_start_block,vote_window_end_block=p_vote_end_block,
+      proof_finalized_through_block=p_finalized_block
+  WHERE id=a.id;
+  RETURN jsonb_build_object('recorded',true,'attemptNo',a.attempt_no);
+END;
+$persist$;
+REVOKE ALL ON FUNCTION public.record_mission_auto_reset_progress_v1(
+  text,text,integer,bigint,bigint,bigint,bigint,bigint,bigint,jsonb
+) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_mission_auto_reset_progress_v1(
+  text,text,integer,bigint,bigint,bigint,bigint,bigint,bigint,jsonb
 ) TO service_role;
 
 -- Critical protection: the LIVE legacy scanner is append-only and sees old
