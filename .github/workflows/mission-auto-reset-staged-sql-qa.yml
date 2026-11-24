@@ -6,6 +6,7 @@ on:
       - 'docs/staged-sql/20261124_mission_reset_invitee_ack_v1.sql'
       - 'docs/staged-sql/20261124_mission_retry_canonical_checkpoint_adapters_v1.sql'
       - 'docs/staged-sql/20261124_mission_retry_sybil_behavior_v1.sql'
+      - 'docs/staged-sql/20261124_mission_retry_final_eligibility_v1.sql'
       - 'tests/sql/mission-auto-reset-*.sql'
       - '.github/workflows/mission-auto-reset-staged-sql-qa.yml'
   workflow_dispatch:
@@ -68,3 +69,8 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261124_mission_retry_sybil_behavior_v1.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-sybil-behavior-assert.sql
+      - name: Exercise retry eligibility with old revision, missing checks, HOLD and current CLEAR
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-final-eligibility-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/20261124_mission_retry_final_eligibility_v1.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-auto-reset-final-eligibility-assert.sql

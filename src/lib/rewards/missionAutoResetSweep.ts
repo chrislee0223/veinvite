@@ -11,6 +11,7 @@ import {
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
+import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
 import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
 import {
   readVeBetterRoundWindow,
@@ -170,6 +171,7 @@ async function bindCompletion(network: string, code: string, attemptNo: number) 
       throw new Error('Canonical retry checkpoint failed: ' +
         (checkpoint.error?.message ?? checkpoint.data?.reason ?? 'UNKNOWN'));
     }
+    await continueCompletedRetry(network, code);
     return true;
   }
   if (result.data?.reason === 'FUNDING_NOT_FINALIZED') return false;
@@ -209,6 +211,15 @@ async function handleOne(
     if (['COMPLETION_PROTECTED','SECURITY_REVIEW','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
+      return 'BLOCKED';
+    }
+    // A published retry checkpoint already has vote_completed=true.
+    // Resume its security/eligibility handoff after any crash or delay.
+    if (live.vote_completed === true && retry.latestAttemptNo != null) {
+      const attempt = (await readMissionAttemptDisplays([{
+        invite_code: code, activation_network: network,
+      }])).get(code);
+      if (attempt?.voteCompleted) await bindCompletion(network, code, attempt.attemptNo);
       return 'BLOCKED';
     }
     const preliminary = deriveMissionAutoReset(inputFor({
@@ -382,7 +393,6 @@ export async function runMissionAutoResetSweep(
     .eq('activation_network', config.network)
     .eq('status', 'ACTIVATING')
     .eq('reward_status', 'PENDING')
-    .or('vote_completed.eq.false,vote_completed.is.null')
     .not('invitee_wallet','is',null);
   if (countResult.error || countResult.count === null) {
     throw new Error('Mission reset candidate count unavailable: ' +
@@ -398,7 +408,6 @@ export async function runMissionAutoResetSweep(
     .eq('activation_network', config.network)
     .eq('status', 'ACTIVATING')
     .eq('reward_status', 'PENDING')
-    .or('vote_completed.eq.false,vote_completed.is.null')
     .not('invitee_wallet','is',null)
     .order('activated_at',{ ascending:true })
     .order('invite_code',{ ascending:true })

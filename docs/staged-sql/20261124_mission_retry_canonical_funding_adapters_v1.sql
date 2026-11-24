@@ -231,7 +231,8 @@ begin
     from public.read_effective_mission_reward_funding_v1(v_code,v_network) f;
     -- A clearance for the original attempt must not authorize a later vote.
     if v_clearance.id is null or v_clearance.evidence_cutoff_block is null
-      or v_clearance.evidence_cutoff_block<v_completion_block then
+      or v_clearance.evidence_cutoff_block<v_completion_block
+      or not public.mission_retry_assessment_is_current_v1(v_code,v_network,v_clearance.assessment_revision) then
       return jsonb_build_object('reserved',false,'reason','RETRY_CLEARANCE_NOT_CURRENT');
     end if;
   else
@@ -1225,7 +1226,8 @@ AS $function$
     and funding.reward_cohort_round_id is not null
     and funding.reward_funding_allocation_receipt_id is not null
     and (funding.attempt_id is null or
-      (c.id is not null and c.evidence_cutoff_block>=funding.completion_block))
+      (c.id is not null and c.evidence_cutoff_block>=funding.completion_block
+        and public.mission_retry_assessment_is_current_v1(i.invite_code,p.network,c.assessment_revision)))
     and (
       not public.sybil_v2_enforcement_enabled()
       or (a.state='CLEAR' and c.id is not null)
