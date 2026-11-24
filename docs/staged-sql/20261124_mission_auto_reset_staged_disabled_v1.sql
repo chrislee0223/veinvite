@@ -701,3 +701,52 @@ END;
 $bind$;
 REVOKE ALL ON FUNCTION public.bind_mission_retry_completion_v1(text,text,integer) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.bind_mission_retry_completion_v1(text,text,integer) TO service_role;
+
+-- Canonical financial context for every settlement consumer. An unbound retry
+-- MUST return null funding, never fall back to the original entry cohort.
+-- This view has no financial side effects. Retain finished-attempt bindings
+-- so historical liabilities and X-share releases stay attributed correctly.
+CREATE VIEW reward_admission_bridge.mission_effective_reward_funding_v1
+WITH (security_invoker=true) AS
+SELECT i.id invitation_id,i.invite_code,i.activation_network network,
+  CASE WHEN a.id IS NULL THEN i.reward_cohort_round_id
+       ELSE b.completion_round_id END AS reward_cohort_round_id,
+  CASE WHEN a.id IS NULL THEN i.reward_funding_allocation_receipt_id
+       ELSE b.funding_allocation_receipt_id END AS reward_funding_allocation_receipt_id,
+  a.id AS attempt_id,
+  b.completion_event_id,
+  b.completion_block,
+  e.tx_index AS completion_tx_index,
+  e.clause_index AS completion_clause_index,
+  e.tx_id AS completion_tx_id
+FROM public.invitations i
+LEFT JOIN LATERAL (
+  SELECT m.id FROM reward_admission_bridge.mission_retry_attempts_v1 m
+  WHERE m.invitation_id=i.id AND m.network=i.activation_network
+  ORDER BY m.attempt_no DESC LIMIT 1
+) a ON true
+LEFT JOIN reward_admission_bridge.mission_retry_settlement_bindings_v1 b
+ ON b.invitation_id=i.id AND b.attempt_id=a.id AND b.network=i.activation_network
+LEFT JOIN reward_admission_bridge.mission_retry_attempt_events_v1 e
+ ON e.id=b.completion_event_id AND e.attempt_id=a.id;
+REVOKE ALL ON reward_admission_bridge.mission_effective_reward_funding_v1
+ FROM PUBLIC,anon,authenticated;
+
+-- Service-owned consumers use this narrow accessor, without changing the
+-- original invitation row. Neither an absent binding nor a stale attempt is
+-- allowed to become a legacy-funded retry.
+CREATE OR REPLACE FUNCTION public.read_effective_mission_reward_funding_v1(
+ p_invite_code text,p_network text
+) RETURNS TABLE(reward_cohort_round_id bigint,reward_funding_allocation_receipt_id bigint,
+ attempt_id bigint,completion_block bigint,completion_tx_index integer,
+ completion_clause_index integer,completion_tx_id text)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO pg_catalog,public,reward_admission_bridge
+AS $fund$
+ SELECT v.reward_cohort_round_id,v.reward_funding_allocation_receipt_id,
+   v.attempt_id,v.completion_block,v.completion_tx_index,v.completion_clause_index,v.completion_tx_id
+ FROM reward_admission_bridge.mission_effective_reward_funding_v1 v
+ WHERE v.invite_code=p_invite_code AND v.network=p_network;
+$fund$;
+REVOKE ALL ON FUNCTION public.read_effective_mission_reward_funding_v1(text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.read_effective_mission_reward_funding_v1(text,text) TO service_role;
