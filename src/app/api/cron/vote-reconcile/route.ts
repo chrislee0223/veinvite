@@ -19,7 +19,7 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
-  runMissionAutoResetSweep,
+  runMissionAutoResetSweepSafe,
   type MissionResetSweep,
 } from '@/lib/rewards/missionAutoResetSweep';
 import {
@@ -1160,21 +1160,11 @@ export async function GET(
       );
     }
 
-    // No additional cron or polling infrastructure. The server feature
-    // flag is OFF by default, so existing Production behavior is unchanged.
-    // Only enable once attempt funding, payouts and security are integrated.
-    try {
-      missionAutoReset = await runMissionAutoResetSweep(5);
-      if (missionAutoReset.failed > 0) {
-        recoveryFailure ??= new Error(
-          'One or more automatic mission reset proofs failed.',
-        );
-        errors.push('MISSION_AUTO_RESET_CANDIDATE_FAILED');
-      }
-    } catch (error) {
-      recoveryFailure ??= error;
+    const reset = await runMissionAutoResetSweepSafe();
+    missionAutoReset = reset.sweep;
+    if (reset.failure) {
+      recoveryFailure ??= reset.failure;
       errors.push('MISSION_AUTO_RESET_SWEEP_FAILED');
-      console.error('Mission auto-reset sweep failed:', error);
     }
 
     const rewardRecovery =
