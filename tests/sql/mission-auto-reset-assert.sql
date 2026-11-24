@@ -237,7 +237,10 @@ BEGIN
   INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
    (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
   VALUES
-   (second_id,'VOT3_CONVERSION',NULL,'1',NULL,'0x'||repeat('7',64),3500,0,0,clock_timestamp()),
+   (second_id,'VOT3_CONVERSION',NULL,'1',NULL,'0x'||repeat('7',64),3500,0,0,clock_timestamp());
+  INSERT INTO reward_admission_bridge.mission_retry_attempt_events_v1
+   (attempt_id,event_type,app_id,amount_wei,vote_round_id,tx_id,block_number,tx_index,clause_index,block_timestamp)
+  VALUES
    (second_id,'ALLOCATION_VOTE',NULL,NULL,129,'0x'||repeat('8',64),4001,0,0,clock_timestamp());
   IF (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1
       WHERE attempt_id=second_id AND event_type='DAPP_REWARD')<>3 OR
