@@ -77,7 +77,7 @@ BEGIN
  THEN RETURN jsonb_build_object('recorded',false,'reason','INVITATION_PROTECTED'); END IF;
  IF p_dapp_round_id=original_round THEN
   IF p_start_block IS DISTINCT FROM i.activation_block THEN RAISE EXCEPTION 'MISSION_RESOLUTION_ENTRY_MISMATCH'; END IF;
-  IF i.reward_cohort_round_id IS NULL AND NOT EXISTS(SELECT 1 FROM public.eligibility_check_events e WHERE e.id=i.eligibility_check_id AND e.details->>'entryRoundEndBlock'=p_dapp_end_block::text) THEN RAISE EXCEPTION 'MISSION_LEGACY_ENTRY_BOUNDARY_MISMATCH'; END IF;
+  IF i.reward_cohort_round_id IS NULL AND NOT EXISTS(SELECT 1 FROM public.eligibility_check_events entry_ev WHERE entry_ev.id=i.eligibility_check_id AND entry_ev.details->>'entryRoundEndBlock'=p_dapp_end_block::text) THEN RAISE EXCEPTION 'MISSION_LEGACY_ENTRY_BOUNDARY_MISMATCH'; END IF;
  ELSE
   first_reset:=greatest(original_round+2,cfg.first_automatic_round_id);
   IF p_dapp_round_id<first_reset OR mod(p_dapp_round_id-first_reset,2)<>0
