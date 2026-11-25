@@ -1,7 +1,7 @@
 -- DRAFT COMPONENT ONLY — DO NOT APPLY OR MERGE AS A MIGRATION.
 -- Derived from deployed migration 20261124071846. Requires completion-binding,
 -- expiry, initial mission, Sybil, settlement and integration changes together.
--- Keeps existing proof ordering (vote recorded only when three dApps exist).
+-- A verified early vote is recorded independently of full completion.
 -- Preserve old migration, access rules, immutable records and finality checks.
 
 CREATE OR REPLACE FUNCTION public.validate_mission_attempt_event_v1()
@@ -55,7 +55,7 @@ BEGIN
     FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
     WHERE e.attempt_id=a.id AND e.event_type='VOT3_CONVERSION'
     LIMIT 1;
-    IF dapp_count<3 THEN
+    IF dapp_count<1 THEN
       RAISE EXCEPTION 'MISSION_ATTEMPT_VOTE_MISSING_DAPPS';
     END IF;
     IF conversion.block_number IS NULL THEN
