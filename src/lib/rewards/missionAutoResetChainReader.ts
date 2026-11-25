@@ -45,6 +45,8 @@ export type MissionAutoResetChainProgress = {
   countedAppIds: string[];
   vot3Converted: boolean;
   voteCompleted: boolean;
+  /** A verified vote alone is not a complete mission. */
+  voteObserved: boolean;
   attemptStartBlock: number;
   dappRoundEndBlock: number;
   voteRoundStartBlock: number | null;
@@ -147,7 +149,7 @@ export async function readMissionAutoResetChainProgress({
   }
 
   let vote: {blockNumber:number; txIndex:number; clauseIndex:number; roundId:number; txId:string; blockTimestamp:number} | null = null;
-  if (conversion && voteRound && finalizedBlock >= voteRound.voteStartBlock && appsCompleted === 3) {
+  if (conversion && voteRound && finalizedBlock >= voteRound.voteStartBlock && (appsCompleted === 3 || allowDappsThroughVoteRound)) {
     const verifiedVote = await getVeBetterVoteProgress({
       voterAddress: walletAddress,
       conversionPosition: conversion,
@@ -207,7 +209,7 @@ export async function readMissionAutoResetChainProgress({
   const events = activity.qualifyingRewardEvents.slice(0,3).map(event =>
     proofEvent(event,'DAPP_REWARD',event.appId.toLowerCase(),event.amountWei,null));
   if (conversion) events.push(proofEvent(conversion,'VOT3_CONVERSION',null,conversion.amountWei,null));
-  if (vote && state === 'COMPLETE') events.push(proofEvent(vote,'ALLOCATION_VOTE',null,null,voteRoundId));
+  if (vote && (state === 'COMPLETE' || allowDappsThroughVoteRound)) events.push(proofEvent(vote,'ALLOCATION_VOTE',null,null,voteRoundId));
   return {
     state,
     dappRoundId,
@@ -216,6 +218,7 @@ export async function readMissionAutoResetChainProgress({
     countedAppIds,
     vot3Converted: conversion !== null,
     voteCompleted: state === 'COMPLETE',
+    voteObserved: vote !== null,
     attemptStartBlock,
     dappRoundEndBlock: dappRound.voteEndBlock,
     voteRoundStartBlock: voteRound?.voteStartBlock ?? null,
