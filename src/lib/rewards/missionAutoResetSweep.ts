@@ -228,6 +228,7 @@ async function handleOne(
     if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
+      console.info('Mission reset protected state:', { inviteCode: code, reason: retry.state });
       return 'BLOCKED';
     }
     const reviewOnly = retry.state === 'SECURITY_REVIEW';
@@ -333,6 +334,9 @@ async function handleOne(
           dappRoundId: roundId, attemptStartBlock: start, originalActivation,
           minFinalityBlocks: settings.minimumFinalityBlocks,
         });
+        if (expiry.outcome === 'VOTE_WINDOW_NOT_FINALIZED') {
+          console.info('Mission reset prior window not finalized:', { inviteCode: code, roundId });
+        }
         if (expiry.outcome === 'VOTE_WINDOW_NOT_FINALIZED') return 'BLOCKED';
         await recordTwoRoundResolution(network, code, expiry.proof);
         if (expiry.outcome === 'COMPLETE') {
@@ -394,6 +398,7 @@ async function handleOne(
     const result = data as Record<string, unknown>;
     if (result.started === true) return 'STARTED';
     if (result.started === false && typeof result.reason === 'string') {
+      console.info('Mission reset atomic guard:', { inviteCode: code, reason: result.reason });
       return 'BLOCKED';
     }
     throw new Error('Atomic mission reset returned an unknown decision.');
