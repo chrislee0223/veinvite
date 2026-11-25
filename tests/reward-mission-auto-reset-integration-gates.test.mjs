@@ -12,10 +12,13 @@ const surface = read('src/components/InviteNotificationSurfaceV2.tsx');
 const policy = read('src/lib/notifications/notificationPolicy.ts');
 const groups = read('src/lib/notifications/notificationPresentationGroups.ts');
 
-test('attempt scanner only reads exact N dApp events and N+1 voting events', () => {
+test('attempt scanner defaults to N and opt-in scans no later than finalized N+1', () => {
   assert.match(activity,/checkedBlock\?: number/);
   assert.match(activity,/to: scanEndBlock/);
-  assert.match(reader,/checkedBlock: Math\.min\(dappRound\.voteEndBlock, finalizedBlock\)/);
+  assert.match(reader,/allowDappsThroughVoteRound = false/);
+  assert.match(reader,/const dappScanEnd = Math\.min\(\s*allowDappsThroughVoteRound \? \(voteRound\?\.voteEndBlock \?\? dappRound\.voteEndBlock\) : dappRound\.voteEndBlock,\s*finalizedBlock,\s*\)/);
+  assert.match(reader,/checkedBlock: dappScanEnd/);
+  assert.match(reader,/if \(activity\.latestBlock < dappScanEnd\)/);
   assert.match(reader,/expectedRoundId: voteRoundId/);
   assert.match(reader,/checkedFromBlock: voteRound\.voteStartBlock/);
   assert.match(reader,/checkedThroughBlock: Math\.min\(voteRound\.voteEndBlock, finalizedBlock\)/);
