@@ -8,7 +8,8 @@ import {
 } from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { readActiveAttemptSync } from '@/lib/rewards/missionAutoResetDisplay';
-import { readOriginalMissionWindow, twoRoundMissionPolicyReady } from '@/lib/rewards/missionOriginalWindow';
+import { readOriginalMissionWindow, twoRoundMissionPolicyReady, originalProofEvent, recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
+import type { AttemptProofEvent } from '@/lib/rewards/missionAutoResetChainReader';
 import {
   evaluatePostVoteSybilRisk,
   type SybilRiskLevel,
@@ -742,6 +743,7 @@ export async function syncInvitationEvidence(
   let voteScanSucceeded =
     !vot3Converted || !canScanOriginalVote;
   let voteImpactSaved = false;
+  let verifiedVoteProof: AttemptProofEvent | null = null;
 
   if (
     activityCheckpointSaved &&
@@ -787,6 +789,14 @@ export async function syncInvitationEvidence(
           );
         }
 
+        if (originalWindow) {
+          if (vote.voteTxIndex === null || vote.voteClauseIndex === null) {
+            throw new Error('Original vote execution position is missing');
+          }
+          verifiedVoteProof = originalProofEvent({txId:vote.voteTxId,blockNumber:vote.voteCompletedBlock,
+            txIndex:vote.voteTxIndex,clauseIndex:vote.voteClauseIndex,blockTimestamp:vote.voteBlockTimestamp},
+            'ALLOCATION_VOTE',null,null,vote.voteRoundId);
+        }
         voteCompleted = true;
         voteCompletedBlock =
           vote.voteCompletedBlock;
@@ -898,6 +908,17 @@ export async function syncInvitationEvidence(
   ) {
     // A vote may precede the third dApp; a verdict from before that last
     // required activity must not be reused as a fresh mission verdict.
+    if (originalWindow) {
+      if (!qualifyingConversionProof || !verifiedVoteProof || originalWindow.voteStartBlock === null ||
+          originalWindow.voteEndBlock === null) throw new Error('Original mission completion proof unavailable');
+      await recordTwoRoundResolution(row.activation_network!, row.invite_code, {
+        dappRoundId:originalWindow.originalRoundId,attemptStartBlock:activationBlock,
+        dappRoundEndBlock:originalWindow.dappEndBlock,voteRoundStartBlock:originalWindow.voteStartBlock,
+        voteRoundEndBlock:originalWindow.voteEndBlock,finalizedThroughBlock:originalWindow.finalizedBlock,
+        voteCompleted:true,events:[...qualifyingRewardEvents.map(e=>originalProofEvent(e,'DAPP_REWARD',e.appId,e.amountWei,null)),
+          originalProofEvent(qualifyingConversionProof,'VOT3_CONVERSION',null,qualifyingConversionProof.amountWei,null),verifiedVoteProof],
+      });
+    }
     const missionCompletedAt = appsCompletedAt
       ? laterIso(appsCompletedAt, voteCompletedAt) : voteCompletedAt;
     const existingSybilCheckedAt =
