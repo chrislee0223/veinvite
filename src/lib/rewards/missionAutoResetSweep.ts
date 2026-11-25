@@ -57,6 +57,7 @@ type RetryRead = {
   state?: string;
   latestAttemptNo?: unknown;
   attemptRoundId?: unknown;
+  originalRoundId?: unknown;
 };
 
 export type MissionSweepPhase = 'progress' | 'expiry';
@@ -150,7 +151,7 @@ function inputFor({
     ? null
     : safeRound(retry.attemptRoundId);
   return {
-    originalDappRoundId: safeRound(candidate.reward_cohort_round_id),
+    originalDappRoundId: safeRound(candidate.reward_cohort_round_id) ?? safeRound(retry.originalRoundId),
     latestAttemptDappRoundId,
     currentRoundId,
     firstAutomaticRoundId: settings.firstAutomaticRoundId,
@@ -210,7 +211,7 @@ async function handleOne(
   const code = candidate.invite_code;
   // Bound original N/N+1 cannot expire; avoid its lock and proof reads here.
   const original = safeRound(candidate.reward_cohort_round_id);
-  if (phase === 'expiry' && (original === null || currentRoundId <= original + 1)) return 'BLOCKED';
+  if (phase === 'expiry' && original !== null && currentRoundId <= original + 1) return 'BLOCKED';
   if (!INVITE_CODE.test(code) ||
       !candidate.invitee_wallet ||
       !/^0x[0-9a-f]{40}$/i.test(candidate.invitee_wallet)) {
@@ -234,6 +235,8 @@ async function handleOne(
       return 'BLOCKED';
     }
     const retry = await loadRetryRead(code, network);
+    const resolvedOriginal = safeRound(live.reward_cohort_round_id) ?? safeRound(retry.originalRoundId);
+    if (resolvedOriginal === null || (phase === 'expiry' && currentRoundId <= resolvedOriginal + 1)) return 'BLOCKED';
     const flexiblePolicy = settings.twoRoundPolicyEnabled;
     if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
@@ -321,13 +324,13 @@ async function handleOne(
     }
     // Progress may reconcile a late completion, but never resets an attempt.
     if (phase !== 'expiry' || reviewOnly || preliminary.targetDappRoundId === null) return 'BLOCKED';
-    const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
+    const base = latestAttempt ?? resolvedOriginal;
     if (base === null) return 'BLOCKED';
     const priorVoteRoundId = base + 1;
     if (!Number.isSafeInteger(priorVoteRoundId)) return 'BLOCKED';
 
     // No reset while any previous vote remains unindexed or unfinalized.
-    const first = Math.max((safeRound(live.reward_cohort_round_id) ?? base) + 2,
+    const first = Math.max(resolvedOriginal + 2,
       settings.firstAutomaticRoundId);
     // If multiple windows elapsed after rollout, none may be silently skipped.
     // A bounded failure is reviewed rather than resetting over a possible vote.
@@ -338,7 +341,7 @@ async function handleOne(
     }
     let absence: {roundEndBlock:number;finalizedBlock:number} | null = null;
     if (flexiblePolicy) {
-      const originalRound = safeRound(live.reward_cohort_round_id);
+      const originalRound = resolvedOriginal;
       for (const voteRoundId of rounds) {
         const roundId = voteRoundId - 1;
         const originalActivation = latestAttempt === null && roundId === originalRound;
@@ -466,7 +469,7 @@ export async function runMissionAutoResetSweep(
       .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
       .eq('reward_status', 'PENDING')
       .not('invitee_wallet','is',null)
-      .not('reward_cohort_round_id','is',null)
+      .or('reward_cohort_round_id.not.is.null,eligibility_check_id.not.is.null')
       .order('invite_code',{ ascending:true })
       .limit(limit);
     const { data, error } = await (after ? query.gt('invite_code',after) : query);

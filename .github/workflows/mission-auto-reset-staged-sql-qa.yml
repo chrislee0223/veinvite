@@ -11,6 +11,7 @@ on:
       - 'docs/staged-sql/20261124_mission_retry_vote_round_close_adapters_v1.sql'
       - 'docs/staged-sql/20261124_mission_retry_forecast_v1.sql'
       - 'docs/staged-sql/mission_two_round_*_draft.sql'
+      - 'docs/staged-sql/mission_legacy_verified_entry_recovery_draft.sql'
       - 'tests/sql/mission-auto-reset-*.sql'
       - '.github/workflows/mission-auto-reset-staged-sql-qa.yml'
   workflow_dispatch:
@@ -94,3 +95,8 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -v legacy=0 -f tests/sql/mission-auto-reset-flexible-two-round-assert.sql
           psql -X -v ON_ERROR_STOP=1 -v legacy=1 -f tests/sql/mission-auto-reset-flexible-two-round-assert.sql
+
+      - name: Prove verified pre-funding recovery through canonical reservation and claim
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -v legacy=0 -f tests/sql/mission-auto-reset-verified-legacy-entry-assert.sql
+          psql -X -v ON_ERROR_STOP=1 -v legacy=1 -f tests/sql/mission-auto-reset-verified-legacy-entry-assert.sql
