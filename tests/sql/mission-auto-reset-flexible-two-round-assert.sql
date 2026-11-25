@@ -6,6 +6,78 @@ BEGIN;
 \ir ../../docs/staged-sql/mission_two_round_completion_funding_draft.sql
 \ir ../../docs/staged-sql/mission_two_round_original_admission_draft.sql
 SELECT set_config('veinvite.qa_legacy', :'legacy', false);
+SAVEPOINT original_completion_test;
+DO $original$
+DECLARE
+ code constant text:='FLEXQ88';
+ app constant text:='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e';
+ wallet constant text:='0x8888888888888888888888888888888888888888';
+ inviter constant text:='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ uid constant uuid:='00000000-0000-0000-0000-000000000098';
+ unit numeric:=1000000000000000000; t timestamptz:=clock_timestamp()-interval '1 day';
+ events jsonb; r jsonb; q public.reward_queue_entries%rowtype; claimrow record;
+ checks jsonb:='["HISTORICAL_CHAIN","FUNDING_CHAIN","MISSION_BEHAVIOR","SECURITY_IDENTITY","VEPASSPORT","CHAIN_FINALITY"]';
+ expected_gross numeric; receipt bigint;
+BEGIN
+ expected_gross:=CASE WHEN current_setting('veinvite.qa_legacy')='1' THEN 90*unit ELSE 100*unit END;
+ SELECT id INTO receipt FROM public.vebetter_round_allocations WHERE network='mainnet' AND vebetter_round_id=129;
+ INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number,observed_at,rewards_allocation_amount_wei)
+ VALUES('mainnet',app,130,6000,now()-interval '2 days',100*unit),
+       ('mainnet',app,131,7000,now()-interval '2 days',100*unit);
+ INSERT INTO public.invitations(id,invite_code,activation_network,reward_cohort_round_id,status,reward_status,sybil_status,invitee_wallet,eligibility_check_id,activated_at,activation_block,inviter_wallet,reward_funding_allocation_receipt_id,created_at)
+ VALUES(uid,code,'mainnet',130,'ACTIVATING','PENDING','NOT_CHECKED',wallet,98,t,5000,inviter,receipt,
+ CASE WHEN current_setting('veinvite.qa_legacy')='1' THEN now()-interval '60 days' ELSE now()-interval '7 days' END);
+ INSERT INTO public.eligibility_check_events(id,invite_code,wallet_address,network,outcome,entry_class,checked_block)
+ VALUES(98,code,wallet,'mainnet','ELIGIBLE','NEW',4990);
+ UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true,two_round_policy_enabled=true WHERE id=1;
+ events:=jsonb_build_array(
+ jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('1',64),'amount_wei','1','tx_id','0x'||repeat('1',64),'block_number',5100,'tx_index',0,'clause_index',0,'block_timestamp',t),
+ jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('2',64),'amount_wei','1','tx_id','0x'||repeat('2',64),'block_number',5200,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '1 minute'),
+ jsonb_build_object('event_type','VOT3_CONVERSION','amount_wei','1','tx_id','0x'||repeat('3',64),'block_number',5300,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '2 minutes'),
+ jsonb_build_object('event_type','ALLOCATION_VOTE','vote_round_id',131,'tx_id','0x'||repeat('5',64),'block_number',6001,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '3 minutes'),
+ jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('4',64),'amount_wei','1','tx_id','0x'||repeat('4',64),'block_number',6100,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '4 minutes'));
+ INSERT INTO public.invite_impact_events(invite_code,network,wallet_address,event_type,tx_id,block_number,block_timestamp,app_id,vote_round_id,amount_wei,tx_index,clause_index)
+ SELECT code,'mainnet',wallet,x.event_type,x.tx_id,x.block_number,x.block_timestamp,x.app_id,x.vote_round_id,x.amount_wei,x.tx_index,x.clause_index
+ FROM jsonb_to_recordset(events) AS x(event_type text,tx_id text,block_number bigint,block_timestamp timestamptz,app_id text,vote_round_id bigint,amount_wei text,tx_index bigint,clause_index bigint);
+ UPDATE public.invitations SET apps_completed=3,rewards_received=3,apps_completed_block=6100,apps_completed_at=t+interval '4 minutes',
+ vot3_converted=true,vot3_converted_at=t+interval '2 minutes',vot3_converted_block=5300,vot3_conversion_tx_id='0x'||repeat('3',64),vot3_conversion_amount_wei='1',
+ vote_completed=true,vote_completed_at=t+interval '3 minutes',vote_completed_block=6001,vote_round_id=131,
+ impact_sync_complete_at=clock_timestamp(),impact_last_synced_block=7200,
+ identity_link_status='NO_KNOWN_LINK',identity_link_checked_at=clock_timestamp(),identity_link_policy_version='security_client_v2',
+ identity_link_evidence='{"observedClientCount":1}',sybil_status='CLEAR',sybil_checked_at=clock_timestamp()
+ WHERE invite_code=code;
+ BEGIN
+ UPDATE public.invitations SET status='COMPLETED' WHERE invite_code=code;
+ RAISE EXCEPTION 'ORIGINAL_COMPLETION_WITHOUT_PROOF';
+ EXCEPTION WHEN raise_exception THEN
+ IF SQLERRM<>'ORIGINAL_MISSION_FINALIZED_PROOF_REQUIRED' THEN RAISE; END IF;
+ END;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,130,5000,5999,6000,6999,7200,events) INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'original complete resolution: %',r; END IF;
+ UPDATE public.invitations SET status='COMPLETED' WHERE invite_code=code;
+ IF NOT EXISTS(SELECT 1 FROM public.invitations WHERE invite_code=code AND status='COMPLETED' AND reward_status='ELIGIBLE' AND apps_completed_block=6100 AND vote_completed_block=6001)
+ THEN RAISE EXCEPTION 'original late-third admission failed'; END IF;
+ INSERT INTO public.sybil_v2_referral_assessments(invite_code,network,state,revision,evidence_cutoff_block,assessed_at,evidence_summary,completed_checks,required_checks,risk_score,policy_version,analyzer_version,reason_codes,source)
+ VALUES(code,'mainnet','CLEAR',5,6001,clock_timestamp(),'{}',checks,checks,0,'fixture-policy','fixture-analyzer','[]','SYSTEM');
+ SELECT public.issue_sybil_v2_reward_clearance(code,5) INTO r;
+ IF r->>'issued' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'original stale clearance approved: %',r; END IF;
+ UPDATE public.sybil_v2_referral_assessments SET evidence_cutoff_block=7200 WHERE invite_code=code;
+ SELECT public.issue_sybil_v2_reward_clearance(code,5) INTO r;
+ IF r->>'issued' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'original fresh clearance: %',r; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.read_reward_vote_round_candidates_v1('mainnet',131) c WHERE c.invite_code=code AND c.completion_block=6100)
+ THEN RAISE EXCEPTION 'original candidate completion wrong'; END IF;
+ UPDATE public.vote_reconcile_scan_checkpoints SET last_scanned_block=7200 WHERE network='mainnet';
+ SELECT public.commit_reward_vote_round_close_batch_v1(code,'mainnet',100*unit,clock_timestamp(),7200) INTO r;
+ IF r->>'mode' IS DISTINCT FROM 'ROUND_BATCH_RESERVED' OR r->>'count' IS DISTINCT FROM '1' THEN RAISE EXCEPTION 'original batch: %',r; END IF;
+ SELECT * INTO q FROM public.reward_queue_entries WHERE invite_code=code;
+ IF q.reservation_completion_block IS DISTINCT FROM 6100::bigint OR q.reserved_amount_wei IS DISTINCT FROM expected_gross THEN RAISE EXCEPTION 'original amount or completion wrong'; END IF;
+ SELECT * INTO claimrow FROM public.request_reward_claim(code,inviter);
+ IF claimrow.status IS DISTINCT FROM 'QUEUED' THEN RAISE EXCEPTION 'original claim failed'; END IF;
+END;
+$original$;
+ROLLBACK TO original_completion_test;
+SELECT 'original-two-round-late-completion-qa-pass' AS result;
+
 DO $flex$
 DECLARE
  code constant text:='FLEXQA7';
