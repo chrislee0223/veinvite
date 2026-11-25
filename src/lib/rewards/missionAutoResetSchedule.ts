@@ -2,6 +2,7 @@ import 'server-only';
 
 import { markCronJobFailed, markCronJobSucceeded, tryClaimCronJob } from '@/lib/monitoring/cronHeartbeat';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from './missionAutoResetRuntime';
 import { runMissionAutoResetSweep, type MissionResetSweep, type MissionSweepPhase } from './missionAutoResetSweep';
 
 // Each phase is claimed by the existing parent cadence. The lease outlives
@@ -14,6 +15,7 @@ export async function runMissionAutoResetSweepSafe(phase: MissionSweepPhase): Pr
   sweep: MissionResetSweep | null;
   failure: Error | null;
 }> {
+  if (!missionAutoResetSchemaReady()) return { sweep: null, failure: null };
   const job = phase === 'expiry' ? MISSION_EXPIRY_JOB : MISSION_PROGRESS_JOB;
   let claimed = false;
   let sweep: MissionResetSweep | null = null;

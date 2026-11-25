@@ -38,7 +38,7 @@ test('shadow sync has one owner and audit is change-triggered or 30-minute',()=>
 });
 test('phase runner persists separate cursors, rejects lost ownership and handles failed candidates',async()=>{
   const calls=[];
-  let claim=true, lost=false, failed=0;
+  let claim=true, lost=false, failed=0, schemaReady=true;
   const state={mission_sweep_cursor:'ABCDEFG',last_started_at:'2026-11-25T00:00:00Z'};
   const fakeDb={from(table){assert.equal(table,'cron_job_states');return {
     select(){return {eq(){return {maybeSingle:async()=>({data:state,error:null})}}}},
@@ -48,6 +48,7 @@ test('phase runner persists separate cursors, rejects lost ownership and handles
     'server-only':{},
     '@/lib/monitoring/cronHeartbeat':{tryClaimCronJob:async(job,interval,lease)=>{calls.push(['claim',job,interval,lease]);return claim},markCronJobSucceeded:async job=>{calls.push(['success',job])},markCronJobFailed:async job=>{calls.push(['failure',job])}},
     '@/lib/supabaseServer':{supabaseAdmin:fakeDb},
+    './missionAutoResetRuntime':{missionAutoResetSchemaReady:()=>schemaReady},
     './missionAutoResetSweep':{runMissionAutoResetSweep:async(limit,phase,cursor)=>{calls.push(['scan',limit,phase,cursor]);return {status:'CHECKED',selected:1,started:0,blocked:1,failed,failedInviteCodes:[],nextCursor:'BCDEFGH'}}},
   };
   const ctx={module:{exports:{}},require:n=>{assert.ok(n in mocks,n);return mocks[n]},console:{error(){}}};ctx.exports=ctx.module.exports;
@@ -60,4 +61,5 @@ test('phase runner persists separate cursors, rejects lost ownership and handles
   lost=true; assert.ok((await run('expiry')).failure);
   lost=false;failed=1;assert.ok((await run('progress')).failure);
   claim=false;const before=calls.length;assert.equal((await run('progress')).sweep,null);assert.equal(calls.length,before+1);
+  schemaReady=false;const beforePreview=calls.length;assert.equal((await run('progress')).sweep,null);assert.equal(calls.length,beforePreview);
 });

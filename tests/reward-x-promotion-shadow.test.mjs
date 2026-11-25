@@ -14,7 +14,7 @@ const route = await readFile(
   'utf8',
 );
 const scheduler = await readFile(
-  new URL('../src/lib/rewards/rewardBoostReserveScheduler.ts', import.meta.url),
+  new URL('../src/lib/rewards/rewardRecoveryMaintenance.ts', import.meta.url),
   'utf8',
 );
 const reservation = await readFile(
@@ -92,11 +92,11 @@ test('shadow maintenance is fail-soft and leaves the cron route untouched', () =
   assert.match(scheduler, /runRewardXPromotionShadowSync/);
   assert.match(
     scheduler,
-    /console\.warn\([\s\S]*X promotion shadow maintenance failed/,
+    /console\.warn\([\s\S]*X promotion shadow sync\/audit failed/,
   );
   assert.doesNotMatch(
     scheduler,
-    /errors\.push\([\s\S]{0,200}X promotion shadow maintenance failed/,
+    /errors\.push\([\s\S]{0,200}X promotion shadow sync\/audit failed/,
   );
   assert.doesNotMatch(
     route,

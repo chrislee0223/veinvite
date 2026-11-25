@@ -1158,7 +1158,7 @@ export async function GET(
     const reset = await runMissionAutoResetSweepSafe('progress');
     missionAutoReset = reset.sweep;
     if (reset.failure) {
-      recoveryFailure ??= reset.failure;
+      // The phase heartbeat tracks this failure independently; do not repeat unrelated Sybil/reward recovery.
       errors.push('MISSION_AUTO_RESET_SWEEP_FAILED');
     }
 
