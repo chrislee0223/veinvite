@@ -401,7 +401,8 @@ async function handleOne(
 
     // The database verifies all present funding, Sybil, identity, last-vote
     // and old-payout guards again under row/advisory locks. The action is
-    // atomic with the single INVITEE-only notification.
+    // atomic with the INVITEE-only notification when expired progress was lost;
+    // verified empty windows renew silently.
     const { data, error } = await supabaseAdmin.rpc(
       'commit_invitation_mission_auto_reset_v1',
       {

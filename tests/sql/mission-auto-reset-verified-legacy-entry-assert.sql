@@ -7,7 +7,52 @@ BEGIN;
 \ir ../../docs/staged-sql/mission_two_round_original_admission_draft.sql
 ALTER TABLE public.eligibility_check_events ADD COLUMN IF NOT EXISTS details jsonb NOT NULL DEFAULT '{}', ADD COLUMN IF NOT EXISTS prior_reward_tx_id text, ADD COLUMN IF NOT EXISTS prior_vote_tx_id text;
 \ir ../../docs/staged-sql/mission_legacy_verified_entry_recovery_draft.sql
+\ir ../../docs/staged-sql/mission_two_round_silent_empty_renewal_draft.sql
 SELECT set_config('veinvite.qa_legacy', :'legacy', false);
+-- Empty original mission and empty retry: renew twice without a notice.
+SAVEPOINT silent_empty_test;
+DO $empty$
+DECLARE
+ code constant text:='EMPTY77';
+ app constant text:='0x29acc8863cf2ab7a82d16c62d61ca84b6650cede4c4fd69073148c875349021e';
+ wallet constant text:='0x6666666666666666666666666666666666666666';
+ inviter constant text:='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ uid constant uuid:='00000000-0000-0000-0000-000000000097';
+ t timestamptz:=clock_timestamp()-interval '1 day'; r jsonb;
+BEGIN
+ INSERT INTO public.invitations(id,invite_code,activation_network,reward_cohort_round_id,status,reward_status,sybil_status,invitee_wallet,eligibility_check_id,activated_at,activation_block,inviter_wallet,reward_funding_allocation_receipt_id,created_at)
+ VALUES(uid,code,'mainnet',128,'ACTIVATING','PENDING','NOT_CHECKED',wallet,97,t,3000,inviter,
+ (SELECT id FROM public.vebetter_round_allocations WHERE vebetter_round_id=127 AND network='mainnet'),t);
+ INSERT INTO public.eligibility_check_events(id,invite_code,wallet_address,network,outcome,entry_class,checked_block)
+ VALUES(97,code,wallet,'mainnet','ELIGIBLE','NEW',2990);
+ UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true,two_round_policy_enabled=true WHERE id=1;
+ SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
+ IF r->>'reason' IS DISTINCT FROM 'FULL_WINDOW_PROOF_REQUIRED' THEN RAISE EXCEPTION 'silent renewal bypassed proof: %',r; END IF;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5100,'[]') INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'empty expiry proof: %',r; END IF;
+ SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
+ IF r->>'started' IS DISTINCT FROM 'true' OR r->>'notificationSent' IS DISTINCT FROM 'false' OR r->>'notificationId' IS NOT NULL THEN RAISE EXCEPTION 'empty original renewal: %',r; END IF;
+ SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
+ IF r->>'reason' IS DISTINCT FROM 'ALREADY_RESET' THEN RAISE EXCEPTION 'empty renewal replay: %',r; END IF;
+ -- Seal the retry's actual following vote window before recording expiry.
+ SELECT public.record_mission_auto_reset_progress_v1('mainnet',code,1,130,5000,5999,6000,6999,7200,'[]') INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'empty attempt proof: %',r; END IF;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,130,5000,5999,6000,6999,7200,'[]') INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'empty retry expiry: %',r; END IF;
+ INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number,observed_at,rewards_allocation_amount_wei)
+ VALUES('mainnet',app,130,6000,now()-interval '2 days',100000000000000000000),
+       ('mainnet',app,131,7000,now()-interval '2 days',100000000000000000000);
+ SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',132,132,7000,7999,6999,7200) INTO r;
+ IF r->>'started' IS DISTINCT FROM 'true' OR r->>'attemptNo' IS DISTINCT FROM '2' OR r->>'notificationSent' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'empty retry renewal: %',r; END IF;
+ IF EXISTS(SELECT 1 FROM public.invite_notification_history WHERE invite_code=code)
+ OR (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempts_v1 WHERE invite_code=code AND state='ACTIVE')<>1
+ OR NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 WHERE invite_code=code AND attempt_no=1 AND state='EXPIRED')
+ OR NOT EXISTS(SELECT 1 FROM public.invitations WHERE invite_code=code AND slot_released_at IS NULL AND reward_status='PENDING')
+ THEN RAISE EXCEPTION 'silent renewal altered history, slot or notices'; END IF;
+END;
+$empty$;
+ROLLBACK TO silent_empty_test;
+SELECT 'silent-empty-renewal-qa-pass' AS result;
 DO $flex$
 DECLARE
  code constant text:='LEGACY7';
@@ -62,7 +107,8 @@ BEGIN
  SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3400,3999,4000,4999,5100,'[]') INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'missed rollout window 128: %',r; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
- IF r->>'started' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'flex reset: %',r; END IF;
+ IF r->>'started' IS DISTINCT FROM 'true' OR r->>'notificationSent' IS DISTINCT FROM 'true' OR r->>'notificationId' IS NULL THEN RAISE EXCEPTION 'partial reset notice: %',r; END IF;
+ IF (SELECT count(*) FROM public.invite_notification_history WHERE invite_code=code AND kind='MISSION_PROGRESS_RESET')<>1 THEN RAISE EXCEPTION 'partial reset notice count'; END IF;
  IF NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_two_round_reset_snapshot_v1 s
    JOIN reward_admission_bridge.mission_retry_attempts_v1 a ON a.id=s.attempt_id
    WHERE a.invite_code=code AND s.old_vote->>'vote_completed_block'='2001')
