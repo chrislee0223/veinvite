@@ -21,7 +21,7 @@ const moduleSource = await readFile(
   'utf8',
 );
 const scheduler = await readFile(
-  new URL('../src/lib/rewards/rewardBoostReserveScheduler.ts', import.meta.url),
+  new URL('../src/lib/rewards/rewardRecoveryMaintenance.ts', import.meta.url),
   'utf8',
 );
 
@@ -66,11 +66,11 @@ test('scheduled audit remains observability-only and fail-soft', () => {
   assert.match(scheduler, /runRewardXPromotionShadowAudit/);
   assert.match(
     scheduler,
-    /if \(!audit\.ok\)[\s\S]*X promotion shadow invariant audit detected a mismatch/,
+    /if \(!shadowAudit\.ok\)[\s\S]*X promotion shadow audit reported invariant violations/,
   );
   assert.match(
     scheduler,
-    /X promotion shadow maintenance failed/,
+    /X promotion shadow sync\/audit failed/,
   );
   assert.doesNotMatch(
     scheduler,

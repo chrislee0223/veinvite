@@ -1,5 +1,9 @@
 import 'server-only';
 
+import { tryClaimCronJob, markCronJobSucceeded, markCronJobFailed } from '@/lib/monitoring/cronHeartbeat';
+const SHADOW_AUDIT_JOB = 'vote-reconcile:x-shadow-audit';
+const SHADOW_AUDIT_INTERVAL_SECONDS = 30 * 60;
+
 import { retryAdmissionGuaranteesAfterFinality } from '@/lib/rewards/admissionGuaranteeRecovery';
 
 import {
@@ -39,21 +43,26 @@ Promise<RewardRecoveryMaintenanceResult> {
     const shadowSync =
       await runRewardXPromotionShadowSync(250);
 
-    if (shadowSync.enabled) {
-      const shadowAudit =
-        await runRewardXPromotionShadowAudit();
-
-      if (!shadowAudit.ok) {
-        console.warn(
-          'X promotion shadow audit reported invariant violations:',
-          {
-            network: shadowAudit.network,
-            policyVersion:
-              shadowAudit.policyVersion,
-            violations:
-              shadowAudit.violations,
-          },
-        );
+    // Single owner: no duplicate minutely shadow projection/audit. Audit on
+    // new projection or at least every 30 minutes, never as payout authority.
+    if (shadowSync.enabled && await tryClaimCronJob(
+      SHADOW_AUDIT_JOB, shadowSync.createdCount > 0 ? 0 : SHADOW_AUDIT_INTERVAL_SECONDS, 360,
+    )) {
+      try {
+        const shadowAudit = await runRewardXPromotionShadowAudit();
+        if (!shadowAudit.ok) {
+          console.warn('X promotion shadow audit reported invariant violations:', {
+            network: shadowAudit.network, policyVersion: shadowAudit.policyVersion,
+            violations: shadowAudit.violations,
+          });
+          // Keep retry/diagnostics live without blocking authoritative recovery.
+          await markCronJobFailed(SHADOW_AUDIT_JOB, 'X promotion shadow invariant violation');
+        } else {
+          await markCronJobSucceeded(SHADOW_AUDIT_JOB);
+        }
+      } catch (error) {
+        await markCronJobFailed(SHADOW_AUDIT_JOB, error);
+        throw error;
       }
     }
   } catch (error) {

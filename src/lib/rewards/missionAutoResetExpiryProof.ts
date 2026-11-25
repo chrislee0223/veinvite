@@ -128,6 +128,18 @@ export async function verifyPreviousMissionCompletionWindow({
     walletAddress, expectedNetwork, dappRoundId, attemptStartBlock,
     allowDappsThroughVoteRound: true, originalActivation,
   });
+  return classifyPreviousMissionCompletionWindow(proof, minFinalityBlocks);
+}
+
+/** Classify the already verified, attempt-scoped proof without re-reading
+ * the chain. A stale or incomplete proof never grants permission to reset. */
+export function classifyPreviousMissionCompletionWindow(
+  proof: MissionAutoResetChainProgress,
+  minFinalityBlocks: number,
+): { outcome: 'COMPLETE' | 'SAFE_TO_RESET' | 'VOTE_WINDOW_NOT_FINALIZED'; proof: MissionAutoResetChainProgress } {
+  if (!Number.isSafeInteger(minFinalityBlocks) || minFinalityBlocks < 12 || minFinalityBlocks > 10000) {
+    throw new Error('Invalid full mission expiry finality margin.');
+  }
   // Positive evidence is protected even if the round is still in progress.
   if (proof.state === 'COMPLETE') return { outcome: 'COMPLETE', proof };
   if (proof.voteRoundEndBlock === null ||
