@@ -29,14 +29,35 @@ BEGIN
  INSERT INTO public.eligibility_check_events(id,invite_code,wallet_address,network,outcome,entry_class,checked_block)
  VALUES(99,code,wallet,'mainnet','ELIGIBLE','NEW',2990);
  UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true,two_round_policy_enabled=true WHERE id=1;
+ -- Original mission: two dApps + conversion + vote, but no third dApp.
+ events:=jsonb_build_array(
+   jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('a',64),'amount_wei','1','tx_id','0x'||repeat('a',64),'block_number',3100,'tx_index',0,'clause_index',0,'block_timestamp',t),
+   jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('b',64),'amount_wei','1','tx_id','0x'||repeat('b',64),'block_number',3200,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '1 minute'),
+   jsonb_build_object('event_type','VOT3_CONVERSION','amount_wei','1','tx_id','0x'||repeat('c',64),'block_number',3300,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '2 minutes'),
+   jsonb_build_object('event_type','ALLOCATION_VOTE','vote_round_id',129,'tx_id','0x'||repeat('d',64),'block_number',4001,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '3 minutes'));
+ INSERT INTO public.invite_impact_events(invite_code,network,wallet_address,event_type,tx_id,block_number,block_timestamp,app_id,vote_round_id,amount_wei,tx_index,clause_index)
+ SELECT code,'mainnet',wallet,x.event_type,x.tx_id,x.block_number,x.block_timestamp,x.app_id,x.vote_round_id,x.amount_wei,x.tx_index,x.clause_index
+ FROM jsonb_to_recordset(events) AS x(event_type text,tx_id text,block_number bigint,block_timestamp timestamptz,app_id text,vote_round_id bigint,amount_wei text,tx_index bigint,clause_index bigint);
+ UPDATE public.invitations SET apps_completed=2,rewards_received=2,vot3_converted=true,
+  vot3_converted_at=t+interval '2 minutes',vot3_converted_block=3300,vot3_conversion_tx_id='0x'||repeat('c',64),vot3_conversion_amount_wei='1',
+  vote_completed=true,vote_completed_at=t+interval '3 minutes',vote_completed_block=4001,vote_round_id=129
+ WHERE invite_code=code;
+ IF NOT EXISTS(SELECT 1 FROM public.invitations WHERE invite_code=code AND vote_completed=true AND reward_status='PENDING')
+ THEN RAISE EXCEPTION 'original partial vote fixture invalid'; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
  IF r->>'reason' IS DISTINCT FROM 'FULL_WINDOW_PROOF_REQUIRED' THEN RAISE EXCEPTION 'reset without proof: %',r; END IF;
- SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5000,'[]') INTO r;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5000,events) INTO r;
  IF r->>'reason' IS DISTINCT FROM 'WINDOW_NOT_FINALIZED' THEN RAISE EXCEPTION 'unfinalized expiry accepted: %',r; END IF;
- SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5100,'[]') INTO r;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5100,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'original expiry proof: %',r; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
  IF r->>'started' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'flex reset: %',r; END IF;
+ IF NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_two_round_reset_snapshot_v1 s
+   JOIN reward_admission_bridge.mission_retry_attempts_v1 a ON a.id=s.attempt_id
+   WHERE a.invite_code=code AND s.old_vote->>'vote_completed_block'='4001')
+ OR (SELECT count(*) FROM public.invite_impact_events WHERE invite_code=code)<>4
+ OR NOT EXISTS(SELECT 1 FROM public.invitations WHERE invite_code=code AND NOT vote_completed AND reward_status='PENDING' AND slot_released_at IS NULL)
+ THEN RAISE EXCEPTION 'original partial vote history or slot lost'; END IF;
  events:=jsonb_build_array(
    jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('1',64),'amount_wei','1','tx_id','0x'||repeat('1',64),'block_number',5100,'tx_index',0,'clause_index',0,'block_timestamp',t),
    jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('2',64),'amount_wei','1','tx_id','0x'||repeat('2',64),'block_number',5200,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '1 minute'),
