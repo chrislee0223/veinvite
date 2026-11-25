@@ -12,7 +12,8 @@ import {
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
-import { twoRoundMissionPolicyReady } from '@/lib/rewards/missionOriginalWindow';
+import { recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
+import { syncInvitationEvidence, type InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
 import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
@@ -61,6 +62,7 @@ type Settings = {
   enabled: boolean;
   firstAutomaticRoundId: number;
   minimumFinalityBlocks: number;
+  twoRoundPolicyEnabled: boolean;
 };
 
 export type MissionResetSweep = {
@@ -94,6 +96,7 @@ function readSettings(value: unknown): Settings {
     enabled: row.enabled,
     firstAutomaticRoundId,
     minimumFinalityBlocks,
+    twoRoundPolicyEnabled: row.twoRoundPolicyEnabled === true,
   };
 }
 
@@ -149,7 +152,7 @@ function inputFor({
     rewardStatus: candidate.reward_status,
     sybilStatus: candidate.sybil_status,
     ineligibleAt: candidate.ineligible_at,
-    voteCompleted: candidate.vote_completed === true,
+    voteCompleted: !settings.twoRoundPolicyEnabled && candidate.vote_completed === true,
     // Absence will be proved on finalized VeChain events before commit.
     voteProofPending: false,
     // Final money/Sybil constraints are rechecked under the DB row lock.
@@ -182,6 +185,15 @@ async function bindCompletion(network: string, code: string, attemptNo: number) 
   throw new Error('Attempt funding binding rejected: ' + (result.data?.reason ?? 'UNKNOWN'));
 }
 
+async function reconcileOriginalUnderLease(code: string, network: string) {
+  const { data, error } = await supabaseAdmin.from('invitations').select('*')
+    .eq('invite_code',code).eq('activation_network',network).maybeSingle();
+  if (error || !data) throw new Error('Original mission reconciliation unavailable');
+  if (data.reward_status === 'PENDING' && data.status === 'ACTIVATING') {
+    await syncInvitationEvidence(data as InvitationEvidenceRow);
+  }
+}
+
 async function handleOne(
   candidate: Candidate,
   currentRoundId: number,
@@ -212,7 +224,7 @@ async function handleOne(
       return 'BLOCKED';
     }
     const retry = await loadRetryRead(code, network);
-    const flexiblePolicy = await twoRoundMissionPolicyReady();
+    const flexiblePolicy = settings.twoRoundPolicyEnabled;
     if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
@@ -233,6 +245,10 @@ async function handleOne(
       candidate: live, retry, currentRoundId, settings,
       startBlock: null, endBlock: null, finalizedBlock: null,
     }));
+    if (flexiblePolicy && !reviewOnly && preliminary.state === 'ORIGINAL_WINDOW') {
+      await reconcileOriginalUnderLease(code, network);
+      return 'BLOCKED';
+    }
     if (!reviewOnly && (preliminary.state !== 'ROUND_PROOF_UNAVAILABLE' ||
         preliminary.targetDappRoundId === null)) {
       return 'BLOCKED';
@@ -279,6 +295,7 @@ async function handleOne(
           (recorded.error?.message ?? recorded.data?.reason ?? 'Unknown'));
       }
       if (proof.voteCompleted) {
+        if (flexiblePolicy) await recordTwoRoundResolution(network, code, proof);
         await bindCompletion(network, code, active.attemptNo);
         return 'BLOCKED';
       }
@@ -302,9 +319,7 @@ async function handleOne(
       if (round + 1 > priorVoteRoundId) rounds.push(round + 1);
       if (rounds.length > 8) return 'BLOCKED';
     }
-    // Under the flexible policy a full previous mission must be incomplete,
-    // not just lacking a raw vote. The current DB still protects previously
-    // published votes; removing that veto requires the staged atomic guard.
+    let absence: {roundEndBlock:number;finalizedBlock:number} | null = null;
     if (flexiblePolicy) {
       const originalRound = safeRound(live.reward_cohort_round_id);
       for (const voteRoundId of rounds) {
@@ -318,25 +333,28 @@ async function handleOne(
           dappRoundId: roundId, attemptStartBlock: start, originalActivation,
           minFinalityBlocks: settings.minimumFinalityBlocks,
         });
-        if (expiry.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+        if (expiry.outcome === 'VOTE_WINDOW_NOT_FINALIZED') return 'BLOCKED';
+        await recordTwoRoundResolution(network, code, expiry.proof);
+        if (expiry.outcome === 'COMPLETE') {
+          if (originalActivation) await reconcileOriginalUnderLease(code, network);
+          // A valid completion in an unrecorded historical retry window is
+          // protected for reconciliation, never replaced by a new attempt.
+          return 'BLOCKED';
+        }
+        if (expiry.proof.voteRoundEndBlock === null) return 'BLOCKED';
+        absence = {roundEndBlock:expiry.proof.voteRoundEndBlock,finalizedBlock:expiry.proof.finalizedThroughBlock};
+      }
+    } else {
+      for (const voteRoundId of rounds) {
+        const verified = await verifyPreviousMissionVoteWindow({
+          walletAddress: live.invitee_wallet!, expectedNetwork: network,
+          voteRoundId, minFinalityBlocks: settings.minimumFinalityBlocks,
+        });
+        if (verified.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+        absence = verified;
       }
     }
-    let absence = await verifyPreviousMissionVoteWindow({
-      walletAddress: live.invitee_wallet!,
-      expectedNetwork: network,
-      voteRoundId: rounds[0],
-      minFinalityBlocks: settings.minimumFinalityBlocks,
-    });
-    if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
-    for (const voteRoundId of rounds.slice(1)) {
-      absence = await verifyPreviousMissionVoteWindow({
-        walletAddress: live.invitee_wallet!,
-        expectedNetwork: network,
-        voteRoundId,
-        minFinalityBlocks: settings.minimumFinalityBlocks,
-      });
-      if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
-    }
+    if (absence === null) return 'BLOCKED';
 
     const targetRound = await readVeBetterRoundWindow({
       roundId: preliminary.targetDappRoundId,
