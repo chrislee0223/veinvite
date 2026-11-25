@@ -62,11 +62,14 @@ export async function readMissionAutoResetChainProgress({
   expectedNetwork,
   dappRoundId,
   attemptStartBlock,
+  allowDappsThroughVoteRound = false,
 }: {
   walletAddress: string;
   expectedNetwork: string;
   dappRoundId: number;
   attemptStartBlock: number;
+  /** Staged only; do not enable until canonical persistence and funding are updated. */
+  allowDappsThroughVoteRound?: boolean;
 }): Promise<MissionAutoResetChainProgress> {
   if (!/^0x[0-9a-f]{40}$/i.test(walletAddress) ||
       !positiveSafe(dappRoundId) ||
@@ -95,18 +98,6 @@ export async function readMissionAutoResetChainProgress({
     throw new Error('Attempt chain finality not available.');
   }
 
-  const activity = await getVeBetterActivityProgress({
-    receiverAddress: walletAddress,
-    activationBlock: attemptStartBlock,
-    checkedBlock: Math.min(dappRound.voteEndBlock, finalizedBlock),
-  });
-  if (activity.latestBlock < Math.min(dappRound.voteEndBlock, finalizedBlock)) {
-    throw new Error('dApp proof node has not reached the finalized scan boundary');
-  }
-  const appsCompleted = Math.min(3, activity.qualifyingRewardEvents.length);
-  const firstDapp = activity.qualifyingRewardEvents[0] ?? null;
-  const countedAppIds = activity.qualifyingRewardEvents.map((event) => event.appId);
-
   const voteRoundId = dappRoundId + 1;
   const voteRound = dappRound.currentRoundId >= voteRoundId
     ? await readVeBetterRoundWindow({ roundId: voteRoundId })
@@ -116,6 +107,24 @@ export async function readMissionAutoResetChainProgress({
       voteRound.voteStartBlock <= dappRound.voteEndBlock)) {
     throw new Error('Vote window is not the round after the dApp window.');
   }
+
+  // The future two-round policy is explicitly opt-in until its DB guards
+  // and canonical settlement are migrated together. Never scan into N+2.
+  const dappScanEnd = Math.min(
+    allowDappsThroughVoteRound ? (voteRound?.voteEndBlock ?? dappRound.voteEndBlock) : dappRound.voteEndBlock,
+    finalizedBlock,
+  );
+  const activity = await getVeBetterActivityProgress({
+    receiverAddress: walletAddress,
+    activationBlock: attemptStartBlock,
+    checkedBlock: dappScanEnd,
+  });
+  if (activity.latestBlock < dappScanEnd) {
+    throw new Error('dApp proof node has not reached the finalized scan boundary');
+  }
+  const appsCompleted = Math.min(3, activity.qualifyingRewardEvents.length);
+  const firstDapp = activity.qualifyingRewardEvents[0] ?? null;
+  const countedAppIds = activity.qualifyingRewardEvents.map((event) => event.appId);
 
   let conversion = null;
   if (firstDapp) {
@@ -173,6 +182,7 @@ export async function readMissionAutoResetChainProgress({
         dappRewards: activity.qualifyingRewardEvents,
         conversion,
         vote,
+        allowDappsThroughVoteRound,
       }).state
     : appsCompleted < 3
       ? 'NEED_DAPPS'
