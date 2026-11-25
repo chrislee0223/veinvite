@@ -3551,8 +3551,12 @@ export async function assessSybilV2Referral(
       isFinalizedVoteCheckpoint({
         voteCompleted:
           invitation.vote_completed === true,
+        // For a retry completed after its vote, require finality through
+        // the actual last required event. An incomplete retry must not pass.
         voteBlock:
-          invitation.vote_completed_block,
+          mission.retry?.attemptNo != null
+            ? mission.retry.completionBlock
+            : invitation.vote_completed_block,
         finalizedBlock,
       })
     ) {
