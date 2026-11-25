@@ -27,10 +27,14 @@ export type MissionAttemptProof = {
   dappRewards: readonly MissionDappEvent[];
   conversion: MissionChainPosition | null;
   vote: MissionVoteEvent | null;
+  /** Explicit opt-in; the existing live path keeps its original proof rule. */
+  allowDappsThroughVoteRound?: boolean;
 };
 export type MissionAttemptProofResult = {
   state: 'INVALID' | 'NEED_DAPPS' | 'NEED_CONVERSION' | 'NEED_NEXT_ROUND_VOTE' | 'COMPLETE';
   countedAppIds: string[];
+  /** Final required event, not necessarily the vote. */
+  completionPosition?: MissionChainPosition;
 };
 const positiveSafe = (value: number) => Number.isSafeInteger(value) && value >= 1;
 function isPosition(value: MissionChainPosition | null): boolean {
@@ -62,7 +66,7 @@ export function verifyMissionAttemptProof(proof: MissionAttemptProof): MissionAt
   for (const e of rewards) {
     const appId = typeof e.appId === 'string' ? e.appId.toLowerCase() : '';
     if (!/^0x[0-9a-f]{64}$/.test(appId) || !isPosition(e)) return invalid();
-    if (e.blockNumber < joined || e.blockNumber > dappEnd) continue;
+    if (e.blockNumber < joined || e.blockNumber > (proof.allowDappsThroughVoteRound === true ? voteEnd : dappEnd)) continue;
     const earliest = valid.get(appId);
     if (!earliest || positionCompare(e, earliest) < 0) valid.set(appId, e);
   }
@@ -79,5 +83,8 @@ export function verifyMissionAttemptProof(proof: MissionAttemptProof): MissionAt
   if (!isPosition(vote) || !positiveSafe(vote.roundId)) return invalid();
   if (vote.roundId !== voteRound || vote.blockNumber < voteStart ||
       vote.blockNumber > voteEnd || positionCompare(vote, conversion) <= 0) return invalid();
-  return { state: 'COMPLETE', countedAppIds };
+  const third = eligible[2][1];
+  const last = positionCompare(third, vote) > 0 ? third : vote;
+  return { state: 'COMPLETE', countedAppIds,
+    ...(proof.allowDappsThroughVoteRound === true ? {completionPosition: {blockNumber:last.blockNumber, txIndex:last.txIndex, clauseIndex:last.clauseIndex}} : {}) };
 }

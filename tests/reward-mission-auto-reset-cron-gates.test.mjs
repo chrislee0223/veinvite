@@ -18,7 +18,12 @@ test('new work requires reviewed schema readiness, no explicit pause, and the DB
   assert.match(worker,/try_acquire_operator_lock/);
   assert.match(worker,/invite_evidence_sync:/);
   assert.match(worker,/verifyPreviousMissionVoteWindow/);
-  assert.match(worker,/absence\.outcome !== 'SAFE_TO_RESET'/);
+  assert.match(worker,/verified\.outcome !== 'SAFE_TO_RESET'/);
+  assert.match(worker,/expiry\.outcome === 'VOTE_WINDOW_NOT_FINALIZED'\) return 'BLOCKED'/);
+  assert.match(worker,/await recordTwoRoundResolution\(network, code, expiry\.proof\)/);
+  assert.match(worker,/expiry\.outcome === 'COMPLETE'/);
+  assert.match(worker,/if \(absence === null\) return 'BLOCKED'/);
+  assert.ok(worker.indexOf('await recordTwoRoundResolution(network, code, expiry.proof)') < worker.indexOf("'commit_invitation_mission_auto_reset_v1'"));
   assert.match(worker,/deriveMissionAutoReset/);
   assert.match(worker,/commit_invitation_mission_auto_reset_v1/);
   assert.match(worker,/finally \{/);

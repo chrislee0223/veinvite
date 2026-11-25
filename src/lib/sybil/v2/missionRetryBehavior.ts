@@ -41,8 +41,11 @@ export async function loadRetryBehaviorPatterns(invitation: {
   return {
     patterns,
     attemptNo: active?.attemptNo ?? null,
-    completionBlock: active?.voteCompleted && invitation.vote_completed === true &&
-      active.voteBlock === Number(invitation.vote_completed_block) ? active.voteBlock : null,
+    completionBlock: active?.voteCompleted && active.appsCompleted === 3 &&
+      active.voteBlock !== null && active.appsCompletedBlock !== null &&
+      invitation.vote_completed === true &&
+      active.voteBlock === Number(invitation.vote_completed_block)
+      ? Math.max(active.voteBlock, active.appsCompletedBlock) : null,
   };
 }
 

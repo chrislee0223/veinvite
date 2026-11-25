@@ -7,7 +7,10 @@ import {
   continueRewardReservationAfterEligibility,
 } from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { buildProgress, parseNonNegativeInteger, chainTimestampToIso, laterIso } from '@/lib/impact/invitationSyncProgress';
 import { readActiveAttemptSync } from '@/lib/rewards/missionAutoResetDisplay';
+import { readOriginalMissionWindow, twoRoundMissionPolicyReady, originalProofEvent, recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
+import type { AttemptProofEvent } from '@/lib/rewards/missionAutoResetChainReader';
 import {
   evaluatePostVoteSybilRisk,
   type SybilRiskLevel,
@@ -27,7 +30,6 @@ import {
 } from '@/lib/vebetter/network';
 import {
   getVeBetterVot3ConversionProgress,
-  MIN_VOT3_CONVERSION_WEI,
   type Vot3ConversionEvent,
 } from '@/lib/vebetter/vot3Conversion';
 import {
@@ -106,147 +108,6 @@ export type InvitationSyncProgress = {
   networkMismatch: boolean;
 };
 
-function parseNonNegativeInteger(
-  value: number | string | null,
-): number | null {
-  if (value === null) {
-    return null;
-  }
-
-  const parsed =
-    typeof value === 'number'
-      ? value
-      : Number(value);
-
-  if (
-    !Number.isSafeInteger(parsed) ||
-    parsed < 0
-  ) {
-    return null;
-  }
-
-  return parsed;
-}
-
-function chainTimestampToIso(
-  unixSeconds: number,
-): string {
-  if (
-    !Number.isSafeInteger(unixSeconds) ||
-    unixSeconds < 0
-  ) {
-    throw new Error(
-      'Invalid VeChain block timestamp.',
-    );
-  }
-
-  return new Date(
-    unixSeconds * 1000,
-  ).toISOString();
-}
-
-function laterIso(
-  first: string,
-  second: string,
-): string {
-  return new Date(first).getTime() >=
-    new Date(second).getTime()
-    ? first
-    : second;
-}
-
-function buildProgress(args: {
-  row: InvitationEvidenceRow;
-  appsCompleted: number;
-  rewardsReceived: number;
-  vot3Converted: boolean;
-  vot3ConversionAmountWei: string | null;
-  vot3ConvertedAt: string | null;
-  vot3ConvertedBlock: number | null;
-  vot3ConversionTxId: string | null;
-  conversionObserved: boolean;
-  conversionBelowMinimumObserved: boolean;
-  conversionBeforeFirstDappObserved: boolean;
-  conversionSyncPending: boolean;
-  voteCompleted: boolean;
-  uniqueAppIds: string[];
-  activationBlock: number | null;
-  latestBlock: number | null;
-  appsCompletedAt: string | null;
-  appsCompletedBlock: number | null;
-  voteCompletedAt: string | null;
-  voteCompletedBlock: number | null;
-  voteRoundId: number | null;
-  activityCheckpointSaved: boolean;
-  voteSyncPending: boolean;
-  impactCheckpointSaved: boolean;
-  impactLastSyncedBlock: number | null;
-  impactLastSyncedAt: string | null;
-  impactSyncCompleteAt: string | null;
-  networkMismatch: boolean;
-}): InvitationSyncProgress {
-  return {
-    appsCompleted: args.appsCompleted,
-    appsRequired: 3,
-    rewardsReceived:
-      args.rewardsReceived,
-    vot3Converted:
-      args.vot3Converted,
-    vot3MinimumAmountWei:
-      MIN_VOT3_CONVERSION_WEI
-        .toString(),
-    vot3ConversionAmountWei:
-      args.vot3ConversionAmountWei,
-    vot3ConvertedAt:
-      args.vot3ConvertedAt,
-    vot3ConvertedBlock:
-      args.vot3ConvertedBlock,
-    vot3ConversionTxId:
-      args.vot3ConversionTxId,
-    conversionObserved:
-      args.conversionObserved,
-    conversionBelowMinimumObserved:
-      args.conversionBelowMinimumObserved,
-    conversionBeforeFirstDappObserved:
-      args.conversionBeforeFirstDappObserved,
-    conversionSyncPending:
-      args.conversionSyncPending,
-    voteCompleted:
-      args.voteCompleted,
-    uniqueAppIds:
-      args.uniqueAppIds,
-    activationBlock:
-      args.activationBlock,
-    activationNetwork:
-      args.row.activation_network,
-    latestBlock:
-      args.latestBlock,
-    appsCompletedAt:
-      args.appsCompletedAt,
-    appsCompletedBlock:
-      args.appsCompletedBlock,
-    voteCompletedAt:
-      args.voteCompletedAt,
-    voteCompletedBlock:
-      args.voteCompletedBlock,
-    voteRoundId:
-      args.voteRoundId,
-    activityCheckpointSaved:
-      args.activityCheckpointSaved,
-    voteSyncPending:
-      args.voteSyncPending,
-    impactCheckpointSaved:
-      args.impactCheckpointSaved,
-    impactLastSyncedBlock:
-      args.impactLastSyncedBlock,
-    impactLastSyncedAt:
-      args.impactLastSyncedAt,
-    impactSyncCompleteAt:
-      args.impactSyncCompleteAt,
-    networkMismatch:
-      args.networkMismatch,
-  };
-}
 
 /**
  * Reconciles one accepted invitation against chain truth.
@@ -418,6 +279,22 @@ export async function syncInvitationEvidence(
     };
   }
 
+  // Only pending, durably bound original missions enter the new policy.
+  // Existing paid/eligible history and unbound referrals retain their current
+  // reconciliation path. The rollout switch is off until the DB gates exist.
+  const originalWindow = row.reward_status === 'PENDING' &&
+    (row.status === 'ACTIVATING' || row.status === 'UNDER_REVIEW') &&
+    await twoRoundMissionPolicyReady()
+    ? await readOriginalMissionWindow({
+        inviteCode: row.invite_code,
+        network: row.activation_network,
+        activationBlock,
+      })
+    : null;
+  const canScanOriginalVote = originalWindow === null ||
+    (originalWindow.voteStartBlock !== null &&
+      originalWindow.checkedThroughBlock >= originalWindow.voteStartBlock);
+
   let activityLatestBlock:
     number | null = null;
   let threeRewardEventsPersisted = false;
@@ -430,7 +307,11 @@ export async function syncInvitationEvidence(
         receiverAddress:
           row.invitee_wallet,
         activationBlock,
+        ...(originalWindow ? { checkedBlock: originalWindow.checkedThroughBlock } : {}),
       });
+    if (originalWindow && activity.latestBlock < originalWindow.checkedThroughBlock) {
+      throw new Error('Original mission activity scan has not reached the verified boundary');
+    }
 
     appsCompleted =
       activity.appsCompleted;
@@ -582,7 +463,11 @@ export async function syncInvitationEvidence(
             row.invitee_wallet,
           activationBlock,
           firstQualifyingReward,
+          ...(originalWindow ? { checkedBlock: originalWindow.checkedThroughBlock } : {}),
         });
+      if (originalWindow && conversion.checkedBlock < originalWindow.checkedThroughBlock) {
+        throw new Error('Original mission conversion scan has not reached the verified boundary');
+      }
 
       conversionScanSucceeded = true;
       latestBlock = Math.max(
@@ -715,8 +600,9 @@ export async function syncInvitationEvidence(
   }
 
   let voteScanSucceeded =
-    !vot3Converted;
+    !vot3Converted || !canScanOriginalVote;
   let voteImpactSaved = false;
+  let verifiedVoteProof: AttemptProofEvent | null = null;
 
   if (
     activityCheckpointSaved &&
@@ -724,7 +610,8 @@ export async function syncInvitationEvidence(
     !conversionSyncPending &&
     row.invitee_wallet &&
     vot3Converted &&
-    qualifyingConversionProof
+    qualifyingConversionProof &&
+    canScanOriginalVote
   ) {
     try {
       const vote =
@@ -733,7 +620,15 @@ export async function syncInvitationEvidence(
             row.invitee_wallet,
           conversionPosition:
             qualifyingConversionProof,
+          ...(originalWindow && originalWindow.voteStartBlock !== null ? {
+            expectedRoundId: originalWindow.expectedVoteRoundId,
+            checkedFromBlock: originalWindow.voteStartBlock,
+            checkedThroughBlock: originalWindow.checkedThroughBlock,
+          } : {}),
         });
+      if (originalWindow && vote.latestBlock < originalWindow.checkedThroughBlock) {
+        throw new Error('Original mission vote scan has not reached the verified boundary');
+      }
 
       voteScanSucceeded = true;
       latestBlock = Math.max(
@@ -753,6 +648,14 @@ export async function syncInvitationEvidence(
           );
         }
 
+        if (originalWindow) {
+          if (vote.voteTxIndex === null || vote.voteClauseIndex === null) {
+            throw new Error('Original vote execution position is missing');
+          }
+          verifiedVoteProof = originalProofEvent({txId:vote.voteTxId,blockNumber:vote.voteCompletedBlock,
+            txIndex:vote.voteTxIndex,clauseIndex:vote.voteClauseIndex,blockTimestamp:vote.voteBlockTimestamp},
+            'ALLOCATION_VOTE',null,null,vote.voteRoundId);
+        }
         voteCompleted = true;
         voteCompletedBlock =
           vote.voteCompletedBlock;
@@ -862,6 +765,21 @@ export async function syncInvitationEvidence(
     impactCheckpointSaved &&
     voteCompletedAt
   ) {
+    // A vote may precede the third dApp; a verdict from before that last
+    // required activity must not be reused as a fresh mission verdict.
+    if (originalWindow) {
+      if (!qualifyingConversionProof || !verifiedVoteProof || originalWindow.voteStartBlock === null ||
+          originalWindow.voteEndBlock === null) throw new Error('Original mission completion proof unavailable');
+      await recordTwoRoundResolution(row.activation_network!, row.invite_code, {
+        dappRoundId:originalWindow.originalRoundId,attemptStartBlock:activationBlock,
+        dappRoundEndBlock:originalWindow.dappEndBlock,voteRoundStartBlock:originalWindow.voteStartBlock,
+        voteRoundEndBlock:originalWindow.voteEndBlock,finalizedThroughBlock:originalWindow.finalizedBlock,
+        voteCompleted:true,events:[...qualifyingRewardEvents.map(e=>originalProofEvent(e,'DAPP_REWARD',e.appId,e.amountWei,null)),
+          originalProofEvent(qualifyingConversionProof,'VOT3_CONVERSION',null,qualifyingConversionProof.amountWei,null),verifiedVoteProof],
+      });
+    }
+    const missionCompletedAt = appsCompletedAt
+      ? laterIso(appsCompletedAt, voteCompletedAt) : voteCompletedAt;
     const existingSybilCheckedAt =
       row.sybil_checked_at;
     const hasFreshClear =
@@ -871,7 +789,7 @@ export async function syncInvitationEvidence(
         existingSybilCheckedAt as string,
       ).getTime() >=
         new Date(
-          voteCompletedAt,
+          missionCompletedAt,
         ).getTime();
 
     if (hasFreshClear) {
@@ -935,7 +853,7 @@ export async function syncInvitationEvidence(
       const checkedAt =
         laterIso(
           new Date().toISOString(),
-          voteCompletedAt,
+          missionCompletedAt,
         );
 
       // Compare the observed verdict and timestamp rather than blindly
@@ -990,8 +908,9 @@ export async function syncInvitationEvidence(
     voteScanSucceeded &&
     !voteSyncPending &&
     impactCheckpointSaved
-      ? latestBlock ??
-        activityLatestBlock
+      ? originalWindow
+        ? Math.min(latestBlock ?? activityLatestBlock, originalWindow.checkedThroughBlock)
+        : latestBlock ?? activityLatestBlock
       : null;
 
   const completedImpactEvidence =

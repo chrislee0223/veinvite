@@ -66,3 +66,25 @@ test('live production workers are not silently switched by read-only proof or ar
  assert.doesNotMatch(sweep,/missionWindowRewardMath|missionWindowEvidence/);
  assert.doesNotMatch(chain,/missionWindowRewardMath|missionWindowEvidence/);
 });
+
+test('two-round policy: third dApp after next-round vote completes at the third dApp',()=>{
+  const late={...R.dappRewards[2],blockNumber:230};
+  const proof={...R,allowDappsThroughVoteRound:true,dappRewards:[...R.dappRewards.slice(0,2),late]};
+  assert.deepEqual(check(proof),{state:'COMPLETE',countedAppIds:R.dappRewards.map(e=>e.appId),
+    completionPosition:{blockNumber:230,txIndex:0,clauseIndex:0}});
+  assert.equal(check({...proof,allowDappsThroughVoteRound:false}).state,'NEED_DAPPS');
+  assert.equal(check({...proof,dappRewards:[...R.dappRewards.slice(0,2),{...late,blockNumber:300}]}).state,'NEED_DAPPS');
+});
+test('two-round policy keeps conversion order, exact vote round and distinct dApps',()=>{
+  const proof={...R,allowDappsThroughVoteRound:true};
+  assert.equal(check({...proof,vote:{...R.vote,roundId:126}}).state,'INVALID');
+  assert.equal(check({...proof,conversion:{blockNumber:110,txIndex:0,clauseIndex:0}}).state,'INVALID');
+  assert.equal(check({...proof,dappRewards:[R.dappRewards[0],R.dappRewards[1],{...R.dappRewards[0],blockNumber:230}]}).state,'NEED_DAPPS');
+  assert.equal(check({...proof,dappRewards:[{...R.dappRewards[0],blockNumber:99},...R.dappRewards.slice(1)]}).state,'NEED_DAPPS');
+  assert.deepEqual(check(proof).completionPosition,{blockNumber:220,txIndex:0,clauseIndex:0});
+});
+test('same-block completion is the last required chain position',()=>{
+  const proof={...R,allowDappsThroughVoteRound:true,
+    dappRewards:[...R.dappRewards.slice(0,2),{...R.dappRewards[2],blockNumber:220,txIndex:1,clauseIndex:2}]};
+  assert.deepEqual(check(proof).completionPosition,{blockNumber:220,txIndex:1,clauseIndex:2});
+});

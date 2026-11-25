@@ -8,9 +8,12 @@ import {
 } from '@/lib/rewards/missionAutoResetPolicy';
 import {
   verifyPreviousMissionVoteWindow,
+  verifyPreviousMissionCompletionWindow,
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
+import { recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
+import { syncInvitationEvidence, type InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
 import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
@@ -46,6 +49,7 @@ type Candidate = {
   eligibility_check_id: string | number | null;
   vote_completed: boolean | null;
   reward_cohort_round_id: string | number | null;
+  activation_block: string | number | null;
 };
 
 type RetryRead = {
@@ -58,6 +62,7 @@ type Settings = {
   enabled: boolean;
   firstAutomaticRoundId: number;
   minimumFinalityBlocks: number;
+  twoRoundPolicyEnabled: boolean;
 };
 
 export type MissionResetSweep = {
@@ -91,6 +96,7 @@ function readSettings(value: unknown): Settings {
     enabled: row.enabled,
     firstAutomaticRoundId,
     minimumFinalityBlocks,
+    twoRoundPolicyEnabled: row.twoRoundPolicyEnabled === true,
   };
 }
 
@@ -108,7 +114,7 @@ async function loadRetryRead(inviteCode: string, network: string): Promise<Retry
 
 async function lockedCandidate(inviteCode: string, network: string): Promise<Candidate | null> {
   const { data, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block')
     .eq('invite_code', inviteCode)
     .eq('activation_network', network)
     .maybeSingle();
@@ -146,7 +152,7 @@ function inputFor({
     rewardStatus: candidate.reward_status,
     sybilStatus: candidate.sybil_status,
     ineligibleAt: candidate.ineligible_at,
-    voteCompleted: candidate.vote_completed === true,
+    voteCompleted: !settings.twoRoundPolicyEnabled && candidate.vote_completed === true,
     // Absence will be proved on finalized VeChain events before commit.
     voteProofPending: false,
     // Final money/Sybil constraints are rechecked under the DB row lock.
@@ -179,6 +185,15 @@ async function bindCompletion(network: string, code: string, attemptNo: number) 
   throw new Error('Attempt funding binding rejected: ' + (result.data?.reason ?? 'UNKNOWN'));
 }
 
+async function reconcileOriginalUnderLease(code: string, network: string) {
+  const { data, error } = await supabaseAdmin.from('invitations').select('*')
+    .eq('invite_code',code).eq('activation_network',network).maybeSingle();
+  if (error || !data) throw new Error('Original mission reconciliation unavailable');
+  if (data.reward_status === 'PENDING' && data.status === 'ACTIVATING') {
+    await syncInvitationEvidence(data as InvitationEvidenceRow);
+  }
+}
+
 async function handleOne(
   candidate: Candidate,
   currentRoundId: number,
@@ -209,6 +224,7 @@ async function handleOne(
       return 'BLOCKED';
     }
     const retry = await loadRetryRead(code, network);
+    const flexiblePolicy = settings.twoRoundPolicyEnabled;
     if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
@@ -229,6 +245,10 @@ async function handleOne(
       candidate: live, retry, currentRoundId, settings,
       startBlock: null, endBlock: null, finalizedBlock: null,
     }));
+    if (flexiblePolicy && !reviewOnly && preliminary.state === 'ORIGINAL_WINDOW') {
+      await reconcileOriginalUnderLease(code, network);
+      return 'BLOCKED';
+    }
     if (!reviewOnly && (preliminary.state !== 'ROUND_PROOF_UNAVAILABLE' ||
         preliminary.targetDappRoundId === null)) {
       return 'BLOCKED';
@@ -256,6 +276,7 @@ async function handleOne(
         expectedNetwork: network,
         dappRoundId: active.dappRoundId,
         attemptStartBlock: active.attemptStartBlock,
+        allowDappsThroughVoteRound: flexiblePolicy,
       });
       const recorded = await supabaseAdmin.rpc('record_mission_auto_reset_progress_v1', {
         p_network: network,
@@ -274,6 +295,7 @@ async function handleOne(
           (recorded.error?.message ?? recorded.data?.reason ?? 'Unknown'));
       }
       if (proof.voteCompleted) {
+        if (flexiblePolicy) await recordTwoRoundResolution(network, code, proof);
         await bindCompletion(network, code, active.attemptNo);
         return 'BLOCKED';
       }
@@ -297,22 +319,42 @@ async function handleOne(
       if (round + 1 > priorVoteRoundId) rounds.push(round + 1);
       if (rounds.length > 8) return 'BLOCKED';
     }
-    let absence = await verifyPreviousMissionVoteWindow({
-      walletAddress: live.invitee_wallet!,
-      expectedNetwork: network,
-      voteRoundId: rounds[0],
-      minFinalityBlocks: settings.minimumFinalityBlocks,
-    });
-    if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
-    for (const voteRoundId of rounds.slice(1)) {
-      absence = await verifyPreviousMissionVoteWindow({
-        walletAddress: live.invitee_wallet!,
-        expectedNetwork: network,
-        voteRoundId,
-        minFinalityBlocks: settings.minimumFinalityBlocks,
-      });
-      if (absence.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+    let absence: {roundEndBlock:number;finalizedBlock:number} | null = null;
+    if (flexiblePolicy) {
+      const originalRound = safeRound(live.reward_cohort_round_id);
+      for (const voteRoundId of rounds) {
+        const roundId = voteRoundId - 1;
+        const originalActivation = latestAttempt === null && roundId === originalRound;
+        const start = originalActivation ? safeRound(live.activation_block)
+          : (await readVeBetterRoundWindow({roundId})).voteStartBlock;
+        if (start === null) return 'BLOCKED';
+        const expiry = await verifyPreviousMissionCompletionWindow({
+          walletAddress: live.invitee_wallet!, expectedNetwork: network,
+          dappRoundId: roundId, attemptStartBlock: start, originalActivation,
+          minFinalityBlocks: settings.minimumFinalityBlocks,
+        });
+        if (expiry.outcome === 'VOTE_WINDOW_NOT_FINALIZED') return 'BLOCKED';
+        await recordTwoRoundResolution(network, code, expiry.proof);
+        if (expiry.outcome === 'COMPLETE') {
+          if (originalActivation) await reconcileOriginalUnderLease(code, network);
+          // A valid completion in an unrecorded historical retry window is
+          // protected for reconciliation, never replaced by a new attempt.
+          return 'BLOCKED';
+        }
+        if (expiry.proof.voteRoundEndBlock === null) return 'BLOCKED';
+        absence = {roundEndBlock:expiry.proof.voteRoundEndBlock,finalizedBlock:expiry.proof.finalizedThroughBlock};
+      }
+    } else {
+      for (const voteRoundId of rounds) {
+        const verified = await verifyPreviousMissionVoteWindow({
+          walletAddress: live.invitee_wallet!, expectedNetwork: network,
+          voteRoundId, minFinalityBlocks: settings.minimumFinalityBlocks,
+        });
+        if (verified.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+        absence = verified;
+      }
     }
+    if (absence === null) return 'BLOCKED';
 
     const targetRound = await readVeBetterRoundWindow({
       roundId: preliminary.targetDappRoundId,
@@ -408,7 +450,7 @@ export async function runMissionAutoResetSweep(
   const rotation = Math.floor(Date.now() / (5 * 60_000)) % windows;
   const offset = rotation * limit;
   const { data: rows, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block')
     .eq('activation_network', config.network)
     .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
     .eq('reward_status', 'PENDING')

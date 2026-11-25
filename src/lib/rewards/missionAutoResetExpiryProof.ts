@@ -1,3 +1,4 @@
+import { readMissionAutoResetChainProgress, type MissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
 import { ABIEvent } from '@vechain/sdk-core';
 import { ThorClient } from '@vechain/sdk-network';
 
@@ -100,4 +101,38 @@ export async function verifyPreviousMissionVoteWindow({
     roundEndBlock: window.voteEndBlock,
     finalizedBlock,
   };
+}
+
+/** Staged proof for the two-round policy. An isolated raw vote is not a
+ * completion; never expire if the full-window chain scan is unavailable.
+ * The caller must reconcile a COMPLETE result, and persist a verified
+ * incomplete-window checkpoint before requesting an atomic reset. */
+export async function verifyPreviousMissionCompletionWindow({
+  walletAddress, expectedNetwork, dappRoundId, attemptStartBlock,
+  originalActivation = false, minFinalityBlocks = 12,
+}: {
+  walletAddress: string;
+  expectedNetwork: string;
+  dappRoundId: number;
+  attemptStartBlock: number;
+  originalActivation?: boolean;
+  minFinalityBlocks?: number;
+}): Promise<{
+  outcome: 'COMPLETE' | 'SAFE_TO_RESET' | 'VOTE_WINDOW_NOT_FINALIZED';
+  proof: MissionAutoResetChainProgress;
+}> {
+  if (!Number.isSafeInteger(minFinalityBlocks) || minFinalityBlocks < 12 || minFinalityBlocks > 10000) {
+    throw new Error('Invalid full mission expiry finality margin.');
+  }
+  const proof = await readMissionAutoResetChainProgress({
+    walletAddress, expectedNetwork, dappRoundId, attemptStartBlock,
+    allowDappsThroughVoteRound: true, originalActivation,
+  });
+  // Positive evidence is protected even if the round is still in progress.
+  if (proof.state === 'COMPLETE') return { outcome: 'COMPLETE', proof };
+  if (proof.voteRoundEndBlock === null ||
+      proof.finalizedThroughBlock < proof.voteRoundEndBlock + minFinalityBlocks) {
+    return { outcome: 'VOTE_WINDOW_NOT_FINALIZED', proof };
+  }
+  return { outcome: 'SAFE_TO_RESET', proof };
 }

@@ -15,6 +15,8 @@ export type MissionAttemptDisplay = {
   appIds: string[];
   vot3Converted: boolean;
   voteCompleted: boolean;
+  /** Independent early vote; voteCompleted remains the full-proof gate. */
+  voteObserved?: boolean;
   conversionAmountWei: string | null;
   finalizedThroughBlock: number | null;
   completionRoundId: number | null;
@@ -54,7 +56,8 @@ function parseDisplay(raw: unknown, expected: Set<string>): MissionAttemptDispla
       (p.vot3Converted && (!validPositive(p.conversionBlock) ||
         !validTimestamp(p.conversionAt) || typeof p.conversionTxId !== 'string' ||
         !/^0x[0-9a-f]{64}$/.test(p.conversionTxId))) ||
-      (p.voteCompleted && (!validPositive(p.voteBlock) || !validTimestamp(p.voteAt))) ||
+      (p.voteObserved !== undefined && typeof p.voteObserved !== 'boolean') ||
+      ((p.voteCompleted || p.voteObserved === true) && (!validPositive(p.voteBlock) || !validTimestamp(p.voteAt))) ||
       (p.vot3Converted && (typeof p.conversionAmountWei !== 'string' ||
         !/^[0-9]+$/.test(p.conversionAmountWei) || BigInt(p.conversionAmountWei) <= 0n)) ||
       (p.voteCompleted && (p.appsCompleted !== 3 || !p.vot3Converted ||
@@ -99,7 +102,7 @@ export function applyAttemptDisplay<T extends { apps_completed: number | null;
     vot3_converted: boolean | null; vote_completed: boolean | null }>(
     row: T, attempt: MissionAttemptDisplay | undefined): T {
   return attempt ? { ...row, apps_completed: attempt.appsCompleted,
-    vot3_converted: attempt.vot3Converted, vote_completed: attempt.voteCompleted } : row;
+    vot3_converted: attempt.vot3Converted, vote_completed: attempt.voteObserved ?? attempt.voteCompleted } : row;
 }
 
 export function attemptDetailProgress(p: MissionAttemptDisplay) {
@@ -109,7 +112,7 @@ export function attemptDetailProgress(p: MissionAttemptDisplay) {
     vot3Converted: p.vot3Converted,
     vot3MinimumAmountWei: MIN_VOT3_CONVERSION_WEI.toString(),
     vot3ConversionAmountWei: p.vot3Converted ? p.conversionAmountWei : null,
-    voteCompleted: p.voteCompleted, uniqueAppIds: p.appIds,
+    voteCompleted: p.voteObserved ?? p.voteCompleted, uniqueAppIds: p.appIds,
     activationBlock: p.attemptStartBlock, latestBlock: p.finalizedThroughBlock,
     attemptNo: p.attemptNo, dappRoundId: p.dappRoundId, voteRoundId: p.voteRoundId,
   };
@@ -129,6 +132,8 @@ export async function readActiveAttemptSync(
     row,
     progress: {
       ...p,
+      // Cron callers must not treat a partial vote as mission completion.
+      voteCompleted: attempt.voteCompleted,
       vot3ConvertedAt: attempt.conversionAt,
       vot3ConvertedBlock: attempt.conversionBlock,
       vot3ConversionTxId: attempt.conversionTxId,
