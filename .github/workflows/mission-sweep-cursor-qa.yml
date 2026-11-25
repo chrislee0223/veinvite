@@ -1,0 +1,59 @@
+name: Mission Sweep Cursor - Isolated PostgreSQL QA
+on:
+  pull_request:
+    paths:
+      - 'docs/staged-sql/mission_sweep_cursor_draft.sql'
+      - 'tests/sql/mission-sweep-cursor-assert.sql'
+      - '.github/workflows/mission-sweep-cursor-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-qa-only-not-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5432:5432
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: isolated-qa-only-not-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply scheduler-only DDL to an isolated service-role fixture
+        run: |
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon;
+          CREATE ROLE authenticated;
+          CREATE ROLE service_role BYPASSRLS;
+          CREATE TABLE public.cron_job_states (
+            job_name text PRIMARY KEY,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            last_succeeded_at timestamptz,
+            last_started_at timestamptz,
+            last_failed_at timestamptz,
+            lease_until timestamptz,
+            updated_at timestamptz NOT NULL DEFAULT now(),
+            last_error text
+          );
+          ALTER TABLE public.cron_job_states ENABLE ROW LEVEL SECURITY;
+          REVOKE ALL ON public.cron_job_states FROM public,anon,authenticated;
+          GRANT SELECT,INSERT,UPDATE ON public.cron_job_states TO service_role;
+          INSERT INTO public.cron_job_states(job_name) VALUES ('vote-reconcile');
+          SQL
+          psql -X -v ON_ERROR_STOP=1 -f docs/staged-sql/mission_sweep_cursor_draft.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/mission-sweep-cursor-assert.sql

@@ -16,10 +16,6 @@ import {
   readRewardRuntimeSafety,
 } from '@/lib/rewards/runtimeSafety';
 import {
-  runRewardXPromotionShadowAudit,
-  runRewardXPromotionShadowSync,
-} from '@/lib/rewards/rewardXPromotionShadow';
-import {
   recoverSubmittedRewardPayout,
   type SubmittedPayoutRecoveryResult,
 } from '@/lib/rewards/submittedPayoutRecovery';
@@ -36,8 +32,8 @@ const REWARD_BOOST_REBALANCE_JOB =
   'vote-reconcile:reward-boost-reserve';
 const SUBMITTED_PAYOUT_RECOVERY_JOB =
   'vote-reconcile:submitted-payout-recovery';
-const REWARD_BOOST_REBALANCE_LEASE_SECONDS = 180;
-const SUBMITTED_PAYOUT_RECOVERY_LEASE_SECONDS = 180;
+const REWARD_BOOST_REBALANCE_LEASE_SECONDS = 360;
+const SUBMITTED_PAYOUT_RECOVERY_LEASE_SECONDS = 360;
 
 export type ScheduledRewardBoostReserveResult = {
   claimed: boolean;
@@ -283,32 +279,6 @@ Promise<ScheduledRewardMaintenanceResult> {
     await runScheduledSubmittedPayoutRecovery();
   const reserve =
     await runScheduledRewardBoostReserveRebalance();
-
-  try {
-    const shadow =
-      await runRewardXPromotionShadowSync(
-        50,
-      );
-
-    if (shadow.enabled) {
-      const audit =
-        await runRewardXPromotionShadowAudit();
-
-      if (!audit.ok) {
-        console.warn(
-          'X promotion shadow invariant audit detected a mismatch:',
-          audit,
-        );
-      }
-    }
-  } catch (error) {
-    // Shadow projection and audit are observability only. Never let either
-    // failure delay or fail authoritative reward maintenance.
-    console.warn(
-      'X promotion shadow maintenance failed:',
-      error,
-    );
-  }
 
   return {
     submittedPayout,

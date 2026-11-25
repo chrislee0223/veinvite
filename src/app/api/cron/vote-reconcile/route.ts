@@ -19,9 +19,9 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
-  runMissionAutoResetSweepSafe,
   type MissionResetSweep,
 } from '@/lib/rewards/missionAutoResetSweep';
+import { runMissionAutoResetSweepSafe } from '@/lib/rewards/missionAutoResetSchedule';
 import {
   runRewardRecoveryMaintenance,
   type RewardRecoveryMaintenanceSweep,
@@ -59,7 +59,7 @@ const MAX_EVENT_CATCHUP_BLOCKS = 3600;
 const FALLBACK_REPLAY_LOOKBACK_BLOCKS = 720;
 const FALLBACK_INTERVAL_SECONDS = 30 * 60;
 const RECOVERY_INTERVAL_SECONDS = 5 * 60;
-const CADENCE_LEASE_SECONDS = 180;
+const CADENCE_LEASE_SECONDS = 360;
 const RECONCILIATION_LEASE_SECONDS = 600;
 const EVENT_WATCH_LEASE_SECONDS = 180;
 
@@ -825,9 +825,7 @@ async function replayRecentVoteEventsFallback() {
         FALLBACK_REPLAY_LOOKBACK_BLOCKS,
     );
 
-  // This replay is deliberately independent of the primary cursor. It is a
-  // cheap safety net for a cursor/write race or a transient one-minute watcher
-  // failure, not a second full mission reconciliation loop.
+  // Independent safety replay, not a full mission scan.
   const voteEvents =
     await readFinalizedVoteEvents({
       nodeUrl,
@@ -974,6 +972,7 @@ export async function GET(
     RewardRecoveryMaintenanceSweep | null =
       null;
   let missionAutoReset: MissionResetSweep | null = null;
+  let missionExpiry: MissionResetSweep | null = null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1091,11 +1090,7 @@ export async function GET(
     let recoveryFailure:
       unknown | null = null;
 
-    // Analyzer upgrades intentionally make old COMPLETE checkpoints stale.
-    // Publish the live and already-paid evidence backlogs from the existing
-    // five-minute recovery loop so a new analyzer does not take days to reach
-    // every referral. Queue delivery remains idempotent and chain scans stay
-    // isolated from reward reservation in the dedicated queue consumer.
+    // Existing idempotent Sybil queue recovery.
     try {
       sybilV2EvidenceQueue =
         await enqueueSybilV2EvidenceBacklogBatch(
@@ -1160,7 +1155,7 @@ export async function GET(
       );
     }
 
-    const reset = await runMissionAutoResetSweepSafe();
+    const reset = await runMissionAutoResetSweepSafe('progress');
     missionAutoReset = reset.sweep;
     if (reset.failure) {
       recoveryFailure ??= reset.failure;
@@ -1297,6 +1292,12 @@ export async function GET(
     }
   }
 
+  // Expiration follows the successful 30-minute replay, AFTER fast reward work.
+  if (fallbackClaimed && fallback !== null) {
+    const reset = await runMissionAutoResetSweepSafe('expiry');
+    missionExpiry = reset.sweep;
+    if (reset.failure) errors.push('MISSION_EXPIRY_SWEEP_FAILED');
+  }
   try {
     if (errors.length > 0) {
       await markCronJobFailed(
@@ -1342,6 +1343,7 @@ export async function GET(
       sybilV2Assessment,
       rewardReservation,
       missionAutoReset,
+      missionExpiry,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,

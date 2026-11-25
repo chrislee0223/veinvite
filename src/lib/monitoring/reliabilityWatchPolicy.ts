@@ -1,6 +1,7 @@
 export type JobHeartbeat = {
   job_name: string;
   last_succeeded_at: string | null;
+  created_at?: string | null;
 };
 
 export const RELIABILITY_JOBS = [
@@ -8,6 +9,8 @@ export const RELIABILITY_JOBS = [
   { name: 'vote-reconcile:submitted-payout-recovery', maxAgeMinutes: 30 },
   { name: 'vote-reconcile:sybil-reward-recovery', maxAgeMinutes: 30 },
   { name: 'vote-reconcile:full-fallback', maxAgeMinutes: 90 },
+  { name: 'vote-reconcile:mission-progress', maxAgeMinutes: 30 },
+  { name: 'vote-reconcile:mission-expiry', maxAgeMinutes: 90 },
   { name: 'vote-reconcile:reward-boost-reserve', maxAgeMinutes: 120 },
   { name: 'daily-reconcile', maxAgeMinutes: 30 * 60 },
   { name: 'analytics-maintenance', maxAgeMinutes: 30 * 60 },
@@ -24,9 +27,12 @@ export function staleCronCodes(
   rows: readonly JobHeartbeat[],
   now: number,
 ): string[] {
-  const byName = new Map(rows.map((row) => [row.job_name, row.last_succeeded_at]));
+  const byName = new Map(rows.map((row) => [row.job_name, row]));
   return RELIABILITY_JOBS.filter(({ name, maxAgeMinutes }) => {
-    const raw = byName.get(name);
+    const row = byName.get(name);
+    // New phase rows are provisioned with no fabricated success timestamp.
+    // A bounded first-run grace avoids false alerts during cutover only.
+    const raw = row?.last_succeeded_at ?? (name.startsWith('vote-reconcile:mission-') ? row?.created_at : null);
     const at = raw ? Date.parse(raw) : NaN;
     return !Number.isFinite(at) ||
       at > now ||

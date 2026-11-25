@@ -30,9 +30,10 @@ test('new work requires reviewed schema readiness, no explicit pause, and the DB
   assert.doesNotMatch(worker,/commit_reward_reservation|runAutomaticRewardPayout/);
 });
 
-test('worker reuses existing five-minute cadence without another Vercel cron',()=>{
+test('worker reuses progress and fallback cadences without another Vercel cron',()=>{
   assert.match(voteCron,/runMissionAutoResetSweepSafe/);
-  assert.match(voteCron,/const reset = await runMissionAutoResetSweepSafe\(\)/);
+  assert.match(voteCron,/const reset = await runMissionAutoResetSweepSafe\('progress'\)/);
+  assert.match(voteCron,/const reset = await runMissionAutoResetSweepSafe\('expiry'\)/);
   assert.match(voteCron,/missionAutoReset = reset\.sweep/);
   assert.doesNotMatch(runtimeConfig,/mission-auto-reset/);
 });
