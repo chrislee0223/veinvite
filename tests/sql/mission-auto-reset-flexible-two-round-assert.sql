@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP on
 -- Disposable CI fixture only; all codes, wallets, blocks and money are synthetic.
 BEGIN;
+\ir ../../docs/staged-sql/mission_two_round_expiry_draft.sql
 \ir ../../docs/staged-sql/mission_two_round_retry_event_bounds_draft.sql
 \ir ../../docs/staged-sql/mission_two_round_completion_funding_draft.sql
+\ir ../../docs/staged-sql/mission_two_round_original_admission_draft.sql
 SELECT set_config('veinvite.qa_legacy', :'legacy', false);
 DO $flex$
 DECLARE
@@ -26,17 +28,26 @@ BEGIN
    CASE WHEN current_setting('veinvite.qa_legacy')='1' THEN now()-interval '60 days' ELSE now()-interval '7 days' END);
  INSERT INTO public.eligibility_check_events(id,invite_code,wallet_address,network,outcome,entry_class,checked_block)
  VALUES(99,code,wallet,'mainnet','ELIGIBLE','NEW',2990);
- UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true WHERE id=1;
+ UPDATE reward_admission_bridge.mission_auto_reset_settings_v1 SET enabled=true,two_round_policy_enabled=true WHERE id=1;
+ SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
+ IF r->>'reason' IS DISTINCT FROM 'FULL_WINDOW_PROOF_REQUIRED' THEN RAISE EXCEPTION 'reset without proof: %',r; END IF;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5000,'[]') INTO r;
+ IF r->>'reason' IS DISTINCT FROM 'WINDOW_NOT_FINALIZED' THEN RAISE EXCEPTION 'unfinalized expiry accepted: %',r; END IF;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,128,3000,3999,4000,4999,5100,'[]') INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'original expiry proof: %',r; END IF;
  SELECT public.commit_invitation_mission_auto_reset_v1(code,'mainnet',130,130,5000,5999,4999,5100) INTO r;
  IF r->>'started' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'flex reset: %',r; END IF;
  events:=jsonb_build_array(
    jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('1',64),'amount_wei','1','tx_id','0x'||repeat('1',64),'block_number',5100,'tx_index',0,'clause_index',0,'block_timestamp',t),
    jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('2',64),'amount_wei','1','tx_id','0x'||repeat('2',64),'block_number',5200,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '1 minute'),
    jsonb_build_object('event_type','VOT3_CONVERSION','amount_wei','1','tx_id','0x'||repeat('3',64),'block_number',5300,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '2 minutes'));
+ events:=events||jsonb_build_array(
+   jsonb_build_object('event_type','ALLOCATION_VOTE','vote_round_id',131,'tx_id','0x'||repeat('5',64),'block_number',6001,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '3 minutes'));
  SELECT public.record_mission_auto_reset_progress_v1('mainnet',code,1,130,5000,5999,6000,6999,6050,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'partial proof: %',r; END IF;
  SELECT public.read_mission_auto_reset_progress_v1('mainnet',ARRAY[code]) INTO progress;
- IF progress->0->>'appsCompleted' IS DISTINCT FROM '2' OR progress->0->>'completionRoundId' IS NOT NULL
+ IF progress->0->>'appsCompleted' IS DISTINCT FROM '2' OR progress->0->>'voteObserved' IS DISTINCT FROM 'true'
+ OR progress->0->>'voteCompleted' IS DISTINCT FROM 'false' OR progress->0->>'completionRoundId' IS NOT NULL
  THEN RAISE EXCEPTION 'partial mission wrongly complete: %',progress; END IF;
  SELECT public.bind_mission_retry_completion_v1('mainnet',code,1) INTO r;
  IF r->>'bound' IS DISTINCT FROM 'false' THEN RAISE EXCEPTION 'partial binding: %',r; END IF;
@@ -48,12 +59,13 @@ BEGIN
    IF SQLERRM<>'MISSION_ATTEMPT_SCAN_EVENT_INVALID' THEN RAISE; END IF;
  END;
  events:=events||jsonb_build_array(
-   jsonb_build_object('event_type','ALLOCATION_VOTE','vote_round_id',131,'tx_id','0x'||repeat('5',64),'block_number',6001,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '3 minutes'),
    jsonb_build_object('event_type','DAPP_REWARD','app_id','0x'||repeat('4',64),'amount_wei','1','tx_id','0x'||repeat('4',64),'block_number',6100,'tx_index',0,'clause_index',0,'block_timestamp',t+interval '4 minutes'));
  SELECT public.record_mission_auto_reset_progress_v1('mainnet',code,1,130,5000,5999,6000,6999,7200,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'late third app: %',r; END IF;
  SELECT public.record_mission_auto_reset_progress_v1('mainnet',code,1,130,5000,5999,6000,6999,7200,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'retry replay: %',r; END IF;
+ SELECT public.record_mission_two_round_resolution_v1('mainnet',code,130,5000,5999,6000,6999,7200,events) INTO r;
+ IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'completed resolution: %',r; END IF;
  INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number,observed_at,rewards_allocation_amount_wei)
  VALUES('mainnet',app,130,6000,now()-interval '2 days',100*unit),
        ('mainnet',app,131,7000,now()-interval '2 days',100*unit);
