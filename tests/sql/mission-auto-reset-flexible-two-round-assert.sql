@@ -157,6 +157,8 @@ BEGIN
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'late third app: %',r; END IF;
  SELECT public.record_mission_auto_reset_progress_v1('mainnet',code,1,130,5000,5999,6000,6999,7200,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'retry replay: %',r; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.read_mission_retry_behavior_patterns_v1('mainnet') p WHERE p.invite_code=code AND p.attempt_no=1 AND cardinality(p.app_sequence)=3 AND cardinality(p.reward_intervals_seconds)=2)
+ THEN RAISE EXCEPTION 'N+1 third dApp missing from actual Sybil behavior evidence'; END IF;
  SELECT public.record_mission_two_round_resolution_v1('mainnet',code,130,5000,5999,6000,6999,7200,events) INTO r;
  IF r->>'recorded' IS DISTINCT FROM 'true' OR r->>'complete' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'completed resolution: %',r; END IF;
  INSERT INTO public.vebetter_round_allocations(network,app_id,vebetter_round_id,claim_block_number,observed_at,rewards_allocation_amount_wei)
