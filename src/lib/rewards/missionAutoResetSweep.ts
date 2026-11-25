@@ -8,9 +8,11 @@ import {
 } from '@/lib/rewards/missionAutoResetPolicy';
 import {
   verifyPreviousMissionVoteWindow,
+  verifyPreviousMissionCompletionWindow,
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
+import { twoRoundMissionPolicyReady } from '@/lib/rewards/missionOriginalWindow';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
 import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
@@ -46,6 +48,7 @@ type Candidate = {
   eligibility_check_id: string | number | null;
   vote_completed: boolean | null;
   reward_cohort_round_id: string | number | null;
+  activation_block: string | number | null;
 };
 
 type RetryRead = {
@@ -108,7 +111,7 @@ async function loadRetryRead(inviteCode: string, network: string): Promise<Retry
 
 async function lockedCandidate(inviteCode: string, network: string): Promise<Candidate | null> {
   const { data, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block')
     .eq('invite_code', inviteCode)
     .eq('activation_network', network)
     .maybeSingle();
@@ -209,6 +212,7 @@ async function handleOne(
       return 'BLOCKED';
     }
     const retry = await loadRetryRead(code, network);
+    const flexiblePolicy = await twoRoundMissionPolicyReady();
     if (['COMPLETION_PROTECTED','TERMINAL',
          'LEGACY_UNBOUND_REVIEW','LEGACY_UNBOUND_EXPIRED_REVIEW',
          'FUTURE_ROUND_INVALID'].includes(retry.state ?? '')) {
@@ -256,6 +260,7 @@ async function handleOne(
         expectedNetwork: network,
         dappRoundId: active.dappRoundId,
         attemptStartBlock: active.attemptStartBlock,
+        allowDappsThroughVoteRound: flexiblePolicy,
       });
       const recorded = await supabaseAdmin.rpc('record_mission_auto_reset_progress_v1', {
         p_network: network,
@@ -296,6 +301,25 @@ async function handleOne(
     for (let round = Math.max(first, base + 2); round < preliminary.targetDappRoundId; round += 2) {
       if (round + 1 > priorVoteRoundId) rounds.push(round + 1);
       if (rounds.length > 8) return 'BLOCKED';
+    }
+    // Under the flexible policy a full previous mission must be incomplete,
+    // not just lacking a raw vote. The current DB still protects previously
+    // published votes; removing that veto requires the staged atomic guard.
+    if (flexiblePolicy) {
+      const originalRound = safeRound(live.reward_cohort_round_id);
+      for (const voteRoundId of rounds) {
+        const roundId = voteRoundId - 1;
+        const originalActivation = latestAttempt === null && roundId === originalRound;
+        const start = originalActivation ? safeRound(live.activation_block)
+          : (await readVeBetterRoundWindow({roundId})).voteStartBlock;
+        if (start === null) return 'BLOCKED';
+        const expiry = await verifyPreviousMissionCompletionWindow({
+          walletAddress: live.invitee_wallet!, expectedNetwork: network,
+          dappRoundId: roundId, attemptStartBlock: start, originalActivation,
+          minFinalityBlocks: settings.minimumFinalityBlocks,
+        });
+        if (expiry.outcome !== 'SAFE_TO_RESET') return 'BLOCKED';
+      }
     }
     let absence = await verifyPreviousMissionVoteWindow({
       walletAddress: live.invitee_wallet!,
@@ -408,7 +432,7 @@ export async function runMissionAutoResetSweep(
   const rotation = Math.floor(Date.now() / (5 * 60_000)) % windows;
   const offset = rotation * limit;
   const { data: rows, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id')
+    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block')
     .eq('activation_network', config.network)
     .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
     .eq('reward_status', 'PENDING')
