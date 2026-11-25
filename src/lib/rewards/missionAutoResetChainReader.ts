@@ -63,6 +63,7 @@ export async function readMissionAutoResetChainProgress({
   dappRoundId,
   attemptStartBlock,
   allowDappsThroughVoteRound = false,
+  originalActivation = false,
 }: {
   walletAddress: string;
   expectedNetwork: string;
@@ -70,6 +71,8 @@ export async function readMissionAutoResetChainProgress({
   attemptStartBlock: number;
   /** Staged only; do not enable until canonical persistence and funding are updated. */
   allowDappsThroughVoteRound?: boolean;
+  /** Original invitation starts at its verified activation block, never before it. */
+  originalActivation?: boolean;
 }): Promise<MissionAutoResetChainProgress> {
   if (!/^0x[0-9a-f]{40}$/i.test(walletAddress) ||
       !positiveSafe(dappRoundId) ||
@@ -85,8 +88,10 @@ export async function readMissionAutoResetChainProgress({
 
   const dappRound = await readVeBetterRoundWindow({ roundId: dappRoundId });
   if (dappRound.network !== expectedNetwork ||
-      dappRound.voteStartBlock !== attemptStartBlock ||
-      dappRound.voteEndBlock <= attemptStartBlock) {
+      (originalActivation
+        ? attemptStartBlock < dappRound.voteStartBlock || attemptStartBlock > dappRound.voteEndBlock
+        : dappRound.voteStartBlock !== attemptStartBlock) ||
+      dappRound.voteEndBlock <= dappRound.voteStartBlock) {
     throw new Error('Mission start block is not the verified round boundary.');
   }
 
