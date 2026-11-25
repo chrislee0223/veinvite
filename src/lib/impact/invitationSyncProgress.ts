@@ -94,3 +94,53 @@ export function buildProgress(args: {
   };
 }
 
+
+export function parseNonNegativeInteger(
+  value: number | string | null,
+): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : Number(value);
+
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < 0
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+export function chainTimestampToIso(
+  unixSeconds: number,
+): string {
+  if (
+    !Number.isSafeInteger(unixSeconds) ||
+    unixSeconds < 0
+  ) {
+    throw new Error(
+      'Invalid VeChain block timestamp.',
+    );
+  }
+
+  return new Date(
+    unixSeconds * 1000,
+  ).toISOString();
+}
+
+export function laterIso(
+  first: string,
+  second: string,
+): string {
+  return new Date(first).getTime() >=
+    new Date(second).getTime()
+    ? first
+    : second;
+}
+
