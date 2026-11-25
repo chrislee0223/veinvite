@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from('cron_job_states')
-      .select('job_name,last_succeeded_at,last_error')
+      .select('job_name,last_succeeded_at,last_error,created_at')
       .in('job_name', [...RELIABILITY_JOBS.map(({ name }) => name), WATCH_JOB])
       .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS));
     if (error) throw new Error('Scheduled-job health unavailable.');

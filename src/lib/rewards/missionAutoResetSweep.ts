@@ -9,6 +9,7 @@ import {
 import {
   verifyPreviousMissionVoteWindow,
   verifyPreviousMissionCompletionWindow,
+  classifyPreviousMissionCompletionWindow,
 } from '@/lib/rewards/missionAutoResetExpiryProof';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
@@ -16,7 +17,7 @@ import { recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
 import { syncInvitationEvidence, type InvitationEvidenceRow } from '@/lib/impact/syncInvitation';
 import { readMissionAttemptDisplays } from '@/lib/rewards/missionAutoResetDisplay';
 import { continueCompletedRetry } from '@/lib/rewards/missionRetryEligibility';
-import { readMissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
+import { readMissionAutoResetChainProgress, type MissionAutoResetChainProgress } from '@/lib/rewards/missionAutoResetChainReader';
 import {
   readVeBetterRoundWindow,
 } from '@/lib/vebetter/entryEligibility';
@@ -25,7 +26,7 @@ import {
 } from '@/lib/vebetter/network';
 
 /**
- * Optional five-minute sweep using the EXISTING vote-reconcile cron.
+ * Progress and expiry sweeps reuse the EXISTING vote-reconcile cron.
  *
  * Release gates default closed (environment + service-only DB flag). Never
  * activate until the new attempt's funding/reservation and Sybil proof are
@@ -58,6 +59,8 @@ type RetryRead = {
   attemptRoundId?: unknown;
 };
 
+export type MissionSweepPhase = 'progress' | 'expiry';
+
 type Settings = {
   enabled: boolean;
   firstAutomaticRoundId: number;
@@ -73,6 +76,9 @@ export type MissionResetSweep = {
   failed: number;
   failedInviteCodes: string[];
 };
+
+type MissionSweepPage = MissionResetSweep & { nextCursor: string | null };
+const CANDIDATE_FIELDS = 'invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block';
 
 function safeRound(value: unknown): number | null {
   const num = Number(value);
@@ -199,8 +205,12 @@ async function handleOne(
   currentRoundId: number,
   network: string,
   settings: Settings,
+  phase: MissionSweepPhase,
 ): Promise<'STARTED' | 'BLOCKED'> {
   const code = candidate.invite_code;
+  // Bound original N/N+1 cannot expire; avoid its lock and proof reads here.
+  const original = safeRound(candidate.reward_cohort_round_id);
+  if (phase === 'expiry' && (original === null || currentRoundId <= original + 1)) return 'BLOCKED';
   if (!INVITE_CODE.test(code) ||
       !candidate.invitee_wallet ||
       !/^0x[0-9a-f]{40}$/i.test(candidate.invitee_wallet)) {
@@ -231,10 +241,11 @@ async function handleOne(
       return 'BLOCKED';
     }
     const reviewOnly = retry.state === 'SECURITY_REVIEW';
-    if (reviewOnly && retry.latestAttemptNo == null) return 'BLOCKED';
+    if (reviewOnly && (retry.latestAttemptNo == null || phase === 'expiry')) return 'BLOCKED';
     // A published retry checkpoint already has vote_completed=true.
     // Resume its security/eligibility handoff after any crash or delay.
     if (live.vote_completed === true && retry.latestAttemptNo != null) {
+      if (phase === 'expiry') return 'BLOCKED';
       const attempt = (await readMissionAttemptDisplays([{
         invite_code: code, activation_network: network,
       }])).get(code);
@@ -246,7 +257,7 @@ async function handleOne(
       startBlock: null, endBlock: null, finalizedBlock: null,
     }));
     if (flexiblePolicy && !reviewOnly && preliminary.state === 'ORIGINAL_WINDOW') {
-      await reconcileOriginalUnderLease(code, network);
+      if (phase === 'progress') await reconcileOriginalUnderLease(code, network);
       return 'BLOCKED';
     }
     if (!reviewOnly && (preliminary.state !== 'ROUND_PROOF_UNAVAILABLE' ||
@@ -257,6 +268,9 @@ async function handleOne(
     const latestAttempt = retry.latestAttemptNo === null ||
       retry.latestAttemptNo === undefined
       ? null : safeRound(retry.attemptRoundId);
+    // An active, unexpired retry is handled by the fast progress sweep.
+    if (phase === 'expiry' && latestAttempt === preliminary.targetDappRoundId) return 'BLOCKED';
+    let latestProof: MissionAutoResetChainProgress | null = null;
     // Reconcile the persisted attempt even if the sweep was delayed into
     // N+2. A valid historical completion always wins over expiration.
     if (latestAttempt !== null) {
@@ -278,6 +292,7 @@ async function handleOne(
         attemptStartBlock: active.attemptStartBlock,
         allowDappsThroughVoteRound: flexiblePolicy,
       });
+      latestProof = proof;
       const recorded = await supabaseAdmin.rpc('record_mission_auto_reset_progress_v1', {
         p_network: network,
         p_invite_code: code,
@@ -303,7 +318,8 @@ async function handleOne(
         return 'BLOCKED';
       }
     }
-    if (reviewOnly || preliminary.targetDappRoundId === null) return 'BLOCKED';
+    // Progress may reconcile a late completion, but never resets an attempt.
+    if (phase !== 'expiry' || reviewOnly || preliminary.targetDappRoundId === null) return 'BLOCKED';
     const base = latestAttempt ?? safeRound(live.reward_cohort_round_id);
     if (base === null) return 'BLOCKED';
     const priorVoteRoundId = base + 1;
@@ -326,13 +342,18 @@ async function handleOne(
         const roundId = voteRoundId - 1;
         const originalActivation = latestAttempt === null && roundId === originalRound;
         const start = originalActivation ? safeRound(live.activation_block)
+          : latestProof?.dappRoundId === roundId ? latestProof.attemptStartBlock
           : (await readVeBetterRoundWindow({roundId})).voteStartBlock;
         if (start === null) return 'BLOCKED';
-        const expiry = await verifyPreviousMissionCompletionWindow({
-          walletAddress: live.invitee_wallet!, expectedNetwork: network,
-          dappRoundId: roundId, attemptStartBlock: start, originalActivation,
-          minFinalityBlocks: settings.minimumFinalityBlocks,
-        });
+        // Same invocation, same wallet and exact round/start: reuse the full
+        // proof just persisted above, but apply the SAME expiry finality margin.
+        const expiry = !originalActivation && latestProof?.dappRoundId === roundId && latestProof.attemptStartBlock === start
+          ? classifyPreviousMissionCompletionWindow(latestProof, settings.minimumFinalityBlocks)
+          : await verifyPreviousMissionCompletionWindow({
+              walletAddress: live.invitee_wallet!, expectedNetwork: network,
+              dappRoundId: roundId, attemptStartBlock: start, originalActivation,
+              minFinalityBlocks: settings.minimumFinalityBlocks,
+            });
         if (expiry.outcome === 'VOTE_WINDOW_NOT_FINALIZED') return 'BLOCKED';
         await recordTwoRoundResolution(network, code, expiry.proof);
         if (expiry.outcome === 'COMPLETE') {
@@ -408,10 +429,12 @@ async function handleOne(
 
 export async function runMissionAutoResetSweep(
   limit: number = MAX_SELECTION,
-): Promise<MissionResetSweep> {
+  phase: MissionSweepPhase = 'progress',
+  cursor: string | null = null,
+): Promise<MissionSweepPage> {
   if (!missionAutoResetSchemaReady() || process.env.VEINVITE_MISSION_AUTO_RESET_READY === 'false') {
     return { status: 'OFF', selected: 0, started: 0, blocked: 0,
-      failed: 0, failedInviteCodes: [] };
+      failed: 0, failedInviteCodes: [], nextCursor: cursor };
   }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10) {
     throw new Error('Mission reset sweep batch limit is invalid.');
@@ -424,54 +447,46 @@ export async function runMissionAutoResetSweep(
   const settings = readSettings(read.data);
   if (!settings.enabled) {
     return { status: 'DB_DISABLED', selected: 0, started: 0, blocked: 0,
-      failed: 0, failedInviteCodes: [] };
+      failed: 0, failedInviteCodes: [], nextCursor: cursor };
   }
 
-  const round = await readVeBetterRoundWindow();
-  if (round.network !== config.network) {
-    throw new Error('Mission reset current round has wrong network.');
-  }
-
-  // Page over the ENTIRE eligible backlog, not just the first 100. A stuck
-  // review cannot permanently starve later users as the user base grows.
-  const countResult = await supabaseAdmin.from('invitations')
-    .select('invite_code', { count: 'exact', head: true })
-    .eq('activation_network', config.network)
-    .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
-    .eq('reward_status', 'PENDING')
-    .not('invitee_wallet','is',null);
-  if (countResult.error || countResult.count === null) {
-    throw new Error('Mission reset candidate count unavailable: ' +
-      (countResult.error?.message ?? 'missing count'));
-  }
-  const windows = Math.max(1, Math.ceil(countResult.count / limit));
-  // The shared cadence advances the page every five minutes without a
-  // separate cron or mutable pagination cursor.
-  const rotation = Math.floor(Date.now() / (5 * 60_000)) % windows;
-  const offset = rotation * limit;
-  const { data: rows, error } = await supabaseAdmin.from('invitations')
-    .select('invite_code,invitee_wallet,status,reward_status,sybil_status,ineligible_at,eligibility_check_id,vote_completed,reward_cohort_round_id,activation_block')
-    .eq('activation_network', config.network)
-    .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
-    .eq('reward_status', 'PENDING')
-    .not('invitee_wallet','is',null)
-    .order('activated_at',{ ascending:true })
-    .order('invite_code',{ ascending:true })
-    .range(offset, offset + limit - 1);
-  if (error) throw new Error('Mission reset candidate page failed: ' + error.message);
-  const selected = (rows ?? []) as Candidate[];
-  const result: MissionResetSweep = {
+  if (cursor !== null && !INVITE_CODE.test(cursor)) throw new Error('Invalid mission sweep cursor.');
+  // Keyset pagination: each phase persists its own cursor under a cadence
+  // lease. Unlike time modulo/offset, delayed runs and shrinking queues do
+  // not repeatedly select the same page. Wrap only after the end is reached.
+  const readPage = async (after: string | null) => {
+    const query = supabaseAdmin.from('invitations')
+      .select(CANDIDATE_FIELDS)
+      .eq('activation_network', config.network)
+      .in('status', ['ACTIVATING', 'UNDER_REVIEW'])
+      .eq('reward_status', 'PENDING')
+      .not('invitee_wallet','is',null)
+      .not('reward_cohort_round_id','is',null)
+      .order('invite_code',{ ascending:true })
+      .limit(limit);
+    const { data, error } = await (after ? query.gt('invite_code',after) : query);
+    if (error) throw new Error('Mission sweep candidate page failed: ' + error.message);
+    return (data ?? []) as Candidate[];
+  };
+  let selected = await readPage(cursor);
+  if (selected.length === 0 && cursor !== null) selected = await readPage(null);
+  const result: MissionSweepPage = {
     status: 'CHECKED',
     selected: selected.length,
     started: 0,
     blocked: 0,
     failed: 0,
     failedInviteCodes: [],
+    nextCursor: selected.at(-1)?.invite_code ?? null,
   };
+  // No users, no chain calls.
+  if (selected.length === 0) return result;
+  const round = await readVeBetterRoundWindow();
+  if (round.network !== config.network) throw new Error('Mission sweep current round has wrong network.');
   for (const invite of selected) {
     try {
       const status = await handleOne(
-        invite, round.currentRoundId, config.network, settings,
+        invite, round.currentRoundId, config.network, settings, phase,
       );
       if (status === 'STARTED') result.started += 1;
       else result.blocked += 1;
@@ -487,29 +502,3 @@ export async function runMissionAutoResetSweep(
   return result;
 }
 
-/**
- * Only errors from a deliberately enabled reset subsystem affect the existing
- * cron health result. When disabled, this is an inexpensive zero-I/O no-op.
- */
-export async function runMissionAutoResetSweepSafe(): Promise<{
-  sweep: MissionResetSweep | null;
-  failure: Error | null;
-}> {
-  try {
-    const sweep = await runMissionAutoResetSweep();
-    return {
-      sweep,
-      failure: sweep.failed > 0
-        ? new Error('Mission reset candidate chain proof failed.')
-        : null,
-    };
-  } catch (error) {
-    console.error('Mission auto-reset sweep failed:', error);
-    return {
-      sweep: null,
-      failure: error instanceof Error
-        ? error
-        : new Error('Mission auto-reset sweep failed.'),
-    };
-  }
-}
