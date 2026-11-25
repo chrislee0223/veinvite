@@ -1,6 +1,7 @@
 // Shared, read-only current-cohort estimate reader for API and first HTML paint.
 // Never use historical per-person forecast fields or payout writers.
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { missionAutoResetSchemaReady } from '@/lib/rewards/missionAutoResetRuntime';
 import { VEINVITE_APP_ID } from '@/lib/rewards/onchainPool';
 import {
   ACTIVE_WINDOW_MS,
@@ -59,7 +60,7 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
     const activityQuery = supabaseAdmin
       .from('invitations')
       .select(
-        'created_at,status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id,slot_released_at',
+        'invite_code,created_at,status,sybil_status,reward_status,ineligible_at,apps_completed,activated_at,apps_completed_at,vote_completed_at,vote_round_id,slot_released_at',
       )
       .eq('activation_network', network)
       .is('ineligible_at', null)
@@ -76,8 +77,24 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
         activeError?.message ?? 'Public reward activity sample unavailable',
       );
     }
+    let forecastRows = activeRows as ActiveReferralForecastRow[];
+    if (missionAutoResetSchemaReady()) {
+      const query = supabaseAdmin.rpc('read_mission_retry_forecast_rows_v1', {
+        p_network: network, p_round_id: roundId,
+      });
+      const result = await (signal ? query.abortSignal(signal) : query);
+      if (result.error || !Array.isArray(result.data) || result.data.length >= 1000) {
+        throw new Error('Retry participation estimate unavailable');
+      }
+      const byCode = new Map(forecastRows.map(row => [row.invite_code, row]));
+      for (const row of result.data as ActiveReferralForecastRow[]) {
+        if (!row.invite_code || row.retry_active !== true) throw new Error('Invalid retry forecast row');
+        byCode.set(row.invite_code, row);
+      }
+      forecastRows = [...byCode.values()];
+    }
     const activeParticipants = countActiveSharedPoolReferrals(
-      activeRows as ActiveReferralForecastRow[],
+      forecastRows,
       roundId,
       nowMs,
     );
@@ -98,7 +115,7 @@ export async function readElasticPublicPreview(network: string, signal?: AbortSi
           return estimatePolicyAwareActiveSharedPoolReward(
             x.capacityBeforeNewXWei,
             x.legacyXReservePerWinnerWei,
-            activeRows as ActiveReferralForecastRow[],
+            forecastRows,
             roundId,
             nowMs,
             x.promotionPolicyCutoverAt,

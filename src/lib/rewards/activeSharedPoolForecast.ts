@@ -5,8 +5,10 @@
  * a mission yet. Never count an unopened slot or a hypothetical newcomer.
  * Settlement remains exclusively with the canonical server-side writer.
  */
-export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v5';
+export const PUBLIC_ACTIVE_FORECAST_MODEL_VERSION = 'shared-pool-recent-accepted-v6';
 export type ActiveReferralForecastRow = {
+  invite_code?: string;
+  retry_active?: boolean;
   created_at?: string | null;
   slot_released_at?: string | null;
   status: string | null;
@@ -54,6 +56,8 @@ function activeSharedPoolReferrals(
       return true;
     }
     if (row.status !== 'ACTIVATING') return false;
+    // A reset itself is not new participation. Require a fresh, durable dApp event.
+    if (row.retry_active === true) return true;
     // Accepting an actual invitation (even at 0 missions) enters the
     // participation estimate. Old invitations never enter solely because
     // a historical member later progressed a mission.

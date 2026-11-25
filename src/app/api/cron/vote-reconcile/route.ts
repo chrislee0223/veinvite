@@ -19,6 +19,10 @@ import {
   runScheduledRewardMaintenance,
 } from '@/lib/rewards/rewardBoostReserveScheduler';
 import {
+  runMissionAutoResetSweepSafe,
+  type MissionResetSweep,
+} from '@/lib/rewards/missionAutoResetSweep';
+import {
   runRewardRecoveryMaintenance,
   type RewardRecoveryMaintenanceSweep,
 } from '@/lib/rewards/rewardRecoveryMaintenance';
@@ -969,6 +973,7 @@ export async function GET(
   let rewardReservation:
     RewardRecoveryMaintenanceSweep | null =
       null;
+  let missionAutoReset: MissionResetSweep | null = null;
   let b3trRecipientObservation:
     Awaited<
       ReturnType<
@@ -1155,6 +1160,13 @@ export async function GET(
       );
     }
 
+    const reset = await runMissionAutoResetSweepSafe();
+    missionAutoReset = reset.sweep;
+    if (reset.failure) {
+      recoveryFailure ??= reset.failure;
+      errors.push('MISSION_AUTO_RESET_SWEEP_FAILED');
+    }
+
     const rewardRecovery =
       await runRewardRecoveryMaintenance();
     rewardReservation =
@@ -1329,6 +1341,7 @@ export async function GET(
       sybilV2PolicyReassessment,
       sybilV2Assessment,
       rewardReservation,
+      missionAutoReset,
       b3trRecipientObservation,
       sybilV2PostPayout,
       sybilV2WatchFollowup,

@@ -6,6 +6,7 @@ import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { MISSION_RESET_NOTIFICATION_COPY } from '@/lib/i18n/missionResetNotificationCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
 import { notificationPresentationGroup } from '@/lib/notifications/notificationPresentationGroups';
 import { REFERRAL_INVALIDATED_COPY } from '@/lib/i18n/referralInvalidatedCopy';
@@ -79,6 +80,12 @@ function NotificationStageIcon({
       return (
         <span className="stageIconGraphic" data-notification-icon="invite-accepted">
           <UserStatusIcon status="check" />
+        </span>
+      );
+    case 'MISSION_PROGRESS_RESET':
+      return (
+        <span className="stageIconProgress" data-notification-icon="dapp-progress">
+          0<small>/3</small>
         </span>
       );
     case 'DAPP_PROGRESS':
@@ -256,6 +263,8 @@ function statusText(
         body: copy.acceptedBody,
         hint: null,
       };
+    case 'MISSION_PROGRESS_RESET':
+      return { ...MISSION_RESET_NOTIFICATION_COPY[locale], hint: null };
     case 'DAPP_PROGRESS':
       return {
         title: progressTitle,

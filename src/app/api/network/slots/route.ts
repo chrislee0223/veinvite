@@ -9,12 +9,14 @@ import {
 import { enforceRateLimits } from '@/lib/rateLimitServer';
 import { normalizeAddress } from '@/lib/serverStore';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readMissionAttemptDisplays, applyAttemptDisplay } from '@/lib/rewards/missionAutoResetDisplay';
 import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
 
 type SlotRow = {
+  invite_code: string;
   status: 'PENDING_ACCEPTANCE' | 'ACTIVATING' | 'UNDER_REVIEW' | 'COMPLETED' | 'CANCELLED';
   eligibility_check_id: string | number | null;
   activation_network: string | null;
@@ -140,7 +142,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('invitations')
     .select(
-      'status, eligibility_check_id, activation_network, invitee_wallet, invite_slot, slot_released_at, sybil_status, apps_completed, vot3_converted, vote_completed, created_at',
+      'invite_code, status, eligibility_check_id, activation_network, invitee_wallet, invite_slot, slot_released_at, sybil_status, apps_completed, vot3_converted, vote_completed, created_at',
     )
     .eq('inviter_wallet', wallet)
     .in('status', ACTIVE_STATUSES)
@@ -154,8 +156,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const rows = (data ?? []) as SlotRow[];
+  let effectiveRows: SlotRow[];
+  try {
+    const attempts = await readMissionAttemptDisplays(rows);
+    effectiveRows = rows.map(row => applyAttemptDisplay(row, attempts.get(row.invite_code)));
+  } catch (error) {
+    console.error('Failed to load effective slot progress:', error);
+    return NextResponse.json({ error: 'Failed to load invite progress.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
   const occupied = new Map<1 | 2, SlotRow>();
-  for (const row of (data ?? []) as SlotRow[]) {
+  for (const row of effectiveRows) {
     if (!occupiesInviteSlot(row)) continue;
     const slot = row.invite_slot === 2 ? 2 : 1;
     if (!occupied.has(slot)) occupied.set(slot, row);

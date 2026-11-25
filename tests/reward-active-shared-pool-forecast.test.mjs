@@ -156,3 +156,12 @@ test('fixed recipients are excluded in the existing single read and forecast cac
   assert.match(firstPaint,/\['public-current-shared-pool-first-paint-v1', PUBLIC_ACTIVE_FORECAST_MODEL_VERSION\]/);
   assert.doesNotMatch(reader,/\.from\('reward_queue_entries'\)|\.from\('reward_recovery_settlements'\)/);
 });
+
+test('only active retry evidence adds an older participant; dormant reset and fixed slot do not', () => {
+  const dormant = row({activated_at:old,apps_completed:0,retry_active:false});
+  const working = {...dormant,apps_completed:1,retry_active:true};
+  assert.equal(countActiveSharedPoolReferrals([dormant],124,NOW),0);
+  assert.equal(countActiveSharedPoolReferrals([working],124,NOW),1);
+  assert.equal(countActiveSharedPoolReferrals([{...working,slot_released_at:recent}],124,NOW),0);
+  assert.equal(countActiveSharedPoolReferrals([{...working,status:'UNDER_REVIEW'}],124,NOW),0);
+});

@@ -17,6 +17,7 @@ import {
   runAutomaticRewardPayout,
 } from '@/lib/rewards/automaticRewardPayoutWithMnemonic';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { readMissionAttemptDisplays, attemptDetailProgress } from '@/lib/rewards/missionAutoResetDisplay';
 import type {
   InviteRecord,
 } from '@/lib/types';
@@ -455,13 +456,16 @@ export async function GET(
         session?.walletAddress ?? null,
       );
 
+    const attempt = canReadDetails
+      ? (await readMissionAttemptDisplays([row])).get(row.invite_code)
+      : undefined;
     return NextResponse.json(
       {
         invite: canReadDetails
           ? toInviteRecord(row)
           : toPublicInviteRecord(row),
         progress: canReadDetails
-          ? toStoredProgress(row)
+          ? (attempt ? attemptDetailProgress(attempt) : toStoredProgress(row))
           : toPublicProgress(),
       },
       {
@@ -630,6 +634,15 @@ export async function POST(
       }
       if (await isVerifiedLegacyIneligibleInvitation(current)) {
         return legacyIneligibleInviteResponse();
+      }
+      const attempt = (await readMissionAttemptDisplays([current])).get(current.invite_code);
+      if (attempt) {
+        // Active retries may not enter the old evidence scanner, which would
+        // reuse their original activity and potentially trigger settlement.
+        return NextResponse.json({
+          invite: toInviteRecord(current),
+          progress: attemptDetailProgress(attempt),
+        }, { headers: { 'Cache-Control': 'no-store' } });
       }
       synced = await syncInvitationEvidence(current);
     } finally {

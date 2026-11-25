@@ -33,6 +33,7 @@ export function notificationRequiresHomeRefresh(
   const kind = effectiveNotificationKind(notification);
   return (
     kind === 'INVITE_INELIGIBLE' ||
+    kind === 'MISSION_PROGRESS_RESET' ||
     kind === 'REWARD_READY' ||
     kind === 'REWARD_PAID' ||
     kind === 'X_PROMOTION_PAID' ||

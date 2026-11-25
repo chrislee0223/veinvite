@@ -6,6 +6,7 @@ import {
   enqueueRewardReservationContinuation,
 } from '@/lib/rewards/rewardReservationContinuationQueue';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { inspectMissionBehaviorPatterns, type loadRetryBehaviorPatterns } from '@/lib/sybil/v2/missionRetryBehavior';
 import {
   readOnchainFundingSnapshot,
   type OnchainFundingSnapshot,
@@ -54,9 +55,7 @@ import {
   hasNewEvidenceForCurrentAssessment,
 } from '@/lib/sybil/v2/assessmentFreshness';
 import {
-  appOverlap,
   hasHighSignal,
-  intervalsSimilar,
   isFinalizedVoteCheckpoint,
   normalizeWallet,
   safeEligibilityRound,
@@ -185,15 +184,6 @@ type WatchFollowupEvidenceRow = {
   strength: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
   score: number | string;
   related_wallet: string | null;
-};
-
-type MissionFingerprintRow = {
-  invite_code: string;
-  inviter_wallet: string;
-  invitee_wallet: string;
-  activated_at: string;
-  app_sequence: string[];
-  reward_intervals_seconds: Array<number | string> | null;
 };
 
 type AssessmentRpcResult = {
@@ -1681,50 +1671,19 @@ async function loadMissionBehaviorSignals(
 ): Promise<{
   signals: SybilV2Signal[];
   complete: boolean;
+  retry?: Awaited<ReturnType<typeof loadRetryBehaviorPatterns>>;
 }> {
   if (!invitation.activation_network || !invitation.invitee_wallet) {
     return { signals: [], complete: false };
   }
 
-  const result = await supabaseAdmin
-    .from('operator_sybil_behavior_fingerprints')
-    .select(
-      'invite_code,inviter_wallet,invitee_wallet,activated_at,app_sequence,reward_intervals_seconds',
-    )
-    .eq('network', invitation.activation_network);
-
-  if (result.error) {
-    throw new Error(`Mission behavior fingerprints could not be loaded: ${result.error.message}`);
-  }
-
-  const rows = (result.data ?? []) as MissionFingerprintRow[];
-  const own = rows.find((row) => row.invite_code === invitation.invite_code);
-  if (!own || !Array.isArray(own.app_sequence) || own.app_sequence.length < 3) {
-    return { signals: [], complete: false };
-  }
-
-  const ownActivated = Date.parse(own.activated_at);
-  const similarPeers = rows.filter((peer) => {
-    if (peer.invite_code === own.invite_code) return false;
-    if (!Array.isArray(peer.app_sequence) || peer.app_sequence.length < 3) return false;
-    const peerActivated = Date.parse(peer.activated_at);
-    if (
-      Number.isNaN(ownActivated) ||
-      Number.isNaN(peerActivated) ||
-      Math.abs(ownActivated - peerActivated) / 1000 > MISSION_PEER_WINDOW_SECONDS
-    ) {
-      return false;
-    }
-    return (
-      appOverlap(own.app_sequence, peer.app_sequence) >= 2 / 3 &&
-      intervalsSimilar(own.reward_intervals_seconds, peer.reward_intervals_seconds)
-    );
-  });
+  const { complete, similarPeerCount, retry } =
+    await inspectMissionBehaviorPatterns(invitation, MISSION_PEER_WINDOW_SECONDS);
 
   const signals: SybilV2Signal[] = [];
 
-  if (similarPeers.length >= 2) {
-    const score = Math.min(40, 20 + similarPeers.length * 4);
+  if (similarPeerCount >= 2) {
+    const score = Math.min(40, 20 + similarPeerCount * 4);
     signals.push({
       code: 'MISSION_PATTERN_CLUSTER',
       family: 'MISSION_BEHAVIOR',
@@ -1740,7 +1699,7 @@ async function loadMissionBehaviorSignals(
       strength: 'MEDIUM',
       score,
       evidence: {
-        similarPeerCount: similarPeers.length,
+        similarPeerCount: similarPeerCount,
         appOverlapThreshold: 2 / 3,
         peerWindowSeconds: MISSION_PEER_WINDOW_SECONDS,
       },
@@ -1749,7 +1708,7 @@ async function loadMissionBehaviorSignals(
     });
   }
 
-  return { signals, complete: true };
+  return { signals, complete, retry };
 }
 
 async function loadAnalyticsExcludedWallets(
@@ -3669,6 +3628,10 @@ export async function assessSybilV2Referral(
   );
 
   const evidenceSummary = {
+    ...(mission.retry?.attemptNo ? {
+      missionRetryAttemptNo: mission.retry.attemptNo,
+      missionRetryCompletionBlock: mission.retry.completionBlock,
+    } : {}),
     behaviorPatternEnforcementVersion:
       SYBIL_V2_BEHAVIOR_ENFORCEMENT_VERSION,
     signalCount: signals.length,

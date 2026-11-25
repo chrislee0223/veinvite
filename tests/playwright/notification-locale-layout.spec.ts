@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { REWARD_X_PROMOTION_PAID_TITLE } from '../../src/lib/i18n/rewardXPromotionPaidNotificationCopy';
+import { MISSION_RESET_NOTIFICATION_COPY } from '../../src/lib/i18n/missionResetNotificationCopy';
 
 import {
   SUPPORTED_LOCALES,
@@ -20,6 +21,7 @@ const FULL_LANGUAGE_STATES = [
   'NOTI-POST-PAYOUT-REVIEW',   // long post-payout notice
   'NOTI-REWARD-PAID',          // reward amount and receipt action
   'NOTI-X-PROMOTION-PAID',      // localized +10 B3TR paid notification
+  'NOTI-MISSION-RESET',         // 0/3 reset for every language and RTL script
 ] as const;
 
 const HIGH_RISK_LOCALES = [
@@ -134,6 +136,13 @@ for (const locale of SUPPORTED_LOCALES) {
         timeout: 30_000,
       });
       await verifyNotificationLayout(page, locale);
+      if (state === 'NOTI-MISSION-RESET') {
+        // The notice is an ordinary bell row, not a new animation/modal.
+        await expect(page.locator('.notificationHistoryTitle').first())
+          .toHaveText(MISSION_RESET_NOTIFICATION_COPY[locale].title);
+        await expect(page.locator('.notificationHistoryBody').first())
+          .toHaveText(MISSION_RESET_NOTIFICATION_COPY[locale].body);
+      }
       if (state === 'NOTI-X-PROMOTION-PAID') {
         // All supported languages distinguish paid from merely offered X
         // bonuses; numeric tokens remain in reading order in RTL scripts.

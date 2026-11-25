@@ -12,6 +12,7 @@ import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
 import { NOTIFICATION_COPY } from '@/lib/i18n/notificationCopy';
+import { MISSION_RESET_NOTIFICATION_COPY } from '@/lib/i18n/missionResetNotificationCopy';
 import { NOTIFICATION_HISTORY_COPY } from '@/lib/i18n/notificationHistoryCopy';
 import { NOTIFICATION_META_COPY } from '@/lib/i18n/notificationMetaCopy';
 import { NOTIFICATION_V2_COPY } from '@/lib/i18n/notificationV2Copy';
@@ -200,6 +201,8 @@ function itemCopy(
   switch (effectiveKind) {
     case 'INVITE_ACCEPTED':
       return { title: progressTitle, body: copy.acceptedBody, hint: null };
+    case 'MISSION_PROGRESS_RESET':
+      return { ...MISSION_RESET_NOTIFICATION_COPY[locale], hint: null };
     case 'DAPP_PROGRESS':
       return {
         title: progressTitle,

@@ -158,9 +158,12 @@ function getEventTxId(
 export async function getVeBetterActivityProgress({
   receiverAddress,
   activationBlock,
+  checkedBlock,
 }: {
   receiverAddress: string;
   activationBlock: number;
+  /** Optional verified round end: bound a new mission's event scan. */
+  checkedBlock?: number;
 }): Promise<ActivityProgress> {
   if (
     !Number.isSafeInteger(activationBlock) ||
@@ -169,6 +172,11 @@ export async function getVeBetterActivityProgress({
     throw new Error(
       'Invalid activation block.',
     );
+  }
+
+  if (checkedBlock !== undefined &&
+      (!Number.isSafeInteger(checkedBlock) || checkedBlock < activationBlock)) {
+    throw new Error('Invalid mission activity end block.');
   }
 
   const {
@@ -191,8 +199,11 @@ export async function getVeBetterActivityProgress({
 
   const latestBlock =
     bestBlock.number;
+  const scanEndBlock = checkedBlock === undefined
+    ? latestBlock
+    : Math.min(latestBlock, checkedBlock);
 
-  if (activationBlock > latestBlock) {
+  if (activationBlock > scanEndBlock) {
     return {
       appsCompleted: 0,
       uniqueAppIds: [],
@@ -229,7 +240,7 @@ export async function getVeBetterActivityProgress({
         range: {
           unit: 'block',
           from: activationBlock,
-          to: latestBlock,
+          to: scanEndBlock,
         },
         options: {
           offset,
