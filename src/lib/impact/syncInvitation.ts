@@ -7,6 +7,7 @@ import {
   continueRewardReservationAfterEligibility,
 } from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { buildProgress } from '@/lib/impact/invitationSyncProgress';
 import { readActiveAttemptSync } from '@/lib/rewards/missionAutoResetDisplay';
 import { readOriginalMissionWindow, twoRoundMissionPolicyReady, originalProofEvent, recordTwoRoundResolution } from '@/lib/rewards/missionOriginalWindow';
 import type { AttemptProofEvent } from '@/lib/rewards/missionAutoResetChainReader';
@@ -29,7 +30,6 @@ import {
 } from '@/lib/vebetter/network';
 import {
   getVeBetterVot3ConversionProgress,
-  MIN_VOT3_CONVERSION_WEI,
   type Vot3ConversionEvent,
 } from '@/lib/vebetter/vot3Conversion';
 import {
@@ -157,98 +157,6 @@ function laterIso(
     : second;
 }
 
-function buildProgress(args: {
-  row: InvitationEvidenceRow;
-  appsCompleted: number;
-  rewardsReceived: number;
-  vot3Converted: boolean;
-  vot3ConversionAmountWei: string | null;
-  vot3ConvertedAt: string | null;
-  vot3ConvertedBlock: number | null;
-  vot3ConversionTxId: string | null;
-  conversionObserved: boolean;
-  conversionBelowMinimumObserved: boolean;
-  conversionBeforeFirstDappObserved: boolean;
-  conversionSyncPending: boolean;
-  voteCompleted: boolean;
-  uniqueAppIds: string[];
-  activationBlock: number | null;
-  latestBlock: number | null;
-  appsCompletedAt: string | null;
-  appsCompletedBlock: number | null;
-  voteCompletedAt: string | null;
-  voteCompletedBlock: number | null;
-  voteRoundId: number | null;
-  activityCheckpointSaved: boolean;
-  voteSyncPending: boolean;
-  impactCheckpointSaved: boolean;
-  impactLastSyncedBlock: number | null;
-  impactLastSyncedAt: string | null;
-  impactSyncCompleteAt: string | null;
-  networkMismatch: boolean;
-}): InvitationSyncProgress {
-  return {
-    appsCompleted: args.appsCompleted,
-    appsRequired: 3,
-    rewardsReceived:
-      args.rewardsReceived,
-    vot3Converted:
-      args.vot3Converted,
-    vot3MinimumAmountWei:
-      MIN_VOT3_CONVERSION_WEI
-        .toString(),
-    vot3ConversionAmountWei:
-      args.vot3ConversionAmountWei,
-    vot3ConvertedAt:
-      args.vot3ConvertedAt,
-    vot3ConvertedBlock:
-      args.vot3ConvertedBlock,
-    vot3ConversionTxId:
-      args.vot3ConversionTxId,
-    conversionObserved:
-      args.conversionObserved,
-    conversionBelowMinimumObserved:
-      args.conversionBelowMinimumObserved,
-    conversionBeforeFirstDappObserved:
-      args.conversionBeforeFirstDappObserved,
-    conversionSyncPending:
-      args.conversionSyncPending,
-    voteCompleted:
-      args.voteCompleted,
-    uniqueAppIds:
-      args.uniqueAppIds,
-    activationBlock:
-      args.activationBlock,
-    activationNetwork:
-      args.row.activation_network,
-    latestBlock:
-      args.latestBlock,
-    appsCompletedAt:
-      args.appsCompletedAt,
-    appsCompletedBlock:
-      args.appsCompletedBlock,
-    voteCompletedAt:
-      args.voteCompletedAt,
-    voteCompletedBlock:
-      args.voteCompletedBlock,
-    voteRoundId:
-      args.voteRoundId,
-    activityCheckpointSaved:
-      args.activityCheckpointSaved,
-    voteSyncPending:
-      args.voteSyncPending,
-    impactCheckpointSaved:
-      args.impactCheckpointSaved,
-    impactLastSyncedBlock:
-      args.impactLastSyncedBlock,
-    impactLastSyncedAt:
-      args.impactLastSyncedAt,
-    impactSyncCompleteAt:
-      args.impactSyncCompleteAt,
-    networkMismatch:
-      args.networkMismatch,
-  };
-}
 
 /**
  * Reconciles one accepted invitation against chain truth.
