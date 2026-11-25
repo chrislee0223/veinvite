@@ -8,6 +8,7 @@ import {
 } from '@/lib/rewards/rewardEligibilityContinuation';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { readActiveAttemptSync } from '@/lib/rewards/missionAutoResetDisplay';
+import { readOriginalMissionWindow, twoRoundMissionPolicyReady } from '@/lib/rewards/missionOriginalWindow';
 import {
   evaluatePostVoteSybilRisk,
   type SybilRiskLevel,
@@ -418,6 +419,22 @@ export async function syncInvitationEvidence(
     };
   }
 
+  // Only pending, durably bound original missions enter the new policy.
+  // Existing paid/eligible history and unbound referrals retain their current
+  // reconciliation path. The rollout switch is off until the DB gates exist.
+  const originalWindow = row.reward_status === 'PENDING' &&
+    (row.status === 'ACTIVATING' || row.status === 'UNDER_REVIEW') &&
+    await twoRoundMissionPolicyReady()
+    ? await readOriginalMissionWindow({
+        inviteCode: row.invite_code,
+        network: row.activation_network,
+        activationBlock,
+      })
+    : null;
+  const canScanOriginalVote = originalWindow === null ||
+    (originalWindow.voteStartBlock !== null &&
+      originalWindow.checkedThroughBlock >= originalWindow.voteStartBlock);
+
   let activityLatestBlock:
     number | null = null;
   let threeRewardEventsPersisted = false;
@@ -430,7 +447,11 @@ export async function syncInvitationEvidence(
         receiverAddress:
           row.invitee_wallet,
         activationBlock,
+        ...(originalWindow ? { checkedBlock: originalWindow.checkedThroughBlock } : {}),
       });
+    if (originalWindow && activity.latestBlock < originalWindow.checkedThroughBlock) {
+      throw new Error('Original mission activity scan has not reached the verified boundary');
+    }
 
     appsCompleted =
       activity.appsCompleted;
@@ -582,7 +603,11 @@ export async function syncInvitationEvidence(
             row.invitee_wallet,
           activationBlock,
           firstQualifyingReward,
+          ...(originalWindow ? { checkedBlock: originalWindow.checkedThroughBlock } : {}),
         });
+      if (originalWindow && conversion.checkedBlock < originalWindow.checkedThroughBlock) {
+        throw new Error('Original mission conversion scan has not reached the verified boundary');
+      }
 
       conversionScanSucceeded = true;
       latestBlock = Math.max(
@@ -715,7 +740,7 @@ export async function syncInvitationEvidence(
   }
 
   let voteScanSucceeded =
-    !vot3Converted;
+    !vot3Converted || !canScanOriginalVote;
   let voteImpactSaved = false;
 
   if (
@@ -724,7 +749,8 @@ export async function syncInvitationEvidence(
     !conversionSyncPending &&
     row.invitee_wallet &&
     vot3Converted &&
-    qualifyingConversionProof
+    qualifyingConversionProof &&
+    canScanOriginalVote
   ) {
     try {
       const vote =
@@ -733,7 +759,15 @@ export async function syncInvitationEvidence(
             row.invitee_wallet,
           conversionPosition:
             qualifyingConversionProof,
+          ...(originalWindow && originalWindow.voteStartBlock !== null ? {
+            expectedRoundId: originalWindow.expectedVoteRoundId,
+            checkedFromBlock: originalWindow.voteStartBlock,
+            checkedThroughBlock: originalWindow.checkedThroughBlock,
+          } : {}),
         });
+      if (originalWindow && vote.latestBlock < originalWindow.checkedThroughBlock) {
+        throw new Error('Original mission vote scan has not reached the verified boundary');
+      }
 
       voteScanSucceeded = true;
       latestBlock = Math.max(
@@ -862,6 +896,10 @@ export async function syncInvitationEvidence(
     impactCheckpointSaved &&
     voteCompletedAt
   ) {
+    // A vote may precede the third dApp; a verdict from before that last
+    // required activity must not be reused as a fresh mission verdict.
+    const missionCompletedAt = appsCompletedAt
+      ? laterIso(appsCompletedAt, voteCompletedAt) : voteCompletedAt;
     const existingSybilCheckedAt =
       row.sybil_checked_at;
     const hasFreshClear =
@@ -871,7 +909,7 @@ export async function syncInvitationEvidence(
         existingSybilCheckedAt as string,
       ).getTime() >=
         new Date(
-          voteCompletedAt,
+          missionCompletedAt,
         ).getTime();
 
     if (hasFreshClear) {
@@ -935,7 +973,7 @@ export async function syncInvitationEvidence(
       const checkedAt =
         laterIso(
           new Date().toISOString(),
-          voteCompletedAt,
+          missionCompletedAt,
         );
 
       // Compare the observed verdict and timestamp rather than blindly
@@ -990,8 +1028,9 @@ export async function syncInvitationEvidence(
     voteScanSucceeded &&
     !voteSyncPending &&
     impactCheckpointSaved
-      ? latestBlock ??
-        activityLatestBlock
+      ? originalWindow
+        ? Math.min(latestBlock ?? activityLatestBlock, originalWindow.checkedThroughBlock)
+        : latestBlock ?? activityLatestBlock
       : null;
 
   const completedImpactEvidence =
