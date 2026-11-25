@@ -247,6 +247,7 @@ DECLARE
  v_xcfg reward_admission_bridge.elastic_settlement_settings%rowtype;
  v_inv public.invitations%rowtype;
  v_vote_round bigint;
+ v_flexible boolean;
  v_allocation_close timestamptz;
  v_round_close_block bigint;
  v_vote_scan_checkpoint bigint;
@@ -304,6 +305,7 @@ BEGIN
  SELECT * INTO v_inv FROM public.invitations i
   WHERE i.invite_code=v_code AND i.activation_network=p_network FOR UPDATE;
  IF NOT FOUND THEN RETURN jsonb_build_object('mode','BLOCKED','reason','INVITE_MISSING','reserved',false); END IF;
+ SELECT two_round_policy_enabled INTO v_flexible FROM reward_admission_bridge.mission_auto_reset_settings_v1 WHERE id=1;
  v_vote_round:=v_inv.vote_round_id;
  IF v_vote_round IS NULL OR v_vote_round<v_cfg.first_vote_round_id THEN
    RETURN jsonb_build_object('mode','LEGACY','reserved',false);
@@ -367,6 +369,23 @@ BEGIN
      'reserved',false);
  END IF;
 
+ -- Do not price a round until pending original entrants have a verified
+ -- complete or finalized incomplete window. A partial vote alone is not a winner.
+ IF v_flexible AND EXISTS(
+  SELECT 1 FROM public.invitations i
+  WHERE i.activation_network=p_network AND i.reward_cohort_round_id=v_vote_round-1
+   AND i.eligibility_check_id IS NOT NULL AND i.status IN('ACTIVATING','UNDER_REVIEW','COMPLETED')
+   AND i.reward_status='PENDING' AND i.sybil_status<>'BLOCKED' AND i.ineligible_at IS NULL
+   AND i.slot_released_at IS NULL
+   AND NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 a WHERE a.invitation_id=i.id AND a.network=p_network)
+   AND NOT EXISTS(
+     SELECT 1 FROM reward_admission_bridge.mission_two_round_resolution_v1 r
+     WHERE r.invitation_id=i.id AND r.network=p_network AND r.dapp_round_id=v_vote_round-1
+     AND (NOT r.complete OR (i.vote_completed IS TRUE AND i.vote_round_id=v_vote_round
+        AND i.apps_completed=3 AND i.vot3_converted IS TRUE AND i.impact_sync_complete_at IS NOT NULL))
+   )
+ ) THEN RETURN jsonb_build_object('mode','DEFER','reason','AWAIT_ORIGINAL_MISSION_WINDOW','reserved',false); END IF;
+
  -- Retry vote evidence is stored separately from the original invite.
  -- Before fixing amounts for this round, every durable retry in the window
  -- must have either a published verified vote or a finalized full-window scan.
@@ -378,8 +397,10 @@ BEGIN
      AND i.status<>'CANCELLED' AND i.sybil_status<>'BLOCKED'
      AND i.reward_status NOT IN('FORFEITED','PAID') AND i.ineligible_at IS NULL
      AND (
-       (EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+       ((EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
          WHERE e.attempt_id=a.id AND e.event_type='ALLOCATION_VOTE')
+         AND (NOT coalesce(v_flexible,false) OR
+           (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1 e WHERE e.attempt_id=a.id AND e.event_type='DAPP_REWARD')=3))
         AND NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_settlement_bindings_v1 b
          WHERE b.attempt_id=a.id AND b.invitation_id=i.id
            AND b.completion_round_id=v_vote_round
@@ -389,10 +410,16 @@ BEGIN
                AND v.vote_round_id=i.vote_round_id AND v.block_number=i.vote_completed_block
                AND v.block_timestamp=i.vote_completed_at)))
        OR
-       (NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
+       (NOT (EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempt_events_v1 e
          WHERE e.attempt_id=a.id AND e.event_type='ALLOCATION_VOTE')
+         AND (NOT coalesce(v_flexible,false) OR
+           (SELECT count(*) FROM reward_admission_bridge.mission_retry_attempt_events_v1 e WHERE e.attempt_id=a.id AND e.event_type='DAPP_REWARD')=3))
         AND (a.vote_window_end_block IS NULL OR a.proof_finalized_through_block IS NULL
-          OR a.proof_finalized_through_block<a.vote_window_end_block))
+          OR a.proof_finalized_through_block<a.vote_window_end_block
+          OR (v_flexible AND NOT EXISTS(
+            SELECT 1 FROM reward_admission_bridge.mission_two_round_resolution_v1 r
+            WHERE r.invitation_id=a.invitation_id AND r.network=a.network AND r.dapp_round_id=a.dapp_round_id AND NOT r.complete
+          ))))
      )
  ) THEN
    RETURN jsonb_build_object('mode','DEFER','reason','AWAIT_RETRY_VOTE_SCAN','reserved',false);
@@ -405,7 +432,12 @@ BEGIN
    AND i.vote_completed=true AND i.status<>'CANCELLED'
    AND i.sybil_status<>'BLOCKED'
    AND i.reward_status NOT IN ('FORFEITED','PAID')
-   AND i.ineligible_at IS NULL;
+   AND i.ineligible_at IS NULL
+   AND (NOT coalesce(v_flexible,false) OR NOT EXISTS(
+    SELECT 1 FROM reward_admission_bridge.mission_two_round_resolution_v1 r
+    WHERE r.invitation_id=i.id AND r.network=p_network AND r.dapp_round_id=i.reward_cohort_round_id AND NOT r.complete
+      AND NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 a WHERE a.invitation_id=i.id AND a.network=p_network)
+   ));
  IF v_completed=0 OR v_completed>5000 THEN
    RETURN jsonb_build_object('mode','DEFER','reason','EMPTY_OR_UNBOUNDED_COMPLETIONS',
      'reserved',false);
@@ -419,6 +451,11 @@ BEGIN
    AND i.sybil_status<>'BLOCKED'
    AND i.reward_status NOT IN ('FORFEITED','PAID')
    AND i.ineligible_at IS NULL
+   AND (NOT coalesce(v_flexible,false) OR NOT EXISTS(
+    SELECT 1 FROM reward_admission_bridge.mission_two_round_resolution_v1 r
+    WHERE r.invitation_id=i.id AND r.network=p_network AND r.dapp_round_id=i.reward_cohort_round_id AND NOT r.complete
+      AND NOT EXISTS(SELECT 1 FROM reward_admission_bridge.mission_retry_attempts_v1 a WHERE a.invitation_id=i.id AND a.network=p_network)
+   ))
    AND EXISTS (
       SELECT 1 FROM public.read_mission_effective_proof_events_v1(i.invite_code,p_network) e
       WHERE e.invite_code=i.invite_code AND e.network=p_network
