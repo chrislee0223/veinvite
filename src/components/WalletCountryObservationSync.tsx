@@ -46,9 +46,17 @@ export function WalletCountryObservationSync() {
 
     let cancelled = false;
     let syncStarted = false;
+    let inFlight = false;
+    let queued = false;
 
     const syncCountry = async () => {
-      if (cancelled || syncStarted) return;
+      if (cancelled) return;
+      if (inFlight) {
+        queued = true;
+        return;
+      }
+      if (syncStarted) return;
+      inFlight = true;
       syncStarted = true;
 
       try {
@@ -74,6 +82,11 @@ export function WalletCountryObservationSync() {
           'Failed to record VeInvite wallet country observation:',
           error,
         );
+      } finally {
+        inFlight = false;
+        const retry = queued && !cancelled && !syncStarted;
+        queued = false;
+        if (retry) void syncCountry();
       }
     };
 

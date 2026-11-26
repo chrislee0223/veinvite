@@ -17,6 +17,32 @@ create trigger referral_country_recovery_facts_append_only
   before update or delete on public.referral_country_recovery_facts
   for each row execute function public.prevent_long_term_history_mutation();
 
+-- Enforce the canonical pair and chronology even for privileged inserts.
+create or replace function public.validate_referral_country_recovery_v1()
+returns trigger language plpgsql security invoker
+set search_path = pg_catalog, public
+as $function$
+begin
+  new.recorded_at := clock_timestamp();
+  if not exists (
+    select 1 from public.referral_relationships r
+    join public.referral_activation_country_facts f on f.relationship_id=r.id
+      and f.source_invitation_id=r.source_invitation_id
+      and f.country_source='UNKNOWN' and f.country_code='UNKNOWN'
+    where r.id=new.relationship_id and r.source_invitation_id=new.source_invitation_id
+      and new.observed_at > r.relationship_effective_at + interval '7 days'
+  ) then
+    raise exception 'country recovery must match an unresolved referral and late observation';
+  end if;
+  return new;
+end;
+$function$;
+revoke all on function public.validate_referral_country_recovery_v1() from public, anon, authenticated;
+grant execute on function public.validate_referral_country_recovery_v1() to postgres, service_role;
+create trigger referral_country_recovery_facts_integrity_guard
+  before insert on public.referral_country_recovery_facts
+  for each row execute function public.validate_referral_country_recovery_v1();
+
 -- The existing authenticated preference endpoint writes only verified
 -- wallet sessions and trusted Vercel country headers. The trigger never
 -- runs on ordinary session renewal, login insertion, or revocation.

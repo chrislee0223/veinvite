@@ -11,6 +11,8 @@ test('late country evidence is separate, immutable, unique, and server-only', ()
   assert.match(sql, /enable row level security/);
   assert.match(sql, /revoke all on public\.referral_country_recovery_facts from public, anon, authenticated/);
   assert.match(sql, /before update or delete on public\.referral_country_recovery_facts/);
+  assert.match(sql, /r\.id=new\.relationship_id and r\.source_invitation_id=new\.source_invitation_id/);
+  assert.match(sql, /new\.recorded_at := clock_timestamp\(\)/);
   assert.match(sql, /on conflict \(source_invitation_id\) do nothing/g);
   assert.doesNotMatch(sql, /update public\.(invitations|referral_activation_country_facts|referral_acquisition_country_facts)\s/i);
 });
