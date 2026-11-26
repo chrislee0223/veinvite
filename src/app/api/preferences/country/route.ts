@@ -3,13 +3,13 @@ import {
   NextResponse,
 } from 'next/server';
 
+import { normalizeIsoCountryCode } from '@/lib/countryCodes';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import {
   requireWalletSession,
   WalletAuthenticationError,
 } from '@/lib/walletAuthServer';
 
-const COUNTRY_PATTERN = /^[A-Z]{2}$/;
 const WALLET_PATTERN = /^0x[0-9a-f]{40}$/;
 
 function noStoreJson(
@@ -86,9 +86,7 @@ export async function POST(
         .get('x-vercel-ip-country')
         ?.trim()
         .toUpperCase() ?? '';
-    const trustedCountry = COUNTRY_PATTERN.test(rawCountry)
-      ? rawCountry
-      : null;
+    const trustedCountry = normalizeIsoCountryCode(rawCountry);
 
     // A missing edge-country header is not evidence that a previously trusted
     // observation became unknown. The session starts as UNKNOWN by default, so
@@ -100,7 +98,7 @@ export async function POST(
     }
 
     const observedAt = new Date().toISOString();
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('wallet_auth_sessions')
       .update({
         country_code: trustedCountry,
@@ -108,7 +106,11 @@ export async function POST(
         country_observed_at: observedAt,
       })
       .eq('id', session.id)
-      .eq('wallet_address', session.walletAddress);
+      .eq('wallet_address', session.walletAddress)
+      .is('revoked_at', null)
+      .gt('expires_at', observedAt)
+      .select('id')
+      .maybeSingle();
 
     if (error) {
       throw new Error(
@@ -116,7 +118,7 @@ export async function POST(
       );
     }
 
-    return noStoreJson({ recorded: true });
+    return noStoreJson({ recorded: Boolean(data) });
   } catch (error) {
     if (error instanceof WalletAuthenticationError) {
       return noStoreJson(
