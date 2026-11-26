@@ -33,7 +33,7 @@ function harness() {
   let xPromotion = {
     liveEnabled: true,
     shadowAuditEnabled: true,
-    payoutEnabled: true;
+    payoutEnabled: true,
     externalVerificationReady: true,
     runtimeReady: true,
   };
