@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 const read = path => readFileSync(path, 'utf8');
-const sql = read('supabase/migrations/20261126143500_referral_country_recovery_v1.sql');
+const sql = read('supabase/migrations/20261126143958_referral_country_recovery_v1.sql');
 const route = read('src/app/api/preferences/country/route.ts');
 const client = read('src/components/WalletCountryObservationSync.tsx');
 test('late country evidence is separate, immutable, unique, and server-only', () => {
