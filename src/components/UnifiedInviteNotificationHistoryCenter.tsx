@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -372,7 +373,18 @@ export function InviteNotificationHistoryCenter({
   const receiptAutoAckIdRef = useRef<string | null>(null);
   const receiptNeedsHistoryAckRef = useRef(false);
   const scrollPositionRef = useRef(0);
+  const historyScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollAnchorRef = useRef<{ id: string; offset: number } | null>(null);
+  const captureScrollAnchor = useCallback((node: HTMLDivElement) => {
+    const top = node.getBoundingClientRect().top;
+    const first = Array.from(node.querySelectorAll<HTMLElement>('[data-history-id]'))
+      .find(row => row.getBoundingClientRect().bottom > top);
+    scrollAnchorRef.current = node.scrollTop > 2 && first?.dataset.historyId
+      ? { id: first.dataset.historyId, offset: first.getBoundingClientRect().top - top } : null;
+    scrollPositionRef.current = node.scrollTop;
+  }, []);
   const restoreHistoryScroll = useCallback((node: HTMLDivElement | null) => {
+    historyScrollRef.current = node;
     if (node) node.scrollTop = scrollPositionRef.current;
   }, []);
   const [clockTick, setClockTick] = useState(0);
@@ -430,6 +442,18 @@ export function InviteNotificationHistoryCenter({
     [visibleItems],
   );
 
+  useLayoutEffect(() => {
+    const node = historyScrollRef.current;
+    if (!node) return;
+    const anchor = scrollAnchorRef.current;
+    if (anchor) {
+      const row = Array.from(node.querySelectorAll<HTMLElement>('[data-history-id]'))
+        .find(element => element.dataset.historyId === anchor.id);
+      if (row) node.scrollTop += row.getBoundingClientRect().top - node.getBoundingClientRect().top - anchor.offset;
+    }
+    captureScrollAnchor(node);
+  }, [sorted, visibleOpen, clockTick, receipt, receiptLoading, receiptError, captureScrollAnchor]);
+
   const groups = useMemo(() => {
     const now = new Date();
     return {
@@ -447,6 +471,7 @@ export function InviteNotificationHistoryCenter({
     receiptAutoAckIdRef.current = null;
     receiptNeedsHistoryAckRef.current = false;
     scrollPositionRef.current = 0;
+    scrollAnchorRef.current = null;
     setReceipt(null);
     setReceiptLoading(false);
     setReceiptError('');
@@ -460,6 +485,7 @@ export function InviteNotificationHistoryCenter({
     receiptRequestRef.current = requestId;
     receiptAutoAckIdRef.current = null;
     receiptNeedsHistoryAckRef.current = item.readAt === null;
+    setReceiptAcknowledging(false);
     setReceipt(null);
     setReceiptError('');
 
@@ -524,7 +550,11 @@ export function InviteNotificationHistoryCenter({
     setReceiptAcknowledging(true);
     setReceiptError('');
     try {
-      const response = await fetch(
+      let response: Response | undefined;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (receiptRequestRef.current !== requestId) return;
+        try {
+          response = await fetch(
         `/api/rewards/receipts/${encodeURIComponent(receipt.id)}/seen`,
         {
           method: 'POST',
@@ -534,6 +564,14 @@ export function InviteNotificationHistoryCenter({
           }),
         },
       );
+          if (response.status < 500 && response.status !== 429) break;
+        } catch (error) {
+          response = undefined;
+          if (attempt === 2) throw error;
+        }
+        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 500 * (attempt + 1)));
+      }
+      if (!response || receiptRequestRef.current !== requestId) return;
       const body = (await response.json()) as ReceiptSeenResponse;
       if (response.status === 401 || response.status === 403) {
         notifyRewardClaimSessionInvalid();
@@ -642,6 +680,7 @@ export function InviteNotificationHistoryCenter({
         event.preventDefault();
         if (receipt || receiptLoading || receiptError) {
           receiptRequestRef.current += 1;
+          setReceiptAcknowledging(false);
           setReceipt(null);
           setReceiptLoading(false);
           setReceiptError('');
@@ -745,7 +784,7 @@ export function InviteNotificationHistoryCenter({
 
     if (!unread && !receiptAction) {
       return (
-        <div key={item.id} className="notificationHistoryRow isRead">
+        <div key={item.id} data-history-id={item.id} className="notificationHistoryRow isRead">
           {content}
         </div>
       );
@@ -754,6 +793,7 @@ export function InviteNotificationHistoryCenter({
     return (
       <button
         key={item.id}
+        data-history-id={item.id}
         type="button"
         className={
           unread
@@ -853,6 +893,7 @@ export function InviteNotificationHistoryCenter({
                     aria-label={structure.title}
                     onClick={() => {
                       receiptRequestRef.current += 1;
+                      setReceiptAcknowledging(false);
                       setReceipt(null);
                       setReceiptLoading(false);
                       setReceiptError('');
@@ -928,11 +969,11 @@ export function InviteNotificationHistoryCenter({
             ) : (
               <div
                 className="notificationHistoryScroll"
-                style={{ overflowY: 'auto' }}
+                style={{ overflowY: 'auto', overflowAnchor: 'none' }}
                 ref={restoreHistoryScroll}
                 onScroll={(event) => {
                   const scroll = event.currentTarget;
-                  scrollPositionRef.current = scroll.scrollTop;
+                  captureScrollAnchor(scroll);
                   if (hasMore && !loading && !busy && !errorMessage &&
                       scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 120) {
                     void onLoadMore();

@@ -21,5 +21,6 @@ export type InviteNotificationHistoryResponse = {
   items?: InviteNotificationHistoryItem[];
   unreadCount?: number;
   nextCursor?: string | null;
+  readStates?: Record<string, string>;
   error?: string;
 };
