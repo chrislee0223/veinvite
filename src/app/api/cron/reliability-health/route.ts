@@ -160,12 +160,12 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
   const { data: config, error: configError } = await supabaseAdmin
     .from('reward_runtime_config')
     .select(
-      'reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready',
+      'reward_x_promotion_enabled,reward_x_promotion_payout_enabled,reward_x_promotion_external_verification_ready,reward_x_promotion_shadow_enabled',
     )
     .eq('id', 1)
     .abortSignal(AbortSignal.timeout(HEALTH_READ_TIMEOUT_MS))
     .maybeSingle();
-  if (configError || !config) {
+  if (configError || !config || typeof config.reward_x_promotion_shadow_enabled !== 'boolean') {
     throw new Error('X promotion runtime config could not be read.');
   }
 
@@ -207,6 +207,7 @@ async function readXPromotionLiveness(): Promise<XPromotionLiveness> {
 
   return {
     liveEnabled: config.reward_x_promotion_enabled === true,
+    shadowAuditEnabled: config.reward_x_promotion_shadow_enabled,
     payoutEnabled: config.reward_x_promotion_payout_enabled === true,
     externalVerificationReady:
       config.reward_x_promotion_external_verification_ready === true,
@@ -300,7 +301,7 @@ export async function GET(request: NextRequest) {
       readElasticClosureLiveness(),
     ]);
     const current = stableAlarmCodes([
-      ...staleCronCodes(rows as JobHeartbeat[], Date.now()),
+      ...staleCronCodes(rows as JobHeartbeat[], Date.now(), xPromotion.shadowAuditEnabled === true),
       ...delayedRewardCode(delayedRewards),
       ...elasticClosureDelayCodes(elasticClosure),
       ...staleSybilHoldCodes(sybilHolds),

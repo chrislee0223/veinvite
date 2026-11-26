@@ -1292,8 +1292,10 @@ export async function GET(
     }
   }
 
-  // Expiration follows the successful 30-minute replay, AFTER fast reward work.
-  if (fallbackClaimed && fallback !== null) {
+  // Independently claim the expiry cadence AFTER fast reward work. A failed
+  // vote replay must not prevent a later expiry attempt; the worker still
+  // requires its own finalized chain proof and atomic reset guards.
+  {
     const reset = await runMissionAutoResetSweepSafe('expiry');
     missionExpiry = reset.sweep;
     if (reset.failure) errors.push('MISSION_EXPIRY_SWEEP_FAILED');

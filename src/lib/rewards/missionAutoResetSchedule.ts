@@ -5,11 +5,13 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import { missionAutoResetSchemaReady } from './missionAutoResetRuntime';
 import { runMissionAutoResetSweep, type MissionResetSweep, type MissionSweepPhase } from './missionAutoResetSweep';
 
-// Each phase is claimed by the existing parent cadence. The lease outlives
-// the parent function's 300-second deadline; there is no additional cron.
+// Progress uses the existing recovery cadence; expiry claims its own 30-minute
+// success cadence inside the same minute cron, independent of vote replay.
+// The lease outlives the parent function's 300-second deadline.
 export const MISSION_PROGRESS_JOB = 'vote-reconcile:mission-progress';
 export const MISSION_EXPIRY_JOB = 'vote-reconcile:mission-expiry';
 const MISSION_SWEEP_LEASE_SECONDS = 360;
+const MISSION_EXPIRY_INTERVAL_SECONDS = 30 * 60;
 
 export async function runMissionAutoResetSweepSafe(phase: MissionSweepPhase): Promise<{
   sweep: MissionResetSweep | null;
@@ -20,7 +22,7 @@ export async function runMissionAutoResetSweepSafe(phase: MissionSweepPhase): Pr
   let claimed = false;
   let sweep: MissionResetSweep | null = null;
   try {
-    claimed = await tryClaimCronJob(job, 0, MISSION_SWEEP_LEASE_SECONDS);
+    claimed = await tryClaimCronJob(job, phase === 'expiry' ? MISSION_EXPIRY_INTERVAL_SECONDS : 0, MISSION_SWEEP_LEASE_SECONDS);
     if (!claimed) return { sweep: null, failure: null };
     const { data: state, error } = await supabaseAdmin.from('cron_job_states')
       .select('mission_sweep_cursor,last_started_at').eq('job_name', job).maybeSingle();
