@@ -370,6 +370,11 @@ export function InviteNotificationHistoryCenter({
   const onCloseRef = useRef(onClose);
   const receiptRequestRef = useRef(0);
   const receiptAutoAckIdRef = useRef<string | null>(null);
+  const receiptNeedsHistoryAckRef = useRef(false);
+  const scrollPositionRef = useRef(0);
+  const restoreHistoryScroll = useCallback((node: HTMLDivElement | null) => {
+    if (node) node.scrollTop = scrollPositionRef.current;
+  }, []);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -440,6 +445,8 @@ export function InviteNotificationHistoryCenter({
     if (visibleOpen) return;
     receiptRequestRef.current += 1;
     receiptAutoAckIdRef.current = null;
+    receiptNeedsHistoryAckRef.current = false;
+    scrollPositionRef.current = 0;
     setReceipt(null);
     setReceiptLoading(false);
     setReceiptError('');
@@ -452,6 +459,7 @@ export function InviteNotificationHistoryCenter({
     const requestId = receiptRequestRef.current + 1;
     receiptRequestRef.current = requestId;
     receiptAutoAckIdRef.current = null;
+    receiptNeedsHistoryAckRef.current = item.readAt === null;
     setReceipt(null);
     setReceiptError('');
 
@@ -500,9 +508,10 @@ export function InviteNotificationHistoryCenter({
   }, [previewRewardReceipt, receiptCopy.error]);
 
   const acknowledgeReceipt = useCallback(async () => {
-    if (!receipt || receipt.seen || receiptAcknowledging) return;
+    if (!receipt || (receipt.seen && !receiptNeedsHistoryAckRef.current) || receiptAcknowledging) return;
 
     if (previewRewardReceipt?.id === receipt.id) {
+      receiptNeedsHistoryAckRef.current = false;
       setReceipt({
         ...receipt,
         seen: true,
@@ -540,6 +549,7 @@ export function InviteNotificationHistoryCenter({
         new Event(REWARD_RECEIPT_ACKNOWLEDGED_EVENT),
       );
       if (receiptRequestRef.current !== requestId) return;
+      receiptNeedsHistoryAckRef.current = false;
       setReceipt(body.receipt);
     } catch (error) {
       if (receiptRequestRef.current !== requestId) return;
@@ -554,7 +564,7 @@ export function InviteNotificationHistoryCenter({
   }, [previewRewardReceipt, receipt, receiptAcknowledging, receiptCopy.error]);
 
   useEffect(() => {
-    if (!receipt || receipt.seen || receiptAcknowledging) return;
+    if (!receipt || (receipt.seen && !receiptNeedsHistoryAckRef.current) || receiptAcknowledging) return;
     if (receiptAutoAckIdRef.current === receipt.id) return;
     receiptAutoAckIdRef.current = receipt.id;
     void acknowledgeReceipt();
@@ -916,7 +926,19 @@ export function InviteNotificationHistoryCenter({
                 <p>{structure.emptyBody}</p>
               </div>
             ) : (
-              <div className="notificationHistoryScroll" style={{ overflowY: 'auto' }}>
+              <div
+                className="notificationHistoryScroll"
+                style={{ overflowY: 'auto' }}
+                ref={restoreHistoryScroll}
+                onScroll={(event) => {
+                  const scroll = event.currentTarget;
+                  scrollPositionRef.current = scroll.scrollTop;
+                  if (hasMore && !loading && !busy && !errorMessage &&
+                      scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 120) {
+                    void onLoadMore();
+                  }
+                }}
+              >
                 {groups.today.length > 0 ? (
                   <section className="notificationHistoryGroup">
                     <h4>{structure.today}</h4>
