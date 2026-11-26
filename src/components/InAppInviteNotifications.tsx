@@ -318,8 +318,7 @@ export function InAppInviteNotifications({
     useRef<string | null>(null);
   const activeWalletRef = useRef<string | null>(wallet);
   const historyResolvedRef = useRef(false);
-  // Make the newest wallet visible to requests from the prior render before
-  // effects run, so stale authorization failures cannot invalidate its session.
+  // Guard against stale wallet authorization responses.
   activeWalletRef.current = wallet;
   const latestHistoryRequestRef =
     useRef<Promise<HistoryPage | null> | null>(null);
@@ -559,9 +558,7 @@ export function InAppInviteNotifications({
       const requestWallet = wallet;
       const task = (async () => {
         try {
-          // Lifecycle derivation/materialization can be heavier than reading the
-          // already-persisted history. Keep it in the background so opening the
-          // bell never waits for this path.
+          // Materialize lifecycle notices without delaying the bell.
           const notificationResponse = await fetch(
             '/api/notifications',
             { cache: 'no-store' },
