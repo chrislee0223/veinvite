@@ -1,0 +1,3 @@
+insert into public.invite_notification_history(inviter_wallet,recipient_wallet,invite_code,kind,stage,event_at,created_at,dedupe_key)
+values ('0x'||repeat('a',40),'0x'||repeat('a',40),'QAABCDF','DAPP_PROGRESS',2,now()-interval '2 days',now()-interval '2 days','qa-notify-legacy-progress'),
+('0x'||repeat('a',40),'0x'||repeat('a',40),'QAABCDF','REWARD_PAID',5,now()-interval '1 day',now()-interval '1 day','qa-notify-legacy-paid');
