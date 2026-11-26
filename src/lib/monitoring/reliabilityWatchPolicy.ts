@@ -11,6 +11,7 @@ export const RELIABILITY_JOBS = [
   { name: 'vote-reconcile:full-fallback', maxAgeMinutes: 90 },
   { name: 'vote-reconcile:mission-progress', maxAgeMinutes: 30 },
   { name: 'vote-reconcile:mission-expiry', maxAgeMinutes: 90 },
+  { name: 'vote-reconcile:x-shadow-audit', maxAgeMinutes: 90 },
   { name: 'vote-reconcile:reward-boost-reserve', maxAgeMinutes: 120 },
   { name: 'daily-reconcile', maxAgeMinutes: 30 * 60 },
   { name: 'analytics-maintenance', maxAgeMinutes: 30 * 60 },
@@ -26,9 +27,11 @@ const FINGERPRINT_PREFIX = 'WATCH_V1:';
 export function staleCronCodes(
   rows: readonly JobHeartbeat[],
   now: number,
+  shadowAuditEnabled = true,
 ): string[] {
   const byName = new Map(rows.map((row) => [row.job_name, row]));
   return RELIABILITY_JOBS.filter(({ name, maxAgeMinutes }) => {
+    if (name === 'vote-reconcile:x-shadow-audit' && !shadowAuditEnabled) return false;
     const row = byName.get(name);
     // New phase rows are provisioned with no fabricated success timestamp.
     // A bounded first-run grace avoids false alerts during cutover only.
@@ -106,6 +109,7 @@ export function staleSybilScanFailureCodes(failures: SybilScanFailureLiveness): 
 
 export type XPromotionLiveness = {
   liveEnabled: boolean;
+  shadowAuditEnabled?: boolean;
   payoutEnabled: boolean;
   externalVerificationReady: boolean;
   runtimeReady: boolean;
@@ -205,6 +209,8 @@ export function isReliabilityDegraded(codes: readonly string[]): boolean {
     'X_PROMOTION_FINAL_CHECK_STALLED',
     'X_PROMOTION_PAYOUT_STALLED',
     'ELASTIC_CLOSEOUT_DELAY:2H',
+    // Non-authoritative accounting diagnostics must not mark the whole app down.
+    'CRON_STALE:vote-reconcile:x-shadow-audit',
   ]);
   return codes.some((code) => !warnings.has(code));
 }

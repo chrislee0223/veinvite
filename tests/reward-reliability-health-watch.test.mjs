@@ -32,6 +32,7 @@ function harness() {
   let scanFailures = { failedScans: 0, failedOver1h: 0, failedOver24h: 0 };
   let xPromotion = {
     liveEnabled: true,
+    shadowAuditEnabled: true,
     payoutEnabled: true,
     externalVerificationReady: true,
     runtimeReady: true,
@@ -82,6 +83,7 @@ function harness() {
                     emergency_rewards_paused: paused,
                     mainnet_funded_rewards_enabled: true,
                     reward_x_promotion_enabled: xPromotion.liveEnabled,
+                    reward_x_promotion_shadow_enabled: xPromotion.shadowAuditEnabled,
                     reward_x_promotion_payout_enabled: xPromotion.payoutEnabled,
                     reward_x_promotion_external_verification_ready:
                       xPromotion.externalVerificationReady,
@@ -499,4 +501,22 @@ test('future verified elastic Claim delayed after official close signals at 15-m
   const malformed = await h.GET(h.request);
   assert.equal(malformed.status, 503);
   assert.equal(malformed.body.error, 'CRON_HEALTH_DB_UNAVAILABLE');
+});
+
+
+test('X shadow audit stall is a deduplicated operator warning, not an app outage; intentional pause is respected', async () => {
+  const h = harness();
+  h.setStale('vote-reconcile:x-shadow-audit', 89);
+  assert.equal((await h.GET(h.request)).body.newAlerts, 0);
+  h.setStale('vote-reconcile:x-shadow-audit', 91);
+  const stale = await h.GET(h.request);
+  assert.equal(stale.status, 200);
+  assert.equal(stale.body.newAlerts, 1);
+  assert.ok(stale.body.activeAlerts.includes('CRON_STALE:vote-reconcile:x-shadow-audit'));
+  assert.equal((await h.GET(h.request)).body.newAlerts, 0);
+  h.setXPromotion({ shadowAuditEnabled: false });
+  assert.equal((await h.GET(h.request)).body.recoveredAlerts, 1);
+  h.setFresh('vote-reconcile:x-shadow-audit');
+  h.setXPromotion({ shadowAuditEnabled: true });
+  assert.equal((await h.GET(h.request)).body.activeAlerts.length, 0);
 });

@@ -24,8 +24,10 @@ test('persistent cursor replaces wall-clock offsets and skips chain when no cand
   assert.match(scheduler,/\.eq\('last_started_at', state.last_started_at\)/);
   assert.match(scheduler,/MISSION_SWEEP_LEASE_SECONDS = 360/);
 });
-test('expiry follows replay and fast reward maintenance without a new cron',()=>{
-  assert.match(route,/fallbackClaimed && fallback !== null/);
+test('expiry uses an independent 30-minute success cadence after fast reward maintenance without a new cron',()=>{
+  assert.doesNotMatch(route,/if \(fallbackClaimed && fallback !== null\)/);
+  assert.match(scheduler,/MISSION_EXPIRY_INTERVAL_SECONDS = 30 \* 60/);
+  assert.match(scheduler,/phase === 'expiry' \? MISSION_EXPIRY_INTERVAL_SECONDS : 0/);
   assert.ok(route.indexOf("runMissionAutoResetSweepSafe('expiry')")>route.indexOf('await runScheduledRewardMaintenance()'));
   assert.match(route,/CADENCE_LEASE_SECONDS = 360/);
   assert.doesNotMatch(read('vercel.json'),/mission-expiry|mission-progress/);
@@ -57,6 +59,8 @@ test('phase runner persists separate cursors, rejects lost ownership and handles
   assert.equal((await run('progress')).failure,null);
   assert.equal(calls.some(x=>x[0]==='scan'&&x[1]===5&&x[2]==='progress'&&x[3]==='ABCDEFG'),true);
   assert.equal((await run('expiry')).failure,null);
+  assert.equal(calls.some(x=>x[0]==='claim'&&x[1]==='vote-reconcile:mission-expiry'&&x[2]===1800&&x[3]===360),true);
+  assert.equal(calls.some(x=>x[0]==='claim'&&x[1]==='vote-reconcile:mission-progress'&&x[2]===0),true);
   assert.equal(calls.some(x=>x[0]==='scan'&&x[1]===10&&x[2]==='expiry'),true);
   lost=true; assert.ok((await run('expiry')).failure);
   lost=false;failed=1;assert.ok((await run('progress')).failure);
