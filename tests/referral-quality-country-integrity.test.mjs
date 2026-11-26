@@ -162,3 +162,48 @@ test('country UI loads only on tab demand, exposes aggregate classification, and
     /@media \(max-width:360px\)[\s\S]*height:44px !important;[\s\S]*height:220px !important;/,
   );
 });
+
+// Late trusted country recovery regression contracts (executed by the existing referral CI gate).
+const recoveryMigration = fs.readFileSync(
+  'supabase/migrations/20261126143958_referral_country_recovery_v1.sql',
+  'utf8',
+);
+const countryObservationSync = fs.readFileSync(
+  'src/components/WalletCountryObservationSync.tsx',
+  'utf8',
+);
+test('late country evidence is separate, immutable, unique, and server-only', () => {
+  assert.match(recoveryMigration, /relationship_id uuid primary key/);
+  assert.match(recoveryMigration, /source_invitation_id uuid not null unique/);
+  assert.match(recoveryMigration, /enable row level security/);
+  assert.match(recoveryMigration, /revoke all on public\.referral_country_recovery_facts from public, anon, authenticated/);
+  assert.match(recoveryMigration, /before update or delete on public\.referral_country_recovery_facts/);
+  assert.match(recoveryMigration, /r\.id=new\.relationship_id and r\.source_invitation_id=new\.source_invitation_id/);
+  assert.match(recoveryMigration, /new\.recorded_at := clock_timestamp\(\)/);
+  assert.match(recoveryMigration, /on conflict \(source_invitation_id\) do nothing/g);
+  assert.doesNotMatch(recoveryMigration, /update public\.(invitations|referral_activation_country_facts|referral_acquisition_country_facts)\s/i);
+});
+test('capture requires trusted unresolved identity and does not change session renewal', () => {
+  assert.match(recoveryMigration, /new\.country_source is distinct from 'TRUSTED_EDGE'/);
+  assert.match(recoveryMigration, /r\.child_wallet = new\.wallet_address/);
+  assert.match(recoveryMigration, /f\.country_source = 'UNKNOWN' and f\.country_code = 'UNKNOWN'/);
+  assert.match(recoveryMigration, /new\.country_observed_at > r\.relationship_effective_at \+ interval '7 days'/);
+  assert.match(recoveryMigration, /after update of country_code, country_source, country_observed_at/);
+  assert.match(recoveryMigration, /new\.revoked_at is not null/);
+  assert.match(recoveryMigration, /ws\.country_observed_at <= ws\.expires_at/);
+});
+test('both rankings prefer original evidence and prior rank excludes later recoveries', () => {
+  assert.equal([...recoveryMigration.matchAll(/then f\.country_code[\s\S]*?then a\.country_code[\s\S]*?then b\.country_code/g)].length, 2);
+  assert.match(recoveryMigration, /b\.recorded_at <= \([\s\S]*min\(g\.round_end_at\)/);
+  assert.match(recoveryMigration, /s\.round_end_block=g\.round_end_block/);
+  assert.equal([...recoveryMigration.matchAll(/is_sybil_v2_referral_invalidated/g)].length, 2);
+});
+test('verified wallet, strict ISO validation and foreground retry', () => {
+  assert.match(countryPreferenceRoute, /requireWalletSession\(\{[\s\S]*expectedWallet/);
+  assert.match(countryPreferenceRoute, /normalizeIsoCountryCode\(rawCountry\)/);
+  assert.match(countryPreferenceRoute, /\.is\('revoked_at', null\)/);
+  assert.match(countryObservationSync, /body\.recorded === true/);
+  assert.match(countryObservationSync, /syncStarted = await recordCountry\(walletAddress\)/);
+  assert.match(countryObservationSync, /document\.visibilityState === 'visible'/);
+  assert.match(countryObservationSync, /removeEventListener\('visibilitychange'/);
+});

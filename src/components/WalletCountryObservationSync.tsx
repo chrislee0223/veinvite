@@ -11,7 +11,7 @@ const WALLET_SESSION_READY_EVENT =
 
 async function recordCountry(
   expectedWallet: string,
-): Promise<void> {
+): Promise<boolean> {
   const response = await fetch(
     '/api/preferences/country',
     {
@@ -32,6 +32,8 @@ async function recordCountry(
       body.error || 'Country observation save failed.',
     );
   }
+  const body = await response.json() as { recorded?: unknown };
+  return body.recorded === true;
 }
 
 export function WalletCountryObservationSync() {
@@ -44,9 +46,17 @@ export function WalletCountryObservationSync() {
 
     let cancelled = false;
     let syncStarted = false;
+    let inFlight = false;
+    let queued = false;
 
     const syncCountry = async () => {
-      if (cancelled || syncStarted) return;
+      if (cancelled) return;
+      if (inFlight) {
+        queued = true;
+        return;
+      }
+      if (syncStarted) return;
+      inFlight = true;
       syncStarted = true;
 
       try {
@@ -62,7 +72,9 @@ export function WalletCountryObservationSync() {
           return;
         }
 
-        await recordCountry(walletAddress);
+        // A missing/invalid edge country is not a successful observation.
+        // Retry on a later visible re-entry; never poll in the background.
+        syncStarted = await recordCountry(walletAddress);
       } catch (error) {
         if (cancelled) return;
         syncStarted = false;
@@ -70,6 +82,11 @@ export function WalletCountryObservationSync() {
           'Failed to record VeInvite wallet country observation:',
           error,
         );
+      } finally {
+        inFlight = false;
+        const retry = queued && !cancelled && !syncStarted;
+        queued = false;
+        if (retry) void syncCountry();
       }
     };
 
@@ -89,6 +106,11 @@ export function WalletCountryObservationSync() {
       handleWalletSessionReady,
     );
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void syncCountry();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Re-entry may restore the authenticated cookie before the wallet-ready
     // event is observed. The shared probe coalesces this check with language
     // sync instead of issuing a second identical session request.
@@ -96,6 +118,7 @@ export function WalletCountryObservationSync() {
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener(
         APP_READY_EVENT,
         handleAppReady,
