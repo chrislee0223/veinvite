@@ -24,6 +24,7 @@ import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
+import { mergeLatestNotificationPage, mergeOlderNotificationPage } from '@/lib/notifications/notificationHistoryPagination';
 import {
   NETWORK_DATA_REFRESH_REQUESTED_EVENT,
   invalidateNetworkRootCache,
@@ -46,6 +47,8 @@ type HistoryPage = {
   items: InviteNotificationHistoryItem[];
   unreadCount: number;
   nextCursor: string | null;
+  requestEpoch?: number;
+  requestSequence?: number;
 };
 
 type AcknowledgementResponse = {
@@ -321,11 +324,19 @@ export function InAppInviteNotifications({
   const latestHistoryRequestRef =
     useRef<Promise<HistoryPage | null> | null>(null);
   const lifecycleRefreshRef = useRef<Promise<void> | null>(null);
+  const historyPageRef = useRef<HistoryPage>({ items: [], unreadCount: 0, nextCursor: null });
+  const historyEpochRef = useRef(0);
+  const headRequestSequenceRef = useRef(0);
+  const appliedHeadSequenceRef = useRef(0);
+  const olderRequestRef = useRef<object | null>(null);
 
   useEffect(() => {
     activeWalletRef.current = wallet;
     const cached = wallet ? readHistoryCache(wallet) : null;
     historyResolvedRef.current = cached !== null;
+    historyEpochRef.current += 1;
+    olderRequestRef.current = null;
+    historyPageRef.current = cached ?? { items: [], unreadCount: 0, nextCursor: null };
     setItems(cached?.items ?? []);
     setUnreadCount(cached?.unreadCount ?? 0);
     setNextCursor(cached?.nextCursor ?? null);
@@ -347,6 +358,9 @@ export function InAppInviteNotifications({
 
     clearHistoryCache(requestWallet);
     historyResolvedRef.current = false;
+    historyEpochRef.current += 1;
+    olderRequestRef.current = null;
+    historyPageRef.current = { items: [], unreadCount: 0, nextCursor: null };
     setItems([]);
     setUnreadCount(0);
     setNextCursor(null);
@@ -372,6 +386,8 @@ export function InAppInviteNotifications({
       requestWallet: string;
       beforeId?: string | null;
     }): Promise<HistoryPage | null> => {
+      const requestEpoch = historyEpochRef.current;
+      const requestSequence = beforeId === null ? ++headRequestSequenceRef.current : undefined;
       const params = new URLSearchParams({
         limit: String(HISTORY_PAGE_SIZE),
       });
@@ -400,11 +416,12 @@ export function InAppInviteNotifications({
         );
       }
 
-      if (!sameWallet(activeWalletRef.current, requestWallet)) {
-        return null;
-      }
+      if (!sameWallet(activeWalletRef.current, requestWallet) ||
+          historyEpochRef.current !== requestEpoch) return null;
 
       return {
+        requestEpoch,
+        requestSequence,
         items: Array.isArray(body.items) ? body.items : [],
         unreadCount:
           Number.isFinite(body.unreadCount)
@@ -421,11 +438,16 @@ export function InAppInviteNotifications({
 
   const applyLatestHistory = useCallback(
     (history: HistoryPage, requestWallet: string) => {
+      if (history.requestEpoch !== historyEpochRef.current ||
+          (history.requestSequence ?? 0) < appliedHeadSequenceRef.current) return;
+      appliedHeadSequenceRef.current = history.requestSequence ?? 0;
       historyResolvedRef.current = true;
-      setItems(history.items);
-      setUnreadCount(history.unreadCount);
-      setNextCursor(history.nextCursor);
-      writeHistoryCache(requestWallet, history);
+      const merged = mergeLatestNotificationPage(historyPageRef.current, history);
+      historyPageRef.current = merged;
+      setItems(merged.items);
+      setUnreadCount(merged.unreadCount);
+      setNextCursor(merged.nextCursor);
+      writeHistoryCache(requestWallet, merged);
 
       const latestHomeRefreshId = newestHistoryId(
         history.items.filter(notificationRequiresHomeRefresh),
@@ -690,21 +712,14 @@ export function InAppInviteNotifications({
 
         const now = new Date().toISOString();
         const nextUnreadCount = acknowledgement.unreadCount;
-        setItems((current) => {
-          const updated = current.map((item) =>
-            item.id === id && item.readAt === null
-              ? { ...item, readAt: now }
-              : item,
-          );
-          if (wallet) {
-            writeHistoryCache(wallet, {
-              items: updated,
-              unreadCount: nextUnreadCount,
-              nextCursor,
-            });
-          }
-          return updated;
-        });
+        historyEpochRef.current += 1;
+        const updated = historyPageRef.current.items.map((item) =>
+          item.id === id && item.readAt === null ? { ...item, readAt: now } : item,
+        );
+        const acknowledgedPage = { ...historyPageRef.current, items: updated, unreadCount: nextUnreadCount };
+        historyPageRef.current = acknowledgedPage;
+        setItems(updated);
+        if (wallet) writeHistoryCache(wallet, acknowledgedPage);
         setUnreadCount(nextUnreadCount);
         window.dispatchEvent(
           new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
@@ -717,6 +732,7 @@ export function InAppInviteNotifications({
         }
 
         if (wallet) {
+          latestHistoryRequestRef.current = null;
           void loadLatestHistory({ requestWallet: wallet });
           void refreshLifecycle();
         }
@@ -739,7 +755,6 @@ export function InAppInviteNotifications({
       busy,
       items,
       loadLatestHistory,
-      nextCursor,
       refreshLifecycle,
       wallet,
     ],
@@ -767,23 +782,16 @@ export function InAppInviteNotifications({
 
       const now = new Date().toISOString();
       const nextUnreadCount = acknowledgement.unreadCount;
-      setItems((current) => {
-        const updated = current.map((item) =>
-          item.readAt === null &&
-          NOTIFICATION_POLICY[item.kind].readBehavior === 'tap' &&
-          historyIdAtOrBefore(item.id, throughId)
-            ? { ...item, readAt: now }
-            : item,
-        );
-        if (wallet) {
-          writeHistoryCache(wallet, {
-            items: updated,
-            unreadCount: nextUnreadCount,
-            nextCursor,
-          });
-        }
-        return updated;
-      });
+      historyEpochRef.current += 1;
+      const updated = historyPageRef.current.items.map((item) =>
+        item.readAt === null &&
+        NOTIFICATION_POLICY[item.kind].readBehavior === 'tap' &&
+        historyIdAtOrBefore(item.id, throughId) ? { ...item, readAt: now } : item,
+      );
+      const acknowledgedPage = { ...historyPageRef.current, items: updated, unreadCount: nextUnreadCount };
+      historyPageRef.current = acknowledgedPage;
+      setItems(updated);
+      if (wallet) writeHistoryCache(wallet, acknowledgedPage);
       setUnreadCount(nextUnreadCount);
       window.dispatchEvent(
         new Event(NOTIFICATION_HISTORY_ACKNOWLEDGED_EVENT),
@@ -796,6 +804,7 @@ export function InAppInviteNotifications({
       }
 
       if (wallet) {
+        latestHistoryRequestRef.current = null;
         void loadLatestHistory({ requestWallet: wallet });
         void refreshLifecycle();
       }
@@ -817,34 +826,34 @@ export function InAppInviteNotifications({
     busy,
     items,
     loadLatestHistory,
-    nextCursor,
     refreshLifecycle,
     unreadCount,
     wallet,
   ]);
 
   const loadMore = useCallback(async () => {
-    if (!wallet || !nextCursor || loading || busy) return;
+    if (!wallet || !nextCursor || loading || busy || olderRequestRef.current) return;
     const requestWallet = wallet;
+    const requestedCursor = historyPageRef.current.nextCursor;
+    if (!requestedCursor) return;
+    const requestToken = {};
+    olderRequestRef.current = requestToken;
     setLoading(true);
     setErrorMessage('');
 
     try {
       const page = await loadHistoryPage({
         requestWallet,
-        beforeId: nextCursor,
+        beforeId: requestedCursor,
       });
-      if (!page || !sameWallet(activeWalletRef.current, requestWallet)) return;
-
-      setItems((current) => {
-        const byId = new Map(
-          current.map((item) => [item.id, item]),
-        );
-        for (const item of page.items) byId.set(item.id, item);
-        return [...byId.values()];
-      });
-      setUnreadCount(page.unreadCount);
-      setNextCursor(page.nextCursor);
+      if (!page || page.requestEpoch !== historyEpochRef.current ||
+          !sameWallet(activeWalletRef.current, requestWallet) ||
+          olderRequestRef.current !== requestToken) return;
+      const merged = mergeOlderNotificationPage(historyPageRef.current, page, requestedCursor);
+      historyPageRef.current = merged;
+      setItems(merged.items);
+      setNextCursor(merged.nextCursor);
+      writeHistoryCache(requestWallet, merged);
     } catch (error) {
       console.warn(
         'VeInvite older notification history load failed:',
@@ -858,8 +867,9 @@ export function InAppInviteNotifications({
         );
       }
     } finally {
-      if (sameWallet(activeWalletRef.current, requestWallet)) {
-        setLoading(false);
+      if (olderRequestRef.current === requestToken) {
+        olderRequestRef.current = null;
+        if (sameWallet(activeWalletRef.current, requestWallet)) setLoading(false);
       }
     }
   }, [busy, loadHistoryPage, loading, nextCursor, wallet]);

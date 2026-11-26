@@ -182,6 +182,9 @@ jobs:
       - name: Mission dApp attribution gate
         run: node --test tests/mission-dapp-attribution.test.mjs
 
+      - name: Notification history pagination behavior gate
+        run: node --experimental-strip-types --test tests/notification-history-pagination-behavior.test.mjs
+
       - name: Standalone regression coverage gate
         run: >-
           node --test
