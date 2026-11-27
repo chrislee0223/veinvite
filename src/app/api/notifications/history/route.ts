@@ -294,6 +294,11 @@ export async function GET(request: NextRequest) {
     );
   }
   const limit = parseLimit(request.nextUrl.searchParams.get('limit'));
+  const readIdsParam = request.nextUrl.searchParams.get('readIds');
+  const readIds = readIdsParam ? [...new Set(readIdsParam.split(','))] : [];
+  if (readIds.length > MAX_ACKNOWLEDGEMENTS || readIds.some(id => !parsePositiveInteger(id))) {
+    return noStoreJson({ error: 'Invalid notification read-state ids.' }, { status: 400 });
+  }
 
   try {
     // Immutable payout receipts are the source of truth for paid alerts.
@@ -342,6 +347,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const readStates: Record<string, string> = {};
+    if (beforeId === null && readIds.length) {
+      const result = await supabaseAdmin.from('invite_notification_history_reads')
+        .select('notification_id,read_at').eq('inviter_wallet', wallet).in('notification_id', readIds);
+      if (result.error) {
+        console.warn('Notification read-state synchronization failed:', result.error.message);
+      } else {
+        for (const row of result.data ?? []) readStates[String(row.notification_id)] = row.read_at;
+      }
+    }
     const rows = historyPage.rows.slice(0, limit);
     const legacySecurityIds = rows
       .filter(
@@ -421,6 +436,7 @@ export async function GET(request: NextRequest) {
     return noStoreJson({
       items,
       unreadCount,
+      readStates,
       nextCursor:
         historyPage.hasMore && rows.length > 0
           ? String(rows[rows.length - 1].id)

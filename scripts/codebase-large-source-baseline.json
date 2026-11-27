@@ -1,7 +1,7 @@
 {
   "thresholdBytes": 30000,
   "capturedFromCommit": "76c45daa7f95cb13da09a28ed81d8db492ee407d",
-  "note": "Reviewed owner-only canary X release preview (2026-11-05): Home adds safe in-memory synthetic release handling through the existing confirmation modal; AppNetwork mirrors released capacity while retaining live invite/reward isolation. New helper is small and separate; no Supabase or payout writes. Reviewed growth measured by CI audit. 2026-11-17 reviewed: anonymous Network usage records only on completed user edits; extracted shared drag checks, existing autosave preserved, no per-frame requests, max two event categories per tab. 2026-11-18 reviewed: wallet-scoped and Seoul-day-scoped Network events fix same-tab A-to-B undercount; +99 bytes in AppNetwork are only owner-wallet parameters at completed-action call sites, with no autosave or reward changes.",
+  "note": "Reviewed owner-only canary X release preview (2026-11-05): Home adds safe in-memory synthetic release handling through the existing confirmation modal; AppNetwork mirrors released capacity while retaining live invite/reward isolation. New helper is small and separate; no Supabase or payout writes. Reviewed growth measured by CI audit. 2026-11-17 reviewed: anonymous Network usage records only on completed user edits; extracted shared drag checks, existing autosave preserved, no per-frame requests, max two event categories per tab. 2026-11-18 reviewed: wallet-scoped and Seoul-day-scoped Network events fix same-tab A-to-B undercount; +99 bytes in AppNetwork are only owner-wallet parameters at completed-action call sites, with no autosave or reward changes. 2026-11-27 reviewed notification controller: bounded wallet-scoped read-state synchronization and receipt refresh generation guard; no extra polling cadence or payout changes.",
   "allowedLargeSourceFiles": [
     "src/components/AppNetwork.tsx",
     "src/components/PublicNetworkExplorer.tsx",
@@ -33,7 +33,8 @@
     "src/lib/i18n/inviterSecurityNotificationCopy.ts",
     "src/lib/i18n/localePacks/ur.ts",
     "src/components/AppSettings.tsx",
-    "src/components/WalletSessionGate.tsx"
+    "src/components/WalletSessionGate.tsx",
+    "src/components/InAppInviteNotifications.tsx"
   ],
   "growthCeilingsBytes": {
     "src/components/AppNetwork.tsx": 150589,
@@ -43,6 +44,7 @@
     "src/components/HomeClient.tsx": 59074,
     "src/lib/rewards/automaticRewardPayout.ts": 35358,
     "src/app/api/cron/vote-reconcile/route.ts": 29931,
-    "src/components/AppSettings.tsx": 32280
+    "src/components/AppSettings.tsx": 32280,
+    "src/components/InAppInviteNotifications.tsx": 30370
   }
 }

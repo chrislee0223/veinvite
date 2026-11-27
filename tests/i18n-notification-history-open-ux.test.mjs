@@ -16,6 +16,10 @@ const center = [
     'utf8',
   ),
 ].join('\n');
+const scrollAnchor = readFileSync(
+  'src/hooks/useNotificationHistoryScrollAnchor.ts',
+  'utf8',
+);
 const receiptView = readFileSync(
   'src/components/RewardReceiptView.tsx',
   'utf8',
@@ -49,6 +53,11 @@ test('opening the notification dialog focuses the panel without painting the clo
 
 test('notification history no longer owns Claim loading or payout actions', () => {
   assert.doesNotMatch(center, /useLayoutEffect/);
+  // Layout work is permitted only in the isolated, DOM-only scroll hook.
+  assert.match(center, /useNotificationHistoryScrollAnchor\(/);
+  assert.match(scrollAnchor, /useLayoutEffect\(/);
+  assert.match(scrollAnchor, /getBoundingClientRect/);
+  assert.doesNotMatch(scrollAnchor, /fetch\(|\/api\/|walletSession|loadRewardActions|payout/i);
   assert.doesNotMatch(center, /loadRewardActions/);
   assert.doesNotMatch(center, /notificationClaimButton/);
   assert.doesNotMatch(center, /\/api\/notifications\/reward-actions/);

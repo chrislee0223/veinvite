@@ -24,7 +24,7 @@ import type {
   InviteNotificationPayloadV2,
 } from '@/lib/notifications/inviteNotificationStateV2';
 import { NOTIFICATION_POLICY } from '@/lib/notifications/notificationPolicy';
-import { mergeLatestNotificationPage, mergeOlderNotificationPage } from '@/lib/notifications/notificationHistoryPagination';
+import { mergeLatestNotificationPage, mergeOlderNotificationPage, readStateLookupIds } from '@/lib/notifications/notificationHistoryPagination';
 import {
   NETWORK_DATA_REFRESH_REQUESTED_EVENT,
   invalidateNetworkRootCache,
@@ -47,6 +47,7 @@ type HistoryPage = {
   items: InviteNotificationHistoryItem[];
   unreadCount: number;
   nextCursor: string | null;
+  readStates?: Record<string, string>;
   requestEpoch?: number;
   requestSequence?: number;
 };
@@ -391,6 +392,10 @@ export function InAppInviteNotifications({
         limit: String(HISTORY_PAGE_SIZE),
       });
       if (beforeId) params.set('beforeId', beforeId);
+      else {
+        const ids = readStateLookupIds(historyPageRef.current.items, requestSequence ?? 1);
+        if (ids.length) params.set('readIds', ids.join(','));
+      }
 
       const response = await fetch(
         `/api/notifications/history?${params.toString()}`,
@@ -398,9 +403,7 @@ export function InAppInviteNotifications({
       );
 
       if (response.status === 401) {
-        if (!sameWallet(activeWalletRef.current, requestWallet)) {
-          return null;
-        }
+        if (!sameWallet(activeWalletRef.current, requestWallet) || historyEpochRef.current !== requestEpoch) return null;
         backOffLifecycleAfterUnauthorized();
         invalidateWalletSession(requestWallet);
         return null;
@@ -421,6 +424,7 @@ export function InAppInviteNotifications({
       return {
         requestEpoch,
         requestSequence,
+        readStates: body.readStates,
         items: Array.isArray(body.items) ? body.items : [],
         unreadCount:
           Number.isFinite(body.unreadCount)
@@ -893,6 +897,8 @@ export function InAppInviteNotifications({
   useEffect(() => {
     const onRewardReceiptAcknowledged = () => {
       if (!wallet) return;
+      historyEpochRef.current += 1;
+      latestHistoryRequestRef.current = null;
       void loadLatestHistory({ requestWallet: wallet });
       void refreshLifecycle();
     };
@@ -946,6 +952,7 @@ export function InAppInviteNotifications({
         setErrorMessage('');
         setOpen(true);
 
+        if (items.length > 0) void loadLatestHistory({ requestWallet: wallet });
         if (items.length === 0) {
           const visibleLoading = !historyResolvedRef.current;
           void loadLatestHistory({

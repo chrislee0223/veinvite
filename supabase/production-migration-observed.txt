@@ -323,3 +323,5 @@
 20261125154452 mission_silent_empty_renewal_v1
 20261125155556 verified_legacy_two_user_recovery_v1
 20261126143958 referral_country_recovery_v1
+20261126154414 notification_history_retention_v1
+20261126172316 notification_retry_read_guard_v1
