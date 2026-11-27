@@ -4,11 +4,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
 
+import { useNotificationHistoryScrollAnchor } from '@/hooks/useNotificationHistoryScrollAnchor';
 import { INELIGIBLE_INVITER_COPY } from '@/lib/i18n/ineligibleInviterCopy';
 import { INVITER_HOLD_NOTIFICATION_COPY } from '@/lib/i18n/inviterHoldNotificationCopy';
 import { INVITER_SECURITY_NOTIFICATION_COPY } from '@/lib/i18n/inviterSecurityNotificationCopy';
@@ -372,21 +372,6 @@ export function InviteNotificationHistoryCenter({
   const receiptRequestRef = useRef(0);
   const receiptAutoAckIdRef = useRef<string | null>(null);
   const receiptNeedsHistoryAckRef = useRef(false);
-  const scrollPositionRef = useRef(0);
-  const historyScrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollAnchorRef = useRef<{ id: string; offset: number } | null>(null);
-  const captureScrollAnchor = useCallback((node: HTMLDivElement) => {
-    const top = node.getBoundingClientRect().top;
-    const first = Array.from(node.querySelectorAll<HTMLElement>('[data-history-id]'))
-      .find(row => row.getBoundingClientRect().bottom > top);
-    scrollAnchorRef.current = node.scrollTop > 2 && first?.dataset.historyId
-      ? { id: first.dataset.historyId, offset: first.getBoundingClientRect().top - top } : null;
-    scrollPositionRef.current = node.scrollTop;
-  }, []);
-  const restoreHistoryScroll = useCallback((node: HTMLDivElement | null) => {
-    historyScrollRef.current = node;
-    if (node) node.scrollTop = scrollPositionRef.current;
-  }, []);
   const [clockTick, setClockTick] = useState(0);
   const [closing, setClosing] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -442,17 +427,8 @@ export function InviteNotificationHistoryCenter({
     [visibleItems],
   );
 
-  useLayoutEffect(() => {
-    const node = historyScrollRef.current;
-    if (!node) return;
-    const anchor = scrollAnchorRef.current;
-    if (anchor) {
-      const row = Array.from(node.querySelectorAll<HTMLElement>('[data-history-id]'))
-        .find(element => element.dataset.historyId === anchor.id);
-      if (row) node.scrollTop += row.getBoundingClientRect().top - node.getBoundingClientRect().top - anchor.offset;
-    }
-    captureScrollAnchor(node);
-  }, [sorted, visibleOpen, clockTick, receipt, receiptLoading, receiptError, captureScrollAnchor]);
+  const { captureScrollAnchor, restoreHistoryScroll, resetScrollAnchor } =
+    useNotificationHistoryScrollAnchor(visibleOpen, sorted, clockTick, Boolean(receipt || receiptLoading || receiptError));
 
   const groups = useMemo(() => {
     const now = new Date();
@@ -470,13 +446,12 @@ export function InviteNotificationHistoryCenter({
     receiptRequestRef.current += 1;
     receiptAutoAckIdRef.current = null;
     receiptNeedsHistoryAckRef.current = false;
-    scrollPositionRef.current = 0;
-    scrollAnchorRef.current = null;
+    resetScrollAnchor();
     setReceipt(null);
     setReceiptLoading(false);
     setReceiptError('');
     setReceiptAcknowledging(false);
-  }, [visibleOpen]);
+  }, [visibleOpen, resetScrollAnchor]);
 
   const openRewardReceipt = useCallback(async (
     item: InviteNotificationHistoryItem,
