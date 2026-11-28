@@ -31,6 +31,7 @@ import {
   type ProductAnalyticsFailureCode,
 } from '@/lib/productAnalytics';
 import type { InviteRecord } from '@/lib/types';
+import { requestInviteWalletSessionRecovery, shortInviteWalletAddress } from '@/lib/inviteClientRecovery';
 
 type Step =
   | 'loading'
@@ -423,9 +424,7 @@ export function PermanentReferralClient({
         flowKey: 'permanent_referral',
       });
       setStep('wallet');
-      window.dispatchEvent(
-        new Event('veinvite-wallet-session-invalid'),
-      );
+      requestInviteWalletSessionRecovery();
       return;
     }
 
@@ -626,7 +625,7 @@ export function PermanentReferralClient({
           </button>
         ) : (
           <div className="notice successNotice">
-            {t.walletConnected}: {shortAddress(wallet)}
+            {t.walletConnected}: {shortInviteWalletAddress(wallet)}
           </div>
         )}
         <button
@@ -652,6 +651,12 @@ export function PermanentReferralClient({
             ? t.returningSuccessDescription
             : t.newSuccessDescription}
         </p>
+        <div className="missionSummary">
+          <span>✓ {t.walletMission}</span>
+          <span>2. {t.appMission}</span>
+          <span>3. {t.conversionMission}</span>
+          <span>4. {t.voteMission}</span>
+        </div>
         <button
           type="button"
           className="primaryButton greenButton"
@@ -771,6 +776,3 @@ function LanguageSwitcher({
   );
 }
 
-function shortAddress(address: string) {
-  return `${address.slice(0, 8)}···${address.slice(-6)}`;
-}

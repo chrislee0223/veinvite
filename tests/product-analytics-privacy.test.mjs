@@ -264,8 +264,9 @@ test('wallet-auth failure categories are bounded and safe', async () => {
   );
   const classify = (code, stage, message) =>
     walletAuthFailureBucket({ code, stage, message });
-  assert.equal(classify('AUTH_CERTIFICATE_SIGNATURE_INVALID', 'AUTH_SERVER_VERIFICATION'), 'wallet_signature');
-  assert.equal(classify('AUTH_TYPED_SIGNER_MISMATCH', 'AUTH_SERVER_VERIFICATION'), 'wallet_signature');
+  assert.equal(classify('AUTH_CERTIFICATE_SIGNATURE_INVALID', 'AUTH_SERVER_VERIFICATION'), 'wallet_verification');
+  assert.equal(classify('AUTH_TYPED_SIGNER_MISMATCH', 'AUTH_SERVER_VERIFICATION'), 'wallet_verification');
+  assert.equal(classify('AUTH_WALLET_SIGNATURE', 'AUTH_WALLET_SIGNATURE'), 'wallet_signature');
   assert.equal(classify('AUTH_RATE_LIMITED', 'AUTH_CHALLENGE_REQUEST'), 'wallet_rate_limit');
   assert.equal(classify('AUTH_CONTEXT_CHANGED', 'AUTH_SERVER_VERIFICATION'), 'wallet_challenge');
   assert.equal(classify('AUTH_WALLET_PROVIDER', 'AUTH_WALLET_PROVIDER'), 'wallet_provider');
@@ -292,7 +293,7 @@ test('wallet diagnostic collection is passive, cancellable and consistent with D
     assert.ok(newMigration.includes("'"+code+"'"), 'database allowlist missing '+code);
   }
   assert.match(walletAuth, /failureCode: walletAuthFailureBucket\(/);
-  assert.match(walletAuth, /if \(isCancelledAuthentication\(error\)\)/);
+  assert.match(walletAuth, /if \(isCancelledAuthentication\(error, failureStage\)\)/);
   assert.match(walletAuth, /eventName: 'wallet_auth_succeeded'/);
   assert.match(walletAuth, /eventName: 'wallet_auth_failed'/);
   assert.match(newMigration, /create or replace function public\.record_app_product_event/);

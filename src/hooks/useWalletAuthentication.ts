@@ -152,7 +152,11 @@ async function readJson<T>(
   }
 }
 
-function isCancelledAuthentication(error: unknown): boolean {
+function isCancelledAuthentication(error: unknown, stage: string): boolean {
+  // EIP-1193 explicit user rejection may be returned as a plain object.
+  // Restrict it to the wallet prompt, never a server denial or session error.
+  if (stage === 'AUTH_WALLET_SIGNATURE' && error !== null && typeof error === 'object' &&
+      'code' in error && error.code === 4001) return true;
   if (error instanceof DOMException && error.name === 'AbortError') {
     return true;
   }
@@ -629,7 +633,7 @@ export function useWalletAuthentication() {
             flowKey: walletAuthAnalyticsFlow(),
           });
         } catch (error) {
-          if (isCancelledAuthentication(error)) {
+          if (isCancelledAuthentication(error, failureStage)) {
             // Cancellation is not a failed proof and must not be counted as
             // a security rejection. Still tell the user which action occurred.
             throw new WalletAuthenticationFailure(

@@ -33,6 +33,7 @@ import {
   type ProductAnalyticsMissionKey,
 } from '@/lib/productAnalytics';
 import type { InviteRecord } from '@/lib/types';
+import { requestInviteWalletSessionRecovery, shortInviteWalletAddress } from '@/lib/inviteClientRecovery';
 
 type Step = 'landing' | 'wallet' | 'checking' | 'success' | 'missions' | 'error' | 'review';
 type EntryClass = 'new_user' | 'returning_user';
@@ -443,6 +444,18 @@ export function InviteeClient({ code }: { code: string }) {
       return;
     }
 
+    if (response.status === 401) {
+      reportProductAnalyticsEvent({
+        eventName: 'invite_accept_failed',
+        outcome: 'failure',
+        failureCode: 'wallet_auth',
+        flowKey: 'legacy_invite',
+      });
+      setStep('wallet');
+      requestInviteWalletSessionRecovery();
+      return;
+    }
+
     let data: InviteApiResponse;
     try {
       data = (await response.json()) as InviteApiResponse;
@@ -620,7 +633,7 @@ export function InviteeClient({ code }: { code: string }) {
         {!wallet ? (
           <button type="button" className="secondaryButton" onClick={openWallet}>{t.connectWallet}</button>
         ) : (
-          <div className="notice successNotice">{t.walletConnected}: {shortAddress(wallet)}</div>
+          <div className="notice successNotice">{t.walletConnected}: {shortInviteWalletAddress(wallet)}</div>
         )}
         <button type="button" className="primaryButton" disabled={!wallet} onClick={() => void claim()}>
           {wallet ? t.checkEligibility : t.connectThenContinue}
@@ -918,6 +931,3 @@ function LanguageSwitcher({
   );
 }
 
-function shortAddress(address: string) {
-  return `${address.slice(0, 8)}···${address.slice(-6)}`;
-}

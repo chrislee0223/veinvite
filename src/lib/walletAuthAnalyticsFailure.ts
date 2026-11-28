@@ -41,7 +41,8 @@ export function walletAuthFailureBucket({
     code === 'AUTH_MISSING_PROOF' ||
     code === 'AUTH_UNSUPPORTED_PROOF'
   ) {
-    return 'wallet_signature';
+    // A server-rejected proof is distinct from a wallet prompt that failed.
+    return stage === 'AUTH_SERVER_VERIFICATION' ? 'wallet_verification' : 'wallet_signature';
   }
 
   if (code.startsWith('AUTH_CHALLENGE_') || code === 'AUTH_CONTEXT_CHANGED') {
