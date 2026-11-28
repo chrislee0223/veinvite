@@ -191,6 +191,7 @@ jobs:
           tests/app-header-actions.test.mjs
           tests/demo-completion-mission-parity.test.mjs
           tests/invitee-mission-actions.test.mjs
+          tests/invite-client-recovery-regression.test.mjs
           tests/legacy-invite-claim-retry.test.mjs
           tests/legacy-invite-cancel-retry.test.mjs
           tests/network-single-runtime.test.mjs

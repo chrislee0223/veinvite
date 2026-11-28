@@ -19,14 +19,16 @@ test('public permanent-link validation retries a 404 once before showing unavail
   assert.doesNotMatch(permanentStatus, /expires_at|\.eq\('invitee_wallet'/);
 });
 
-test('a lost claim session reopens the existing verified wallet gate before eligibility', () => {
+test('a lost claim session reopens the existing verified wallet gate before eligibility', async () => {
   const unauthorizedAt = client.indexOf("if (response.status === 401) {");
   const bodyAt = client.indexOf("let data: ClaimResponse;");
   assert.ok(unauthorizedAt >= 0 && unauthorizedAt < bodyAt);
   const recovery = client.slice(unauthorizedAt, bodyAt);
   assert.match(recovery, /failureCode: 'wallet_auth'/);
   assert.match(recovery, /setStep\('wallet'\)/);
-  assert.match(recovery, /new Event\('veinvite-wallet-session-invalid'\)/);
+  assert.match(recovery, /requestInviteWalletSessionRecovery\(\)/);
+  const sharedRecovery = await readFile(new URL('../src/lib/inviteClientRecovery.ts', import.meta.url), 'utf8');
+  assert.match(sharedRecovery, /new Event\('veinvite-wallet-session-invalid'\)/);
   assert.match(sessionGate, /window\.addEventListener\(\s*WALLET_SESSION_INVALID_EVENT,\s*handleInvalidWalletSession/);
   assert.match(sessionGate, /const handleInvalidWalletSession = \(\) => \{[\s\S]*void verify\(\);/);
 });
